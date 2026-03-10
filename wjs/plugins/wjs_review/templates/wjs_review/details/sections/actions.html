@@ -4,7 +4,7 @@
 {% endif %}
 {% if pending_proofs_version %}
   <div id="production" class="card border border-1 mb-4">
-    <h5 class="card-header fw-bolder">{% translate "Production" %}</h5>
+    <h2 class="card-header fw-bolder fs-5">{% translate "Production" %}</h2>
     <div class="card-body">
       {% include "wjs_review/details/elements/production_galleyproofing.html" with version=pending_proofs_version %}
     </div>
@@ -15,7 +15,7 @@
 {% get_article_issue_tracker_url workflow "rogne" as rogne_issue_tracker_url %}
 {% get_article_issue_tracker_url workflow "post-production" as post_production_issue_tracker_url %}
 <div class="card border border-1 mb-4">
-  <h5 class="card-header fw-bolder">{% translate "Actions" %}</h5>
+  <h2 class="card-header fw-bolder fs-5">{% translate "Actions" %}</h2>
   {% if actions %}
     <div class="card-body">
       <ul class="nav flex-column nav--colored-dot">

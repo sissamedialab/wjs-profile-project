@@ -28,6 +28,7 @@
         hx-target="#new-editor-form"
         hx-swap="innerHTML"
         hx-on::after-request="document.getElementById('new-editor-form').style.display = 'block';">
+      <label class="form-check-label visually-hidden" for="selected-editor-{{ user.pk }}">{{ select_label }} {{ user.get_full_name }}</label>
     </td>
   </tr>
 {% endfor %}
