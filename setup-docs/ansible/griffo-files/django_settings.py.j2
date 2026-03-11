@@ -7,8 +7,8 @@ SECRET_KEY = "{{ django_secret_key | default('change-me-in-production') }}"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "janeway",
-        "USER": "wjs",
+        "NAME": "{{ full_name }}",
+        "USER": "janeway",
         "PASSWORD": "{{ postgres_password | default('cambiami-please') }}",
         "HOST": "localhost",
         "PORT": "5432",

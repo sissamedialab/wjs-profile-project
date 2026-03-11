@@ -1,0 +1,105 @@
+# Create a new Janeway instance - root part
+#
+# See wjs-test-instance__wjs
+---
+- hosts: test
+  remote_user: root
+  become: yes
+  vars:
+    postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('cambiami-please', true) }}"
+    instance_name: "{{ instance | default('aaa') }}"
+    suffix: "{{ ('-') + instance_name if (instance_name)  else ('') }}"
+    full_name: "janeway{{ suffix }}"
+
+  tasks:
+    - name: Create web directories for journals
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+      loop:
+        - /var/www/hosts/{{ instance_name }}-journals/html
+        - /var/www/hosts/{{ instance_name }}-jcap/html
+        - /var/www/hosts/{{ instance_name }}-jcom/html
+        - /var/www/hosts/{{ instance_name }}-jcomal/html
+        - /var/www/hosts/{{ instance_name }}-jquant/html
+        - /var/www/hosts/{{ instance_name }}-jhep/html
+        - /var/www/hosts/{{ instance_name }}-jstat/html
+        - /var/www/hosts/{{ instance_name }}-jinst/html
+      # tags: todo
+
+    - name: Link Django media directory to journal web directories
+      file:
+        src: /home/wjs/{{ full_name }}/src/media
+        dest: "{{ item }}/media"
+        state: link
+        force: yes
+        # owner: www-data
+        # group: www-data
+      loop:
+        - /var/www/hosts/{{ instance_name }}-journals/html
+        - /var/www/hosts/{{ instance_name }}-jcap/html
+        - /var/www/hosts/{{ instance_name }}-jcom/html
+        - /var/www/hosts/{{ instance_name }}-jcomal/html
+        - /var/www/hosts/{{ instance_name }}-jquant/html
+        - /var/www/hosts/{{ instance_name }}-jhep/html
+        - /var/www/hosts/{{ instance_name }}-jstat/html
+        - /var/www/hosts/{{ instance_name }}-jinst/html
+      # tags: todo
+
+    - name: Link Django static directory to journal web directories
+      file:
+        src: /home/wjs/{{ full_name }}/src/collected-static
+        dest: "{{ item }}/static"
+        state: link
+        force: yes
+        # owner: www-data
+        # group: www-data
+      loop:
+        - /var/www/hosts/{{ instance_name }}-journals/html
+        - /var/www/hosts/{{ instance_name }}-jcap/html
+        - /var/www/hosts/{{ instance_name }}-jcom/html
+        - /var/www/hosts/{{ instance_name }}-jcomal/html
+        - /var/www/hosts/{{ instance_name }}-jquant/html
+        - /var/www/hosts/{{ instance_name }}-jhep/html
+        - /var/www/hosts/{{ instance_name }}-jstat/html
+        - /var/www/hosts/{{ instance_name }}-jinst/html
+      # tags: todo
+
+
+    - name: Render and copy Apache virtualhost configuration
+      # Note that the template "wjs-test.conf.j2" in "src" is called "wjs-test..."
+      # because it's a template for the "wjs-test.ud" machine.
+      # Don't confuse with the "test" instance 🙂
+      template:
+        src: apache/wjs-test.conf.j2
+        dest: /etc/apache2/sites-available/wjs-{{ instance_name }}.conf
+        owner: root
+        group: root
+        mode: '0644'
+      # tags: todo
+
+    - name: Enable virtualhost
+      command: a2ensite wjs-{{ instance_name }}.conf
+      args:
+        creates: /etc/apache2/sites-enabled/wjs-{{ instance_name }}.conf
+      # tags: todo
+
+    - name: Reload Apache configuration
+      service:
+        name: apache2
+        state: reloaded
+      # tags: todo
+
+
+
+    - name: Copy logrotate configuration for wjs
+      template:
+        src: etc/logrotate-wjs_new.conf.j2
+        dest: /etc/logrotate.d/wjs-{{ instance_name }}
+        owner: root
+        group: root
+        mode: '0644'
+      # tags: todo

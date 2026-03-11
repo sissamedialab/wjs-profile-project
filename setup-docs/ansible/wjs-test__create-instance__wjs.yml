@@ -1,0 +1,244 @@
+# Create a new Janeway instance
+#
+# This is intended to be used on the wjs-test.ud machine.
+# This is the first of two playbooks that should be called together.
+# ATM, we have split the operations that are to be done as user "wjs" (e.g. git clone with ssh ForwardAgent)
+# from those that are to be done as root (e.g. apache config).
+#
+# Call as
+# ansible-playbook wjs-test__create-instance__wjs.yml wjs-test__create-instance__root.yml  -e instance="aaa" postgres_password="***"
+#
+# NB: check the postgres password on the remote .pgpass!
+#
+# Off-topic
+# To process only certain tasks, uncomment the line "tags: todo"
+# and call this playbook as
+# ansible-playbook -t todo --step  wjs-test__create-instance__wjs.yml wjs-test__create-instance__root.yml  -e instance="aaa" -e postgres_password="***"
+# (note the arguments "-t todo" and "--step")
+#
+---
+- hosts: test
+  remote_user: wjs
+  # become: yes
+  vars:
+    ansible_user: wjs
+    wjs_user_id: 1000
+    postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('cambiami-please', true) }}"
+    instance_name: "{{ instance | default('aaa') }}"
+    suffix: "{{ ('-') + instance_name if (instance_name)  else ('') }}"
+    full_name: "janeway{{ suffix }}"
+    workon_home: /home/wjs/.virtualenvs/
+    venv_root: "{{ workon_home }}/{{ full_name }}"
+    python: "{{ venv_root }}/bin/python"
+    pip: "{{ venv_root }}/bin/pip"
+    ansible_ssh_common_args: "-o ForwardAgent=yes"
+
+  tasks:
+    - name: Clone Janeway repo
+      # See also wjs-setup-user.yml
+      # Note that to clone a private repo we need
+      # - ansible_ssh_common_args
+      # - accept_hostkey
+      # see also https://oneuptime.com/blog/post/2026-02-21-how-to-use-ansible-to-clone-private-repositories/view
+      git:
+        repo: git@gitlab.sissamedialab.it:wjs/janeway.git
+        dest: "/home/wjs/{{ full_name }}"
+        version: wjs-production
+        accept_hostkey: true
+
+    - name: Create virtual env
+      shell: |
+        export WORKON_HOME={{ workon_home }}
+        source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+        mkvirtualenv -a $(pwd) {{ full_name }}
+      args:
+        chdir: "/home/wjs/{{ full_name }}/src"
+        executable: /bin/bash
+
+    - name: Install Janeway
+      command: "{{ pip }} install -r requirements.txt -c constraints.txt"
+      args:
+        chdir: "/home/wjs/{{ full_name }}"
+
+
+    - name: Create Django settings directory
+      file:
+        path: "/home/wjs/{{ full_name }}/src/core/settings"
+        state: directory
+        mode: '0755'
+
+    - name: Create Django settings file
+      template:
+        dest: "/home/wjs/{{ full_name }}/src/core/settings/__init__.py"
+        src: griffo-files/django_settings.py.j2
+        mode: '0644'
+      # tags: todo
+
+    # TODO: check me! Move to django_settings.py.j2
+    - name: Add SECURE_PROXY_SSL_HEADER setting if missing
+      lineinfile:
+        path: /home/wjs/{{ full_name }}/src/core/settings/__init__.py
+        line: "SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')"
+        state: present
+
+
+
+
+    - name: Install WJS
+      pip:
+        name: wjs-jcom-profile
+        state: present
+        virtualenv: "{{ venv_root }}"
+        extra_args: "--extra-index-url=https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple"
+
+
+
+
+    - name: Dump janeway-pp database
+      become: yes
+      become_user: wjs
+      community.postgresql.postgresql_db:
+        name: janeway-pp
+        state: dump
+        target: "/tmp/janeway-pp-{{ instance_name }}.pgc"
+        login_host: localhost
+        login_port: 5432
+        login_user: janeway
+        # no need of "dump_extra_args: --format=c", because the target file extension identifies the format
+
+    - name: Drop instance database if it exists
+      community.postgresql.postgresql_db:
+        name: "{{ full_name }}"
+        state: absent
+        login_host: localhost
+        login_port: 5432
+        login_user: janeway
+      # tags: todo
+
+    - name: Create instance database
+      community.postgresql.postgresql_db:
+        name: "{{ full_name }}"
+        state: present
+        login_host: localhost
+        login_port: 5432
+        login_user: janeway
+      # tags: todo
+
+    - name: Restore database from dump
+      community.postgresql.postgresql_db:
+        name: "{{ full_name }}"
+        state: restore
+        target: "/tmp/janeway-pp-{{ instance_name }}.pgc"
+        login_host: localhost
+        login_port: 5432
+        login_user: janeway
+      # tags: todo
+
+    # - name: Remove database dump file
+    #   file:
+    #     path: "/tmp/janeway-pp-{{ instance_name }}.pgc"
+    #     state: absent
+    #   tags: todo
+
+
+    - name: Reset journal names
+      community.postgresql.postgresql_query:
+        login_db: "{{ full_name }}"
+        query: "{{ item }}"
+        login_host: localhost
+        login_port: 5432
+        login_user: janeway
+      loop:
+        - "UPDATE press_press SET domain='wjs-test-{{ instance_name }}-journals.wjapp.it'"
+        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jcom.wjapp.it' where code='JCOM';"
+        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jcomal.wjapp.it' where code='JCOMAL';"
+        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jquant.wjapp.it' where code='JQUANT';"
+        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jhep.wjapp.it' where code='JHEP';"
+        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jcap.wjapp.it' where code='JCAP';"
+        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jstat.wjapp.it' where code='JSTAT';"
+        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jinst.wjapp.it' where code='JINST';"
+
+
+    - name: Copy media files from janeway-pp instance
+      ansible.builtin.copy:
+        src: "/home/wjs/janeway-pp/src/media/"
+        dest: "/home/wjs/{{ full_name }}/src/media/"
+        remote_src: yes
+        owner: wjs
+        group: wjs
+        mode: preserve
+      # tags: todo
+
+    # For not, do _not_ copy files from pp instance
+
+
+    - name: Setup Janeway
+      command: "{{ item }}"
+      loop:
+        - "{{ python }} -mmanage migrate"
+        - "{{ python }} -mmanage sync_translation_fields --noinput"
+        - "{{ python }} -mmanage load_default_settings"
+        - "{{ python }} -mmanage collectstatic --noinput"
+        - "{{ python }} -mmanage compilemessages --settings core.settings"
+      args:
+        chdir: "/home/wjs/{{ full_name }}/src"
+      # tags: todo
+
+    - name: Link typesetting plugin
+      file:
+        src: "/home/wjs/typesetting"
+        dest: "/home/wjs/{{ full_name }}/src/plugins/typesetting"
+        state: link
+        owner: wjs
+        group: wjs
+      # tags: todo
+
+    - name: Setup WJS
+      command: "{{ item }}"
+      loop:
+        - "{{ python }} -mmanage install_themes"
+        - "{{ python }} -mmanage link_plugins"
+        - "{{ python }} -mmanage migrate"
+        - "{{ python }} -mmanage build_assets"
+      args:
+        chdir: "/home/wjs/{{ full_name }}/src"
+      # tags: todo
+
+
+
+
+    - name: Copy gunicorn systemd service unit
+      template:
+        src: systemd/gunicorn.service.j2
+        dest: "/home/wjs/.config/systemd/user/gunicorn-{{ instance_name }}.service"
+        owner: wjs
+        group: wjs
+        mode: '0644'
+      # tags: todo
+
+
+
+    - name: Copy qcluster systemd service unit
+      template:
+        src: systemd/qcluster.service.j2
+        dest: "/home/wjs/.config/systemd/user/qcluster-{{ instance_name }}.service"
+        owner: wjs
+        group: wjs
+        mode: '0644'
+      notify: reload user systemd
+      # tags: todo
+
+
+
+    # TODO start instance?
+
+
+
+  handlers:
+    - name: reload user systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: yes
+        scope: user
+      become_user: wjs
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"

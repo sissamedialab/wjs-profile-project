@@ -2,7 +2,7 @@
   tags:
     - fast-test
   stage: test
-  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:production
 
   # NB: Must match with test_settings.DATABASES
   variables:

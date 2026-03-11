@@ -1,0 +1,10 @@
+[Unit]
+Description=qcluster runner for {{ instance_name }}
+After=network.target
+
+[Service]
+WorkingDirectory=/home/wjs/{{ full_name }}/src
+ExecStart={{ venv_root }}/bin/python manage.py qcluster
+
+[Install]
+WantedBy=default.target

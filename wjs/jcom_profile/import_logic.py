@@ -357,6 +357,37 @@ def truncate_with_ellipsis(s):
     return textwrap.shorten(s, width=6, placeholder="...")
 
 
+def get_reminders_for_article(article, only_enabled=False, code_startswith=None):
+    """Get reminders related to an article via WorkflowReviewAssignment or WjsEditorAssignment or similar."""
+
+    article_reminders = Q(
+        content_type=ContentType.objects.get_for_model(submission_models.Article),
+        object_id=article.pk,
+    )
+    review_assignments = WorkflowReviewAssignment.objects.filter(article=article).values_list("pk")
+    reviewer_reminders = Q(
+        content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
+        object_id__in=review_assignments,
+    )
+    editor_assignments = WjsEditorAssignment.objects.filter(article=article).values_list("pk")
+    editor_reminders = Q(
+        content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
+        object_id__in=editor_assignments,
+    )
+    revision_requests = EditorRevisionRequest.objects.filter(article=article).values_list("pk")
+    author_reminders = Q(
+        content_type=ContentType.objects.get_for_model(EditorRevisionRequest),
+        object_id__in=revision_requests,
+    )
+
+    qs = Reminder.objects.filter(article_reminders | editor_reminders | reviewer_reminders | author_reminders)
+    if only_enabled:
+        qs = qs.filter(disabled=False)
+    if code_startswith:
+        qs = qs.filter(code__startswith=code_startswith)
+    return qs
+
+
 #
 # End global variables and functions section
 #
@@ -990,6 +1021,8 @@ class BaseActionManager:
     """flag used when not all actions of a family have to import files"""
     imported_doclayer_check_visibility: dict
     url_base: str  # = getattr(settings, "WJAPP_JCOM_BASE_URL", None)
+    current_archive: str
+    old_archive: str
 
     def run(self):
         raise NotImplementedError
@@ -1125,9 +1158,8 @@ ORDER BY reminderDate
             return
 
         wjs_reminder_list = []
-        for r_wjs in Reminder.objects.filter(code__startswith=f"{wjs_type}"):
-            if r_wjs.get_related_article() == self.article:
-                wjs_reminder_list.append(r_wjs)
+        for r_wjs in get_reminders_for_article(self.article, code_startswith=f"{wjs_type}"):
+            wjs_reminder_list.append(r_wjs)
         if not wjs_reminder_list:
             return
 
@@ -3035,6 +3067,7 @@ class REF_SENDS_REP(BaseActionManager):  # noqa N801
         query_reviewer_report_message = """
 SELECT
 dl.documentLayerCod,
+dl.documentLayerId,
 dl.documentLayerText,
 dl.documentLayerOnlyTex
 FROM Document_Layer dl
@@ -3178,6 +3211,17 @@ ORDER BY dl.submissionDate
             )
             wra = submit.run()
 
+            if review_file := import_file_manager.ImportFileManager(self).import_rerep_file_pdf(
+                wjapp_report.get("documentLayerId")
+            ):
+                new_file = files.save_file_to_article(
+                    review_file,
+                    wra.article,
+                    wra.reviewer,
+                )
+                wra.review_file = new_file
+                wra.save()
+
             editor_message_subject = render_template_from_setting(
                 setting_group_name="email_subject",
                 setting_name="subject_review_complete_acknowledgement",
@@ -3314,6 +3358,7 @@ class EditorDecisionAction(BaseActionManager):
         query_editor_report_message = """
 SELECT
 dl.documentLayerCod,
+dl.documentLayerId,
 dl.documentLayerText,
 dl.documentLayerOnlyTex
 FROM Document_Layer dl
@@ -3375,7 +3420,16 @@ ORDER BY dl.submissionDate
                 f"fix missing edrep in documentLayerOnlyTeX: {wjapp_editor_report.get('documentLayerCod')=}"
             )
         else:
-            wjapp_editor_report_message = newlines_text_to_html(wjapp_editor_report.get("documentLayerOnlyTex"))
+
+            # TODO: adapt to the new jcap review page with provides fields for edrep.tex and erep.pdf
+            # As temporary solution the content of the file edrep.tex is attached to the text cover
+            # letter of wjapp edrep to bulid the entire "editor report message"
+            logger.debug(f"{wjapp_editor_report.get('documentLayerId')=}")
+            wjapp_editor_report_message = newlines_text_to_html(
+                import_file_manager.ImportFileManager(self).import_edrep_file_source(
+                    wjapp_editor_report.get("documentLayerId")
+                )
+            )
 
         editor_report_message = "<br><br><br><br>".join(
             filter(None, [wjapp_editor_cover_letter_message, wjapp_editor_report_message])
@@ -4712,6 +4766,9 @@ class PUB_PUBLISHES(BaseActionManager):  # noqa N801
                 flag_as_read=True,
                 flag_as_read_by_eo=True,
             )
+
+            if self.importfiles:
+                import_file_manager.ImportFileManager(self).get_publication_pdf()
 
 
 @dataclass

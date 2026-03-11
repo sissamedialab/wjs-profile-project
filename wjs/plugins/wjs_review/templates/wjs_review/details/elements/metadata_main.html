@@ -11,7 +11,7 @@
     </tr>
   {% endif %}
   {% setting_var request.journal "arxiv_field_status" as arxiv_field_status %}
-  {% if arxiv_field_status != "disabled" %}
+  {% if arxiv_field_status != "disabled" and article.submission_data %}
     <tr>
       <th>{% translate "ArXiv ID" %}</th>
       <td>{% if article.submission_data.get_arxiv_id %}<a href="{{ article.submission_data.get_arxiv_doi }}" target="_blank">{{ article.submission_data.get_arxiv_id }}</a>  ({{ article.submission_data.arxiv_category }}){% else %}N.A.{% endif %}</td>
