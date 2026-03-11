@@ -1,4 +1,4 @@
-{% load django_bootstrap5 press_url static %}
+{% load django_bootstrap5 i18n press_url static %}
 {% url 'core_edit_profile' as core_edit_profile %}
 <script type="text/javascript" src="{% static 'js/sticky_top_handling.js' %}"></script>
 
@@ -18,7 +18,7 @@
             </div>
             <div class="col-4 col-lg-6 align-items-end flex-column d-none d-lg-flex justify-content-end">
               {% if core_edit_profile and request.user.is_authenticated %}
-                <a class="wjs-header__user-btn" href="{{ core_edit_profile }}">{{ request.user.get_full_name }} <span class="fs-3 ms-3"><i class="bi bi-person-circle"></i></span></a>
+                {% include "wjs_review/base/elements/user_menu.html" with show_name=True %}
               {% endif %}
             </div>
           </div>
@@ -49,9 +49,11 @@
             </nav>
             {% block top_menu %}
             {% endblock top_menu %}
-            <div class="wjs-user-menu__full-header">
-              {% if request.user.is_authenticated %}
-                  {% include "wjs_review/base/elements/user_menu.html" %}
+            <div class="align-content-center">
+              {% if request.user.is_authenticated and view.role %}
+                <button class="wjs-header__role-label" type="button">
+                  {% translate "Viewing as" %}: {{ view.role_label }}
+                </button>
               {% endif %}
             </div>
           </div>
