@@ -2,45 +2,33 @@
 {% translate "Search" as filter_label %}
 {% translate "Reset filters" as reset_label %}
 {% url request.resolver_match.url_name as reset_url %}
-  <script type="text/javascript" src="{% static 'js/submit_with_enter_button.js' %}"></script>
-  <script>
-    EnableSubmitEnterButton('id_filter_form', 'id_filter_form_submit_button');
-    document.addEventListener('click', function(event) {
+
+<script type="text/javascript" src="{% static 'js/submit_with_enter_button.js' %}"></script>
+<script>
+  EnableSubmitEnterButton('id_filter_form', 'id_filter_form_submit_button');
+  document.addEventListener('click', function(event) {
     if (event.target && event.target.id === 'id_reset_activity_button') {
       window.location.href = '{{ reset_url|escapejs }}';
     }
   });
-  </script>
+</script>
+
 <div id="messages-list">
-  <div class="sticky-top bg-light">
+  <div class="sticky-top bg-light z-1" id="sticky-filter-container">
     <div class="container mb-3">
       <h1 class="page-title">{{ view.title }}</h1>
       <div class="d-flex justify-content-between">
         <form id="id_filter_form" class="mb-4" hx-get="{{ filter_url }}" hx-target="#messages-list">
           <div class="row mb-3">
-            <div class="col-md-3">
-              {% bootstrap_field filter.form.from_date wrapper_class="w-100" %}
-            </div>
-            <div class="col-md-3">
-              {% bootstrap_field filter.form.to_date wrapper_class="w-100" %}
-            </div>
-            <div class="col-md-3">
-              {% bootstrap_field filter.form.actor_recipients wrapper_class="w-100" %}
-            </div>
-            <div class="col-md-3">
-              {% bootstrap_field filter.form.type wrapper_class="w-100" %}
-            </div>
+            <div class="col-md-3">{% bootstrap_field filter.form.from_date wrapper_class="w-100" %}</div>
+            <div class="col-md-3">{% bootstrap_field filter.form.to_date wrapper_class="w-100" %}</div>
+            <div class="col-md-3">{% bootstrap_field filter.form.actor_recipients wrapper_class="w-100" %}</div>
+            <div class="col-md-3">{% bootstrap_field filter.form.type wrapper_class="w-100" %}</div>
           </div>
           <div class="row mb-3">
-            <div class="col-md-3">
-              {% bootstrap_field filter.form.eo_in_charge wrapper_class="w-100" %}
-            </div>
-            <div class="col-md-3">
-              {% bootstrap_field filter.form.content wrapper_class="w-100" %}
-            </div>
-            <div class="col-md-3">
-              {% bootstrap_field filter.form.important wrapper_class="w-100" %}
-            </div>
+            <div class="col-md-3">{% bootstrap_field filter.form.eo_in_charge wrapper_class="w-100" %}</div>
+            <div class="col-md-3">{% bootstrap_field filter.form.content wrapper_class="w-100" %}</div>
+            <div class="col-md-3">{% bootstrap_field filter.form.important wrapper_class="w-100" %}</div>
             <div class="col-md-3 d-flex justify-content-start gap-2 align-items-center align-self-end">
               {% bootstrap_button id="id_filter_form_submit_button" name="filter" content=filter_label wrapper_class="me-3" %}
               {% bootstrap_button button_type="button" id="id_reset_activity_button" content=reset_label button_class="btn-outline-secondary ms-1" %}
@@ -51,24 +39,23 @@
     </div>
   </div>
 
-{% regroup messages_list by date as messages_by_day %}
-{% for by_day in messages_by_day %}
-  <h2 class="text-center fw-bold fs-5">{{ by_day.grouper }}</h2>
-  {% regroup by_day.list by created|date:"Y-m-d H:i:s" as messages_by_exact_time %}
-  {% for by_time in messages_by_exact_time %}
-    {% if by_time.list|length > 1 %}
-      <b>{{ by_time.grouper|date:"F j, Y, g:i a" }}</b>
-      {% for message in by_time.list %}
-        {% include "wjs_review/messages_overview/elements/message.html" %}
-      {% endfor %}
-      </div>
-    {% else %}
-      <div class="mb-3">
-        {% for message in by_time.list %}
-          {% include "wjs_review/messages_overview/elements/message.html" %}
-        {% endfor %}
-      </div>
-    {% endif %}
+  {% regroup messages_list by date as messages_by_day %}
+  {% for by_day in messages_by_day %}
+    <h2 class="text-center fw-bold fs-5">{{ by_day.grouper }}</h2>
+    {% regroup by_day.list by created|date:"Y-m-d H:i:s" as messages_by_exact_time %}
+    {% for by_time in messages_by_exact_time %}
+      <div class="mb-3"> {% if by_time.list|length > 1 %}
+          <b>{{ by_time.grouper|date:"F j, Y, g:i a" }}</b>
+          {% for message in by_time.list %}
+            {% include "wjs_review/messages_overview/elements/message.html" %}
+          {% endfor %}
+        {% else %}
+          {% for message in by_time.list %}
+            {% include "wjs_review/messages_overview/elements/message.html" %}
+          {% endfor %}
+        {% endif %}
+      </div> {% endfor %}
   {% endfor %}
-{% endfor %}
-{% include "wjs_review/base/elements/pagination.html" %}
+
+  {% include "wjs_review/base/elements/pagination.html" %}
+</div>
