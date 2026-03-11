@@ -28,7 +28,6 @@
           <tr>
             <td colspan="3">{{ article.submission_data.access_mode|default:"" }}</td>
           </tr>
-        {% endif %}
           <tr>
             <th colspan="3">{% translate "License" %}</th>
           </tr>
@@ -41,6 +40,7 @@
           <tr>
             <td colspan="3">{{ article.rights }}</td>
           </tr>
+        {% endif %}
       </table>
       {% if article_fundings %}
         {% include "wjs_review/details/elements/metadata_fundings.html" %}
