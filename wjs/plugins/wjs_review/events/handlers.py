@@ -328,14 +328,19 @@ def _run_conversion(
     file_id: int,
     feedback_ws_url: str | None = None,
     feedback_ws_name: str | None = None,
+    feedback_uuid: str | None = None,
     *,
     is_revision: bool = False,
 ):
+    logger.info(
+        f"Running conversion for {article_id} - {file_id} - {feedback_ws_url} - {feedback_uuid} - {is_revision}"
+    )
     conversion = ConvertManuscriptToPdf(
         article_id=article_id,
         file_id=file_id,
         feedback_ws_url=feedback_ws_url,
         feedback_ws_name=feedback_ws_name,
+        feedback_uuid=feedback_uuid,
         is_revision=is_revision,
     )
     conversion.run()
@@ -348,6 +353,7 @@ def convert_manuscript_to_pdf(**kwargs) -> None:
     file_obj = kwargs["file_id"]  # Upstream misnomer
     feedback_ws_url = kwargs.get("feedback_ws_url")
     feedback_ws_name = kwargs.get("feedback_ws_name")
+    feedback_uuid = kwargs.get("feedback_uuid")
     is_revision = kwargs.get("is_revision", False)
 
     if file_type.startswith("manuscript"):
@@ -358,6 +364,7 @@ def convert_manuscript_to_pdf(**kwargs) -> None:
                 file_id=file_obj.pk,
                 feedback_ws_url=feedback_ws_url,
                 feedback_ws_name=feedback_ws_name,
+                feedback_uuid=feedback_uuid,
                 is_revision=is_revision,
             )
         else:

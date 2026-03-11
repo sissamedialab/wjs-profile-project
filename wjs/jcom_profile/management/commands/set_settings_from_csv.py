@@ -45,9 +45,11 @@ class Command(BaseCommand):
         """Set submission configuration settings from CSV rows."""
         for row in csv_rows:
             if row["field name"] == "default_license":
-                row["current value"] = Licence.objects.get(short_name=row["current value"], journal=journal)
+                licence, __ = Licence.objects.get_or_create(short_name=row["current value"], journal=journal)
+                row["current value"] = licence
             if row["field name"] == "default_section":
-                row["current value"] = Section.objects.get(name=row["current value"], journal=journal)
+                section, __ = Section.objects.get_or_create(name=row["current value"], journal=journal)
+                row["current value"] = section
             if row["field name"] == "default_language":
                 row["current value"] = row["current value"].lower()
             if row["current value"] == "false":
