@@ -370,8 +370,8 @@ Q_CLUSTER = {
     "workers": 1,
     "sync": True,
     "redis": REDIS_QCLUSTER_URL,
-    "retry": 90,
-    "timeout": 60,
+    "retry": 330,
+    "timeout": 300,
 }
 
 

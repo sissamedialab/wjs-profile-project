@@ -54,7 +54,7 @@
                   hx-include="[name='decision_editor_report']"
                      hx-on="
                       htmx:beforeRequest: clearError();
-                      htmx:responseError: showError(event);
+                      htmx:responseError: logError(event);
                       htmx:afterRequest: clearErrorOnSuccess(event);
                   "
               >
@@ -78,62 +78,10 @@
       </div>
     </form>
   </div>
-  <script>
-    function checkDateVisibility(decision) {
-      if (["minor_revisions", "major_revisions", "tech_revisions"].indexOf(decision.selectedOptions[0].value) > -1) {
-        document.querySelector(".date-due").classList.remove("visually-hidden");
-      } else {
-        document.querySelector(".date-due").classList.add("visually-hidden");
-      }
-    }
-
-    (function() {
-      "use strict";
-      const decision = document.querySelector("#id_decision");
-
-      decision.addEventListener("change", function() {
-        checkDateVisibility(decision);
-      });
-
-      checkDateVisibility(decision);
-
-    })();
-
-  document.addEventListener("click", e => {
-    if (!e.target.classList.contains("copy-tex-btn")) return
-    const id = e.target.dataset.reviewId
-    const text = document.querySelector(`#author_review_tex_modal-${id} .modal-body`)?.innerText.trim()
-    if (!text) return
-    const editor = document.getElementById("id_decision_editor_report")
-    if (!editor) return
-    if (editor.value) editor.value += "\n\n-------------------\n\n"
-    editor.value += text
-  })
-  document.body.addEventListener("htmx:afterOnLoad", e => {
-    if (!e.target.classList.contains("copy-tex-btn")) return
-    const latex = e.detail.xhr.responseText.trim()
-    if (!latex) return
-    const editor = document.getElementById("id_decision_editor_report")
-    if (!editor) return
-    if (editor.value) editor.value += "\n\n-------------------\n\n"
-    editor.value += latex
-  })
-
-  document.body.addEventListener("yakunin-error", ev => {
-      document.getElementById("pdf_error").innerText = ev.detail.value;
-      document.getElementById("pdf_error").classList.remove("d-none");
-  });
-
-  function clearError() {
-      document.getElementById("pdf_error").innerText = "";
-      document.getElementById("pdf_error").classList.add("d-none");
-  }
-
-  document.body.addEventListener("htmx:afterRequest", event => {
-      const xhr = event.detail.xhr;
-      if (xhr.status >= 200 && xhr.status < 300) {
-          clearError();
-      }
-  });
-  </script>
 {% endblock content_wrapper %}
+
+{% block js %}
+  {{ block.super }}
+  <script src="{% static "js/report_editor.js" %}"></script>
+  <script src="{% static "js/handle_latex_report.js" %}"></script>
+{% endblock js %}

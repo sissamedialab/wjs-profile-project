@@ -29,6 +29,7 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404
 from django.template import Context
+from django.template.loader import render_to_string
 from django.urls import resolve, reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.module_loading import import_string
@@ -109,6 +110,7 @@ from .logic import (
     ConvertReviewerLatexReport,
     HandleMessage,
     YakuninPDFGenerationError,
+    YakuninPDFGenerationWarnings,
     YakuninRequestError,
     render_template_from_setting,
     states_when_article_is_considered_archived,
@@ -130,6 +132,7 @@ from .models import (
     ArticleWorkflow,
     EditorDecision,
     EditorRevisionRequest,
+    LatexPreamble,
     Message,
     MessageRecipients,
     PermissionAssignment,
@@ -3975,7 +3978,106 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
         return context
 
 
-class ElaborateLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+class BaseConvertLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+    """
+    Pass report text to Yakunin for conversion and report any error.
+
+    Ensures authenticated user access and supports error handling for LaTeX
+    conversions using Yakunin PDF generation.
+
+    :ivar assignment: Represents the current assignment related to the article.
+    :type assignment: Assignment
+    :ivar request: The HTTP request object for this view.
+    :type request: HttpRequest
+    """
+
+    def test_func(self):
+        raise NotImplementedError()
+
+    def _render_error(self, error: Exception, **kwargs):
+        """
+        Render an error message to an HTML string using the provided error and additional context.
+
+        :param error: The exception instance containing error details
+        :type error: Exception
+        :param kwargs: Additional context to provide to the rendering process
+        :return: Rendered HTML string representing the error message
+        :rtype: str
+        :raises: Any exceptions raised by `render_to_string` or during template rendering
+        """
+        context = {
+            "error": error,
+        }
+        context.update(kwargs)
+        return render_to_string("wjs_review/make_decision/elements/conversion_error.html", context, self.request)
+
+    def post(self, request, *args, **kwargs):
+        """
+        Process a HTMX request to generate and return a downloadable LaTeX review file.
+
+        In case of errors, the message is reported via HX-Trigger with event yakunin-error.
+
+        :param request: HTTP request object containing POST data
+        :type request: HttpRequest
+        :param args: Additional positional arguments
+        :type args: tuple
+        :param kwargs: Additional keyword arguments
+        :type kwargs: dict
+        :return: HTTP response with appropriate status and headers for LaTeX generation
+        :rtype: HttpResponse
+        :raises YakuninPDFGenerationError: If an error occurs during PDF generation
+        :raises YakuninPDFGenerationWarnings: If warnings occur during PDF generation
+        :raises YakuninRequestError: If there's an error in the Yakunin request
+        :raises LatexPreamble.DoesNotExist: If the required LaTeX configuration is missing
+        :raises Exception: For unhandled exceptions during the process
+        """
+        client = ConvertEditorLatexReport(
+            report_text=self.request.POST.get("decision_editor_report"),
+            instance=self.assignment,
+        )
+        try:
+            generated_tex_review = client.run()
+        except (YakuninPDFGenerationError, YakuninPDFGenerationWarnings) as e:
+            if client.logfile:
+                download_url = reverse(
+                    "download_single_file",
+                    args=[self.assignment.article.pk, client.logfile.pk],
+                )
+                response = HttpResponse(status=400)
+                response["HX-Trigger"] = json.dumps(
+                    {"yakunin-error": self._render_error(e, conversion_log_url=download_url)}
+                )
+                return response
+            else:
+                raise e
+        except (YakuninRequestError, LatexPreamble.DoesNotExist) as e:
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": self._render_error(e)})
+            return response
+        except Exception as e:
+            response = HttpResponse(status=500)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": self._render_error(e)})
+            return response
+
+        download_url = reverse(
+            "download_single_file",
+            args=[self.assignment.article.pk, generated_tex_review.pk],
+        )
+        response = HttpResponse(status=204)
+        response["HX-Redirect"] = download_url
+        return response
+
+
+class ConvertLatexReviewerReportView(BaseConvertLatexReportView):
+    """
+    Generate the reviewer report using yakunin.
+
+    Retrieves an assigned workflow review object based on the assignment ID provided in
+    the URL and ensures that only authorized reviewers can access the view.
+
+    :ivar assignment: Workflow review assignment linked to the provided assignment ID.
+    :type assignment: WorkflowReviewAssignment
+    """
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
@@ -3984,40 +4086,15 @@ class ElaborateLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
     def test_func(self):
         return permissions.is_article_reviewer(self.assignment.article.articleworkflow, self.request.user)
 
-    def post(self, request, *args, **kwargs):
-        try:
-            client = ConvertReviewerLatexReport(
-                report_text=self.request.POST.get("author_review_tex"),
-                instance=self.assignment,
-            )
-            generated_tex_review = client.run()
-        except YakuninPDFGenerationError as e:
-            logfile = core_models.File.objects.get(
-                article_id=self.assignment.article.pk, original_filename=client.yakunin_log_filename
-            )
-            download_url = reverse(
-                "download_single_file",
-                args=[self.assignment.article.pk, logfile.pk],
-            )
-            response = HttpResponse(status=400)
-            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
-            response["HX-Redirect"] = download_url
-            return response
-        except YakuninRequestError as e:
-            response = HttpResponse(status=400)
-            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
-            return response
 
-        download_url = reverse(
-            "download_single_file",
-            args=[self.assignment.article.pk, generated_tex_review.pk],
-        )
-        response = HttpResponse(status=204)
-        response["HX-Redirect"] = download_url
-        return response
+class ConvertLatexEditorReportView(BaseConvertLatexReportView):
+    """
+    Generate the editor report using yakunin.
 
 
-class ElaborateLatexEditorReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+    :ivar assignment: Represents the current editor assignment fetched using the workflow.
+    :type assignment: WjsEditorAssignment
+    """
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
@@ -4026,38 +4103,6 @@ class ElaborateLatexEditorReportView(HtmxMixin, AuthenticatedUserPassesTest, Vie
 
     def test_func(self):
         return permissions.is_article_editor_or_eo(self.assignment.article.articleworkflow, self.request.user)
-
-    def post(self, request, *args, **kwargs):
-        try:
-            client = ConvertEditorLatexReport(
-                report_text=self.request.POST.get("decision_editor_report"),
-                instance=self.assignment,
-            )
-            generated_tex_review = client.run()
-        except YakuninPDFGenerationError as e:
-            logfile = core_models.File.objects.get(
-                article_id=self.assignment.article.pk, original_filename=client.yakunin_log_filename
-            )
-            download_url = reverse(
-                "download_single_file",
-                args=[self.assignment.article.pk, logfile.pk],
-            )
-            response = HttpResponse(status=400)
-            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
-            response["HX-Redirect"] = download_url
-            return response
-        except YakuninRequestError as e:
-            response = HttpResponse(status=400)
-            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
-            return response
-
-        download_url = reverse(
-            "download_single_file",
-            args=[self.assignment.article.pk, generated_tex_review.pk],
-        )
-        response = HttpResponse(status=204)
-        response["HX-Redirect"] = download_url
-        return response
 
 
 class ConvertTextToLatex(HtmxMixin, AuthenticatedUserPassesTest, View):
