@@ -33,7 +33,6 @@ from utils import models as janeway_utils_models
 from utils.logger import get_logger
 from utils.models import LogEntry
 
-from wjs.defaults.settings import ISSUE_TRACKER_URLS
 from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.models import StaffWorkloadParameters
 from wjs.jcom_profile.permissions import has_eo_role
@@ -101,19 +100,24 @@ def get_article_actions(context: Dict[str, Any], workflow: ArticleWorkflow, tag:
             action.as_dict(workflow, user)
             for action in state_class.article_actions
             if action.is_available(workflow, user)
-            # if action.has_permission(workflow, user) and action.tag == tag
         ]
     else:
-        return None
+        return []
 
 
 @register.simple_tag(takes_context=True)
-def get_article_issue_tracker_url(context: Dict[str, Any], workflow: ArticleWorkflow, repo: str) -> str:
-    """Get the issue tracker url for the given article and repo."""
-    article = workflow.article
-    repo_url = ISSUE_TRACKER_URLS.get(repo)
-
-    return f"{repo_url}new?issue[title]={article.pk} {article.title}"
+def get_article_buttons(context: Dict[str, Any], workflow: ArticleWorkflow, tag: Union[str, None] = None) -> List[str]:
+    """Get the available buttons on an article in the given state."""
+    user = context["request"].user
+    state_class = BaseState.get_state_class(workflow)
+    if state_class is not None and state_class.article_buttons is not None:
+        return [
+            action.as_dict(workflow, user)
+            for action in state_class.article_buttons
+            if action.is_available(workflow, user)
+        ]
+    else:
+        return []
 
 
 @register.simple_tag(takes_context=True)
