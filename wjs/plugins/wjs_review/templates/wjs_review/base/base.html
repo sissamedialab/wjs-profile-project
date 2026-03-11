@@ -1,6 +1,10 @@
 {% extends "wjs/base/base.html" %}
 {% load static %}
 
+{% block header %}
+  {% include "wjs_review/base/elements/header.html" %}
+{% endblock header %}
+
 {% block breadcrumbs_wrapper %}
   {% if view.breadcrumbs %}
     <div class="container d-flex justify-content-between mb-3 pb-3 border-bottom">
@@ -16,10 +20,6 @@
     </div>
   {% endif %}
 {% endblock breadcrumbs_wrapper %}
-
-{% block header %}
-  {% include "wjs_review/base/elements/header.html" %}
-{% endblock header %}
 
 {% block footer %}
   {% include "wjs_review/base/elements/footer.html" %}
