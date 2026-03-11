@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
   // Select the primary header and the low menu
   const header = document.querySelector(".header-main");
-  const lowHeaderMenu = document.getElementById("lowHeaderMenu");
 
   // Exit early if the main header isn't found to prevent errors
   if (!header) return;
@@ -10,11 +9,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const startThreshold = 75; // Scroll depth (px) to trigger the "scrolled" state
   const endThreshold = 1; // Scroll depth (px) to reset back to the "top" state
   let isScrolled = false; // Boolean flag to track the current state and prevent redundant DOM updates
-
-  // Initial Check: Ensure the secondary menu is hidden for accessibility if we are at the top
-  if (window.scrollY <= startThreshold && lowHeaderMenu) {
-    lowHeaderMenu.setAttribute("aria-hidden", "true");
-  }
 
   // Monitor scroll position to toggle header classes and ARIA states
   window.addEventListener(
@@ -25,13 +19,11 @@ document.addEventListener("DOMContentLoaded", function () {
       // Triggered when scrolling down past the startThreshold
       if (scrollPos > startThreshold && !isScrolled) {
         header.classList.add("is-scrolled");
-        if (lowHeaderMenu) lowHeaderMenu.setAttribute("aria-hidden", "false");
         isScrolled = true;
       }
       // Triggered when scrolling back up near the very top
       else if (scrollPos < endThreshold && isScrolled) {
         header.classList.remove("is-scrolled");
-        if (lowHeaderMenu) lowHeaderMenu.setAttribute("aria-hidden", "true");
         isScrolled = false;
       }
     },
