@@ -10,9 +10,9 @@
 {% if show_file == "text" %}
   {% if review.review_file %}
     {% if author_file_title %}
-      {% bootstrap_button type="link" href=download_file content=author_file_label|safe button_class="btn-outline-primary" %}
+      {% bootstrap_button type="link" href=download_review_file content=author_file_label|safe button_class="btn-outline-primary" %}
     {% else %}
-      {% bootstrap_button type="link" href=download_file content=review.review_file button_class="btn-outline-primary" %}
+      {% bootstrap_button type="link" href=download_review_file content=review.review_file button_class="btn-outline-primary" %}
     {% endif %}
   {% endif %}
 {% elif show_file == "tex" %}
