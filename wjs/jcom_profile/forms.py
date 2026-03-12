@@ -475,7 +475,7 @@ class SearchForm(JanewaySearchForm):
     ]
 
     article_search = forms.CharField(
-        label=_("Search titles, keywords, and authors"),
+        label=_("Search titles, content, keywords, and authors"),
         min_length=3,
         max_length=100,
         required=False,

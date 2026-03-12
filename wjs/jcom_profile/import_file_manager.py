@@ -1,11 +1,14 @@
 """Import article from wjapp."""
 
 import io
+import os
+import shutil
+import subprocess
+import sys
 import tarfile
 import zipfile
 from dataclasses import dataclass
 from io import BytesIO
-from itertools import chain
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -34,34 +37,119 @@ class ImportFileManager:
         "pdf",  # file preprintid.pdf
         "source_tex",  # any source tex file not the "main"
         "source_zip",  # zip submitted by the author for each version
-        "source_targz",  # targz submitted by the author for each version
         "figure",  # any figure file of the latex archive
         "edrep_tex",
         "edrep_pdf",
         "rerep_tex",
         "rerep_pdf",
+        "rerep_txt",  # old reports are only txt
         "attachment",  # wjapp attachments
         "author_annotation",  # file uploded by the author when sends the corrections
         "production_source",  # production tar.gz uploded by the typesetter
         "production_pdf",  # production pdf generated on wjapp
+        "publication_pdf",  # publication pdf generated on wjapp
     )
 
     # Note: the archives contained in "preprintid/production/" should not be necessary
     # because reading the directory "submission/" we can import the correct
     # author source archive
 
-    def __post_init__(self):
-        """Set file archives paths."""
+    # TODO: necessary to manage publication version files (final files with the placeholder replaced)
 
-        archive_path_current_orig = getattr(
-            settings, f"WJAPP_{self.action_manager.journal.code.upper()}_IMPORT_ARCHIVE_CURRENT", None
+    @classmethod
+    def get_year_dir(cls, preprintid):
+        """return part of the file path in the archive old"""
+        return f"{preprintid[:4]}20{preprintid[-2:]}preprints"
+
+    @classmethod
+    def read_settings_archives_orig(cls, journal, preprintid):
+
+        preprints_dir = "preprint"
+        archive_path_current_orig = getattr(settings, f"WJAPP_{journal.code.upper()}_IMPORT_ARCHIVE_CURRENT", None)
+
+        year_dir = ImportFileManager.get_year_dir(preprintid)
+        archive_path_old_orig = getattr(settings, f"WJAPP_{journal.code.upper()}_IMPORT_ARCHIVE_OLD", None)
+
+        return (f"{archive_path_current_orig}/{preprints_dir}", f"{archive_path_old_orig}/{year_dir}")
+
+    @classmethod
+    def read_settings_archives_dedup(cls, journal, preprintid):
+
+        preprints_dir = "preprint"
+        archive_path_current_dedup = getattr(
+            settings, f"WJAPP_{journal.code.upper()}_IMPORT_ARCHIVE_CURRENT_DEDUP", None
         )
-        self.archive_path_current = self.clean_archive_directory(archive_path_current_orig)
-        archive_path_old_orig = getattr(
-            settings, f"WJAPP_{self.action_manager.journal.code.upper()}_IMPORT_ARCHIVE_OLD", None
+
+        year_dir = ImportFileManager.get_year_dir(preprintid)
+        archive_path_old_dedup = getattr(settings, f"WJAPP_{journal.code.upper()}_IMPORT_ARCHIVE_OLD_DEDUP", None)
+
+        return (f"{archive_path_current_dedup}/{preprints_dir}", f"{archive_path_old_dedup}/{year_dir}")
+
+    @classmethod
+    def dedup_archive_directory(cls, journal, preprintid):
+        """run optimization of the directory content creating a tmp directory without duplicated files."""
+
+        (archive_path_current_orig, archive_path_old_orig) = ImportFileManager.read_settings_archives_orig(
+            journal, preprintid
         )
-        self.archive_path_old = self.clean_archive_directory(archive_path_old_orig)
-        import_logic.logger.debug(f"{self.file_types=}")
+
+        (archive_path_current_dedup, archive_path_old_dedup) = ImportFileManager.read_settings_archives_dedup(
+            journal, preprintid
+        )
+
+        preprintid_dir_current_dedup = f"{archive_path_current_dedup}/{preprintid}"
+        preprintid_dir_current_orig = f"{archive_path_current_orig}/{preprintid}"
+        if os.path.exists(preprintid_dir_current_orig) and not os.path.exists(preprintid_dir_current_dedup):
+            os.makedirs(os.path.dirname(preprintid_dir_current_dedup), exist_ok=True)
+            shutil.copytree(preprintid_dir_current_orig, preprintid_dir_current_dedup, dirs_exist_ok=True)
+            ImportFileManager.run_dedup_script(journal, preprintid_dir_current_dedup)
+
+        preprintid_dir_old_dedup = f"{archive_path_old_dedup}/{preprintid}"
+        preprintid_dir_old_orig = f"{archive_path_old_orig}/{preprintid}"
+        if os.path.exists(preprintid_dir_old_orig) and not os.path.exists(preprintid_dir_old_dedup):
+            os.makedirs(os.path.dirname(preprintid_dir_old_dedup), exist_ok=True)
+            shutil.copytree(preprintid_dir_old_orig, preprintid_dir_old_dedup, dirs_exist_ok=True)
+            ImportFileManager.run_dedup_script(journal, preprintid_dir_old_dedup)
+
+        return (archive_path_current_dedup, archive_path_old_dedup)
+
+    @classmethod
+    def run_dedup_script(cls, journal, tmp_path):
+        """Run external script to deduplicate the preprintid directories"""
+
+        script_path = getattr(settings, f"WJAPP_{journal.code.upper()}_IMPORT_DEDUP_SCRIPT", None)
+        script_args = [tmp_path, "--recursive"]
+        import_logic.logger.debug(f"Script {script_path} run on {tmp_path} ...")
+
+        try:
+            result = subprocess.run(
+                [sys.executable, script_path] + script_args, capture_output=True, text=True, check=True
+            )
+
+            import_logic.logger.debug(f"Script { script_path} execute succefully")
+
+            if result.stderr:
+                import_logic.logger.error(f"{result.stderr}")
+
+        except subprocess.CalledProcessError as e:
+            import_logic.logger.error(f"Error during the execution: {e}")
+            import_logic.logger.error(f"{e.stderr}")
+
+    @classmethod
+    def reset_preprintid_dedup(cls, journal, preprintid):
+        """Delete preprintid current and old dedup folders"""
+
+        (archive_path_current_dedup, archive_path_old_dedup) = ImportFileManager.read_settings_archives_dedup(
+            journal, preprintid
+        )
+
+        preprintid_dir_current_dedup = Path(f"{archive_path_current_dedup}/{preprintid}")
+        if preprintid_dir_current_dedup.exists():
+            shutil.rmtree(preprintid_dir_current_dedup)
+
+        preprintid_dir_old_dedup = Path(f"{archive_path_old_dedup}/{preprintid}")
+        if preprintid_dir_old_dedup.exists():
+            shutil.rmtree(preprintid_dir_old_dedup)
 
     def import_version_files(self, production_version=False):
         """Manages the import the files of the imported_version.
@@ -92,9 +180,6 @@ class ImportFileManager:
             if data["filetype"] == "source_zip":
                 self.save_source_file(djfile, "ZIP", "ZIP source archive")
                 continue
-            if data["filetype"] == "source_targz":
-                self.save_source_file(djfile, "TARGZ", "TARGZ source archive")
-                continue
             if data["filetype"] == "production_pdf":
                 self.save_pdf_galley(djfile)
                 continue
@@ -114,7 +199,8 @@ class ImportFileManager:
                 dff_file.save()
                 # for a production version, each attachment is a SF
                 # TODO: verify the case of published version
-                if not self.publicationid:
+                publication_version = self.action_manager.imported_version_state_cod == 22
+                if production_version and not publication_version:
                     self.action_manager.article.supplementary_files.add(
                         SupplementaryFile.objects.create(file=dff_file)
                     )
@@ -124,36 +210,30 @@ class ImportFileManager:
             if data["filetype"] == "attachment" and not production_version:
                 self.save_data_figure_file(djfile, data)
 
-    def clean_archive_directory(self, orig_path):
-        """run optimization of the directory content creating a tmp directory without duplicated files."""
-        tmp_cleaned_dir_path = orig_path
-        return tmp_cleaned_dir_path
-
     def get_list_of_files_to_import(self, production_version=False):
         """Read archive and for the current preprintid an version extract the list of file and file type to import"""
 
-        # production version: PREPRINT.pdf to be saved as galley
+        # For the production version not publication version we save
+        # PREPRINT.pdf as TA.galleys_created public=False
+
         if production_version:
             return [
                 {
+                    "archive_path": None,
                     "subdir": "",
                     "filename": f"{self.action_manager.preprintid}.pdf",
                     "filetype": "production_pdf",
                     "description": None,
                     "title": None,
-                },
+                }
             ]
 
-        # PREPRINT.tex PREPRINT.pdf
+        # PREPRINT.pdf
+        # Note: PREPRINTID.tex is not imported because we want to have in wjs only the author source
+        # and the PREPRINTID.pdf generated on wjapp
         files_list = [
             {
-                "subdir": "",
-                "filename": f"{self.action_manager.preprintid}.tex",
-                "filetype": "tex",
-                "description": None,
-                "title": None,
-            },
-            {
+                "archive_path": None,
                 "subdir": "",
                 "filename": f"{self.action_manager.preprintid}.pdf",
                 "filetype": "pdf",
@@ -162,92 +242,217 @@ class ImportFileManager:
             },
         ]
 
-        # source submission archive (tar.gz or .zip)
+        # we build the source_zip submission archive from old archive, if exists,
+        # or as second choice from current archive
         submission_archive_list = []
 
         path_sub_arch_current = (
-            Path(self.archive_path_current)
+            Path(self.action_manager.current_archive)
             / f"{self.action_manager.preprintid}"
-            / f"{self.action_manager.imported_version_num} / 'submission'"
+            / f"{self.action_manager.imported_version_num}"
+            / "submission"
         )
 
-        # search in current
-        for item in chain(path_sub_arch_current.rglob("*.tar.gz"), path_sub_arch_current.rglob("*.zip")):
-            if item.is_file():
-                submission_archive_list.append(item)
-                import_logic.logger.debug(f"submission archive in current: {item=}")
+        path_sub_arch_old = (
+            Path(self.action_manager.old_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "submission"
+        )
 
-        # search in old
-        if not submission_archive_list:
-            year_dir = self.get_year_dir(self.action_manager.preprintid)
-            path_sub_arch_old = Path(
-                f"{self.archive_path_old}/{year_dir}/{self.action_manager.preprintid}/"
-                f"{self.action_manager.imported_version_num}/submission"
-            ).resolve()
-            for item in chain(path_sub_arch_old.rglob("*.tar.gz"), path_sub_arch_old.rglob("*.zip")):
-                if item.is_file():
-                    submission_archive_list.append(item)
-                    import_logic.logger.debug(f"submission archive in old: {item=}")
-
-        # build item to add the submission archive to the files list
-        if not submission_archive_list:
-            import_logic.logger.warning(f"Not found submission archive {submission_archive_list}")
-        elif len(submission_archive_list) > 1:
-            import_logic.logger.warning(
-                f"Found {len(submission_archive_list)} submission archives {submission_archive_list}"
+        archive_dir = "build_archive_dir"
+        if path_sub_arch_old.exists():
+            import_logic.logger.debug(
+                f"build source_zip in old archive:"
+                f" {self.action_manager.preprintid}/{self.action_manager.imported_version_num}"
             )
+            submission_archive_list.append(self.build_submission_zip_from_main_directory(archive="old"))
+            archive_path_found = self.action_manager.old_archive
+        elif path_sub_arch_current.exists():
+            import_logic.logger.debug(
+                f"build source_zip in current archive:"
+                f" {self.action_manager.preprintid}/{self.action_manager.imported_version_num}"
+            )
+            submission_archive_list.append(self.build_submission_zip_from_main_directory(archive="current"))
+            archive_path_found = self.action_manager.current_archive
         else:
-            exts = submission_archive_list[0].suffixes
-            ext = "".join(exts)
-            if ext in [".tar.gz"]:
-                filetype = "source_targz"
-            if ext in [".zip"]:
-                filetype = "source_zip"
-            submission_archive = {
-                "subdir": "submission",
-                "filename": f"{submission_archive_list[0].name}",
-                "filetype": filetype,
-                "description": None,
-                "title": None,
-            }
-            files_list.append(submission_archive)
+            import_logic.logger.error(
+                f"Not built submission zip {self.action_manager.preprintid}/{self.action_manager.imported_version_num}"
+            )
+
+        submission_archive = {
+            "archive_path": archive_path_found,
+            "subdir": f"{archive_dir}",
+            "filename": f"{submission_archive_list[0].name}",
+            "filetype": "source_zip",
+            "description": None,
+            "title": None,
+        }
+        files_list.append(submission_archive)
 
         # read attachments data from wjapp database and add the file files to the list
         # with the same format, pdf, zip, ...
         # the original name of the attachment file is not imported but it is not relevant
 
         wjapp_attachments = self.action_manager.read_attachments_data()
-        # in wjapp the base path of the attachment file is different if there is only one attachment
-        if len(wjapp_attachments) == 1:
+        for dff_data in wjapp_attachments:
             files_list.append(
                 {
+                    "archive_path": None,
                     "subdir": "attachments",
-                    "filename": f"{wjapp_attachments[0]['attachID']}.{wjapp_attachments[0]['attachFormat']}",
+                    "filename": f"{dff_data['attachID']}.{dff_data['attachFormat']}",
                     "filetype": "attachment",
-                    "description": wjapp_attachments[0]["attachDescription"],
-                    "title": wjapp_attachments[0]["attachTitle"],
+                    "description": dff_data["attachDescription"],
+                    "title": dff_data["attachTitle"],
                 },
             )
-        else:
-            for dff_data in wjapp_attachments:
-                files_list.append(
-                    {
-                        "subdir": f"attachments/{dff_data['attachID']}",
-                        "filename": f"{dff_data['attachID']}.{dff_data['attachFormat']}",
-                        "filetype": "attachment",
-                        "description": dff_data["attachDescription"],
-                        "title": dff_data["attachTitle"],
-                    },
-                )
 
+        import_logic.logger.debug(
+            f"File List Found for version {self.action_manager.imported_version_num=}  {files_list=}"
+        )
         return files_list
 
-    def get_year_dir(self, preprintid):
-        """return part of the file path in the archive old"""
-        return f"{preprintid[:4]}20{preprintid[-2:]}preprints"
+    def build_submission_zip_from_main_directory(self, archive=None):
+        """create submission zip in build_archive_dir from main dir and submission dir.
+
+        The deduplication lets in submission dir files which are different from the preprintid dir files."""
+
+        # directory definition
+        if archive == "current":
+            version_dir = Path(
+                f"{self.action_manager.current_archive}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}"
+            )
+        else:
+            version_dir = Path(
+                f"{self.action_manager.old_archive}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}"
+            )
+
+        import_logic.logger.debug(f"PATH version dir:   {version_dir=}")
+
+        subdir = version_dir / "build_archive_dir"
+        zip_name = f"{self.action_manager.preprintid}_v{self.action_manager.imported_version_num}_submit.zip"
+        zip_path = subdir / zip_name
+
+        # exclusions
+        exclude_items = {
+            "work",
+            "EDREP",
+            "REREP",
+            "AUANN",
+            "production",
+            "publication",
+            "pitstop",
+            "build_archive_dir",
+            f"{zip_name}",
+        }
+
+        # check existance subdir
+        subdir.mkdir(parents=True, exist_ok=False)
+
+        import_logic.logger.debug(f"{zip_path=}")
+        # create zip archive
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # iterate on all files and directory in preprint dir
+            for item in version_dir.rglob("*"):
+                # calculate relative path
+                rel_path = item.relative_to(version_dir)
+                import_logic.logger.debug(f"{rel_path=}")
+
+                # verify if the item or parent is to exclude
+                import_logic.logger.debug(f"EXCLUDING: {rel_path.parts=}")
+                if any(part in exclude_items for part in rel_path.parts):
+                    import_logic.logger.debug(f"EXCLUDED:  {rel_path=}")
+                    continue
+
+                # add file/directory to zip
+                if item.is_file():
+                    zipf.write(item, arcname=rel_path)
+                    import_logic.logger.debug(f"ADDED:  {rel_path=}")
+                elif item.is_dir() and any(item.iterdir()):
+                    # do not add empty directories
+                    import_logic.logger.debug(f"ADDED:  {rel_path=}")
+                    zipf.write(item, arcname=str(rel_path) + "/")
+        return zip_path
+
+    def build_production_source_targz_from_main_directory(self, archive=None):
+        """Create production targz source in build_archive_dir from
+           - base preprint dir
+           - submission/
+           - publication/currentHidden/
+
+        Adding currentHidden to the archive we are sure to import also the typesetter source
+        file with the placeholders replaced.
+        The deduplication lets in submission dir files which are different from the preprintid dir files.
+        """
+
+        import tarfile
+
+        import_logic.logger.debug(f"PATH:   {self.action_manager.old_archive=}")
+
+        # directory definition
+        if archive == "current":
+            version_dir = Path(
+                f"{self.action_manager.current_archive}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}"
+            )
+        else:
+            version_dir = Path(
+                f"{self.action_manager.old_archive}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}"
+            )
+
+        import_logic.logger.debug(f"PATH version dir:   {version_dir=}")
+
+        subdir = version_dir / "build_archive_dir"
+        targz_name = f"{self.action_manager.preprintid}.tar.gz"
+        targz_path = subdir / targz_name
+
+        # exclusions
+        exclude_items = {
+            "work",
+            "EDREP",
+            "REREP",
+            "AUANN",
+            "production",
+            "pitstop",
+            "build_archive_dir",
+        }
+
+        # check existance subdir
+        subdir.mkdir(parents=True, exist_ok=False)
+
+        import_logic.logger.debug(f"{targz_path=}")
+
+        # create tar.gz archive
+        with tarfile.open(targz_path, "w:gz") as tar:
+            # iterate on all files and directory in preprint dir
+            for item in version_dir.rglob("*"):
+                # calculate relative path
+                rel_path = item.relative_to(version_dir)
+                import_logic.logger.debug(f"{rel_path=}")
+
+                # verify if the item or parent is to exclude
+                import_logic.logger.debug(f"ANALISING: {rel_path.parts=}")
+                import_logic.logger.debug(f"Match: {any(part in exclude_items for part in rel_path.parts)}")
+                if any(part in exclude_items for part in rel_path.parts):
+                    import_logic.logger.debug(f"EXCLUDED:  {rel_path=}")
+                    continue
+
+                # exclude empty dir
+                if item.is_dir() and not any(item.iterdir()):
+                    import_logic.logger.debug(f"EXCLUDED EMPTY:  {rel_path=}")
+                    continue
+
+                # add file/directory to tar
+                tar.add(item, arcname=rel_path, recursive=False)
+                import_logic.logger.debug(f"ADDED:  {rel_path=}")
+
+        return targz_path
 
     def read_file_from_archive(
-        self, subdir: str, filename: str, filetype: str, description: str, title: str
+        self, archive_path: str, subdir: str, filename: str, filetype: str, description: str, title: str
     ) -> DjangoFile:
         """
         Read a file stored inside an archive directory on the filesystem and return it as a DjangoFile.
@@ -256,6 +461,7 @@ class ImportFileManager:
         ready to be saved via a Django model FileField or storage.
         If the file is not in the current archive, try on the old archive.
         Parameters
+        - archive path - optional, if not defined, try in order current and old
         - archive_path_current: full path to the archive directory on disk.
         - subdir: the subdirectory, e.g. 'submission' dir
         - filename: the name of the file
@@ -273,22 +479,32 @@ class ImportFileManager:
         if filetype not in self.file_types:
             raise ValueError(f"Unknown filetype: {filetype!r}. Allowed types: {', '.join(self.file_types)}")
 
-        # search in the current archive directory
-        candidate = Path(
-            f"{self.archive_path_current}/{self.action_manager.preprintid}/"
-            f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
-        ).resolve()
-        import_logic.logger.debug(f"search candidate {filetype} in archive current: {candidate=}")
-
-        if not candidate.exists() or not candidate.is_file():
-            year_dir = self.get_year_dir(self.action_manager.preprintid)
+        if not archive_path:
+            # search in the current archive directory
             candidate = Path(
-                f"{self.archive_path_old}/{year_dir}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.current_archive}/{self.action_manager.preprintid}/"
                 f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
             ).resolve()
-            import_logic.logger.debug(f"search candidate {filetype} in the archive old: {candidate}")
+            import_logic.logger.debug(f"search candidate {filetype} in archive current: {candidate=}")
+
             if not candidate.exists() or not candidate.is_file():
-                raise FileNotFoundError(f"File {filetype} not found: {filename}")
+                # fallback search in the old archive directory
+                candidate = Path(
+                    f"{self.action_manager.old_archive}/{self.action_manager.preprintid}/"
+                    f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
+                ).resolve()
+                import_logic.logger.debug(f"fallback search candidate {filetype} in the archive old: {candidate}")
+                if not candidate.exists() or not candidate.is_file():
+                    raise FileNotFoundError(f"File {filetype} not found: {filename}")
+        else:
+            # provided archive path
+            candidate = Path(
+                f"{archive_path}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
+            ).resolve()
+            import_logic.logger.debug(f"search candidate {filetype} in provided archive path: {candidate=}")
+            if not candidate.exists() or not candidate.is_file():
+                raise FileNotFoundError(f"File {filetype} not found: {filename} in provided {archive_path}")
 
         # Read bytes
         with candidate.open("rb") as f:
@@ -297,34 +513,187 @@ class ImportFileManager:
         # Return DjangoFile wrapping ContentFile
         return DjangoFile(ContentFile(content), name=filename)
 
-    # import report files
-    def import_edrep_file(
-        self,
-    ):
-        """Import the edrep files of the imported_version during the review action.
+    def _read_text_file(self, path):
+        """Read a text file trying utf-8 first, then latin-1 as fallback."""
+        for enc in ("utf-8", "latin-1"):
+            try:
+                with open(path, encoding=enc) as f:
+                    return f.read()
+            except UnicodeDecodeError:
+                continue
+        return None
 
-        The edrep file is imported during the related decision actions, not
-        when the version paper files are imported.
+    def import_edrep_file_source(self, edrep):
+        """Import the edrep source tex of the imported_version during the review action.
+
+        return: the content of the edrep tex source
         """
-        return
+        base_old = (
+            Path(self.action_manager.old_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "EDREP"
+            / f"{edrep}"
+        )
+        base_current = (
+            Path(self.action_manager.current_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "EDREP"
+            / f"{edrep}"
+        )
 
-    def import_rerep_file(
-        self,
-    ):
+        candidates = [
+            (base_current / f"{edrep}.tex", "current tex"),
+            (base_old / f"{edrep}.tex", "old tex"),
+            (base_old / f"{edrep}.txt", "old txt"),
+        ]
+
+        for path, label in candidates:
+            import_logic.logger.debug(f"path edrep {label}: {path}")
+            if path.exists():
+                import_logic.logger.debug(f"found {label}: {path.name}")
+                return self._read_text_file(path)
+
+        import_logic.logger.warning(
+            f"edrep {edrep} source not found for {self.action_manager.preprintid}"
+            f"/{self.action_manager.imported_version_num}"
+        )
+
+    def import_rerep_file_pdf(self, rerep):
         """Import the rerep files of the specific referee of the imported_version.
 
         The rerep file is imported during the related review actions, not
         when the version paper files are imported.
         """
-        return
 
-    def get_production_source(
-        self,
-    ):
+        # rerep file: to be managed by the send report action
+        path_rerep_current = (
+            Path(self.action_manager.current_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "REREP"
+            / f"{rerep}"
+        )
+        if path_rerep_current.exists() and any(path_rerep_current.rglob(f"{rerep}.pdf")):
+            data = {
+                "archive_path": self.action_manager.current_archive,
+                "subdir": f"REREP/{rerep}",
+                "filename": f"{rerep}.pdf",
+                "filetype": "rerep_pdf",
+                "description": None,
+                "title": None,
+            }
+            return self.read_file_from_archive(**data)
+
+        path_rerep_old = (
+            Path(self.action_manager.old_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "REREP"
+            / f"{rerep}"
+        )
+        if path_rerep_old.exists() and any(path_rerep_old.rglob(f"{rerep}.pdf")):
+            data = {
+                "archive_path": self.action_manager.old_archive,
+                "subdir": f"REREP/{rerep}",
+                "filename": f"{rerep}.pdf",
+                "filetype": "rerep_pdf",
+                "description": None,
+                "title": None,
+            }
+            return self.read_file_from_archive(**data)
+
+        if path_rerep_old.exists() and any(path_rerep_old.rglob(f"{rerep}.txt")):
+            data = {
+                "archive_path": self.action_manager.old_archive,
+                "subdir": f"REREP/{rerep}",
+                "filename": f"{rerep}.txt",
+                "filetype": "rerep_txt",
+                "description": None,
+                "title": None,
+            }
+            return self.read_file_from_archive(**data)
+
+        import_logic.logger.warning(
+            f"rerep {rerep} not found for {self.action_manager.preprintid}"
+            f"/{self.action_manager.imported_version_num}"
+        )
+
+    def get_publication_pdf(self):
+        """Get the publication pdf generated by wjapp.
+
+        The filename has not ever the same format for the old published papers. It can be:
+          - publicationid.pdf
+          - preprintid.pdf
+        """
+        # For the publication version we save
+        # publicationid.pdf/preprintid.pdf as TA.galleys_created public=True
+        # TODO: final supplementary supplementary have to be imported
+        publication_version = self.action_manager.imported_version_state_cod == 22
+        import_logic.logger.debug(f"{publication_version=}")
+        if publication_version:
+            # try publication.id
+            try:
+                data = {
+                    "archive_path": None,
+                    "subdir": "",
+                    "filename": f"{self.action_manager.publicationid}.pdf",
+                    "filetype": "publication_pdf",
+                    "description": None,
+                    "title": None,
+                }
+                djfile = self.read_file_from_archive(**data)
+                import_logic.logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
+            except FileNotFoundError:
+                # try preprintid.pdf
+                data = {
+                    "archive_path": None,
+                    "subdir": "",
+                    "filename": f"{self.action_manager.preprintid}.pdf",
+                    "filetype": "publication_pdf",
+                    "description": None,
+                    "title": None,
+                }
+                djfile = self.read_file_from_archive(**data)
+                import_logic.logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
+
+            self.save_pdf_galley(djfile, public=True)
+
+    def get_production_source(self):
         """Get the production source archive which is managed by the typesetter upload action."""
 
+        archive_dir = "submission/"
+        current_production_source_path = Path(
+            f"{self.action_manager.current_archive}/"
+            f"{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/"
+            f"{archive_dir}"
+            f"{self.action_manager.preprintid}.tar.gz"
+        )
+        if current_production_source_path.exists():
+            archive_path_found = self.action_manager.current_archive
+        else:
+            if not Path(f"{self.action_manager.old_archive}/" f"{self.action_manager.preprintid}").exists():
+                archive_path_found = self.action_manager.current_archive
+                self.build_production_source_targz_from_main_directory(archive="current")
+                archive_dir = "build_archive_dir"
+            else:
+                archive_path_found = self.action_manager.old_archive
+                old_production_source_path = Path(
+                    f"{self.action_manager.old_archive}/"
+                    f"{self.action_manager.preprintid}/"
+                    f"{self.action_manager.imported_version_num}/"
+                    f"{archive_dir}"
+                    f"{self.action_manager.preprintid}.tar.gz"
+                )
+                if not old_production_source_path.exists():
+                    self.build_production_source_targz_from_main_directory(archive="old")
+                    archive_dir = "build_archive_dir"
+
         data = {
-            "subdir": "submission",
+            "archive_path": archive_path_found,
+            "subdir": f"{archive_dir}",
             "filename": f"{self.action_manager.preprintid}.tar.gz",
             "filetype": "production_source",
             "description": None,
@@ -341,7 +710,7 @@ class ImportFileManager:
 
         # author annotation: to be managed by the author send corrections action
         path_auann_current = (
-            Path(self.archive_path_current)
+            Path(self.action_manager.current_archive)
             / f"{self.action_manager.preprintid}"
             / f"{self.action_manager.imported_version_num}"
             / "AUANN"
@@ -351,11 +720,12 @@ class ImportFileManager:
         # search in current
         found = path_auann_current.rglob(f"{author_annotation}.*")
         data = {}
-        if found:
+        if any(found):
             for item in found:
                 if item.is_file():
                     import_logic.logger.debug(f"auann in current: {item=}")
                     data = {
+                        "archive_path": self.action_manager.current_archive,
                         "subdir": f"AUANN/{author_annotation}",
                         "filename": f"{item.name}",
                         "filetype": "author_annotation",
@@ -363,10 +733,8 @@ class ImportFileManager:
                         "title": None,
                     }
         else:
-            year_dir = self.get_year_dir(self.action_manager.preprintid)
             path_auann_old = (
-                Path(self.archive_path_old)
-                / f"{year_dir}"
+                Path(self.action_manager.old_archive)
                 / f"{self.action_manager.preprintid}"
                 / f"{self.action_manager.imported_version_num}"
                 / "AUANN"
@@ -376,6 +744,7 @@ class ImportFileManager:
                 if item_old.is_file():
                     import_logic.logger.debug(f"auann in old: {item_old=}")
                     data = {
+                        "archive_path": f"{self.action_manager.old_archive}",
                         "subdir": f"AUANN/{author_annotation}",
                         "filename": f"{item_old.name}",
                         "filetype": "author_annotation",
@@ -384,8 +753,8 @@ class ImportFileManager:
                     }
 
         if not data:
-            import_logic.logger.error(f"author annotation not found {author_annotation}")
-            return
+            import_logic.logger.warning(f"author annotation not found {author_annotation}")
+            return (None, None)
 
         djfile = self.read_file_from_archive(**data)
         import_logic.logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
@@ -439,7 +808,7 @@ class ImportFileManager:
         import_logic.logger.debug(f"saved pdf file {manuscript_dj}")
         return
 
-    def save_pdf_galley(self, pdf_galley_dj):
+    def save_pdf_galley(self, pdf_galley_dj, public=False):
         """Save PDF production version in TA.galleys_created"""
 
         assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
@@ -462,12 +831,12 @@ class ImportFileManager:
             assignment.typesetter,
         )
         pdf_galley = Galley.objects.create(
-            file=pdf_galley_file, label="PDF", type="pdf", article=self.action_manager.article, public=False
+            file=pdf_galley_file, label="PDF", type="pdf", article=self.action_manager.article, public=public
         )
         assignment.galleys_created.add(pdf_galley)
 
         assignment.round.article.articleworkflow.save()
-        import_logic.logger.debug(f"saved production pdf file {pdf_galley_dj}")
+        import_logic.logger.debug(f"saved production/publication pdf file {pdf_galley_dj}")
         return
 
     def save_data_figure_file(self, dff_dj, data):

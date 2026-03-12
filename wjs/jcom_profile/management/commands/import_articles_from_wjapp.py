@@ -15,14 +15,12 @@ from core.models import Account
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 from identifiers import models as identifiers_models
 from journal.models import Issue, IssueType, Journal
 from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic import (
     EditorRevisionRequest,
     PermissionAssignment,
-    Reminder,
     WorkflowReviewAssignment,
 )
 from plugins.wjs_review.models import (
@@ -30,7 +28,6 @@ from plugins.wjs_review.models import (
     EditorDecision,
     Message,
     PastEditorAssignment,
-    WjsEditorAssignment,
 )
 from review.models import (
     EditorAssignment,
@@ -41,6 +38,7 @@ from review.models import (
 from submission import models as submission_models
 from submission.models import Licence
 
+import wjs.jcom_profile.import_file_manager as import_file_manager
 import wjs.jcom_profile.import_logic as import_logic
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
@@ -78,7 +76,7 @@ def profile_command(func):
                 with open(f"/tmp/{filename}", "w") as f:
                     f.write(s.getvalue())
 
-                self.stdout.write(self.style.SUCCESS("Profiling saved in {filename}"))
+                self.stdout.write(self.style.SUCCESS(f"Profiling saved in {filename}"))
 
             return result
         else:
@@ -281,6 +279,14 @@ class Command(BaseCommand):
         version_cod = current_version_row["versionCod"]
         article_expected_final_state = current_version_row["stateID"]
         # current_version -> row  "versionNumber"
+
+        current_archive = ""
+        old_archive = ""
+        if self.options["importfilesarchive"] and self.journal.code.upper() in ["JCAP"]:
+            (current_archive, old_archive) = import_file_manager.ImportFileManager.dedup_archive_directory(
+                self.journal, preprintid
+            )
+            import_logic.logger.debug(f"{current_archive=} {old_archive=}")
 
         import_logic.logger.info(f"""Importing {preprintid}""")
 
@@ -542,6 +548,8 @@ class Command(BaseCommand):
                             action_triggers_import_files=False,
                             imported_doclayer_check_visibility=self.imported_doclayer_check_visibility,
                             url_base=getattr(settings, f"WJAPP_{self.journal.code.upper()}_BASE_URL", None),
+                            current_archive=current_archive,
+                            old_archive=old_archive,
                         ).run()
                     else:
                         # ADMIN_RESETS_ED is skipped, only loaded the message as correspondence
@@ -623,6 +631,8 @@ class Command(BaseCommand):
                 The preprintid {article.id} / {preprintid} must be imported again
                 """
             )
+            if self.options["importfilesarchive"]:
+                import_file_manager.ImportFileManager().reset_preprintid_dedup(self.journal, preprintid)
             return 1
 
         # fix forced manual withdrawn appeal on wjapp without action in the history
@@ -710,11 +720,14 @@ class Command(BaseCommand):
                 ArticleWorkflow.ReviewStates.WITHDRAWN,
                 ArticleWorkflow.ReviewStates.NOT_SUITABLE,
             ):
-                num_disabled = self.disable_reminders_for_article(article)
+                num_disabled = import_logic.get_reminders_for_article(article, only_enabled=True).update(disabled=True)
                 import_logic.logger.debug(
                     f"forced disabled of {num_disabled} reminder for {article.id}/{preprintid}"
                     f" in state {article.articleworkflow.state}"
                 )
+
+        if self.options["importfilesarchive"]:
+            import_file_manager.ImportFileManager().reset_preprintid_dedup(self.journal, preprintid)
 
         if settings.DEBUG and self.journal.code.upper() not in ["JHEP", "JCAP"]:
             self.debug_list_article_files_imported(article)
@@ -722,36 +735,6 @@ class Command(BaseCommand):
 
         self.connection.close()
         return 0
-
-    def disable_reminders_for_article(self, article):
-        """Disable reminders related to an article via WorkflowReviewAssignment or WjsEditorAssignment or similar."""
-
-        article_reminders = Q(
-            content_type=ContentType.objects.get_for_model(submission_models.Article),
-            object_id=article.pk,
-            disabled=False,
-        )
-        review_assignments = WorkflowReviewAssignment.objects.filter(article=article).values_list("pk")
-        reviewer_reminders = Q(
-            content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
-            object_id__in=review_assignments,
-            disabled=False,
-        )
-        editor_assignments = WjsEditorAssignment.objects.filter(article=article).values_list("pk")
-        editor_reminders = Q(
-            content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
-            object_id__in=editor_assignments,
-            disabled=False,
-        )
-        revision_requests = EditorRevisionRequest.objects.filter(article=article).values_list("pk")
-        author_reminders = Q(
-            content_type=ContentType.objects.get_for_model(EditorRevisionRequest),
-            object_id__in=revision_requests,
-            disabled=False,
-        )
-        return Reminder.objects.filter(
-            article_reminders | editor_reminders | reviewer_reminders | author_reminders
-        ).update(disabled=True)
 
     #
     # http login to wjapp
@@ -1224,9 +1207,10 @@ WHERE
         """Reset article data for re-import of the article."""
 
         import_logic.logger.debug("reset_article_data")
-        for reminder in Reminder.objects.all():
-            if reminder.get_related_article() == article:
-                reminder.delete()
+
+        # delete article reminders
+        list_deleted_reminders = import_logic.get_reminders_for_article(article).delete()
+        import_logic.logger.debug(f"{list_deleted_reminders=}")
 
         # clean some data related to the article
         for err in EditorRevisionRequest.objects.filter(article=article):
@@ -1872,9 +1856,8 @@ WHERE
         """List all reminder set on the article"""
 
         # TBV: in JCOM_001N_0424 appear the reminders of version1 (AUMJR1 AUMJR2) should be deleted?
-        for r in Reminder.objects.all():
-            if r.get_related_article() == article:
-                import_logic.logger.debug(
-                    f"reminder on {article.id}: {r.code} created:{r.date_created.date()} due:{r.date_due} "
-                    f"sent:{r.date_sent} {r.disabled=} recipient:{r.recipient}"
-                )
+        for r in import_logic.get_reminders_for_article(article):
+            import_logic.logger.debug(
+                f"reminder on {article.id}: {r.code} created:{r.date_created.date()} due:{r.date_due} "
+                f"sent:{r.date_sent} {r.disabled=} recipient:{r.recipient}"
+            )
