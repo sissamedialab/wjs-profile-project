@@ -122,6 +122,7 @@ def review_settings(
     It must be declared as first fixture in the test function to ensure it's called before the other fixtures.
     """
     set_default_plugin_settings(force=True)
+    call_command("create_custom_settings")
     # TODO: use plugin_settings.ensure_workflow_elements ?
     workflow = Workflow.objects.get(journal=journal)
     workflow.elements.filter(element_name="review").delete()
