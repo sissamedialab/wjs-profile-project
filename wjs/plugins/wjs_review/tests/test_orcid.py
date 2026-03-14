@@ -65,7 +65,7 @@ def test_orcid_input(
 
 
 @pytest.mark.parametrize(
-    argnames=("orcid", "valid"),
+    argnames="orcid,valid",
     argvalues=ORCIDS,
 )
 @pytest.mark.django_db
@@ -79,8 +79,7 @@ def test_doi_batch(
     """
     Test handling of the users' orcids when creating the registration deposit.
 
-    Since we use both valid and invalid orcids (see :py:param: valid), this test also documents that the code that
-    builds the deposit does not verify the correctness of the orcid (this is acceptable).
+    Since we use both valid and invalid orcids (see :py:param: valid), this test verifies that orcids are fixed.
     """
     normal_user.janeway_account.orcid = orcid
     normal_user.janeway_account.save()
@@ -100,5 +99,8 @@ def test_doi_batch(
     deposit = render(None, template, template_context, content_type="application/xml")
     content = deposit.content.decode()
     assert normal_user.first_name in content
-    assert orcid in content
-    assert orcid.startswith("https://orcid.org/")
+    if not orcid.startswith("http"):
+        prefixed_orcid = f"https://orcid.org/{orcid}"
+    else:
+        prefixed_orcid = orcid.replace("http://", "https://")
+    assert prefixed_orcid in content

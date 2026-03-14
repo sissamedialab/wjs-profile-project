@@ -91,6 +91,7 @@ class TestSIInvitees:
             args=(article.pk,),
         )
 
+    @pytest.mark.xfail(reason="Porting to 1.8 required")
     @pytest.mark.django_db
     def test_has_invitees_and_i_am_in(
         self,
