@@ -1,0 +1,117 @@
+{% extends "wjs/profile/base.html" %}
+
+{% load i18n static django_bootstrap5 next_url %}
+
+{% block page_title %}
+  {% if affiliation %}
+    {% blocktrans with affiliation=affiliation|truncatewords:5 %}
+      Edit "{{ affiliation }}"
+    {% endblocktrans %}
+  {% else %}
+    {% blocktrans with organization=organization.name %}
+      Create affiliation with "{{ organization }}"
+    {% endblocktrans %}
+  {% endif %}
+{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">
+    {% if affiliation %}
+      {% blocktrans with affiliation=affiliation|truncatewords:5 %}
+        Edit "{{ affiliation }}"
+      {% endblocktrans %}
+    {% else %}
+      {% blocktrans with organization=organization.name %}
+        Create affiliation with "{{ organization }}"
+      {% endblocktrans %}
+    {% endif %}
+  </h1>
+
+  <div class="mb-4">
+    {% include "admin/core/affiliation_summary.html" %}
+  </div>
+
+  <h2 class="h4 mb-3">{% translate "Affiliation details" %}</h2>
+
+  <form method="post" class="wjs-profile-form">
+    {% csrf_token %}
+
+    {% if affiliation %}
+      <p>{% translate "Make your changes to the affiliation, and then select <strong>Save</strong>." %}</p>
+    {% else %}
+      <p>{% translate "Enter optional affiliation details, and select <strong>Save</strong> to create the affiliation." %}</p>
+    {% endif %}
+
+    <div class="mb-3">
+      <label class="form-label fw-bold">{% translate "Organization name" %}</label>
+      <div class="d-flex align-items-center gap-2">
+        <span>{{ organization.name }}</span>
+        {% if affiliation and organization.custom_label %}
+          {% if account %}
+            {% url_with_return 'core_organization_name_update' organization.custom_label.pk as edit_url %}
+          {% elif article and author %}
+            {% url_with_return 'submission_organization_name_update' article.pk author.pk organization.custom_label.pk as edit_url %}
+          {% endif %}
+          <a href="{{ edit_url }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fa fa-edit"></i> {% translate "Edit custom name" %}
+          </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <label class="form-label fw-bold">{% translate "Locations" %}</label>
+        <ul class="list-unstyled">
+          {% for location in organization.locations.all %}
+            <li>{{ location }}</li>
+          {% empty %}
+            <li>-</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% if organization.ror_id %}
+        <div class="col-md-6">
+          <label class="form-label fw-bold">{% translate "ROR" %}</label>
+          <p><a href="{{ organization.uri }}" target="_blank" rel="noopener">{{ organization.uri }}</a></p>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="row">
+      {% if not author or journal_settings.metadata.author_job_title %}
+        <div class="col-md-6 mb-3">
+          {% bootstrap_field form.title %}
+        </div>
+      {% endif %}
+      {% if not author or journal_settings.metadata.author_department %}
+        <div class="col-md-6 mb-3">
+          {% bootstrap_field form.department %}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="mb-3">
+      {% bootstrap_field form.is_primary %}
+    </div>
+
+    {% if not author or journal_settings.metadata.author_affiliation_dates %}
+      <div class="row mb-3">
+        <div class="col-md-6">
+          {% bootstrap_field form.start %}
+        </div>
+        <div class="col-md-6">
+          {% bootstrap_field form.end %}
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="d-flex gap-2">
+      {% translate "Save" as save_label %}
+      {% bootstrap_button content=save_label button_type="submit" button_class="btn-primary" %}
+      <a href="{{ request.GET.next }}" class="btn btn-outline-secondary">
+        {% translate "Cancel" %}
+      </a>
+    </div>
+  </form>
+{% endblock profile_form %}

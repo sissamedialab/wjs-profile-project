@@ -1,0 +1,33 @@
+{% extends "wjs/profile/base.html" %}
+{% load django_bootstrap5 i18n static %}
+
+{% block page_title %}{% translate "Publication alert" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Publication alert" %}</h1>
+  <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="wjs-profile-form__main">
+      {% bootstrap_form_errors form %}
+      <p>
+        {% translate "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only." %}
+        <br/>
+        {% translate "If new topics are added to the list in the future, you will be automatically subscribed to them and will be able to uncheck them from this page." %}
+      </p>
+      {% bootstrap_form form wrapper_class="mb-4" %}
+    </div>
+    <div class="wjs-profile-form__footer gap-3">
+      {% if active %}
+        {% translate "Update" as update_label %}
+        {% translate "Publication alert subscription" as unsubscribe_modal_title %}
+        {% translate "Unsubscribe" as unsubscribe_label %}
+        {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
+        {% bootstrap_button button_class="btn-outline-primary" button_type="button" data_bs_toggle="modal" data_bs_target="#target_author_notes_id" content=unsubscribe_label %}
+      {% else %}
+        {% translate "Activate" as activate_label %}
+        {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=activate_label %}
+      {% endif %}
+    </div>
+  </form>
+  {% include "wjs/base/elements/modal.html" with modal_id="target_author_notes_id" modal_title=unsubscribe_modal_title include_path="wjs/newsletter/unsubscribe_confirmation_modal.html" %}
+{% endblock profile_form %}

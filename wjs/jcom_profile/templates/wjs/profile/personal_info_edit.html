@@ -1,17 +1,24 @@
 {% extends "wjs/profile/base.html" %}
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 i18n static %}
+
+{% block page_title %}{% translate "Additional information" %}{% endblock page_title %}
 
 {% block profile_form %}
-<h1 class="wjs-profile-form__title">Additional information</h1>
+  <h1 class="wjs-profile-form__title">{% translate "Additional information" %}</h1>
   <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
     <div class="wjs-profile-form__main">
       {% csrf_token %}
-      {% bootstrap_field form.facebook %}
-      {% bootstrap_field form.linkedin %}
-      {% bootstrap_field form.twitter %}
+      {% bootstrap_field form.records_scix wrapper_class="mb-4" %}
+      {% bootstrap_field form.records_inspire wrapper_class="mb-4" %}
+      {% bootstrap_field form.records_arxiv wrapper_class="mb-4" %}
+      {% bootstrap_field form.facebook wrapper_class="mb-4" %}
+      {% bootstrap_field form.twitter wrapper_class="mb-4" %}
+      {% bootstrap_field form.linkedin wrapper_class="mb-4" %}
+      {% bootstrap_field form.records_other wrapper_class="mb-4" %}
     </div>
     <div class="wjs-profile-form__footer">
-      <button type="submit" class="wjs-profile-form__update-button">Update</button>
+      {% translate "Update" as update_label %}
+      {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
     </div>
   </form>
 {% endblock profile_form %}

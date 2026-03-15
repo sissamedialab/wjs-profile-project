@@ -1,32 +1,17 @@
 {% extends "wjs/profile/base.html" %}
-{% load static django_bootstrap5 %}
+{% load django_bootstrap5 i18n static %}
+
+{% block page_title %}{% translate "Affiliations" %}{% endblock page_title %}
 
 {% block profile_form %}
-<h1 class="wjs-profile-form__title">Affiliations</h1>
+  <h1 class="wjs-profile-form__title">{% translate "Affiliations" %}</h1>
   <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
 
     <div class="wjs-profile-form__main">
       {% csrf_token %}
-      <!-- FIXME - Move the following content in Affiliations -->
-      <div class="wjs-profile-form__affiliations">
-        <div class="wjs-profile-form__affiliation">
-          <p class="wjs-profile-form__affiliation-info">Lecturer, Political Science, <a href="#">Durham University</a>, <a href="#">Durham</a>, United Kingdom <span class="badge rounded-pill bg-primary">ROR</span> <span class="badge rounded-pill bg-primary">Primary</span></p>
-          <div class="wjs-profile-form__affiliation-actions">
-            <button class="wjs-profile-form__affiliation-button"><i class="bi bi-pencil"></i> Edit</button>
-            <button class="wjs-profile-form__affiliation-button"><i class="bi bi-trash"></i> Delete</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="wjs-profile-form__affiliations-actions">
-        <button class="wjs-profile-form__affiliations-button"><i class="bi bi-arrow-repeat"></i> Update affiliations from ORCID</button>
-        <button class="wjs-profile-form__affiliations-button"><i class="bi bi-plus"></i>Add affiliations manually</button>
-      </div>
+      {% include "admin/core/affiliation_list_display_with_actions.html" with interface=object article=None %}
     </div>
 
-    <div class="wjs-profile-form__footer">
-      <button type="submit" class="wjs-profile-form__update-button">Update</button>
-    </div>
   </form>
 
 {% endblock profile_form %}
