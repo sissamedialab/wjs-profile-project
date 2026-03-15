@@ -1,0 +1,35 @@
+{% load static i18n %}
+
+<div class="mb-2">
+  {% if affiliation.title_department %}
+    <span class="fw-bold text-muted small text-uppercase d-block">{{ affiliation.title_department }}</span>
+  {% endif %}
+  <div class="d-flex align-items-center gap-2">
+    {% if affiliation.organization.ror_id %}
+      <a href="{{ affiliation.organization.uri }}" target="_blank" rel="noopener" class="text-decoration-none">
+        {{ affiliation.organization.name }}
+        <span class="visually-hidden">({% translate "opens in new tab" %})</span>
+        <img
+          src="{% static "admin/img/icons/ror-icon-rgb.svg" %}"
+          alt="ROR logo"
+          width="24"
+          height="auto"
+          class="ms-1">
+      </a>
+    {% else %}
+      <span class="fw-bold">{{ affiliation.organization.name|default:"" }}</span>
+    {% endif %}
+
+    {% if affiliation.is_primary and display_primary %}
+      <span class="badge bg-secondary">
+        {% translate "Primary" %}
+      </span>
+    {% endif %}
+  </div>
+
+  {% if affiliation.date_display %}
+    <div class="small text-muted">
+      {{ affiliation.date_display }}
+    </div>
+  {% endif %}
+</div>

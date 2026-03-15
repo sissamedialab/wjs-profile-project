@@ -5,6 +5,7 @@ When working on roles, please check
 - plugins (e.g. typesetting plugin)
 """
 
+from django.db.models import BLANK_CHOICE_DASH
 from django.utils.translation import gettext_lazy as _
 
 DIRECTOR_ROLE = "director"
@@ -70,3 +71,27 @@ JCOM_SECTION_TO_DOISECTIONCODE = {
 # - have different DOI section code (e.g. prefix/0.00000600 vs prefix/0.00000700)
 
 ORCID_VALIDATION_REGEXP = r"^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]{1}$"
+
+
+GENDER_CHOICES = [
+    ("M", "Male"),
+    ("F", "Female"),
+    ("D", "Rather not say"),
+]
+
+GENDER_FORM_CHOICES = BLANK_CHOICE_DASH + GENDER_CHOICES
+
+PROFESSIONS = [
+    (
+        0,
+        "A researcher in S&T studies," " science communication or neighbouring field",
+    ),
+    (
+        1,
+        "A practitioner in S&T" " (e.g. journalist, museum staff, writer, ...)",
+    ),
+    (2, "An active scientist"),
+    (3, "Other profession"),
+]
+
+PROFESSIONS_FORM = BLANK_CHOICE_DASH + PROFESSIONS

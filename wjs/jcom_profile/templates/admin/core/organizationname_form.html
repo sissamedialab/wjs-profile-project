@@ -1,0 +1,31 @@
+{% extends "wjs/profile/base.html" %}
+
+{% load i18n static django_bootstrap5 next_url %}
+
+{% block page_title %}{% translate "Custom organization" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Custom organization" %}</h1>
+
+  <div class="mb-4">
+    {% include "admin/core/affiliation_summary.html" %}
+  </div>
+
+  <h2 class="h4 mb-3">{% translate "Custom name" %}</h2>
+
+  <form method="post" class="wjs-profile-form">
+    {% csrf_token %}
+
+    <div class="mb-3">
+      {% bootstrap_field form.value %}
+    </div>
+
+    <div class="d-flex gap-2">
+      {% translate "Save" as save_label %}
+      {% bootstrap_button content=save_label button_type="submit" button_class="btn-primary" %}
+      <a href="{{ request.GET.next }}" class="btn btn-outline-secondary">
+        {% translate "Cancel" %}
+      </a>
+    </div>
+  </form>
+{% endblock profile_form %}

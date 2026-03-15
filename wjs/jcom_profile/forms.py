@@ -4,8 +4,6 @@ import re
 import uuid
 
 from core import models as core_models
-from core.forms import EditAccountForm
-from core.models import Account
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -29,7 +27,6 @@ from submission.forms import (
     SubmissionCommentsForm,
 )
 from submission.models import Keyword, Section
-from utils import logic as utils_logic
 from utils.forms import CaptchaForm, JanewayTranslationModelForm
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
@@ -39,12 +36,11 @@ from wjs.jcom_profile.models import WjsSimpleBleach
 from .constants import ORCID_VALIDATION_REGEXP
 from .models import (
     JCOMProfile,
-    Recipient,
     StaffKeyword,
     StaffWorkloadParameters,
     WjsMiniHTMLFormField,
 )
-from .settings_helpers import get_article_language_choices, get_journal_language_choices
+from .settings_helpers import get_article_language_choices
 from .templatetags.wjs_tags import display_title
 
 logger = get_logger(__name__)
@@ -91,146 +87,6 @@ def validate_orcid(value):
         raise ValidationError(
             _("ORCID ID must be in the format xxxx-xxxx-xxxx-xxxx (e.g., 0000-0000-0000-0000)"),
             code="invalid_orcid_format",
-        )
-
-
-class WjsPasswordChangeForm(EditAccountForm):
-    """Form used to change password."""
-
-    current_password = forms.CharField(widget=forms.PasswordInput, label=_("Current Password"), required=False)
-    new_password_one = forms.CharField(widget=forms.PasswordInput, label=_("New Password"), required=False)
-    new_password_two = forms.CharField(widget=forms.PasswordInput, label=_("Repeat New Password"), required=False)
-
-    class Meta:
-        model = Account
-        fields = ("current_password",)
-        exclude = None
-
-
-class WjsInterestsForm(EditAccountForm):
-    """Form used to change password."""
-
-    keywords = forms.ModelChoiceField(label=_("Interests"), required=False, queryset=Keyword.objects.none())
-
-    class Meta:
-        model = Account
-        fields = ("keywords",)
-        exclude = None
-
-    def __init__(self, *args, **kwargs):
-        """Set the required fields."""
-        journal = kwargs.pop("journal")
-        super().__init__(*args, **kwargs)
-        self.fields["keywords"].queryset = journal.keywords.exclude(word_en="").order_by("word_en")
-
-
-class WjsEmailChangeForm(EditAccountForm):
-    """Form used to change password."""
-
-    email = forms.EmailField(label=_("Email change"), required=False)
-
-    class Meta:
-        model = Account
-        fields = ("email",)
-        exclude = None
-
-
-class WjsPersonalInfoForm(EditAccountForm):
-    """Form used to change personal info."""
-
-    first_name = forms.CharField(label=_("First name"), help_text=_("Required"), required=True)
-    middle_name = forms.CharField(label=_("Middle name"), required=False)
-    last_name = forms.CharField(label=_("Last name"), help_text=_("Required"), required=True)
-    orcid = forms.CharField(
-        label=_("ORCiD"),
-        validators=[validate_orcid],
-        widget=forms.TextInput(
-            attrs={
-                "placeholder": "0000-0000-0000-0000",
-                "pattern": ORCID_VALIDATION_REGEXP,
-                "title": _("Please provide the ORCID using only the id notation: 0000-0000-0000-0000"),
-                "minlength": "19",
-                "maxlength": "19",
-            }
-        ),
-        required=True,
-    )
-
-    class Meta:
-        model = Account
-        fields = ("first_name", "middle_name", "last_name", "orcid")
-        exclude = None
-
-
-class WjsAdditionalInfoForm(EditAccountForm):
-    """Form used to change personal info."""
-
-    facebook = forms.CharField(label=_("Facebook"), required=False)
-    linkedin = forms.CharField(label=_("LinkedIn"), required=False)
-    twitter = forms.CharField(label=_("Twitter"), required=False)
-
-    class Meta:
-        model = Account
-        fields = ("facebook", "linkedin", "twitter")
-        exclude = None
-
-
-class JCOMProfileForm(EditAccountForm):
-    """Additional fields of the JCOM profile."""
-
-    email = forms.EmailField(label=_("Email"), required=False)
-    current_password = forms.CharField(widget=forms.PasswordInput, label=_("Current Password"), required=False)
-    new_password_one = forms.CharField(widget=forms.PasswordInput, label=_("New Password"), required=False)
-    new_password_two = forms.CharField(widget=forms.PasswordInput, label=_("Repeat New Password"), required=False)
-    gdpr_checkbox = forms.BooleanField(
-        initial=False,
-        required=True,
-        label=_("By registering an account you agree to our Privacy Policy"),
-    )
-    twitter = forms.CharField(label=_("X.com handle"), required=False)
-    orcid = forms.CharField(
-        label=_("ORCID ID"),
-        validators=[validate_orcid],
-        widget=forms.TextInput(
-            attrs={
-                "placeholder": "0000-0000-0000-0000",
-                "pattern": ORCID_VALIDATION_REGEXP,
-                "title": _("Please provide the ORCID using only the id notation: 0000-0000-0000-0000"),
-                "minlength": "19",
-                "maxlength": "19",
-            },
-        ),
-        required=False,
-    )
-
-    class Meta:
-        model = JCOMProfile
-        exclude = (
-            "email",
-            "username",
-            "activation_code",
-            "email_sent",
-            "date_confirmed",
-            "confirmation_code",
-            "is_active",
-            "is_staff",
-            "is_admin",
-            "date_joined",
-            "password",
-            "is_superuser",
-            "janeway_account",
-            "invitation_token",
-            "interests",
-        )
-
-    def __init__(self, *args, **kwargs):
-        """Set the required fields."""
-        self.journal = kwargs.pop("journal")
-        super().__init__(*args, **kwargs)
-        privacy_url = _get_privacy_url(self.journal)
-        self.fields["keywords"].queryset = Keyword.objects.exclude(word_en="").order_by("word_en")
-        self.fields["gdpr_checkbox"].label = mark_safe(
-            _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
         )
 
 
@@ -471,72 +327,6 @@ class IMUHelperForm(forms.Form):
         empty_value="",
     )
     title = forms.CharField(max_length=999, required=False, strip=True, empty_value=None)
-
-
-class NewsletterTopicForm(forms.ModelForm):
-    topics = forms.ModelMultipleChoiceField(
-        label="",
-        queryset=None,
-        widget=forms.CheckboxSelectMultiple,
-        required=False,
-    )
-    news = forms.BooleanField(required=False, label=_("I want to receive alerts about news published in the journal."))
-    language = forms.ChoiceField(
-        required=True,
-        label=_("Preferred language for alerts"),
-        choices=settings.LANGUAGES,
-    )
-
-    class Meta:
-        model = Recipient
-        fields = (
-            "topics",
-            "news",
-            "language",
-        )
-
-    def __init__(self, *args, **kwargs):
-        """Prepare the queryset for topics."""
-        self.base_fields["topics"].queryset = kwargs.get("instance").journal.keywords.all().order_by("word")
-
-        # Manage the language field's choices
-        request = utils_logic.get_current_request()
-        available_languages = []
-        if request and request.journal:
-            available_languages = get_journal_language_choices(request.journal)
-
-        super().__init__(*args, **kwargs)
-
-        if len(available_languages) > 1:
-            self.fields["language"].choices = available_languages
-        else:
-            # Let's hide the language select if there is only one choice
-            del self.fields["language"]
-
-    def clean(self):
-        """
-        Log a warning if the user choose no topics and no news.
-
-        We do _not_ raise a Validation error untill specs#474 is done.
-        """
-        cleaned_data = super().clean()
-
-        topics = cleaned_data.get("topics")
-        news = cleaned_data.get("news")
-        if len(topics) == 0 and news is False:
-            logger.warning(f"Recipient {self.instance.email}/{self.instance.user} selected no topics and no news.")
-            # after #474 # raise ValidationError(
-            # after #474 #     _('You have selected no news and no topics.
-            # after #474 #        Please either choose something or click "Unsubscribe".'),
-            # after #474 # )
-
-        return cleaned_data
-
-
-class RegisterUserNewsletterForm(CaptchaForm):
-    """Register an Anonymous user to a newsletter."""
-
-    email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={"placeholder": _("Your email address")}))
 
 
 class SearchForm(JanewaySearchForm):

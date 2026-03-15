@@ -3,31 +3,26 @@
 from collections import namedtuple
 from dataclasses import dataclass
 from typing import Iterable
-from urllib.parse import urlencode
 
 import pandas as pd
 from core import logic
 from core import models as core_models
 from core.models import Account
-from django.apps import apps
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.mail import send_mail
-from django.core.validators import validate_email
-from django.db import IntegrityError
 from django.db.models import Q
 from django.db.models.query import RawQuerySet
 from django.forms import modelformset_factory
-from django.http import Http404, HttpResponseRedirect
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.translation import get_language
+from django.utils.timezone import now
 from django.utils.translation import gettext as _
-from django.views.generic import FormView, ListView, TemplateView, UpdateView
+from django.views.generic import ListView, TemplateView, UpdateView
 from django.views.generic.edit import FormMixin
 from journal import decorators as journal_decorators
 from journal.models import Issue, PinnedArticle
@@ -47,134 +42,18 @@ from .drupal_redirect_views import (  # noqa F401
     JcomFileRedirect,
     JcomIssueRedirect,
 )
-from .forms import (
-    WjsAdditionalInfoForm,
-    WjsEmailChangeForm,
-    WjsInterestsForm,
-    WjsPasswordChangeForm,
-    WjsPersonalInfoForm,
-)
 from .mixins import HtmxMixin, PaginatedViewMixin
-from .models import JCOMProfile, Recipient, StaffWorkloadParameters
-from .newsletter.service import NewsletterMailerService
+from .models import JCOMProfile, StaffWorkloadParameters
 from .permissions import get_hijacker
-from .utils import generate_token
+from .profile.views import ProfilePersonalEditView
 
 logger = get_logger(__name__)
-
-
-class ProfilePersonalEditView(LoginRequiredMixin, UpdateView):
-    model = Account
-    form_class = WjsPersonalInfoForm
-    template_name = "wjs/profile/personal_edit.html"
-
-    def get_object(self, queryset=None):
-        return self.request.user
 
 
 class ProfileAffiliationsEditView(ProfilePersonalEditView):
     model = Account
     template_name = "wjs/profile/personal_affiliations_edit.html"
     fields = None
-
-
-class ProfileEmailEditView(ProfilePersonalEditView):
-    model = Account
-    form_class = WjsEmailChangeForm
-    template_name = "wjs/profile/personal_email_edit.html"
-    fields = None
-
-
-class ProfilePasswordEditView(ProfilePersonalEditView):
-    model = Account
-    form_class = WjsPasswordChangeForm
-    template_name = "wjs/profile/personal_password_edit.html"
-    fields = None
-
-
-class ProfileAdditionalEditView(ProfilePersonalEditView):
-    model = Account
-    form_class = WjsAdditionalInfoForm
-    template_name = "wjs/profile/personal_info_edit.html"
-    fields = None
-
-
-class ProfileInterestsEditView(ProfilePersonalEditView):
-    model = Account
-    form_class = WjsInterestsForm
-    fields = None
-    template_name = "wjs/profile/personal_interests_edit.html"
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["journal"] = self.request.journal
-        return kwargs
-
-
-@login_required
-def edit_profile(request):
-    """Edit profile view for wjs app."""
-    user = JCOMProfile.objects.get(pk=request.user.id)
-    form = forms.JCOMProfileForm(instance=user, journal=request.journal)
-    # copied from core.views.py::edit_profile:358ss
-
-    if request.POST:
-        if "change_email" in request.POST:
-            email_address = request.POST.get("email")
-            try:
-                validate_email(email_address)
-                try:
-                    logic.handle_email_change(request, email_address)
-                    return redirect(reverse("website_index"))
-                except IntegrityError:
-                    messages.add_message(
-                        request,
-                        messages.WARNING,
-                        "An account with that email address already exists.",
-                    )
-            except ValidationError:
-                messages.add_message(
-                    request,
-                    messages.WARNING,
-                    "Email address is not valid.",
-                )
-
-        elif "change_password" in request.POST:
-            old_password = request.POST.get("current_password")
-            new_pass_one = request.POST.get("new_password_one")
-            new_pass_two = request.POST.get("new_password_two")
-
-            if old_password and request.user.check_password(old_password):
-                if new_pass_one == new_pass_two:
-                    problems = request.user.password_policy_check(request, new_pass_one)
-                    if not problems:
-                        request.user.set_password(new_pass_one)
-                        request.user.save()
-                        messages.add_message(request, messages.SUCCESS, "Password updated.")
-                    else:
-                        [messages.add_message(request, messages.INFO, problem) for problem in problems]
-                else:
-                    messages.add_message(request, messages.WARNING, "Passwords do not match")
-
-            else:
-                messages.add_message(request, messages.WARNING, "Old password is not correct.")
-
-        elif "edit_profile" in request.POST:
-            form = forms.JCOMProfileForm(request.POST, request.FILES, instance=user, journal=request.journal)
-
-            if form.is_valid():
-                form.save()
-                messages.add_message(request, messages.SUCCESS, "Profile updated.")
-                if request.GET.get("next"):
-                    return HttpResponseRedirect(request.GET.get("next"))
-                return redirect(reverse("core_edit_profile"))
-
-        elif "export" in request.POST:
-            return logic.export_gdpr_user_profile(user)
-
-    context = {"form": form, "user_to_edit": user}
-    template = "core/accounts/edit_profile.html"
-    return render(request, template, context)
 
 
 # from src/core/views.py::register
@@ -266,6 +145,7 @@ def confirm_gdpr_acceptance(request, token):
             if not account.gdpr_checkbox:
                 account.is_active = True
                 account.gdpr_checkbox = True
+                account.gdpr_acceptance = now()
                 account.invitation_token = ""
                 account.save()
                 context["activated"] = True
@@ -875,155 +755,6 @@ class IMUStep3(TemplateView):
         formset = imu_edit_formset_factory(self.request.POST)
         formset.save()
         return redirect(to=reverse("manage_issues_id", kwargs={"issue_id": kwargs["pk"]}))
-
-
-class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
-    model = Recipient
-    template_name = "elements/accounts/edit_newsletters_subscription.html"
-    form_class = forms.NewsletterTopicForm
-
-    def test_func(self):
-        """
-        Protect this view.
-
-        If the user is anonymous, check if a token is provided; if it is not provided,
-        then a Forbidden error is raised.
-        If the user is not anonymous, the test passes.
-        """
-        if self.request.user.is_anonymous:
-            token = self.request.GET.get("token")
-            try:
-                Recipient.objects.get(newsletter_token=token)
-                return True
-            except Recipient.DoesNotExist:
-                return False
-        return True
-
-    def get_object(self, queryset=None):  # noqa
-        user, journal = self.request.user, self.request.journal
-        if user.is_anonymous:
-            recipient = Recipient.objects.get(newsletter_token=self.request.GET.get("token"))
-            if (not recipient.topics.exists()) and (recipient.news is False):
-                recipient.topics.set(recipient.journal.keywords.all())
-                recipient.news = True
-                recipient.save()
-        else:
-            recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
-            if created:
-                recipient.language = get_language()
-                recipient.topics.set(recipient.journal.keywords.all())
-                recipient.news = True
-                recipient.save()
-
-        return recipient
-
-    def get_success_url(self):  # noqa
-        user = self.request.user
-        url = reverse("edit_newsletters")
-        url = f"{url}?update=1"
-        if user.is_anonymous:
-            url = f"{url}&{urlencode({'token': self.object.newsletter_token})}"
-        return url
-
-
-class AnonymousUserNewsletterRegistration(FormView):
-    template_name = "elements/accounts/anonymous_user_register_newsletter.html"
-    form_class = forms.RegisterUserNewsletterForm
-
-    def form_valid(self, request, *args, **kwargs):  # noqa
-        user = self.request.user
-        context = self.get_context_data()
-        form = context.get("form")
-        email = form.data["email"]
-        journal = self.request.journal
-        token = generate_token(email, journal.code)
-        if not user.is_anonymous:
-            # User is logged in, get or create the Recipient based on user and journal
-            recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
-            recipient.language = get_language()
-            if created:
-                recipient.topics.set(recipient.journal.keywords.all())
-                recipient.news = True
-            recipient.save()
-        else:
-            # User is anonymous
-            recipient, created = Recipient.objects.get_or_create(
-                journal=journal,
-                email=email,
-                defaults={
-                    "newsletter_token": token,
-                },
-            )
-            recipient.language = get_language()
-            recipient.save()
-            if created:
-                prefix = "publication_alert_subscription"
-            else:
-                prefix = "publication_alert_reminder"
-                # It is possible that an anonymous user registers, but
-                # never clicks on the activation link, then
-                # re-registers. In this case the `Recipient` object
-                # already exists, but it's empty (no topics, no
-                # news). We prefer to treat this case as a new
-                # registration.
-                if recipient.topics.count() == 0 and recipient.news is False:
-                    prefix = "publication_alert_subscription"
-
-            NewsletterMailerService().send_subscription_confirmation(
-                recipient,
-                prefix=prefix,
-            )
-
-        self.object = recipient
-        return super().form_valid(form)
-
-    def get_success_url(self):  # noqa
-        if self.object and self.object.user:
-            # The user was logged in, redirect to edit_newsletters
-            return reverse("edit_newsletters")
-        else:
-            return reverse("register_newsletters_email_sent")
-
-    def get_context_data(self, **kwargs):
-        """Add to context the title and description as configured in the wjs_subscribe_newsletter plugin."""
-        context = super().get_context_data(**kwargs)
-        try:
-            model = apps.get_model("wjs_subscribe_newsletter.PluginConfig")
-            plugin_config = model.objects.get(journal=self.request.journal)
-        except LookupError:
-            logger.info("wjs_subscribe_newsletter plugin not installed. Please consider installing.")
-        except ObjectDoesNotExist:
-            logger.info("wjs_subscribe_newsletter plugin not configured. Please complete configuration.")
-        else:
-            context["wjs_subscribe_newsletter"] = plugin_config
-
-        return context
-
-
-class AnonymousUserNewsletterConfirmationEmailSent(TemplateView):
-    template_name = "elements/accounts/anonymous_subscription_email_sent.html"
-
-
-class UnsubscribeUserConfirmation(TemplateView):
-    template_name = "elements/accounts/delete_subscription.html"
-
-
-def unsubscribe_newsletter(request, token):
-    """Unsubscribe from newsletter.
-
-    Recipient objects are deleted both for anonymous and registered
-    users so that the "fill-all-if-first-time" logic can apply.
-    """
-    user = request.user
-    try:
-        if user.is_anonymous:
-            recipient = Recipient.objects.get(newsletter_token=token)
-        else:
-            recipient = Recipient.objects.get(user=request.user, journal=request.journal)
-        recipient.delete()
-    except Recipient.DoesNotExist:
-        return Http404
-    return HttpResponseRedirect(reverse("unsubscribe_newsletter_confirm"))
 
 
 @has_journal

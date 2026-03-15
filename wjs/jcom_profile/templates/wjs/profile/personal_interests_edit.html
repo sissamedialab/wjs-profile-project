@@ -1,8 +1,10 @@
 {% extends "wjs/profile/base.html" %}
-{% load wjs_tags %}
+{% load django_bootstrap5 i18n static wjs_tags %}
+
+{% block page_title %}{% translate "Keywords" %}{% endblock page_title %}
 
 {% block profile_form %}
-  <h1 class="wjs-profile-form__title">Keywords</h1>
+  <h1 class="wjs-profile-form__title">{% translate "Keywords" %}</h1>
   <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
 
     <div class="wjs-profile-form__main">
@@ -12,7 +14,7 @@
         <h4>{{ group.grouper }}</h4>
         {% for keyword in group.list %}
           <div class="form-check d-flex flex-row">
-            <input class="form-check-input" type="checkbox" name="{{ keyword.name }}" value="{{ keyword.value }}" id="{{ form.keywords.id_for_label }}-{{ keyword.value }}" {% if keyword.selected %}checked{% endif %}>
+            <input class="form-check-input" type="checkbox" name="keywords" value="{{ keyword.value }}" id="{{ form.keywords.id_for_label }}-{{ keyword.value }}" {% if keyword.selected %}checked{% endif %}>
             <label class="form-check-label" for="{{ form.keywords.id_for_label }}-{{ keyword.value }}">
               {{ keyword.choice_label }}
             </label>
@@ -21,7 +23,8 @@
       {% endfor %}
     </div>
     <div class="wjs-profile-form__footer">
-      <button type="submit" class="wjs-profile-form__update-button">Update</button>
+      {% translate "Update" as update_label %}
+      {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
     </div>
   </form>
 {% endblock profile_form %}

@@ -1,29 +1,42 @@
 {% extends "wjs/profile/base.html" %}
-{% load static django_bootstrap5 %}
+{% load django_bootstrap5 i18n static %}
+
+{% block page_title %}{% translate "Personal details" %}{% endblock page_title %}
 
 {% block profile_form %}
-<h1 class="wjs-profile-form__title">Personal details</h1>
+  <h1 class="wjs-profile-form__title">{% translate "Personal details" %}</h1>
   <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
     <div class="wjs-profile-form__main">
-    {% csrf_token %}
-      {% bootstrap_field form.first_name %}
-      {% bootstrap_field form.last_name %}
-      <div class="wjs-profile-form__orcid">
-        {% bootstrap_field form.orcid %}
-        <button class="wjs-profile-form__orcid-button">
-          <img alt="ORCID logo" src="{% static 'common/img/icons/orcid.gif' %}">
-          Connect your ORCID iD
-        </button>
-      </div>
-      <div class="wjs-profile-form__orcid-info">
-        <img alt="ORCID logo" src="{% static 'common/img/icons/orcid.gif' %}">
-        <a href="#" class="wjs-profile-form__orcid-info-text">https://orcid.org/0000-0001-8548-0880</a>
+      {% csrf_token %}
+      {% bootstrap_field form.first_name wrapper_class="mb-4" %}
+      {% bootstrap_field form.middle_name wrapper_class="mb-4" %}
+      {% bootstrap_field form.last_name wrapper_class="mb-4" %}
+      {% bootstrap_field form.year_of_birth wrapper_class="mb-4" %}
+      {% bootstrap_field form.gender wrapper_class="mb-4" %}
+      <div class="mb-3">
+        {% bootstrap_label "ORCID" label_for=id_orcid_button %}
+        {% if instance.orcid %}
+          <button id="id_orcid_button" class="wjs-profile-form__orcid-button">
+            <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
+            <a href="#" class="wjs-profile-form__orcid-info-text">{{ instance.orcid }}</a>
+          </button>
+        {% else %}
+          <button id="id_orcid_button" class="wjs-profile-form__orcid-button">
+            <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
+            Connect your ORCID iD
+          </button>
+        {% endif %}
       </div>
     </div>
+    {% bootstrap_field form.profession wrapper_class="mb-4" %}
+    {% bootstrap_field form.preferred_timezone wrapper_class="mb-4" %}
+    {% bootstrap_field form.biography wrapper_class="mb-4" %}
+    {% bootstrap_field form.privacy_notice wrapper_class="mb-4" %}
     <div class="wjs-profile-form__footer">
       <p class="w-50 mb-0">If you have any questions about how your personal data is managed, please contact <a href="mailto:privacy@medialab.sissa.it">privacy@medialab.sissa.it</a>
       </p>
-      <button type="submit" class="wjs-profile-form__update-button align-self-start">Update</button>
+      {% translate "Update" as update_label %}
+      {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
     </div>
   </form>
 

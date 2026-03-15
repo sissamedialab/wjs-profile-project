@@ -1,0 +1,15 @@
+{% extends "wjs/profile/base.html" %}
+{% load django_bootstrap5 i18n static %}
+
+{% block page_title %}{% translate "Subscription to be confirmed" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Subscription to be confirmed" %}</h1>
+  <p>
+    {% blocktranslate %}
+      An email with a confirmation link has been sent to your email address.
+      <br>
+      Please open the link to activate your publication alert.
+    {% endblocktranslate %}
+  </p>
+{% endblock profile_form %}

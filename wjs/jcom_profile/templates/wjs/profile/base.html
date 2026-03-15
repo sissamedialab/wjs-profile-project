@@ -10,34 +10,38 @@
   {% url "edit_newsletters" as edit_newsletters %}
   <main class="container mb-3 bg-white p-4 flex-grow-1">
     <div class="row">
-      <div class="col-sm-12 col-md-3">
-        <nav class="wjs-profile-nav" aria-label="Profile navigation">
-          <ul class="wjs-profile-nav__list">
-            <li class="wjs-profile-nav__item{% if request.path == core_edit_profile %} wjs-profile-nav__item--active{% endif %}">
-              <a class="wjs-profile-nav__link" href="{{ core_edit_profile }}">Personal Details</a>
-            </li>
-            <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_affiliations %} wjs-profile-nav__item--active{% endif %}">
-              <a class="wjs-profile-nav__link" href="{{ core_edit_profile_affiliations }}">Affiliations</a>
-            </li>
-            <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_email %} wjs-profile-nav__item--active{% endif %}">
-              <a class="wjs-profile-nav__link" href="{{ core_edit_profile_email }}">Email</a>
-            </li>
-            <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_password %} wjs-profile-nav__item--active{% endif %}">
-              <a class="wjs-profile-nav__link" href="{{ core_edit_profile_password }}">Password</a>
-            </li>
-            <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_interests %} wjs-profile-nav__item--active{% endif %}">
-              <a class="wjs-profile-nav__link" href="{{ core_edit_profile_interests }}">Keywords</a>
-            </li>
-            <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_additional %} wjs-profile-nav__item--active{% endif %}">
-              <a class="wjs-profile-nav__link" href="{{ core_edit_profile_additional }}">Additional information</a>
-            </li>
-            <li class="wjs-profile-nav__item{% if request.path == edit_newsletters %} wjs-profile-nav__item--active{% endif %}">
-              <a class="wjs-profile-nav__link" href="{{ edit_newsletters }}">Publication alert</a>
-            </li>
-          </ul>
-        </nav>
-      </div>
-      <div class="col-sm-12 col-md-9">
+      {% if request.user.is_authenticated %}
+        <div class="col-sm-12 col-md-3">
+          {% block profile_sidebar %}
+            <nav class="wjs-profile-nav" aria-label="Profile navigation">
+              <ul class="wjs-profile-nav__list">
+                <li class="wjs-profile-nav__item{% if request.path == core_edit_profile %} wjs-profile-nav__item--active{% endif %}">
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile }}">Personal Details</a>
+                </li>
+                <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_affiliations %} wjs-profile-nav__item--active{% endif %}">
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_affiliations }}">Affiliations</a>
+                </li>
+                <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_email %} wjs-profile-nav__item--active{% endif %}">
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_email }}">Email</a>
+                </li>
+                <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_password %} wjs-profile-nav__item--active{% endif %}">
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_password }}">Password</a>
+                </li>
+                <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_interests %} wjs-profile-nav__item--active{% endif %}">
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_interests }}">Keywords</a>
+                </li>
+                <li class="wjs-profile-nav__item{% if request.path == core_edit_profile_additional %} wjs-profile-nav__item--active{% endif %}">
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_additional }}">Additional information</a>
+                </li>
+                <li class="wjs-profile-nav__item{% if request.path == edit_newsletters %} wjs-profile-nav__item--active{% endif %}">
+                  <a class="wjs-profile-nav__link" href="{{ edit_newsletters }}">Publication alert</a>
+                </li>
+              </ul>
+            </nav>
+          {% endblock profile_sidebar %}
+        </div>
+      {% endif %}
+      <div class="col-sm-12 {% if request.user.is_authenticated %}col-md-9{% else %}col-md-12{% endif %}">
         {% block profile_form %}
         {% endblock profile_form %}
       </div>

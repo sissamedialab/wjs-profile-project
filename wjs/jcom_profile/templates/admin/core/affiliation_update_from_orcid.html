@@ -1,0 +1,57 @@
+{% extends "wjs/profile/base.html" %}
+
+{% load i18n static next_url django_bootstrap5 %}
+
+{% block page_title %}{% translate "Update affiliations from ORCiD" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Update affiliations from ORCiD" %}</h1>
+
+  <div class="mb-4">
+    {% include "admin/core/affiliation_summary.html" %}
+  </div>
+
+  {% if old_affils.exists %}
+    <div class="alert alert-danger">
+      <h3 class="h5">{% translate "Old affiliations to be removed" %}</h3>
+      <div class="d-flex flex-column gap-2 mt-2">
+        {% for old_affil in old_affils %}
+          {% include "admin/core/affiliation_display.html" with affiliation=old_affil %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if new_affils %}
+    <div class="alert alert-success">
+      <h3 class="h5">{% translate "New affiliations to be added" %}</h3>
+      <div class="d-flex flex-column gap-2 mt-2">
+        {% for new_affil in new_affils %}
+          {% include "admin/core/affiliation_display.html" with affiliation=new_affil %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <form method="post" class="wjs-profile-form">
+    {% csrf_token %}
+    {% for field in form.hidden_fields %}
+      {{ field }}
+    {% endfor %}
+
+    <div class="mb-3">
+      <p>{% translate "Are you sure?" %}</p>
+      {% bootstrap_form form %}
+    </div>
+
+    <div class="d-flex gap-2">
+      {% translate "Yes, continue" as continue_label %}
+      <button name="replace" class="btn btn-primary" type="submit">
+        <i class="fa fa-check"></i> {{ continue_label }}
+      </button>
+      <a href="{{ request.GET.next }}" class="btn btn-outline-secondary">
+        {% translate "Go back" %}
+      </a>
+    </div>
+  </form>
+{% endblock profile_form %}

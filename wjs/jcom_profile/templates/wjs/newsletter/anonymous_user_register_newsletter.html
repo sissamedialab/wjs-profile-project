@@ -1,0 +1,22 @@
+{% extends "wjs/profile/base.html" %}
+{% load django_bootstrap5 i18n static %}
+
+{% block page_title %}{% if wjs_subscribe_newsletter.title %}{{ wjs_subscribe_newsletter.title }}{% else %}{% translate "Publication alert" %}{% endif %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">
+    {% if wjs_subscribe_newsletter.title %}
+      {{ wjs_subscribe_newsletter.title }}
+    {% else %}
+      {% translate "Publication alert" %}
+    {% endif %}
+  </h1>
+  {% translate "Subscribe" as subscribe_label %}
+  {% if wjs_subscribe_newsletter.intro %}<p>{{ wjs_subscribe_newsletter.intro }}</p>{% endif %}
+  <form method="post" action="{% url "register_newsletters" %}">
+    {% csrf_token %}
+    {% bootstrap_field form.email wrapper_class="mb-4" %}
+    {% bootstrap_field form.captcha show_label=False wrapper_class="mb-4" %}
+    {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=subscribe_label %}
+  </form>
+{% endblock profile_form %}
