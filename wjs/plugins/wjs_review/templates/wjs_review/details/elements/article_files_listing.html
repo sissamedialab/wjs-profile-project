@@ -71,7 +71,7 @@
 
   {% if article.data_figure_files.exists %}
     <li class="list-group-item fw-bold">
-      {{ journal_settings.styling.submission_figures_data_title|safe }}
+      <span title="{% translate "Administrative files, data/figure files that will not be published" %}">{{ journal_settings.styling.submission_figures_data_title|safe }}</span>
       <ul class="list-group mb-1">
         {% for file in article.data_figure_files.all %}
           <li class="list-group-item">
@@ -84,7 +84,7 @@
 
   {% if article.supplementary_files.exists %}
     <li class="list-group-item fw-bold">
-      {% translate "Supplementary Files" %}
+      <span title="{% translate "Electronic supplementary material to be published alongside the paper" %}">{% translate "Supplementary Files" %}</span>
       <ul class="list-group mb-1">
         {% for file in article.supplementary_files.all %}
           <li class="list-group-item d-flex justify-content-between align-items-center">
