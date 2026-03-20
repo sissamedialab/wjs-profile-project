@@ -13,7 +13,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
 from django.db.models import Exists, OuterRef, Q, QuerySet
 from journal.models import Journal
-from plugins.typesetting.models import TypesettingAssignment
 from review import models as review_models
 from submission.models import Article
 from utils.logger import get_logger
@@ -24,13 +23,8 @@ from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.permissions import has_director_role, has_eo_role
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
-from .models import (
-    Message,
-    MessageRecipients,
-    PastEditorAssignment,
-    Reminder,
-    WjsEditorAssignment,
-)
+from .models import Message, MessageRecipients, Reminder
+from .role_cache import CURRENT_REVIEWER_ROLE, get_or_refresh_role_cache_entry
 
 Account = get_user_model()
 logger = get_logger(__name__)
@@ -42,6 +36,21 @@ MESSAGE_TYPE_ICONS = {
     Message.MessageTypes.USER: "bi-chat-square-text",
     None: "bi-funnel-fill",
 }
+
+
+def _user_has_eo_group(user: Account) -> bool:
+    """Return whether user belongs to EO group, memoizing result on the user instance."""
+    cached = getattr(user, "_wjs_is_eo_user", None)
+    if cached is not None:
+        return cached
+
+    prefetched_groups = getattr(user, "_prefetched_objects_cache", {}).get("groups")
+    if prefetched_groups is not None:
+        value = any(group.name == constants.EO_GROUP for group in prefetched_groups)
+    else:
+        value = user.groups.filter(name=constants.EO_GROUP).exists()
+    user._wjs_is_eo_user = value
+    return value
 
 
 def get_messages_related_to_me(
@@ -284,62 +293,19 @@ def role_for_article(  # noqa: PLR0911
 
     It is possible for a user to have more than one role on one article, this function imposes a sort of "hierarchy" of
     the roles and returns the most "appropriate".
-
     """
-    if user.groups.filter(name=constants.EO_GROUP).exists():
+    if _user_has_eo_group(user):
         # No need to return the role of EO if it's used in a message-recipients list
         return "" if message_recipient_style else constants.EO_GROUP
 
-    if WjsEditorAssignment.objects.filter(editor=user, article=article).exists():
-        return constants.EDITOR_ROLE
+    role = get_or_refresh_role_cache_entry(article=article, user=user)
 
-    if PastEditorAssignment.objects.filter(editor=user, article=article).exists():
-        return f"past {constants.EDITOR_ROLE}"
-
-    if review_models.ReviewAssignment.objects.filter(reviewer=user, article=article).exists():
+    if role in (constants.REVIEWER_ROLE, CURRENT_REVIEWER_ROLE):
         if message_recipient_style:
-            # When displaying recipients, it's useful to have an indication if the reviewer is "past".
-            #
-            # We consider "past" reviewers only those that do _NOT_ have
-            # pending/delivered assignment for the _CURRENT_ round.
-            current_round = article.current_review_round_object()
-            pending_reviewes = Q(
-                reviewer=user,
-                article=article,
-                review_round=current_round,
-                is_complete=False,
-                date_declined__isnull=True,
-            )
-            delivered_reviews = Q(
-                Q(
-                    reviewer=user,
-                    article=article,
-                    review_round=current_round,
-                    date_complete__isnull=False,
-                    date_accepted__isnull=False,
-                    is_complete=True,
-                )
-                & ~Q(
-                    decision="withdrawn",
-                ),
-            )
-            is_current = review_models.ReviewAssignment.objects.filter(pending_reviewes | delivered_reviews).exists()
-            return constants.REVIEWER_ROLE if is_current else f"past {constants.REVIEWER_ROLE}"
+            return constants.REVIEWER_ROLE if role == CURRENT_REVIEWER_ROLE else f"past {constants.REVIEWER_ROLE}"
         return constants.REVIEWER_ROLE
 
-    if user == article.correspondence_author:
-        return constants.AUTHOR_ROLE
-
-    if user in article.authors.all():
-        return constants.COAUTHOR_ROLE
-
-    if TypesettingAssignment.objects.filter(round__article=article, typesetter=user).exists():
-        return constants.TYPESETTER_ROLE
-
-    if user.check_role(article.journal, role=constants.DIRECTOR_ROLE, staff_override=False):
-        return constants.DIRECTOR_ROLE
-
-    return ""
+    return role
 
 
 def update_date_send_reminders(assignment: review_models.ReviewAssignment, new_assignment_date_due: datetime.datetime):
