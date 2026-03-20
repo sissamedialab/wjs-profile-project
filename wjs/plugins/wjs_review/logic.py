@@ -27,7 +27,7 @@ from channels.layers import get_channel_layer
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
 from core import models as core_models
-from core.models import AccountRole, Role
+from core.models import AccountRole, Role, SupplementaryFile
 from dateutil.parser import parse
 from django import forms
 from django.conf import settings
@@ -1716,35 +1716,47 @@ class AuthorHandleRevisionObsolete:
 
 @dataclasses.dataclass()
 class PopulateRevisionSteps:
+    """Orchestrate the transfer of data from the revision storage to its proper place."""
+
     article: Article
     revision: EditorRevisionRequest
     revision_storage: RevisionStorage
 
     def run(self):
         PopulateRevisionStep1(
-            article=self.article, revision=self.revision, revision_storage=self.revision_storage
+            article=self.article,
+            revision=self.revision,
+            revision_storage=self.revision_storage,
         ).run()
-        if self.revision_storage.revision_flow_type in (
+        if self.revision_storage.revision_flow_type in {
             RevisionStorage.RevisionFlowType.FULL,
             RevisionStorage.RevisionFlowType.METADATA,
-        ):
+        }:
             PopulateRevisionStep4(
-                article=self.article, revision=self.revision, revision_storage=self.revision_storage
+                article=self.article,
+                revision=self.revision,
+                revision_storage=self.revision_storage,
             ).run()
-        if self.revision_storage.revision_flow_type in (
+        if self.revision_storage.revision_flow_type in {
             RevisionStorage.RevisionFlowType.FULL,
             RevisionStorage.RevisionFlowType.METADATA,
-        ):
+        }:
             PopulateRevisionStep5(
-                article=self.article, revision=self.revision, revision_storage=self.revision_storage
+                article=self.article,
+                revision=self.revision,
+                revision_storage=self.revision_storage,
             ).run()
         if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
             PopulateRevisionStep6(
-                article=self.article, revision=self.revision, revision_storage=self.revision_storage
+                article=self.article,
+                revision=self.revision,
+                revision_storage=self.revision_storage,
             ).run()
         if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
             PopulateRevisionStep7(
-                article=self.article, revision=self.revision, revision_storage=self.revision_storage
+                article=self.article,
+                revision=self.revision,
+                revision_storage=self.revision_storage,
             ).run()
         self.revision.revision_flow_type = self.revision_storage.revision_flow_type
 
@@ -1811,7 +1823,6 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
 
 
 class PopulateRevisionStep5(BasePopulateRevisionStep):
-
     def run(self):
         if new_title := self.revision_storage.data.get("title"):
             self.revision.title = self.article.title
@@ -1831,22 +1842,29 @@ class PopulateRevisionStep5(BasePopulateRevisionStep):
 
 
 class PopulateRevisionStep6(BasePopulateRevisionStep):
+    """Store cas, das and files."""
 
     def run(self):
-        # store cas, das and files
         self.article.submission_data.cas = self.revision_storage.data.get("cas")
         self.article.submission_data.das = self.revision_storage.data.get("das")
 
-        # files
+        # Files
         # (remember that the files from the previous version have already been saved to revision-request
         # object when the revision was requested by the editor)
         self.article.manuscript_files.set([self.revision_storage.data["manuscript_files"]])
         self.article.source_files.set([self.revision_storage.data["source_files"]])
 
-        # data-figure and supplementary files:
+        # Data/figure (aka administrative) files and supplementary files:
         # let the article point directly to the ones selected during the revision, but do _not_ drop the rest
+        # (because files from prevision versions must be kept)
         self.article.data_figure_files.set(self.revision_storage.data["data_figure_files"])
-        self.article.supplementary_files.set(self.revision_storage.data["supplementary_files"])
+        # Remember the revision-storage only stores the pk of the File record;
+        # the SupplementaryFile record does not yet exist.
+        esm_files = [
+            SupplementaryFile.objects.create(file_id=file_id)
+            for file_id in self.revision_storage.data["supplementary_files"]
+        ]
+        self.article.supplementary_files.set([esm_file.pk for esm_file in esm_files])
 
 
 class PopulateRevisionStep7(BasePopulateRevisionStep):
@@ -4732,7 +4750,6 @@ class BaseConvertLatexReport:
 
 @dataclasses.dataclass()
 class ConvertEditorLatexReport(BaseConvertLatexReport):
-
     _failed_conversion_log = "Failed conversion log ConvertEditorLatexReport"
     _yakunin_log_filename_template = "conversion-EA_%s.log"
     _report_filename = "latex_editor_report_EA-%s"
@@ -4775,7 +4792,6 @@ class ConvertEditorLatexReport(BaseConvertLatexReport):
 
 @dataclasses.dataclass
 class ConvertReviewerLatexReport(BaseConvertLatexReport):
-
     _failed_conversion_log = "Failed conversion log ConvertReviewerLatexReport"
     _yakunin_log_filename_template = "conversion-RA_%s.log"
     _report_filename = "latex_editor_report_RA-%s"
