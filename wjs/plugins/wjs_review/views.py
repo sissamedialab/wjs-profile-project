@@ -16,7 +16,15 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
 from django.db import IntegrityError
-from django.db.models import F, Max, OuterRef, Q, QuerySet, Subquery
+from django.db.models import (
+    F,
+    Max,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    prefetch_related_objects,
+)
 from django.db.models.functions import Coalesce
 from django.forms import models as model_forms
 from django.http import (
@@ -319,7 +327,7 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
 
     def get_queryset(self):
         """Filter article by state and filterset values."""
-        base_qs = self.model._default_manager.all()
+        base_qs = self.model._default_manager.select_related("article").all()
         base_qs = self._apply_base_filters(base_qs)
         base_qs = self._annotate_last_revision_date(base_qs)
         if "editor_sorting" in self.get_ordering() or "-editor_sorting" in self.get_ordering():
@@ -336,6 +344,8 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
     def get_context_data(self, **kwargs):
         """Add the filterset."""
         context = super().get_context_data(**kwargs)
+        if self.request.user.is_authenticated:
+            prefetch_related_objects([self.request.user], "groups")
         context["filter"] = self.filterset
         context["ordering_value"] = self._get_ordering_value()
         return context

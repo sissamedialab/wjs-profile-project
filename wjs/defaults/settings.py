@@ -376,7 +376,11 @@ Q_CLUSTER = {
     "timeout": 300,
 }
 
-
+# NB: do not change the cache backend:
+# we use `django_cache.delete_pattern()` that only works with Redis!
+# See
+# - specs#2416
+# - https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/merge_requests/1270#note_60214
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
@@ -386,6 +390,11 @@ CACHES = {
         },
     },
 }
+
+# Seconds to keep role-for-article entries in Redis cache (15 days).
+ROLE_FOR_ARTICLE_CACHE_TTL = 1296000
+# Cache key version for role-for-article Redis entries.
+ROLE_FOR_ARTICLE_CACHE_VER = 1
 
 LOCALE_PATHS = [Path(__file__).parents[1] / "locale"]
 
