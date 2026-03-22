@@ -19,15 +19,17 @@ function checkDateVisibility(decision) {
  * Copies the content of a reviewer's report from a modal and appends it to the decision editor field.
  *
  * @param {string} id - The identifier used to locate the specific modal containing the reviewer's report.
+ * @param {int} reviewOrder - The order of the report.
  * @return {void} - Does not return a value.
  */
-function copyReviewerReport(id) {
+function copyReviewerReport(id, reviewOrder) {
   const text = document.querySelector(`#author_review_tex_modal-${id} .modal-body`)?.innerText.trim();
   if (!text) return;
   const editor = document.getElementById("id_decision_editor_report");
   if (!editor) return;
-  if (editor.value) editor.value += "\n\n-------------------\n\n";
-  editor.value += text;
+  let content = `Report ${reviewOrder}\n\n${text}`;
+  if (editor.value) content = `\n\n-------------------\n\n ${content}`;
+  editor.value += content;
 }
 
 /**
@@ -36,14 +38,16 @@ function copyReviewerReport(id) {
  * separated by a delimiter line.
  *
  * @param {string} latexContent - The LaTeX content to be copied into the editor.
+ * @param {int} reviewOrder - The order of the report.
  * @return {void} - Does not return a value.
  */
-function copyConvertedReport(latexContent) {
+function copyConvertedReport(latexContent, reviewOrder) {
   if (!latexContent) return;
   const editor = document.getElementById("id_decision_editor_report");
   if (!editor) return;
-  if (editor.value) editor.value += "\n\n-------------------\n\n";
-  editor.value += latexContent;
+  let content = `Report ${reviewOrder}\n\n${latexContent}`;
+  if (editor.value) content = `\n\n-------------------\n\n${content}`;
+  editor.value += content;
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -57,11 +61,11 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 document.addEventListener("click", e => {
-  if (!e.target.classList.contains("copy-tex-btn")) return;
-  copyReviewerReport(e.target.dataset.reviewId);
+  if (!e.target.classList.contains("js-copy-tex-btn")) return;
+  copyReviewerReport(e.target.dataset.reviewId, e.target.dataset.reviewOrder);
 });
 
 document.body.addEventListener("htmx:afterOnLoad", e => {
-  if (!e.target.classList.contains("copy-tex-btn")) return;
-  copyConvertedReport(e.detail.xhr.responseText.trim());
+  if (!e.target.classList.contains("js-copy-tex-btn")) return;
+  copyConvertedReport(e.detail.xhr.responseText.trim(), e.target.dataset.reviewOrder);
 });

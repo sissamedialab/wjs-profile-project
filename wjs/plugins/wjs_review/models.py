@@ -1843,6 +1843,7 @@ class WorkflowReviewAssignment(ReviewAssignment):
         verbose_name=_("Editor invite message"),
     )
     objects = WorkflowReviewAssignmentQuerySet.as_manager()
+    shared_report = models.BooleanField(default=False, verbose_name=_("Shared report"))
 
     # Map janeway's statuses to an ordered dict to map to our own statuses
     statuses = {

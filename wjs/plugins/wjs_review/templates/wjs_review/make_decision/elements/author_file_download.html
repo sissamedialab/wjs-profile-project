@@ -5,7 +5,7 @@
 {% with author_file_title=review.workflowreviewassignment.report_form_answers|get_value:'author_file_title'|default:"----" %}
 <!-- djlint:off -->
 {% with author_file_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:author_file_title %}
-{% with author_tex_report_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:'LaTex Report' %}
+{% with author_tex_report_label="<i class=\"bi bi-filetype-txt\"></i> "|concat:'Review review (PDF From LaTeX)' %}
 <!-- djlint:on -->
 {% if show_file == "text" %}
   {% if review.review_file %}

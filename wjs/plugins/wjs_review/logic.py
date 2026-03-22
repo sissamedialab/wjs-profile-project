@@ -625,6 +625,7 @@ class AssignToReviewer:
             assignment.report_form_answers = self.form_data.get("report_form_answers", default_report_form_answers)
             assignment.editor_invite_message = None
             assignment.tex_report_pdf = None
+            assignment.shared_report = False
             assignment.save()
             # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
             # by refreshing it from db, the value is casted to a date object
@@ -2872,6 +2873,8 @@ class HandleDecision:
                 )
             },
         )
+        assignment.shared_report = value == "yes"
+        assignment.save()
 
     def _get_editor_assignment(self) -> WjsEditorAssignment | None:
         """Return the current editor assignment (if any)."""
@@ -4666,7 +4669,7 @@ class BaseConvertLatexReport:
         """
         tmpdir = None
         tex_file = self._prepare_tex_file()
-        client = YakuninClient(file=tex_file, filename=self.report_filename)
+        client = YakuninClient(file=tex_file, filename=f"{self.report_filename}.tex")
 
         try:
             tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
@@ -4731,9 +4734,13 @@ class BaseConvertLatexReport:
         return core_files.save_file_to_article(
             file_to_handle=log_content_file,
             article=self.instance.article,
-            owner=self.instance.editor,
+            owner=self.owner,
             label=self._failed_conversion_log,
         )
+
+    @property
+    def owner(self):
+        raise NotImplementedError
 
     def _handle_generated_file(self, unpack_dir: Path) -> File:
         """
@@ -4760,7 +4767,11 @@ class ConvertEditorLatexReport(BaseConvertLatexReport):
 
     @property
     def report_filename(self):
-        return self._yakunin_log_filename_template % self.instance.pk
+        return self._report_filename % self.instance.pk
+
+    @property
+    def owner(self):
+        return self.instance.editor
 
     def _handle_generated_file(self, unpack_dir: Path) -> File:
         """
@@ -4775,7 +4786,7 @@ class ConvertEditorLatexReport(BaseConvertLatexReport):
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
-        generated_pdf_filename = f"{self.filename}.pdf"
+        generated_pdf_filename = f"{self._report_filename}.pdf"
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
@@ -4804,6 +4815,10 @@ class ConvertReviewerLatexReport(BaseConvertLatexReport):
     def report_filename(self):
         return self._yakunin_log_filename_template % self.instance.pk
 
+    @property
+    def owner(self):
+        return self.instance.reviewer
+
     def _handle_generated_file(self, unpack_dir: Path) -> File:
         """
         Handles a generated PDF file located in the given unpack directory and processes it
@@ -4817,7 +4832,7 @@ class ConvertReviewerLatexReport(BaseConvertLatexReport):
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
-        generated_pdf_filename = f"{self.filename}.pdf"
+        generated_pdf_filename = f"{self._report_filename}.pdf"
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
@@ -4825,7 +4840,7 @@ class ConvertReviewerLatexReport(BaseConvertLatexReport):
                 file_to_handle=generated_pdf,
                 article=self.instance.article,
                 owner=self.instance.reviewer,
-                label="Yakunin generated file",
+                label="PDF",
             )
         self.instance.tex_report_pdf = generated_tex
         self.instance.save()
