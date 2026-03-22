@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.forms import formset_factory
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils.formats import date_format
 from django.utils.safestring import mark_safe
 from django.utils.timezone import now
@@ -676,6 +677,7 @@ class ReportForm(RichTextGeneratedForm):
 
 class DecisionForm(forms.ModelForm):
     decision = forms.ChoiceField(
+        label=_("Decision"),
         choices=ArticleWorkflow.Decisions.decision_choices,
         required=True,
     )
@@ -686,7 +688,9 @@ class DecisionForm(forms.ModelForm):
     withdraw_notice = WjsMiniHTMLFormField(
         label=_("Courtesy notes for reviewers who did not send review"), required=False
     )
-    date_due = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    date_due = forms.DateField(
+        label=_("Revision due date"), required=False, widget=forms.DateInput(attrs={"type": "date"})
+    )
     state = forms.CharField(widget=forms.HiddenInput(), required=False)
 
     class Meta:
@@ -1822,32 +1826,38 @@ class JCOMReportForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": 3, "placeholder": _("name/email")}),
     )
     editor_cover_letter = WjsMiniHTMLFormField(
-        label=_("Cover letter (for the Editor in charge)"),
+        label=_("Cover letter for the Editor-in-Charge"),
         required=True,
         error_messages={
             "required": mark_safe(
                 _(
-                    "Cover letter (for the Editor in charge) is required.<br> Important: if you had "
+                    "Cover letter for the Editor-in-Charge is required.<br> Important: if you had "
                     "uploaded a file, this will need to be uploaded again."
                 )
             ),
         },
     )
     review_choice = forms.ChoiceField(
-        choices=[("tex", _("TeX Review")), ("rich_text", _("Rich Text Review"))],
+        choices=[("tex", _("TeX")), ("rich_text", _("Text"))],
         widget=forms.RadioSelect,
         required=False,
-        label=_("Choose to submit your report in TeX or Rich Text"),
+        label=_("Review format"),
     )
-    author_review = WjsMiniHTMLFormField(label=_("Review (for the Author)"), required=False)
+    author_review = WjsMiniHTMLFormField(label=_("Review for authors (Rich text)"), required=False)
     author_review_tex = forms.CharField(
-        label=_("Review (for the Author) in LaTeX"),
+        label=_("Review for authors (LaTeX)"),
         required=False,
-        widget=forms.Textarea(attrs={"rows": 10, "placeholder": _("LaTeX")}),
+        widget=forms.Textarea(attrs={"rows": 10, "placeholder": _("Review for authors (LaTeX)")}),
+        help_text=_(
+            r"Please write your report in an offline editor and save a copy to avoid losing the content in case of a "
+            r"system failure. In LaTex there is no need of '\begin{document}' etc.<br>Use the test pdf button below "
+            r"to preview your report before the final upload. The report will be automatically compiled and forwarded "
+            r"after clicking “submit”.<br><br>Please DO NOT SIGN THE REPORT."
+        ),
     )
     # This is saved in ReviewAssignment.review_file
     review_file = forms.FileField(
-        label="File (to be sent to Author)", required=False, widget=forms.ClearableFileInput()
+        label="File for authors (any format)", required=False, widget=forms.ClearableFileInput()
     )
     author_file_title = forms.CharField(label=_("File title"), required=False)
 
@@ -1881,13 +1891,16 @@ class JCOMReportForm(forms.Form):
         author_review_tex = cleaned_data.get("author_review_tex")
         # follow_up_action is required only if recommendation is to revise_minor or revise_major
         if conflict_of_interest == "yes":
+            write_url = reverse(
+                "wjs_message_write",
+                kwargs={"pk": self.instance.article.articleworkflow.pk, "recipient_id": self.instance.editor_id},
+            )
             self.add_error(
                 "conflict_of_interest",
                 _(
-                    "Your review cannot be uploaded since you have declared"
-                    " a conflict of interest. Please go to the article web page and "
-                    "use “write a message” to discuss with the Editor in charge "
-                    "whether you should send your review."
+                    f"Your review cannot be uploaded since you have declared a conflict of interest.<br>"
+                    f'Please <a href="{write_url}">write the Editor-in-charge</a>'
+                    f"to discuss with them whether you should send your review."
                 ),
             )
         if recommendation in ["revise_minor", "revise_major"]:

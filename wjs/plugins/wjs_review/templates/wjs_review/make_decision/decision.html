@@ -3,7 +3,7 @@
 {% load wjs_review wjs_articles wjs_tags %}
 {% block content_wrapper %}
   {% translate "Reviewers: " as reviewers_text %}
-  {% translate "Please paste here all reviewer comments that you wish to send the Author. Feel free to modify them as you see fit. After clicking \"Send\", the Author will receive them as \"Editor report\", along with the file(s) that you have chosen to send them (if any)." as editor_report_info %}
+  {% translate "The following form includes any reports that you have just decided to send the authors. Please consider personalising the text and modifying any reviewer report as appropriate. After clicking \"Send\", the Author will receive the resulting text as \"Editor report\", along with the file(s) that you have chosen to send them (if any)." as editor_report_info %}
   {% article_css_classes workflow as article_classes %}
   <div class="container mb-3">
     <div class="row">
@@ -47,20 +47,10 @@
             {% if tex_review_allowed %}
             <div id="pdf_error" class="alert alert-danger d-none"></div>
             <div class="d-flex justify-content-end mt-1">
-              <button
-                  type="button"
-                  class="btn btn-primary btn-sm"
-                  hx-post="{% url 'elaborate-latex-editor-report' workflow.pk %}"
-                  hx-include="[name='decision_editor_report']"
-                     hx-on="
-                      htmx:beforeRequest: clearError();
-                      htmx:responseError: logError(event);
-                      htmx:afterRequest: clearErrorOnSuccess(event);
-                  "
-              >
-                  Test PDF
-              </button>
-              </div>
+              {% url 'elaborate-latex-editor-report' workflow.pk as download_report %}
+              {% translate "Test PDF" as use_report_label %}
+              {% bootstrap_button type="button" content=use_report_label button_class="btn-primary btn-sm" hx_post=download_report hx_include="[name='decision_editor_report']" hx_on="htmx:beforeRequest: clearError();htmx:responseError: logError(event);htmx:afterRequest: clearErrorOnSuccess(event);" %}
+            </div>
             {% endif %}
           {% endif %}
           {% include "wjs_review/make_decision/elements/review_files_table.html" %}

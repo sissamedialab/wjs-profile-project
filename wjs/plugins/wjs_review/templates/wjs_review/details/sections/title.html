@@ -38,12 +38,16 @@
     </div>
   </div>
   {% if doi %}
-    <div><a class="text-decoration-none h3"
-    {% if workflow.state == "Published" %}
-            href="https://doi.org/{{ doi }}"
-    {% else %}
-            href="#" title="DOI not yet registered"
-    {% endif %}
-  >https://doi.org/{{ doi }}</a></div>
+    <div>
+      {% if workflow.state == "Published" %}
+        {% if "https" in doi %}
+          <a class="text-decoration-none h4" href="{{ doi }}">{{ doi }}</a>
+        {% else %}
+          <a class="text-decoration-none h4" href="https://doi.org/{{ doi }}">https://doi.org/{{ doi }}</a>
+        {% endif %}
+      {% else %}
+        <span class="h4">DOI not yet registered</span>
+      {% endif %}
+    </div>
   {% endif %}
 {% endwith %}

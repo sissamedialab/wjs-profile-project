@@ -33,10 +33,11 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 document.addEventListener("DOMContentLoaded", function () {
-  const conflictRadios = document.querySelectorAll('input[name="{{ form.conflict_of_interest.name }}"]');
+  const conflictRadios = document.querySelectorAll(`input[name=${conflictOfInterestName}]`);
   const submitButton = document.getElementById("submit-btn");
   const conflictMessage = document.getElementById("conflict-message");
 
+  console.log("conflictRadios", conflictRadios);
   function toggleConflict(radio) {
     const isConflict = radio.value === "yes";
     submitButton.disabled = isConflict;
@@ -55,24 +56,24 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 document.addEventListener("DOMContentLoaded", function () {
-  const texRadio = document.getElementById("review_choice_tex");
-  const richTextRadio = document.getElementById("review_choice_rich_text");
+  const texRadio = document.getElementById("id_review_choice_0");
+  const richTextRadio = document.getElementById("id_review_choice_1");
   const texField = document.getElementById("field_author_review_tex");
   const richTextField = document.getElementById("field_author_review");
-  const mode = "{{ form.reviewer_report_type }}";
 
   function toggleFields() {
-    if (mode === "tex") {
+    console.log("toggleFields", reportMode, texField);
+    if (reportMode === "tex") {
       texField.style.display = "block";
       if (richTextField) richTextField.style.display = "none";
       return;
     }
-    if (mode === "text") {
+    if (reportMode === "text") {
       richTextField.style.display = "block";
       if (texField) texField.style.display = "none";
       return;
     }
-    if (mode === "tex+text") {
+    if (reportMode === "tex+text") {
       texField.style.display = texRadio.checked ? "block" : "none";
       richTextField.style.display = richTextRadio.checked ? "block" : "none";
     }
@@ -81,4 +82,11 @@ document.addEventListener("DOMContentLoaded", function () {
   toggleFields();
   texRadio?.addEventListener("change", toggleFields);
   richTextRadio?.addEventListener("change", toggleFields);
+  if (reportModeSelected === "tex") {
+    texRadio.checked = true;
+    toggleFields();
+  } else if (reportModeSelected === "rich_text") {
+    richTextRadio.checked = true;
+    toggleFields();
+  }
 });

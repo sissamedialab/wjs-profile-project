@@ -34,6 +34,7 @@ function clearErrorOnSuccess(event) {
 function clearError() {
   document.getElementById("pdf_error").innerText = "";
   document.getElementById("pdf_error").classList.add("d-none");
+  document.querySelector("[name=submit]").removeAttribute("disabled");
 }
 
 /**
@@ -47,6 +48,7 @@ function clearError() {
 function setPdfError(text) {
   document.getElementById("pdf_error").innerHTML = text;
   document.getElementById("pdf_error").classList.remove("d-none");
+  document.querySelector("[name=submit]").setAttribute("disabled", 1);
 }
 
 document.body.addEventListener("yakunin-error", event => {

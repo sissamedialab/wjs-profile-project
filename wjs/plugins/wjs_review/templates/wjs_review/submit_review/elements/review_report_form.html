@@ -1,32 +1,22 @@
 {% load django_bootstrap5 i18n %}
 {% translate "If you do, please write to the Editor in charge" as conflict_interest_label %}
-{% translate "Please write your comments in the text area and/or upload a file" as author_review_label %}
+{% translate "Please write your comments in the text area and/or upload a file<br>Please DO NOT SIGN THE REPORT" as author_review_label %}
 <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="col">
         {% bootstrap_form_errors form type='fields' %}
         {# FIXME: We might want to refactor this implementation if we find a way to express this structure with django-bootstrap4 #}
         <div class="mb-3">
-            <label class="fw-bold" for="{{ form.conflict_of_interest.id_for_label }}">
-                {{ form.conflict_of_interest.label }}
-            </label>
-            <div>{{ conflict_interest_label }}</div>
-            {% for radio in form.conflict_of_interest %}
-                <div class="form-check-inline">
-                    {{ radio.tag }}
-                    <label class="form-check-label" for="{{ radio.id_for_label }}">
-                        {{ radio.choice_label }}
-                    </label>
-                </div>
-            {% endfor %}
+            {% bootstrap_field form.conflict_of_interest required_css_class="required-field" field_class="d-flex gap-3" %}
             <!-- djlint:off -->
             <div class="mb-3" id="conflict-message" style="display:none;">
             <!-- djlint:on -->
               <p class="text-danger">
-                {% blocktranslate%}
-                  Your review cannot be uploaded since you have declared a conflict of interest.
-                  Please go to the article web page and use “write a message” to discuss with the
-                  Editor in charge whether you should send your review.
+                {% url "wjs_message_write" pk=object.article.articleworkflow.pk recipient_id=object.editor_id as write_url %}
+                {% blocktranslate %}
+                  Your review cannot be uploaded since you have declared a conflict of interest.<br>
+                  Please <a href="{{ write_url }}">write the Editor-in-charge</a>
+                  to discuss with them whether you should send your review.
                 {% endblocktranslate %}
               </p>
             </div>
@@ -34,35 +24,7 @@
         <div class="mb-3">
           {% bootstrap_form form required_css_class="required-field" exclude='conflict_of_interest, author_review, review_file, author_file_title, author_review_tex, review_choice' %}
           {% if form.reviewer_report_type == 'tex+text' %}
-            <label class="form-label fw-bold">{{ form.review_choice.label }}</label>
-            <div class="d-flex gap-3 mb-2">
-                <div class="form-check">
-                    <input
-                        class="form-check-input"
-                        type="radio"
-                        name="review_choice"
-                        id="review_choice_tex"
-                        value="tex"
-                        {% if form.initial.review_choice == 'tex' %}checked{% endif %}
-                    >
-                    <label class="form-check-label" for="review_choice_tex">
-                        TeX Review
-                    </label>
-                </div>
-                <div class="form-check">
-                    <input
-                        class="form-check-input"
-                        type="radio"
-                        name="review_choice"
-                        id="review_choice_rich_text"
-                        value="rich_text"
-                        {% if form.initial.review_choice == 'rich_text' %}checked{% endif %}
-                    >
-                    <label class="form-check-label" for="review_choice_rich_text">
-                        Rich Text Review
-                    </label>
-                </div>
-            </div>
+            {% bootstrap_field form.review_choice required_css_class="required-field" field_class="d-flex gap-3" %}
           {% endif %}
           {% if form.reviewer_report_type == 'tex+text' or form.reviewer_report_type == 'tex' %}
           <!-- djlint:off -->
@@ -71,19 +33,9 @@
               {% bootstrap_field form.author_review_tex label_class="fw-bold" addon_before_class=None %}
               <div id="pdf_error" class="alert alert-danger d-none"></div>
               <div class="d-flex justify-content-end mt-1">
-              <button
-                  type="button"
-                  class="btn btn-primary btn-sm"
-                  hx-post="{% url 'elaborate-latex-report' assignment.pk %}"
-                  hx-include="[name='author_review_tex']"
-                     hx-on="
-        htmx:beforeRequest: clearError();
-        htmx:responseError: logError(event);
-        htmx:afterRequest: clearErrorOnSuccess(event);
-    "
-              >
-                  Test PDF
-              </button>
+                {% url 'elaborate-latex-report' assignment.pk as download_report %}
+                {% translate "Test PDF" as use_report_label %}
+                {% bootstrap_button type="button" content=use_report_label button_class="btn-primary btn-sm" hx_post=download_report hx_include="[name='author_review_tex']" hx_on="htmx:beforeRequest: clearError();htmx:responseError: logError(event);htmx:afterRequest: clearErrorOnSuccess(event);" %}
               </div>
           </div>
           {% endif %}
@@ -91,7 +43,7 @@
           <!-- djlint:off -->
           <div id="field_author_review" {% if form.reviewer_report_type == 'tex+text' %}style="display:none;"{% endif %}>
           <!-- djlint:on -->
-              {% bootstrap_field form.author_review label_class="fw-bold" addon_before=author_review_label addon_before_class=None %}
+            {% bootstrap_field form.author_review label_class="fw-bold" addon_before=author_review_label addon_before_class=None %}
           </div>
           {% endif %}
 

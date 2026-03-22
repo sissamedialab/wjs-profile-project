@@ -114,6 +114,7 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
+    BaseConvertLatexReport,
     ConvertEditorLatexReport,
     ConvertReviewerLatexReport,
     HandleMessage,
@@ -1699,7 +1700,7 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         report_form = self._get_report_form()
         if report_form.is_valid():
             try:
-                if self.request.POST.get("author_review_tex", None):
+                if report_form.cleaned_data["review_choice"] == "tex":
                     client = ConvertReviewerLatexReport(
                         report_text=self.request.POST.get("author_review_tex"),
                         instance=self.object.workflowreviewassignment,
@@ -1893,6 +1894,9 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
         context["tex_review_allowed"] = get_setting(
             setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
         ).value in ["tex", "tex+text"]
+        context["richtext_review_allowed"] = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value in ["rich_text", "tex+text"]
         return context
 
 
@@ -3997,9 +4001,13 @@ class BaseConvertLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
 
     :ivar assignment: Represents the current assignment related to the article.
     :type assignment: Assignment
+    :ivar converter_class: Represents the converter class for generating the editor report.
+    :type converter_class: type[ConvertEditorLatexReport]
     :ivar request: The HTTP request object for this view.
     :type request: HttpRequest
     """
+
+    converter_class: type[BaseConvertLatexReport]
 
     def test_func(self):
         raise NotImplementedError()
@@ -4041,8 +4049,8 @@ class BaseConvertLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
         :raises LatexPreamble.DoesNotExist: If the required LaTeX configuration is missing
         :raises Exception: For unhandled exceptions during the process
         """
-        client = ConvertEditorLatexReport(
-            report_text=self.request.POST.get("decision_editor_report"),
+        client = self.converter_class(
+            report_text=self.request.POST.get(self.report_field),
             instance=self.assignment,
         )
         try:
@@ -4087,7 +4095,15 @@ class ConvertLatexReviewerReportView(BaseConvertLatexReportView):
 
     :ivar assignment: Workflow review assignment linked to the provided assignment ID.
     :type assignment: WorkflowReviewAssignment
+    :ivar converter_class: Represents the converter class for generating the editor report.
+    :type converter_class: type[ConvertEditorLatexReport]
+    :ivar report_field: Represents the field name for the editor report.
+    :type report_field: str
     """
+
+    converter_class: type[ConvertReviewerLatexReport] = ConvertReviewerLatexReport
+
+    report_field = "author_review_tex"
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
@@ -4104,7 +4120,15 @@ class ConvertLatexEditorReportView(BaseConvertLatexReportView):
 
     :ivar assignment: Represents the current editor assignment fetched using the workflow.
     :type assignment: WjsEditorAssignment
+    :ivar converter_class: Represents the converter class for generating the editor report.
+    :type converter_class: type[ConvertEditorLatexReport]
+    :ivar report_field: Represents the field name for the editor report.
+    :type report_field: str
     """
+
+    converter_class: type[ConvertEditorLatexReport] = ConvertEditorLatexReport
+
+    report_field = "decision_editor_report"
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
