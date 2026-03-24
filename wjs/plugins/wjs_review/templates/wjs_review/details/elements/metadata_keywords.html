@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load i18n submission_tags %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="heading-keywords">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-keywords" aria-expanded="false" aria-controls="collapse-keywords">
@@ -9,9 +9,9 @@
     <div class="accordion-body">
       <dl class="ps-0">
         {% if journal.submissionconfiguration.hierarchical_keywords %}
-          {% regroup article.keywordarticle_set.all by keyword.group as keyword_tree %}
+          {% regroup article|article_keywords_by_group by keyword.group.name as keyword_tree %}
           {% for by_category in keyword_tree %}
-            <dt>{{ by_category.grouper }} {{ by_category.grouper.parent_group }}</dt>
+            <dt>{% if by_category.grouper %}{{ by_category.grouper }} {{ by_category.grouper.parent_group }}{% else %}{% translate "Free keywords" %}{% endif %}</dt>
             {% for keyword in by_category.list %}
               <dd class="d-flex justify-content-between"><span>{{ keyword.keyword.word }}</span>{% if keyword.weight %} <span>{% translate "Weight" %}: {{ keyword.weight }}</span>{% endif %}</dd>
             {% endfor %}
