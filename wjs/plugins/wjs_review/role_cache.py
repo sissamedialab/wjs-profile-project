@@ -64,7 +64,7 @@ def compute_role_for_article(article: Article, user: Account) -> str:
     if user == article.correspondence_author:
         return constants.AUTHOR_ROLE
 
-    if article.authors.filter(pk=user.pk).exists():
+    if user in article.author_accounts.all():
         return constants.COAUTHOR_ROLE
 
     if TypesettingAssignment.objects.filter(round__article=article, typesetter=user).exists():
