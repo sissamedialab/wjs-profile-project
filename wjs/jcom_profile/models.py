@@ -58,6 +58,7 @@ class JCOMProfile(Account):
     )
     gender = models.CharField(_("Gender"), choices=GENDER_CHOICES, default="", blank=True)
     year_of_birth = models.IntegerField(_("Year of birth"), null=True, blank=True)
+    alternative_email = models.EmailField(_("Institutional email address"), null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # is_admin is a flag of janeway which protects some manager site parts

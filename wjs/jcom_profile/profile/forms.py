@@ -71,7 +71,7 @@ class WjsEmailChangeForm(EditAccountForm):
 
     class Meta:
         model = JCOMProfile
-        fields = ("email",)
+        fields = ("email", "alternative_email")
         exclude = None
 
     def clean_new_email(self):

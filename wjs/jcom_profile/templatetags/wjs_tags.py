@@ -344,3 +344,19 @@ def decorate_widgets_for_regroup(field: BoundField):
         for widget in field
         if widget.data["value"]
     ]
+
+
+@register.simple_tag(takes_context=True)
+def get_profile_section(context):
+    request = context["request"]
+    prefixes = {
+        "profile/organization": "core_edit_profile_affiliations",
+        "^profile/organization": "core_edit_profile_affiliations",
+        "profile/affiliation": "core_edit_profile_affiliations",
+        "^profile/affiliation": "core_edit_profile_affiliations",
+    }
+    route = request.resolver_match.route
+    matched_prefixes = [section for prefix, section in prefixes.items() if route.startswith(prefix)]
+    if matched_prefixes:
+        return matched_prefixes[0]
+    return request.resolver_match.url_name
