@@ -12,6 +12,7 @@
       {% csrf_token %}
       {% bootstrap_field form.email wrapper_class="mb-4" %}
       {% bootstrap_field form.new_email wrapper_class="mb-4" %}
+      {% bootstrap_field form.alternative_email wrapper_class="mb-4" %}
     </div>
     <div class="wjs-profile-form__footer">
       {% translate "Update" as update_label %}
