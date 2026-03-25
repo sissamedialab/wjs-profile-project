@@ -9,9 +9,9 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache as django_cache
 from django.db.models import Q
-from plugins.typesetting.models import TypesettingAssignment
 from review import models as review_models
 from submission.models import Article
+from typesetting.models import TypesettingAssignment
 
 from wjs.jcom_profile import constants
 

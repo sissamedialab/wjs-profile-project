@@ -5,9 +5,9 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django_fsm.signals import post_transition
 from hijack.signals import hijack_started
-from plugins.typesetting.models import TypesettingAssignment
 from review.models import EditorAssignment, ReviewAssignment
 from submission.models import Article, Section
+from typesetting.models import TypesettingAssignment
 
 from wjs.jcom_profile import constants
 
