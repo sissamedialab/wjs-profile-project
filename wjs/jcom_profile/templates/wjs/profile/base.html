@@ -16,6 +16,16 @@
         <div class="col-sm-12 col-md-3">
           {% block profile_sidebar %}
             <nav class="wjs-profile-nav" aria-label="Profile navigation">
+              {% if settings.DEBUG %}
+                <div class="h6 text-secondary text-opacity-50">
+                DEBUG - TODO
+                <ul>
+                  <li>Stili affiliation</li>
+                  <li>Accordion keyword come accordion step 3</li>
+                  <li>Verifica stili sezione publication alert</li>
+                </ul>
+              </div>
+              {% endif %}
               <ul class="wjs-profile-nav__list">
                 <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile" %} wjs-profile-nav__item--active{% endif %}">
                   <a class="wjs-profile-nav__link" href="{{ core_edit_profile }}">Personal Details</a>
