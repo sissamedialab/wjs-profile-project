@@ -7,7 +7,7 @@
 
 {% block breadcrumbs_wrapper %}
   {% if view.breadcrumbs %}
-    <div class="container d-flex justify-content-between mb-3 pb-3 border-bottom">
+    <nav class="container d-flex justify-content-between mb-3 pb-3 border-bottom" aria-label="{% translate "Breadcrumbs" %}">
       <ul class="nav breadcrumbs">
         {% block breadcrumbs %}
           {% for link in view.breadcrumbs %}
@@ -17,7 +17,7 @@
       </ul>
       {% block breadcrumbs_right %}
       {% endblock breadcrumbs_right %}
-    </div>
+    </nav>
   {% endif %}
 {% endblock breadcrumbs_wrapper %}
 

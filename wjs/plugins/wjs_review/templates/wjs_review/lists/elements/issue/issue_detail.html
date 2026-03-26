@@ -15,10 +15,10 @@
             {% translate "Issue is published in batch mode" as batch_label %}
             {% translate "Issue is published piecemeal" as piece_label %}
             {% translate "Janeway Manager" as manager_label %}
-            {% bootstrap_button button_class="btn-outline-primary btn-sm" href=manage_issue_url target="_blank" title=manager_label content='<i class="bi bi-gear"></i>' %}
+            {% bootstrap_button role="link" button_class="btn-outline-primary btn-sm" href=manage_issue_url target="_blank" aria_label=manager_label content='<i class="bi bi-gear"></i>' %}
             {% if issue.issue_type.code == "collection" %}
               {% include "wjs_review/lists/elements/issue/_toggle_batch.html" %}
-              {% bootstrap_button button_class="btn-outline-primary btn-sm" name="update-issue-parameters" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=issueparameter_edit_url hx_target="#htmxModalContent" content='<i class="bi bi-card-heading"></i>' %}
+              {% bootstrap_button button_class="btn-outline-primary btn-sm" name="update-issue-parameters" data_bs_toggle="modal" data_bs_target="#htmxModal" hx_trigger="click" hx_get=issueparameter_edit_url hx_target="#htmxModalContent" content='<i class="bi bi-card-heading"></i>' aria_label="Edit issue parameters" %}
             {% endif %}
           {% endif %}
         </div>
