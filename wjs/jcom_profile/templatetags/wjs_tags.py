@@ -1,5 +1,7 @@
 """WJS tags."""
 
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
 import pycountry
 from core.models import Account
 from django import template
@@ -7,6 +9,7 @@ from django.template import Context, Template
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
+from django.utils.timezone import localtime, now
 from django.utils.translation import gettext_lazy as _
 from journal.models import Issue
 
@@ -285,3 +288,17 @@ def sortable_header_field(context, label, sorting_key="o", sorting_field=""):
         "sort_down_link": sort_down_link,
         "enabled": True,
     }
+
+
+@register.filter
+def add_matomo_params(url):
+    """Add Matomo tracking parameters to a URL.
+    Adds a fixed campaign name and a keyword set
+    to the current date in YYYYMMDD format.
+    """
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    params["mtm_campaign"] = ["Publication alert"]
+    params["mtm_kwd"] = [localtime(now()).date().strftime("%Y%m%d")]
+    new_query = urlencode(params, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
