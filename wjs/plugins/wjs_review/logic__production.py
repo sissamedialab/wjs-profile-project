@@ -1022,7 +1022,7 @@ class AttachGalleys:
             wrong_pathname = Path(image_element.attrib["src"].split("?")[0])
             # Expecting something like "/tmp/tmpabc/..."
             # the first 3 parts ("/", "tmp", "tmpabc") can be dropped
-            img_src = self.path.joinpath(*wrong_pathname.parts[3:])
+            img_src = self.path.joinpath(*wrong_pathname.parts[-2:])
             img_obj = self.store_galleyimage(img_src, galley)
             # Remember that, in the HTML galley, the `src` attribute is relative to the article's URL
             image_element.attrib["src"] = img_obj.label
