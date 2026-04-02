@@ -6,31 +6,37 @@
 {% translate "Add a note <i class=\"bi bi-pencil\"></i>" as add_note %}
 <!-- djlint:on -->
 <table class="table table-bordered">
-  <tr>
-    <th>{% translate "Publication date" %}</th>
-    <td>
-      {{ issue.date|date:DATE_FORMAT }}
-    </td>
-  </tr>
-  <tr>
-    <th>{% translate "Manuscripts" %}</th>
-    <td>{{ issue.articles.count }}</td>
-  </tr>
-  <tr>
-    <th>{% translate "Notes" %}</th>
-    <td>
-      {% if request.user|is_user_eo %}
-        {% last_eo_note target=issue as note %}
-      {% else %}
-        {% last_user_note target=issue as note %}
-      {% endif %}
-      {% if note %}
-        {% with modal_id="notes_modal-"|concat:issue.pk modal_target="#notes_modal-"|concat:issue.pk %}
-          {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target content=read_label %}
-          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body|safe %}
-        {% endwith %}
-      {% endif %}
-      {% bootstrap_button button_class="btn-outline-primary" content=add_note %}
-    </td>
-  </tr>
+  <caption class="visually-hidden">{% translate "Publication informations" %}</caption>
+
+  <tbody>
+    <tr>
+      <th scope="row">{% translate "Publication date" %}</th>
+      <td>
+        {{ issue.date|date:DATE_FORMAT }}
+      </td>
+    </tr>
+    <tr>
+      <th scope="row">{% translate "Manuscripts" %}</th>
+      <td>{{ issue.articles.count }}</td>
+    </tr>
+    <tr>
+      <th scope="row">{% translate "Notes" %}</th>
+      <td>
+        {% if request.user|is_user_eo %}
+          {% last_eo_note target=issue as note %}
+        {% else %}
+          {% last_user_note target=issue as note %}
+        {% endif %}
+
+        {% if note %}
+          {% with modal_id="notes_modal-"|concat:issue.pk modal_target="#notes_modal-"|concat:issue.pk %}
+            {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target content=read_label %}
+            {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body|safe %}
+          {% endwith %}
+        {% endif %}
+
+        {% bootstrap_button button_class="btn-outline-primary" content=add_note %}
+      </td>
+    </tr>
+  </tbody>
 </table>

@@ -4,8 +4,8 @@
 {% translate "Issue is published piecemeal" as piece_label %}
 {% with button_id="toggle-batch-"|concat:issue.pk button_selector="#toggle-batch-"|concat:issue.pk %}
   {% if issue.issueparameters.batch_publish %}
-    {% bootstrap_button id=button_id button_class="btn-outline-primary btn-sm" hx_post=toggle_mode_url hx_target=button_selector hx_swap="outerHTML" title=batch_label content='<i class="bi bi-journals"></i>' %}
+    {% bootstrap_button id=button_id button_class="btn-outline-primary btn-sm" hx_post=toggle_mode_url hx_target=button_selector hx_swap="outerHTML" aria_label=batch_label content='<i class="bi bi-journals"></i>' %}
   {% else %}
-    {% bootstrap_button id=button_id button_class="btn-outline-primary btn-sm" hx_post=toggle_mode_url hx_target=button_selector hx_swap="outerHTML" title=piece_label content='<i class="bi bi-table"></i>' %}
+    {% bootstrap_button id=button_id button_class="btn-outline-primary btn-sm" hx_post=toggle_mode_url hx_target=button_selector hx_swap="outerHTML" aria_label=piece_label content='<i class="bi bi-table"></i>' %}
   {% endif %}
 {% endwith %}

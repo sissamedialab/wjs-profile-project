@@ -35,7 +35,7 @@
                 {% if view.extra_links %}
                   {% for url, title in view.extra_links.items %}
                     <li class="nav-item wjs-nav-item">
-                      {% bootstrap_button button_type="link" button_class="nav-link rounded-0" name="more" content=title href=url size="sm" %}
+                      {% bootstrap_button button_type="link" role="link" button_class="nav-link rounded-0" name="more" content=title href=url size="sm" %}
                     </li>
                   {% endfor %}
                 {% elif request.user.is_anonymous %}
