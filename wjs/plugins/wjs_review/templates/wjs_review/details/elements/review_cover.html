@@ -8,9 +8,11 @@
     </button>
   </h2>
   <div id="collapse-cover-letter-{{ version_number }}" class="accordion-collapse collapse" aria-labelledby="heading-cover-letter-{{ version_number }}" data-bs-parent="#metadata">
-    <div class="accordion-body">
+    <div class="accordion-body d-flex flex-column gap-2">
       {% translate "Author Cover letter" as author_cover_letter %}
-      {% translate "Read" as open_label %}
+      <!-- djlint:off -->
+      {% translate "Read <i class=\"bi bi-file-text\"></i>" as open_label %}
+      <!-- djlint:on -->
       {% with modal_id="cover_letter"|concat:version_number modal_target="#cover_letter"|concat:version_number %}
         {% if version.cover_letter.text %}
           {% bootstrap_button type="button" button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target content=open_label %}
@@ -18,10 +20,16 @@
         {% endif %}
         {% if version.cover_letter.file %}
           <ul class="list-group mb-0">
-            <li class="list-group-item"><a href="{% url 'download_single_file' article.pk version.cover_letter.file.pk %}" target="_blank">{{ version.cover_letter.file.label }}</a></li>
+            <li class="list-group-item"><a href="{% url 'download_single_file' article.pk version.cover_letter.file.pk %}" target="_blank"><i class="bi bi-paperclip"></i> {{ version.cover_letter.file.label }}</a></li>
           </ul>
         {% endif %}
       {% endwith %}
+      {% if version.revision_requests.0.authors_contributions %}
+        <div>
+          <strong>{% translate "Authors' Contributions" %}</strong>
+          {{ version.revision_requests.0.authors_contributions|safe }}
+        </div>
+      {% endif %}
     </div>
   </div>
 </div>

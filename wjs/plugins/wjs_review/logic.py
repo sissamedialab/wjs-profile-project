@@ -1801,6 +1801,12 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
         if affiliation_country := self.revision_storage.data.get("affiliation_country"):
             self.article.submission_data.affiliation_country_id = affiliation_country
 
+        if authors_contributions := self.revision_storage.data.get("authors_contributions"):
+            revision_request = EditorRevisionRequest.objects.filter(
+                article=self.article, date_completed__isnull=True
+            ).latest("date_requested")
+            revision_request.authors_contributions = authors_contributions
+
         ArticleAuthorOrder.objects.filter(article=self.article).delete()
         article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage)
         for article_author in article_authors:
