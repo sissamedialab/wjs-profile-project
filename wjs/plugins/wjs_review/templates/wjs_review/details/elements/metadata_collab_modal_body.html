@@ -1,0 +1,18 @@
+<dl>
+  {% for collaboration in workflow.article.collaborations.all %}
+    <dd>{{ collaboration.collaboration }}</dd>
+    <dt>
+      <ul>
+        <li>Name: {{ collaboration.collaboration }}</li>
+        <li>E-mail: {{ collaboration.collaboration.institutional_email }}</li>
+        {% if collaboration.collaboration.logo %}
+          {% url "download_single_file" article.pk collaboration.collaboration.logo.pk as logo_url %}
+          <li>Logo: <a target="_blank" href="{{ logo_url }}"><img height="40" src="{{ logo_url }}" alt=""></a></li>
+        {% endif %}
+        {% if collaboration.collaboration.address %}
+          <li>Address: {{ collaboration.collaboration.address }}</li>
+        {% endif %}
+      </ul>
+    </dt>
+  {% endfor %}
+</dl>

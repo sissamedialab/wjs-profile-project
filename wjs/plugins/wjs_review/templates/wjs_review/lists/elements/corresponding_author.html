@@ -8,3 +8,8 @@
     {% include "wjs_review/base/elements/modal.html" with modal_id=author_modal_id modal_title="Authors" include_path="wjs_review/lists/elements/corresponding_author_list.html" %}
   {% endwith %}
 {% endif %}
+{% if workflow.article.collaborations.exists %}
+  {% for collaboration in workflow.article.collaborations.all %}
+    {{ collaboration }}
+  {% endfor %}
+{% endif %}

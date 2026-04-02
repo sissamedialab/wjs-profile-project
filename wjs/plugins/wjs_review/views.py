@@ -3847,6 +3847,9 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         ]:
             if aw:
                 related_instances.append((self.article, True))
+        # ArticleSubmission's files
+        if self.article.submission_data.cover_letter_file:
+            related_instances.append((self.article, True))
         # Add a tuple to related_instances with the second item being if use the primary  permission (True) or the
         # Secondary permission (False)
 
