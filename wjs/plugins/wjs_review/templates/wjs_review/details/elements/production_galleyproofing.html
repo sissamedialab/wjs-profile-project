@@ -22,7 +22,7 @@
         </h6>
         <ul class="list-group mb-0">
           {% for galley in version.galleyproofing.proofed_files.all %}
-            {% if galley.label == "PDF" %}
+            {% if galley.label|slice:":3" == "PDF" %}
               <li class="list-group-item p-0">
                 <a class="btn btn-link"
                    href="{% url 'download_single_file' article.pk galley.file.pk %}">{{ galley.label }}</a>
