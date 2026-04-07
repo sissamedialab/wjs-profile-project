@@ -881,7 +881,12 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         lang = pycountry.languages.get(alpha_3=self.object.article.language).alpha_2
         with translation.override(lang):
             title_db = self.object.article.title
-            abstract_db = re.sub(r"^<p>", "", self.object.article.abstract)
+            abstract_db = re.sub(
+                r"^<p>",
+                "",
+                # note that errata and such might not have an abstract
+                self.object.article.abstract or "",
+            )
         abstract_db = re.sub(r"</p>$", "", abstract_db)
         # ...and tex abstract can have newlines here and there
         # se we used the adapted version:
