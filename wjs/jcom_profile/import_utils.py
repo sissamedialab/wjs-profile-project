@@ -165,16 +165,6 @@ JANEWAY_LANGUAGES_BY_CODE = {t[0]: t[1] for t in submission_models.LANGUAGE_CHOI
 assert len(JANEWAY_LANGUAGES_BY_CODE) == len(submission_models.LANGUAGE_CHOICES)
 
 
-# A mapping between some non-standard codes used in JCOM and iso639-2
-FUNNY_LANGUAGE_CODES = {
-    "slo": "sl",  # Slovenian
-    "sp": "es",  # Spanish, Castilian
-    "dk": "da",  # Danish
-    "po": "pt",  # Portuguese
-    "pt-br": "pt",  # This is not technically perfect (pt-br is better than just pt)
-}
-
-
 def admin_fake_request():
     FakeRequest = namedtuple("FakeRequest", ["user"])
     # Use a "technical account" (that is created if not already present)
@@ -262,60 +252,44 @@ def drop_existing_galleys(article):
 
 
 def decide_galley_label(file_name: str, file_mimetype: str):
-    """Decide the galley's label."""
+    """
+    Decide the galley's label.
+
+    Generally, we want the galleys of translations to indicate their language,
+    while we don't need to indicate the language of the main galley,
+    because that's already defined by the article's language.
+
+    We expect the given filename to included a conventional "flag" to indicate that the file is a translation,
+    for those, we include the language code in the galley label.
+
+    E.g.
+    - FILENAME              ⇨ LABEL
+    - g_por_translation.pdf ⇨ PDF (por)
+    - g_eng_translation.pdf ⇨ PDF (eng)
+    - g_spa.pdf             ⇨ PDF
+    """
+
     # Remember that we can have ( PDF + EPUB galley ) x languages (usually two),
     # so a label of just "PDF" might not be sufficient.
-    lang_match = re.search(r"_([a-z]{2,3})(?:-pulito)?\.", file_name)
+    translation_match = re.search(r"_([a-z]{2,3})_translation\.", file_name)
     mime_to_extension = {
         "application/pdf": "PDF",
         "application/pdf+zip": "PDF",
         "application/epub+zip": "EPUB",
     }
-    label = mime_to_extension.get(file_mimetype, None)
+    label = mime_to_extension.get(file_mimetype)
     if label is None:
         logger.error("""Unknown mime type "%s" for %s""", file_mimetype, file_name)
         label = "Other"
     language = None
-    if lang_match is not None:
-        language = lang_match.group(1)
-        language = FUNNY_LANGUAGE_CODES.get(language, language)
+    if translation_match is not None:
+        language = translation_match.group(1)
         label = f"{label} ({language})"
     return (label, language)
 
 
 def set_language(article, language):
     logger.critical("Function changed. Don't use me!")
-
-
-# TODO: typehint correctly  -> pycountry.db.Language
-# but `Language` is generated dinamically...
-def map_language(language: str):
-    """Map language code from iso639-2 (two chars) to Janeway iso639-3 (three chars)."""
-    # Some non-standard language codes have been used in JCOM through the years...
-    language = FUNNY_LANGUAGE_CODES.get(language, language)
-    lang_obj = pycountry.languages.get(alpha_2=language)
-    if lang_obj is None:
-        logger.error(
-            f'Non-standard language code "{language}". Keeping default "English"',
-        )
-        return pycountry.languages.get(alpha_2="en")
-
-    if lang_obj.alpha_3 not in JANEWAY_LANGUAGES_BY_CODE:
-        logger.error(
-            f'Language "{lang_obj.alpha_3}" (from "{language}") is unknown to Janeway. Keeping default "English"',
-        )
-        return pycountry.languages.get(alpha_2="en")
-
-    # Small sanity check
-    if lang_obj.name not in JANEWAY_LANGUAGES_BY_CODE.values():
-        # We know about "Spanish" vs. "Spanish; Castilian" and it's ok to keep the latter.
-        if lang_obj.name != "Spanish":
-            logger.warning(
-                f'ISO639 language for "{language}" is "{lang_obj.name}"'
-                f""" and is different from Janeway's "{JANEWAY_LANGUAGES_BY_CODE[lang_obj.alpha_3]}" """
-                "(using the latter)",
-            )
-    return lang_obj
 
 
 def set_language_specific_field(article, field, value, clear_en=False):

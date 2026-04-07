@@ -10,7 +10,7 @@
         <ul class="list-group mb-0">
           {% if workflow|is_user_one_of_the_authors:request.user %}
             {% for galley in version.assignment.galleys_created.all %}
-              {% if galley.label == "PDF" %}
+              {% if galley.label|slice:":3" == "PDF" %}
                 <li class="list-group-item p-0">
                   <a class="btn btn-link"
                      href="{% url 'download_single_file' article.pk galley.file.pk %}">{{ galley.label }}</a>
