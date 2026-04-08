@@ -1367,6 +1367,7 @@ def test_last_revision_date(
     admin,
     fake_request: HttpRequest,
     submitted_articles,
+    install_wjs_submission_settings,
 ):
     """
     Calculated last_revision_date matches the templatetag selection.

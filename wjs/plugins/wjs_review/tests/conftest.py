@@ -37,6 +37,7 @@ from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
 from submission.models import Article, Section
 from utils import setting_handler
+from utils.install import update_settings
 
 from wjs.jcom_profile.models import Genealogy
 from wjs.jcom_profile.tests.conftest import *  # noqa
@@ -113,6 +114,7 @@ def review_settings(
     journal: Journal,
     eo_user: JCOMProfile,  # noqa: ARG001, F405
     apply_wjs_settings: Callable,  # noqa: ARG001
+    install_wjs_submission_settings: Callable,  # noqa: ARG001
 ):
     """
     Initialize plugin settings and install wjs_review as part of the workflow.
@@ -132,6 +134,16 @@ def review_settings(
             handshake_url=HANDSHAKE_URL,
         ),
     )
+
+
+@pytest.fixture
+def install_wjs_submission_settings(
+    journal: Journal,
+):
+    """
+    Install a wjs_submission.
+    """
+    update_settings(file_path="plugins/wjs_submission/install/settings.json")
 
 
 def _assign_article(fake_request, article, section_editor, cleanup_side_effects: bool = True) -> Article:
