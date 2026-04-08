@@ -8,7 +8,7 @@ from core.forms import EditAccountForm
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db.models import Count
+from django.db.models import Count, QuerySet
 from django.forms import ModelForm, inlineformset_factory
 from django.urls import reverse
 from django.utils import timezone
@@ -564,6 +564,38 @@ class SearchForm(JanewaySearchForm):
             .annotate(articles_count=Count("article"))
             .order_by("word")
         )
+
+    @property
+    def selected_filters(self):
+        """
+        Filters and their values selected by the user, keyed by their label.
+
+        All non-empty values are returned as list of items to simplify rendering in the template.
+        """
+        text_fields = {
+            "article_search": _("Text"),
+            "sections": _("Article type"),
+            "keywords": _("Keywords"),
+            "year": _("Year"),
+            "article_identifier": _("Identifier"),
+            "identifier_type": _("Identifier type"),
+            "article_title": _("Title"),
+            "article_abstract": _("Abstract"),
+            "article_authors": _("Authors name"),
+            "date_from": _("From"),
+            "date_to": _("To"),
+        }
+        # Filter field data to remove empty valuers and convert each item to a list of values
+        non_empty_values = {
+            field: (
+                self.cleaned_data.get(field, [])
+                if isinstance(self.cleaned_data.get(field, None), (list, tuple, QuerySet))
+                else [self.cleaned_data.get(field, None)]
+            )
+            for field in text_fields.keys()
+            if self.cleaned_data.get(field, None)
+        }
+        return {text_fields[field]: value for field, value in non_empty_values.items()}
 
     def get_search_filters(self) -> dict[str, str]:
         """Generate a dictionary of search_filters from a search form."""
