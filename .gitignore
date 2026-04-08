@@ -33,3 +33,5 @@ jcomassistant.log
 .aider*
 tmp
 .DS_Store
+
+setup-docs/configs/**/*.csv
