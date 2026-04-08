@@ -815,6 +815,7 @@ def test_publication_multiple_articles(
     create_jcom_user: Callable,
     http_server: ThreadedHTTPServer,
     review_sections: list[Section],  # noqa: ARG001
+    install_wjs_submission_settings: Callable,  # noqa: ARG001
 ):
     """Publication proceeds correctly even if one article's final galleys fail.
 
@@ -1265,7 +1266,9 @@ def test_identifiers_on_author_sends_corrections(
 @pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
 @pytest.mark.parametrize("user_is_author", (True, False))
 @pytest.mark.django_db
-def test_identifiers_on_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is_author: bool):
+def test_identifiers_on_author_deems_paper_rfp(
+    stage_proofing_article: Article, client, user_is_author: bool, install_wjs_submission_settings: Callable
+):
     """The author can deem rft only articles that have all production flags in the expected state."""
 
     # production settings and crossref_test True

@@ -8,7 +8,9 @@ from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters.fields import ModelChoiceField
 from journal.models import Issue
+from plugins.wjs_submission.models import ArticleSubmission, Collaboration
 from submission.models import Article, Keyword, Section
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
@@ -125,6 +127,18 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         method="filter_user",
         label=_("Editor"),
     )
+    collaboration = django_filters.ModelChoiceFilter(
+        field_name="article__collaborations__collaboration",
+        queryset=Collaboration.objects.all(),
+        label=_("Collaboration"),
+        empty_label=_("All"),
+    )
+
+    arxiv_category = django_filters.ChoiceFilter(
+        field_name="article__submission_data__arxiv_category",
+        label=_("ArXiv category"),
+        empty_label=_("All"),
+    )
 
     class Meta:
         model = ArticleWorkflow
@@ -135,6 +149,18 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         self.is_pending = kwargs.pop("configuration_options", {}).get("is_pending", False)
         super().__init__(*args, **kwargs)
         self.filters = self.select_filters()
+        arxiv_field_status = get_setting("wjs_submission", "arxiv_field_status", self._journal).processed_value
+        if arxiv_field_status != "disabled":
+            self.filters["article_identifiers"].label = _("Preprint ID/ArXiv ID")
+
+        arxiv_category_values = (
+            ArticleSubmission.objects.exclude(arxiv_category="")
+            .values_list("arxiv_category", flat=True)
+            .distinct()
+            .order_by("arxiv_category")
+        )
+
+        self.filters["arxiv_category"].extra["choices"] = [(v, v) for v in arxiv_category_values]
 
     def select_filters(self):
         """Customize filters by journal."""
