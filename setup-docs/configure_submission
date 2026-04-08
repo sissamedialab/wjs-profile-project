@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -e
+
+journal=$1
+local_dir=$(cd "$(dirname "$0")" && pwd)
+
+echo "Dump settings from Nextcloud to ${local_dir}\n"
+
+# This password can be reset by visiting the shares WJS-dev/JQUANT and WJS-dev/JCAP
+# and editing the share-links.
+read -r -s -p "Nextcloud share password (see WJS-dev/settings-csv-files-password.md): " nc_password
+echo
+
+pushd ${local_dir}
+echo "Downloading settings and expanding"
+curl -sL -u "53dCwQJaKny3wig:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/53dCwQJaKny3wig/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JQuant"
+curl -sL -u "CZrXCtMkMBjJL5C:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/CZrXCtMkMBjJL5C/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JCAP"
+mv ${local_dir}/configs/JQuant/Submission\ settings/*csv ${local_dir}/configs/JQuant/
+mv ${local_dir}/configs/JCAP/Submission\ settings/*csv ${local_dir}/configs/JCAP/
+popd
+
+echo "Importing settings"
+python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202603_all_settings.csv
+python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202603_submission_settings.csv --group-name submissionconfiguration
+python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202604_wjs_submission_settings.csv
+echo "Importing Keywords"
+python -W ignore manage.py import_keywords_json ../../wjs-submission-project/wjs/plugins/wjs_submission/install/jhep-kwds.json --journal=${journal}
