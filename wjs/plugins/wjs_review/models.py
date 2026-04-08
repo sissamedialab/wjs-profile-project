@@ -500,6 +500,7 @@ class ArticleWorkflow(TimeStampedModel):
     latex_desc = models.TextField(null=True, blank=True)
 
     social_media_short_description = models.TextField(_("Short description for social media"), null=True, blank=True)
+    last_major_revision = models.DateTimeField(_("Last major revision"), null=True, blank=True)
 
     objects = ArticleWorkflowQuerySet.as_manager()
 
@@ -1788,6 +1789,7 @@ class EditorRevisionRequest(RevisionRequest):
     revision_flow_type = models.CharField(
         _("Revision flow type"), max_length=10, choices=RevisionStorage.RevisionFlowType.choices
     )
+    last_major_revision = models.DateTimeField(_("Last major revision"), null=True, blank=True)
 
     class Meta:
         ordering = ("date_requested",)
