@@ -1843,7 +1843,14 @@ class JCOMReportForm(forms.Form):
         required=False,
         label=_("Review format"),
     )
-    author_review = WjsMiniHTMLFormField(label=_("Review for authors (Rich text)"), required=False)
+    author_review = WjsMiniHTMLFormField(
+        label=_("Review for authors (Rich text)"),
+        required=False,
+        help_text=_(
+            r"Please write your comments in the text area and/or upload a file."
+            r"br><br>Please DO NOT SIGN THE REPORT."
+        ),
+    )
     author_review_tex = forms.CharField(
         label=_("Review for authors (LaTeX)"),
         required=False,

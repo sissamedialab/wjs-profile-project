@@ -1804,6 +1804,8 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
     def run(self):
         if correspondence_author := self.revision_storage.data.get("correspondence_author"):
             self.article.correspondence_author_id = correspondence_author
+        if authors_contributions := self.revision_storage.data.get("authors_contributions"):
+            self.article.submission_data.authors_contributions = authors_contributions
         if owner := self.revision_storage.data.get("owner"):
             self.article.owner_id = owner
         if affiliation_country := self.revision_storage.data.get("affiliation_country"):
@@ -1861,7 +1863,9 @@ class PopulateRevisionStep6(BasePopulateRevisionStep):
 
     def run(self):
         self.article.submission_data.cas = self.revision_storage.data.get("cas")
+        self.article.submission_data.cas_url = self.revision_storage.data.get("cas_url")
         self.article.submission_data.das = self.revision_storage.data.get("das")
+        self.article.submission_data.das_url = self.revision_storage.data.get("das_url")
 
         # Files
         # (remember that the files from the previous version have already been saved to revision-request
