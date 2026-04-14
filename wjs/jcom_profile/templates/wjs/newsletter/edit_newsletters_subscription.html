@@ -1,5 +1,5 @@
 {% extends "wjs/profile/base.html" %}
-{% load django_bootstrap5 i18n static %}
+{% load django_bootstrap5 i18n static wjs_tags %}
 
 {% block page_title %}{% translate "Publication alert" %}{% endblock page_title %}
 
@@ -14,7 +14,20 @@
         <br/>
         {% translate "If new topics are added to the list in the future, you will be automatically subscribed to them and will be able to uncheck them from this page." %}
       </p>
-      {% bootstrap_form form wrapper_class="mb-4" %}
+      {% regroup form.topics|decorate_widgets_for_regroup by first_letter as keyword_list %}
+      {% for group in keyword_list %}
+        <h4>{{ group.grouper }}</h4>
+        {% for keyword in group.list %}
+          <div class="form-check d-flex flex-row">
+            <input class="form-check-input" type="checkbox" name="keywords" value="{{ keyword.value }}" id="{{ form.keywords.id_for_label }}-{{ keyword.value }}" {% if keyword.selected %}checked{% endif %}>
+            <label class="form-check-label" for="{{ form.keywords.id_for_label }}-{{ keyword.value }}">
+              {{ keyword.choice_label }}
+            </label>
+          </div>
+        {% endfor %}
+      {% endfor %}
+      {% bootstrap_field form.news wrapper_class="mb-4" %}
+      {% if form.language %}{% bootstrap_field form.language wrapper_class="mb-4" %}{% endif %}
     </div>
     <div class="wjs-profile-form__footer gap-3">
       {% if active %}
