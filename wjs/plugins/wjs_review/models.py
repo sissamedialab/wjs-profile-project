@@ -771,13 +771,16 @@ class ArticleWorkflow(TimeStampedModel):
         return base_qs.filter(section_id=self.article.section.pk).count()
 
     def set_pubid(self):
-        return Identifier.objects.create(
+        identifier, created = Identifier.objects.get_or_create(
             id_type="pubid",
             # pubid depends on eid/page_numbers
             # if we have to compute it now, we also save it to maintain coherence
             identifier=self.compute_pubid(save_eid=True),
             article=self.article,
         )
+        if not created:
+            logger.error(f"Identifier {identifier} already existed for {self.article.id}")
+        return identifier
 
     # director selects editor
     @transition(
