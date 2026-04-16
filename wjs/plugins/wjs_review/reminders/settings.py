@@ -421,7 +421,7 @@ class ReviewerShouldEvaluateAssignmentReminderManager(ReminderManager):
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
             subject=_("Reminder: Accept/decline Editor's invite"),
-            body="""{%load fqdn %}Dear colleague,<br>
+            body="""{%load fqdn %}{% load settings %}Dear colleague,<br>
 <br>
 This is to remind you that I need your feedback regarding the invite to review I sent you on {{ date_requested }}.<br>
 <p><b>{{ article.section.name }} to review:</b><br>
@@ -446,7 +446,9 @@ publishes and hopes that you will be able to help on this occasion.
 More information about the Journal’s ethical policy is
 available <a href="{{ journal.site_url }}/site/about-jcom/#heading4">here</a>.
 <br><br>
+{% if journal|setting:"default_review_visibility" == "double-blind" %}
 It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
+{% endif %}
 All the necessary information and instructions to do the review are available <a href="{{ journal.site_url }}/site/reviewers/">here</a>.
 <br><br>
 If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
@@ -467,7 +469,7 @@ Thank you and best regards,<br>
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2: ReminderSetting(
             code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
             subject=_("Reminder: Accept/decline Editor's invite (urgent)"),
-            body="""{%load fqdn %}Dear colleague,<br>
+            body="""{%load fqdn %}{% load settings %}Dear colleague,<br>
 <br>
 Unfortunately I have not yet received your feedback on whether or not you will review the {{ article.section.name }} I sent you on {{ date_requested }}.<br>
 <p><b>{{ article.section.name }} to review:</b><br>
@@ -492,7 +494,9 @@ publishes and hopes that you will be able to help on this occasion.
 More information about the Journal’s ethical policy is
 available <a href="{{ journal.site_url }}/site/about-jcom/#heading4">here</a>.
 <br><br>
+{% if journal|setting:"default_review_visibility" == "double-blind" %}
 It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
+{% endif %}
 All the necessary information and instructions to do the review are available <a href="{{ journal.site_url }}/site/reviewers/">here</a>.
 <br><br>
 If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
