@@ -17,7 +17,10 @@ if TYPE_CHECKING:
 
 
 class Command(BaseCommand):
-    help = """Regenerate galleys.
+    help = """Obsolete! Don't use. See https://gitlab.sissamedialab.it/wjs/specs/-/wikis/Rest-API
+
+    Regenerate galleys.
+
     This command works in three steps:
     1. get the sources for editing
        - call as `m regen_galleys 1234`
@@ -42,6 +45,7 @@ class Command(BaseCommand):
         parser.add_argument("-o", "--output", type=str, help="Output directory for extracted sources (step 1)")
 
     def handle(self, *args, **options):
+        raise CommandError("Obsolete command!")
         article_id = options["article_id"]
         test_folder = options.get("test")
         attach = options.get("attach", False)
