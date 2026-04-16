@@ -794,7 +794,7 @@ def test_publication_with_fake_galley_generation(
     # TODO: patch core.files.save_file_to_article so that a core.File is generated, but no file arrives on the
     # filesystem
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/",
     ):
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
@@ -850,7 +850,7 @@ def test_publication_multiple_articles(
     )
     _jump_article_to_rfp(a1, typ, fake_request)
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/",
     ):
         service = BeginPublication(workflow=a1.articleworkflow, user=typ, request=fake_request)
         service.run()
@@ -869,7 +869,7 @@ def test_publication_multiple_articles(
     )
     _jump_article_to_rfp(a2, typ, fake_request)
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/server_error"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/server_error",
     ):
         #                                                                                           ⮴ 💩 ⮵
         service = BeginPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
@@ -893,7 +893,7 @@ def test_publication_multiple_articles(
     )
     _jump_article_to_rfp(a3, typ, fake_request)
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/",
     ):
         service = BeginPublication(workflow=a3.articleworkflow, user=typ, request=fake_request)
         service.run()
@@ -903,7 +903,7 @@ def test_publication_multiple_articles(
 
     # retry a2: expect change in the state, but not in the pubid etc.
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/",
     ):
         service = FinishPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
         #    ⚠  Finish! (not "Begin")

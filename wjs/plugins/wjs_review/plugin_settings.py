@@ -2060,6 +2060,30 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         )
         return setting_1, setting_2
 
+    def expected_galleys() -> tuple[SettingValue, ...]:
+        setting: SettingParams = {
+            "name": "expected_galleys",
+            "group": wjs_review_settings_group,
+            "types": "json",
+            "pretty_name": _("Expected galley formats"),
+            "description": _("List of galley file formats expected to be produced by JCOM Assistant."),
+            "is_translatable": False,
+        }
+        setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": '["pdf", "html", "epub"]',
+            "translations": {},
+        }
+        return (
+            create_customization_setting(
+                setting,
+                setting_value,
+                setting["name"],
+                force=force,
+            ),
+        )
+
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
@@ -2093,6 +2117,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(add_press_notification_when_article_is_withdrawn_settings())
         csv_writer.write_settings(reviewer_report_type())
         csv_writer.write_settings(add_access_mode_request_notifications())
+        csv_writer.write_settings(expected_galleys())
 
 
 def ensure_workflow_elements():
