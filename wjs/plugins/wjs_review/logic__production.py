@@ -925,10 +925,10 @@ class AttachGalleys:
                 elif line.startswith("WARNING"):
                     logger.warning(f"JA {line[14:-1]}")
                 elif line.startswith("ERROR"):
-                    logger.error(f"JA {line[12:-1]}")
+                    logger.warning(f"JA {line[12:-1]}")
                     has_error_or_critical = True
                 elif line.startswith("CRITICAL"):
-                    logger.critical(f"JA {line[15:-1]}")
+                    logger.warning(f"JA {line[15:-1]}")
                     has_error_or_critical = True
                 elif line.startswith("DEBUG"):
                     logger.debug(f"JA {line[12:-1]}")
