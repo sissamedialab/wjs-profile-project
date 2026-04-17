@@ -3925,9 +3925,9 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
     template_name = "journal/article.html"
 
     def test_func(self):
-        """Only the typesetter should be able to access this view."""
+        """Only the typesetter or EO should be able to access this view."""
         self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
-        return permissions.is_article_typesetter(self.workflow, self.request.user)
+        return permissions.is_article_typesetter_or_eo(self.workflow, self.request.user)
 
     def get_context_data(self, **kwargs):
         """Add context data for the template."""
