@@ -4799,8 +4799,7 @@ class ConvertEditorLatexReport(BaseConvertLatexReport):
         :param unpack_dir: A directory containing the unpacked files including the
             generated PDF.
         :type unpack_dir: Path
-        :return: A processed file associated with the article, labeled as "Yakunin
-            generated file".
+        :return: The processed PDF file saved and linked to the article.
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
@@ -4808,15 +4807,15 @@ class ConvertEditorLatexReport(BaseConvertLatexReport):
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
-            generated_tex = core_files.save_file_to_article(
+            generated_pdf_jf = core_files.save_file_to_article(
                 file_to_handle=generated_pdf,
                 article=self.instance.article,
-                owner=self.instance.editor,
-                label="Yakunin generated file",
+                owner=self.owner,
+                label="Editor report PDF",
             )
-        self.instance.editor_report_pdf_draft = generated_tex
+        self.instance.editor_report_pdf_draft = generated_pdf_jf
         self.instance.save()
-        return generated_tex
+        return generated_pdf_jf
 
 
 @dataclasses.dataclass
@@ -4831,7 +4830,7 @@ class ConvertReviewerLatexReport(BaseConvertLatexReport):
 
     @property
     def report_filename(self):
-        return self._yakunin_log_filename_template % self.instance.pk
+        return self._report_filename % self.instance.pk
 
     @property
     def owner(self):
@@ -4839,12 +4838,11 @@ class ConvertReviewerLatexReport(BaseConvertLatexReport):
 
     def _handle_generated_file(self, unpack_dir: Path) -> File:
         """
-        Handles a generated PDF file located in the given unpack directory and processes it
-        to save it as part of the associated article. This method assigns the processed file
-        to the current instance for further usage.
+        Handles a generated PDF file within the specified unpack directory, processes it,
+        and associates it with the relevant article.
 
-        :param unpack_dir: The directory in which the generated PDF file can be found
-                          (path should point to a directory containing the PDF file).
+        :param unpack_dir: A directory containing the unpacked files including the
+            generated PDF.
         :type unpack_dir: Path
         :return: The processed PDF file saved and linked to the article.
         :rtype: File
@@ -4854,15 +4852,15 @@ class ConvertReviewerLatexReport(BaseConvertLatexReport):
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
-            generated_tex = core_files.save_file_to_article(
+            generated_pdf_jf = core_files.save_file_to_article(
                 file_to_handle=generated_pdf,
                 article=self.instance.article,
-                owner=self.instance.reviewer,
-                label="PDF",
+                owner=self.owner,
+                label="Reviewer report PDF",
             )
-        self.instance.tex_report_pdf = generated_tex
+        self.instance.tex_report_pdf = generated_pdf_jf
         self.instance.save()
-        return generated_tex
+        return generated_pdf_jf
 
 
 @dataclasses.dataclass

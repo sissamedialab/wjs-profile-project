@@ -3,7 +3,7 @@
 <form action="{{ request.path }}{% if access_code %}?access_code={{ access_code }}{% endif %}" method="post" enctype="multipart/form-data">
   {% csrf_token %}
   <div class="col">
-    {% bootstrap_form_errors form type='fields' %}
+    {% bootstrap_form_errors form type='non_fields' %}
     {# FIXME: We might want to refactor this implementation if we find a way to express this structure with django-bootstrap4 #}
     <div class="mb-3">
       {% bootstrap_field form.conflict_of_interest required_css_class="required-field" field_class="d-flex gap-3" %}
@@ -29,8 +29,10 @@
         <!-- djlint:off -->
         <div id="field_author_review_tex" {% if form.reviewer_report_type == 'tex+text' %}style="display:none;"{% endif %}>
           <!-- djlint:on -->
-          {% bootstrap_field form.author_review_tex label_class="fw-bold" wrapper_class="mb-3 wjs-top-help-text" addon_before_class=None %}
-          <div id="pdf_error" class="alert alert-danger d-none"></div>
+          {% bootstrap_field form.author_review_tex label_class="fw-bold" wrapper_class="mb-3 form-field-help-text-order" error_css_class="form-field-error-alert js-hide-on-pdf-error" addon_before_class=None %}
+          {% if not form.author_review_tex.error %}
+            <div class="alert alert-danger text-danger js-pdf-error d-none"></div>
+          {% endif %}
           <div class="d-flex justify-content-end mt-1">
             {% url 'elaborate-latex-report' assignment.pk as download_report %}
             {% translate "Test PDF" as use_report_label %}
@@ -42,7 +44,7 @@
         <!-- djlint:off -->
         <div id="field_author_review" {% if form.reviewer_report_type == 'tex+text' %}style="display:none;"{% endif %}>
           <!-- djlint:on -->
-          {% bootstrap_field form.author_review label_class="fw-bold" wrapper_class="mb-3 wjs-top-help-text" addon_before_class=None %}
+          {% bootstrap_field form.author_review label_class="fw-bold" wrapper_class="mb-3 form-field-help-text-order" addon_before_class=None %}
         </div>
       {% endif %}
 

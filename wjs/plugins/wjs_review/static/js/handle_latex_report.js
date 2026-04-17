@@ -32,9 +32,10 @@ function clearErrorOnSuccess(event) {
  * @return {void} No return value.
  */
 function clearError() {
-  document.getElementById("pdf_error").innerText = "";
-  document.getElementById("pdf_error").classList.add("d-none");
-  document.querySelector("[name=submit]").removeAttribute("disabled");
+  document.querySelector(".js-pdf-error").innerText = "";
+  document.querySelector(".js-pdf-error").classList.add("d-none");
+  document.querySelector(".js-hide-on-pdf-error .invalid-feedback").classList.remove("d-none");
+  document.querySelector("[type=submit]").removeAttribute("disabled");
 }
 
 /**
@@ -46,9 +47,10 @@ function clearError() {
  * @return {void} This method does not return a value.
  */
 function setPdfError(text) {
-  document.getElementById("pdf_error").innerHTML = text;
-  document.getElementById("pdf_error").classList.remove("d-none");
-  document.querySelector("[name=submit]").setAttribute("disabled", 1);
+  document.querySelector(".js-pdf-error").innerHTML = text;
+  document.querySelector(".js-pdf-error").classList.remove("d-none");
+  document.querySelector(".js-hide-on-pdf-error .invalid-feedback").classList.add("d-none");
+  document.querySelector("[type=submit]").setAttribute("disabled", 1);
 }
 
 document.body.addEventListener("yakunin-error", event => {

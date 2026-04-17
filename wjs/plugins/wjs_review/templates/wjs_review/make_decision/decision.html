@@ -29,7 +29,6 @@
           {% endif %}
           {% get_available_transitions workflow as transitions %}
           {% csrf_token %}
-          {% bootstrap_form_errors form layout='inline' %}
           <div class="col-md-2">
             {% if form.hide_decision %}
               {% bootstrap_field form.decision wrapper_class="visually-hidden" %}
@@ -43,14 +42,16 @@
             {% bootstrap_field form.date_due wrapper_class="date-due mb-3" %}
           {% endif %}
           {% if form.decision_editor_report %}
-            {% bootstrap_field form.decision_editor_report label_class="fw-bold" addon_before=editor_report_info addon_before_class=None %}
+            {% bootstrap_field form.decision_editor_report label_class="fw-bold" wrapper_class="mb-3 form-field-help-text-order" error_css_class="form-field-error-alert js-hide-on-pdf-error" addon_before=editor_report_info addon_before_class=None %}
             {% if tex_review_allowed %}
-            <div id="pdf_error" class="alert alert-danger d-none"></div>
-            <div class="d-flex justify-content-end mt-1">
-              {% url 'elaborate-latex-editor-report' workflow.pk as download_report %}
-              {% translate "Test PDF" as use_report_label %}
-              {% bootstrap_button type="button" content=use_report_label button_class="btn-primary btn-sm" hx_post=download_report hx_include="[name='decision_editor_report']" hx_on="htmx:beforeRequest: clearError();htmx:responseError: logError(event);htmx:afterRequest: clearErrorOnSuccess(event);" %}
-            </div>
+              {% if not form.decision_editor_report.error %}
+                <div class="alert alert-danger text-danger js-pdf-error d-none"></div>
+              {% endif %}
+              <div class="d-flex justify-content-end mt-1">
+                {% url 'elaborate-latex-editor-report' workflow.pk as download_report %}
+                {% translate "Test PDF" as use_report_label %}
+                {% bootstrap_button type="button" content=use_report_label button_class="btn-primary btn-sm" hx_post=download_report hx_include="[name='decision_editor_report']" hx_on="htmx:beforeRequest: clearError();htmx:responseError: logError(event);htmx:afterRequest: clearErrorOnSuccess(event);" %}
+              </div>
             {% endif %}
           {% endif %}
           {% include "wjs_review/make_decision/elements/review_files_table.html" %}

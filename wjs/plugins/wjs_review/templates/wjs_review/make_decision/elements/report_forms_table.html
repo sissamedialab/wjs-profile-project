@@ -60,6 +60,7 @@
     <th class="ps-4">{% translate "Report" %}</th>
     {% for review in submitted_reviews %}
       <td>
+      <div class="d-inline-flex flex-column gap-3">
         {% if review.workflowreviewassignment.report_form_answers|get_value:'author_review_tex' %}
           {% with modal_id="author_review_tex_modal-"|concat:review.pk modal_target="#author_review_tex_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'author_review_tex'|safe|default:"----" %}
             {% if review.tex_report_pdf %}
@@ -67,7 +68,7 @@
             {% else %}
               {% bootstrap_button type="button" content=read_review_label button_class="btn-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
             {% endif %}
-            {% bootstrap_button type="button" content=use_report_label button_class="btn-danger ms-2 js-copy-tex-btn" data_review_order=forloop.counter data_review_id=review.pk %}
+            {% bootstrap_button type="button" content=use_report_label button_class="btn-danger js-copy-tex-btn" data_review_order=forloop.counter data_review_id=review.pk %}
             {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_review_tex_modal_title modal_body=modal_content %}
           {% endwith %}
         {% elif review.workflowreviewassignment.report_form_answers|get_value:'author_review' %}
@@ -75,13 +76,14 @@
           {% with modal_id="author_review_modal-"|concat:review.pk modal_target="#author_review_modal-"|concat:review.pk modal_content=review.workflowreviewassignment.report_form_answers|get_value:'author_review'|safe|default:"----" %}
             {% bootstrap_button type="button" content=read_review_label button_class="btn-primary" data_bs_toggle="modal" data_bs_target=modal_target %}
             {% if tex_review_allowed %}
-              {% bootstrap_button type="button" content=use_report_label button_class="btn-danger ms-2 js-copy-tex-btn" data_review_order=forloop.counter hx_post=conversion_url hx_swap="none" %}
+              {% bootstrap_button type="button" content=use_report_label button_class="btn-danger js-copy-tex-btn" data_review_order=forloop.counter hx_post=conversion_url hx_swap="none" %}
             {% else %}
-              {% bootstrap_button type="button" content=use_report_label button_class="btn-danger ms-2 js-copy-tex-btn" data_review_order=forloop.counter data_review_id=review.pk %}
+              {% bootstrap_button type="button" content=use_report_label button_class="btn-danger js-copy-tex-btn" data_review_order=forloop.counter data_review_id=review.pk %}
             {% endif %}
             {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_review_modal_title modal_body=modal_content %}
           {% endwith %}
         {% endif %}
+      </div>
       </td>
     {% endfor %}
   </tr>
