@@ -2020,7 +2020,7 @@ Abstract:<br/>
         value_params: SettingValueParams = {
             "journal": None,
             "setting": None,
-            "value": "{{ article.journal.code }}-{{ article.pk }}: Access mode special request",  # noqa: RUF001
+            "value": "{Access mode special request",  # noqa: RUF001
             "translations": {},
         }
         setting_1 = create_customization_setting(
