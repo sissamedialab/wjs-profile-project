@@ -29,7 +29,11 @@ class JCOMProfileConfig(AppConfig):
     def ready(self):
         """Call during initialization."""
         # TODO: Clarify this line (unused import but without them process breaks)
-        from wjs.jcom_profile import signals, urls  # NOQA
+        from core import forms as core_forms
+
+        from wjs.jcom_profile import forms, signals, urls  # NOQA
+
+        core_forms.RegistrationForm = forms.JCOMRegistrationForm
 
         # Inject bas jcom templates directory to allow overriding templates from wjs-themes to inject wjs templates
         settings.TEMPLATES[0]["DIRS"].insert(0, self.path / "templates")
