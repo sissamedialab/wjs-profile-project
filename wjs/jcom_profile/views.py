@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Iterable
 
 import pandas as pd
-from core import logic
 from core import models as core_models
 from core.models import Account
 from django.conf import settings
@@ -30,7 +29,6 @@ from security.decorators import has_journal
 from submission import models as submission_models
 from submission.models import FrozenAuthor, Keyword, Section
 from utils.logger import get_logger
-from utils.setting_handler import get_setting
 
 from . import forms
 from . import permissions
@@ -54,68 +52,6 @@ class ProfileAffiliationsEditView(ProfilePersonalEditView):
     model = Account
     template_name = "wjs/profile/personal_affiliations_edit.html"
     fields = None
-
-
-# from src/core/views.py::register
-def register(request):
-    """
-    Display a form for users to register with the journal.
-
-    If the user is registering on a journal we give them
-    the Author role.
-    :param request: HttpRequest object
-    :return: HttpResponse object
-    """
-    token, token_obj = request.GET.get("token", None), None
-    if token:
-        token_obj = get_object_or_404(core_models.OrcidToken, token=token)
-
-    form = forms.JCOMRegistrationForm(journal=request.journal)
-
-    if request.POST:
-        form = forms.JCOMRegistrationForm(request.POST, journal=request.journal)
-
-        password_policy_check = logic.password_policy_check(request)
-
-        if password_policy_check:
-            for policy_fail in password_policy_check:
-                form.add_error("password_1", policy_fail)
-
-        if form.is_valid():
-            if token_obj:
-                new_user = form.save(commit=False)
-                new_user.orcid = token_obj.orcid
-                new_user.save()
-                token_obj.delete()
-            else:
-                new_user = form.save()
-
-            if request.journal:
-                new_user.add_account_role("author", request.journal)
-            logic.send_confirmation_link(request, new_user)
-
-            messages.add_message(
-                request,
-                messages.SUCCESS,
-                "Your account has been created, please follow the"
-                "instructions in the email that has been sent to you.",
-            )
-            return redirect(reverse("registration_success"))
-
-    template = "admin/core/accounts/register.html"
-    context = {
-        "form": form,
-    }
-
-    return render(request, template, context)
-
-
-def registration_success(request):
-    from_email = get_setting("general", "from_address", request.journal).processed_value
-    context = {
-        "no_reply_email": from_email,
-    }
-    return render(request, "admin/core/accounts/registration_success.html", context)
 
 
 def confirm_gdpr_acceptance(request, token):

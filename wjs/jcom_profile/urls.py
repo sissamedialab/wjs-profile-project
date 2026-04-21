@@ -17,7 +17,6 @@ urlpatterns = [
     path("profile/info/", profile_views.ProfileAdditionalEditView.as_view(), name="core_edit_profile_additional"),
     path("profile/interests/", profile_views.ProfileInterestsEditView.as_view(), name="core_edit_profile_interests"),
     path("profile/affiliations/", views.ProfileAffiliationsEditView.as_view(), name="core_edit_profile_affiliations"),
-    path("register/step/1/", views.register, name="core_register"),
     re_path(
         r"^register/activate/gdpr/(?P<token>.+)/",
         views.confirm_gdpr_acceptance,
@@ -164,11 +163,6 @@ urlpatterns = [
     ),
     path("keywords/", KeywordListView.as_view(), name="keywords_list"),
     path("search_authors/<int:article_id>/", AuthorSearchView.as_view(), name="author_search"),
-    path(
-        "registration_success",
-        views.registration_success,
-        name="registration_success",
-    ),
 ]
 
 # Some experimental / Easter-egg URLs
