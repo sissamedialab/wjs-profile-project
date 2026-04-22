@@ -1327,13 +1327,16 @@ class JcomAssistantClient:
 
     def ask_jcomassistant_to_process(self) -> requests.Response:
         """
-        Send the given zip file to jcomassistant for processing.
+        Send the given zip file to jcomassistant for galley processing.
 
-        Return the response.
+        Returns:
+            Response: usually a zip file from the server.
+
+        Raises:
+            ValueError: if the server does not return 200/OK code.
+            NotImplementedError: if WJS is unable to process the file/path.
+
         """
-        url = f"{settings.JCOMASSISTANT_URL}galleys?{urlencode({'q': ','.join(self.galleys_to_request)})}"
-        logger.debug(f"Contacting jcomassistant service at {url}...")
-
         # TODO: please decide what you want!
         if isinstance(self.archive_with_files_to_process, JanewayFile):  # File???
             file_path = self.archive_with_files_to_process.self_article_path()
@@ -1344,8 +1347,11 @@ class JcomAssistantClient:
                 f"Don't know how to open {type(self.archive_with_files_to_process)} for jcomassistant processing!",
             )
 
-        files = {"file": open(file_path, "rb")}
-        response = requests.post(url=url, files=files)
+        galley_list: list[tuple[str, str]] = [("generate", galley) for galley in self.galleys_to_request]
+        url = f"{settings.JCOMASSISTANT_URL}galleys?{urlencode(galley_list)}"
+        files = {"file": Path(file_path).open("rb")}
+        logger.debug(f"Contacting jcomassistant service at {url}...")
+        response = requests.post(url=url, files=files)  # noqa: S113 (consciuosly disabling timeout)
         if response.status_code != 200:
             article = self.archive_with_files_to_process.article
             communication_utils.notify_async_event(
