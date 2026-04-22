@@ -71,7 +71,12 @@ def has_attr(obj, attr):
 
 @register.filter
 def how_to_cite(article):
-    """Return APA-style how-to-cite for JCOM."""
+    """Return a how-to-cite string for an article.
+
+    Format depends on the journal:
+    - JCOM: APA-style
+    - other journals: author list, title, journal, month (year) page. doi
+    """
     # Warning: there exist two `citation_name()`: the original from FrozenAuthor and ours from utils
     if not article.frozenauthor_set.exists():
         return ""
@@ -84,12 +89,22 @@ def how_to_cite(article):
     else:
         author_str = ", ".join(author_names[:-1])
         author_str += f" and {author_names[-1]}"
-    htc = (
-        f"{author_str} ({article.date_published.year})."
-        f" {article.title} <i>{article.journal.code}</i>"
-        f" {article.issue.volume}({article.issue.issue}), {article.page_numbers}."
-        f" https://doi.org/{article.get_doi()}"
-    )
+    if article.journal.code.startswith("JCOM"):
+        htc = (
+            f"{author_str} ({article.date_published.year})."
+            f" {article.title} <i>{article.journal.code}</i>"
+            f" {article.issue.volume}({article.issue.issue}), {article.page_numbers}."
+            f" https://doi.org/{article.get_doi()}"
+        )
+    else:
+        htc = (
+            f"{author_str},"
+            f" <i>{article.title}</i>,"
+            f" <i>{article.journal.code}</i>"
+            f" {article.date_published.strftime('%m (%Y)')}"
+            f" {article.page_numbers}."
+            f" https://doi.org/{article.get_doi()}"
+        )
     return htc
 
 
