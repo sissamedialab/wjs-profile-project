@@ -14,8 +14,8 @@
   {% for funding in article_fundings %}
     <tr>
       <td>{{ funding.name }}</td>
-      <td>{{ funding.country|default:"" }}</td>
-      <td>{{ funding.funding_id|default:"" }}</td>
+      <td>{{ funding.country|default:"-" }}</td>
+      <td>{{ funding.funding_id|default:"-" }}</td>
     </tr>
   {% endfor %}
   </tbody>
