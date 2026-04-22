@@ -59,6 +59,7 @@ from plugins.wjs_submission.conversion import (
 from plugins.wjs_submission.models import (
     ArticleCollaboration,
     ArticleSubmission,
+    RevisionArticleAuthorOrder,
     RevisionArticleCollaboration,
     RevisionStorage,
     RevisionSubmissionArticleFunding,

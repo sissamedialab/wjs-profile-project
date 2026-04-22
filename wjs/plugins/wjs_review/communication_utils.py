@@ -15,7 +15,6 @@ from django.db.models import Exists, OuterRef, Q, QuerySet
 from journal.models import Journal
 from review import models as review_models
 from submission.models import Article
-from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 
