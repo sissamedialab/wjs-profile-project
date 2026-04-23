@@ -446,6 +446,13 @@ WJS_REVIEW_CUSTOM_REPORT_FORMS = {
 WATERMARK_X_POSITION = 10
 WATERMARK_Y_POSITION = 720
 
+CORE_THEMES = [
+    "OLH",
+    "material",
+    "clean",
+    "wjs-bootstrap",
+]
+
 WJS_ARTICLE_LANGUAGES = {
     None: [("eng", _("English"))],
     "JCOM": [
