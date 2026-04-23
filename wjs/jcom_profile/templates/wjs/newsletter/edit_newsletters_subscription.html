@@ -14,26 +14,44 @@
         <br/>
         {% translate "If new topics are added to the list in the future, you will be automatically subscribed to them and will be able to uncheck them from this page." %}
       </p>
-      {% regroup form.topics|decorate_widgets_for_regroup by first_letter as keyword_list %}
-      {% for group in keyword_list %}
-        <h4>{{ group.grouper }}</h4>
-        {% for keyword in group.list %}
-          <div class="form-check d-flex flex-row">
-            <input class="form-check-input" type="checkbox" name="keywords" value="{{ keyword.value }}" id="{{ form.keywords.id_for_label }}-{{ keyword.value }}" {% if keyword.selected %}checked{% endif %}>
-            <label class="form-check-label" for="{{ form.keywords.id_for_label }}-{{ keyword.value }}">
-              {{ keyword.choice_label }}
-            </label>
+
+      <div class="accordion mb-4" id="accordionTopics">
+        {% regroup form.topics|decorate_widgets_for_regroup by first_letter as keyword_list %}
+        {% for group in keyword_list %}
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="heading-{{ forloop.counter }}">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse-{{ forloop.counter }}">
+                {{ group.grouper }}
+              </button>
+            </h2>
+            <div id="collapse-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ forloop.counter }}" data-bs-parent="#accordionTopics">
+              <div class="accordion-body">
+                {% for keyword in group.list %}
+                  <div class="form-check d-flex flex-row">
+                    {# Nota: assicurati che il name="keywords" sia corretto, nel file precedente era form.topics #}
+                    <input class="form-check-input" type="checkbox" name="topics" value="{{ keyword.value }}" id="{{ form.topics.id_for_label }}-{{ keyword.value }}" {% if keyword.selected %}checked{% endif %}>
+                    <label class="form-check-label ms-2" for="{{ form.topics.id_for_label }}-{{ keyword.value }}">
+                      {{ keyword.choice_label }}
+                    </label>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
           </div>
         {% endfor %}
-      {% endfor %}
+      </div>
+
       {% bootstrap_field form.news wrapper_class="mb-4" %}
       {% if form.language %}{% bootstrap_field form.language wrapper_class="mb-4" %}{% endif %}
     </div>
-    <div class="wjs-profile-form__footer gap-3">
+
+    <div class="wjs-profile-form__footer gap-3 d-flex">
       {% if active %}
-        {% translate "Update" as update_label %}
+        <!-- djlint:off -->
+        {% translate "<i class=\"bi bi-floppy me-1\"></i> Save preferences" as update_label %}
+        {% translate "<i class=\"bi bi-x me-1\"></i> Unsubscribe" as unsubscribe_label %}
+        <!-- djlint:on -->
         {% translate "Publication alert subscription" as unsubscribe_modal_title %}
-        {% translate "Unsubscribe" as unsubscribe_label %}
         {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
         {% bootstrap_button button_class="btn-outline-primary" button_type="button" data_bs_toggle="modal" data_bs_target="#target_author_notes_id" content=unsubscribe_label %}
       {% else %}
