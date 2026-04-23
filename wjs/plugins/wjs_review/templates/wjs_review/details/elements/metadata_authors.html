@@ -7,7 +7,7 @@
     </h2>
     <div id="collapse-authors" class="accordion-collapse collapse" aria-labelledby="heading-authors" data-bs-parent="#metadata">
       <div class="accordion-body">
-        <ul class="list-unstyled">
+        <ul class="list-unstyled" id="authorsAccordion">
           {% for order in article.articleauthororder_set.all %}
             {% with author=order.author %}
               <li>
