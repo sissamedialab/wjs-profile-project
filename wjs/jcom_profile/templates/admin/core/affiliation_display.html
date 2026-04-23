@@ -2,7 +2,7 @@
 
 <div class="mb-2">
   {% if affiliation.title_department %}
-    <span class="fw-bold text-muted small text-uppercase d-block">{{ affiliation.title_department }}</span>
+    <span class="wjs-profile-form__affiliation-info-title">{{ affiliation.title_department }}</span>
   {% endif %}
   <div class="d-flex align-items-center gap-2">
     {% if affiliation.organization.ror_id %}
@@ -21,7 +21,7 @@
     {% endif %}
 
     {% if affiliation.is_primary and display_primary %}
-      <span class="badge bg-secondary">
+      <span class="badge bg-primary">
         {% translate "Primary" %}
       </span>
     {% endif %}

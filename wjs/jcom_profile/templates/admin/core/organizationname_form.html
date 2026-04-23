@@ -11,19 +11,20 @@
     {% include "admin/core/affiliation_summary.html" %}
   </div>
 
-  <h2 class="h4 mb-3">{% translate "Custom name" %}</h2>
+  <h2 class="h4 mb-3 text-primary fw-bold border-bottom pb-2">{% translate "Custom name" %}</h2>
 
-  <form method="post" class="wjs-profile-form">
+  <form method="post" class="wjs-profile-form__affiliation-custom-name">
     {% csrf_token %}
 
-    <div class="mb-3">
-      {% bootstrap_field form.value %}
-    </div>
+    {% bootstrap_field form.value %}
 
-    <div class="d-flex gap-2">
-      {% translate "Save" as save_label %}
+    <div class="d-flex gap-2 justify-content-end">
+      <!-- djlint:off -->
+      {% translate "<i class=\"bi bi-floppy me-1\"></i> Save" as save_label %}
+      <!-- djlint:on -->
       {% bootstrap_button content=save_label button_type="submit" button_class="btn-primary" %}
       <a href="{{ request.GET.next }}" class="btn btn-outline-secondary">
+        <i class="bi bi-x me-1"></i>
         {% translate "Cancel" %}
       </a>
     </div>

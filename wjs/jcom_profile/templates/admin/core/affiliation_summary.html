@@ -4,43 +4,43 @@
 
 <div class="row">
   {% if account %}
-    <div class="col-md-4 mb-3">
-      <label class="form-label fw-bold">{% translate "User" %}</label>
-      <p>{{ account.full_name }}</p>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "User" %}</label>
+      <p class="mb-0">{{ account.full_name }}</p>
     </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label fw-bold">{% translate "Email" %}</label>
-      <p>{{ account.email }}</p>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "Email" %}</label>
+      <p class="mb-0">{{ account.email }}</p>
     </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label fw-bold">{% translate "ORCID" %}</label>
-      <p>{{ account.orcid|default:"-" }}</p>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "ORCID" %}</label>
+      <p class="mb-0">{{ account.orcid|default:"-" }}</p>
     </div>
   {% elif author %}
-    <div class="col-md-4 mb-3">
-      <label class="form-label fw-bold">{% translate "Author" %}</label>
-      <p>{{ author.full_name }}</p>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "Author" %}</label>
+      <p class="mb-0">{{ author.full_name }}</p>
     </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label fw-bold">{% translate "Email" %}</label>
-      <p>{{ author.email }}</p>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "Email" %}</label>
+      <p class="mb-0">{{ author.email }}</p>
     </div>
-    <div class="col-md-4 mb-3">
-      <label class="form-label fw-bold">{% translate "ORCID" %}</label>
-      <p>{{ author.orcid|default:"-" }}</p>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "ORCID" %}</label>
+      <p class="mb-0">{{ author.orcid|default:"-" }}</p>
     </div>
   {% endif %}
 </div>
 
 {% if article %}
   <div class="row">
-    <div class="col-md-4 mb-3">
+    <div class="col-md-4">
       <label class="form-label fw-bold">{% translate "Article ID" %}</label>
-      <p>{{ article.pk }}</p>
+      <p class="mb-0">{{ article.pk }}</p>
     </div>
     <div class="col-md-8 mb-3">
       <label class="form-label fw-bold">{% translate "Article title" %}</label>
-      <p>{{ article.safe_title }}</p>
+      <p class="mb-0">{{ article.safe_title }}</p>
     </div>
   </div>
 {% endif %}

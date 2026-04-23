@@ -2,8 +2,7 @@ import dataclasses
 from typing import Optional, get_args
 
 from core.models import Account
-from django.contrib.contentt
-ypes.models import ContentType
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from journal.models import Journal
 from plugins.wjs_review.communication_utils import role_for_article
