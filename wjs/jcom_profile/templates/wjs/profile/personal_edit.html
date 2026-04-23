@@ -1,5 +1,5 @@
 {% extends "wjs/profile/base.html" %}
-{% load django_bootstrap5 i18n static %}
+{% load django_bootstrap5 i18n next_url orcid static %}
 
 {% block page_title %}{% translate "Personal details" %}{% endblock page_title %}
 
@@ -13,19 +13,24 @@
       {% bootstrap_field form.last_name wrapper_class="mb-4" %}
       {% bootstrap_field form.year_of_birth wrapper_class="mb-4" %}
       {% bootstrap_field form.gender wrapper_class="mb-4" %}
-      <div class="mb-3">
+      <div class="mb-4">
         {% bootstrap_label "ORCID" label_for=id_orcid_button %}
-        {% if instance.orcid %}
-          <button id="id_orcid_button" class="wjs-profile-form__orcid-button">
-            <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
-            <a href="#" class="wjs-profile-form__orcid-info-text">{{ instance.orcid }}</a>
-          </button>
-        {% else %}
-          <button id="id_orcid_button" class="wjs-profile-form__orcid-button">
-            <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
-            Connect your ORCID iD
-          </button>
-        {% endif %}
+        <div>
+          {% if object.orcid %}
+            <a id="id_orcid_button" class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-2 mb-2">
+              <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
+              {{ object.orcid }}
+            </a>
+          {% else %}
+          {# djlint:off #}
+            <a href="{% url_with_next_and_orcid_action 'core_login_orcid' action='connect' %}&next={{ request.path }}" id="id_orcid_button"
+          {# djlint:on #}
+               class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-2 mb-2">
+              <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
+              {% translate "Connect your ORCID iD" %}
+            </a>
+          {% endif %}
+        </div>
       </div>
     </div>
     {% bootstrap_field form.profession wrapper_class="mb-4" %}
