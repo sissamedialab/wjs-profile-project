@@ -12,6 +12,7 @@ from django.utils.safestring import mark_safe
 from django.utils.timezone import localtime, now
 from django.utils.translation import gettext_lazy as _
 from journal.models import Issue
+from submission.models import Article
 
 from wjs.jcom_profile.permissions import has_eo_or_director_role, has_eo_role
 from wjs.jcom_profile.utils import citation_name
@@ -70,7 +71,7 @@ def has_attr(obj, attr):
 
 
 @register.filter
-def how_to_cite(article):
+def how_to_cite(article: Article) -> str:
     """Return a how-to-cite string for an article.
 
     Format depends on the journal:
@@ -97,12 +98,12 @@ def how_to_cite(article):
             f" https://doi.org/{article.get_doi()}"
         )
     else:
+        # Note that, for these journals, Issue objects are created with issue=month and volume=year - wjs/specs#2631
         htc = (
             f"{author_str},"
             f" <i>{article.title}</i>,"
             f" <i>{article.journal.code}</i>"
-            f" {article.date_published.strftime('%m (%Y)')}"
-            f" {article.page_numbers}."
+            f" {article.issue.issue} ({article.issue.volume}) {article.page_numbers}."
             f" https://doi.org/{article.get_doi()}"
         )
     return htc
