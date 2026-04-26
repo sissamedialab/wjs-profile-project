@@ -146,6 +146,9 @@ class BreadcrumbItem(NamedTuple):
     """If breadcrumb is the current view."""
 
 
+AllAccessPermissions = (PermissionAssignment.PermissionType.NO_NAMES, PermissionAssignment.PermissionType.ALL)
+AnonymousAccessPermissions = (PermissionAssignment.PermissionType.NO_NAMES,)
+
 AllowedPermissionType: TypeAlias = Literal[
     PermissionAssignment.PermissionType.NO_NAMES, PermissionAssignment.PermissionType.ALL
 ]
