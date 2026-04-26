@@ -15,7 +15,12 @@ from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import permissions
-from .custom_types import AllowedBinaryPermissionType, AllowedPermissionType
+from .custom_types import (
+    AllAccessPermissions,
+    AllowedBinaryPermissionType,
+    AllowedPermissionType,
+    AnonymousAccessPermissions,
+)
 from .models import (
     ArticleWorkflow,
     EditorDecision,
@@ -457,13 +462,10 @@ class AuthorPermissionChecker(BasePermissionChecker):
             return permissions.is_one_of_the_authors(self.instance.articleworkflow, self.user)
         if isinstance(self.instance, RevisionRequest):
             is_an_author = permissions.is_one_of_the_authors(self.instance.article.articleworkflow, self.user)
-            return is_an_author and (
-                permission_type == PermissionAssignment.PermissionType.NO_NAMES
-                or permission_type == PermissionAssignment.BinaryPermissionType.ALL
-            )
+            return is_an_author and permission_type in AllAccessPermissions
         if isinstance(self.instance, EditorDecision):
             is_an_author = permissions.is_one_of_the_authors(self.instance.workflow, self.user)
-            return is_an_author and permission_type == PermissionAssignment.PermissionType.NO_NAMES
+            return is_an_author and permission_type in AnonymousAccessPermissions
         return False
 
 
@@ -488,13 +490,11 @@ class ReviewerPermissionChecker(BasePermissionChecker):
         ).processed_value
 
         available_permissions = (
-            PermissionAssignment.PermissionType.NO_NAMES
-            if review_visibility == "double-blind"
-            else PermissionAssignment.PermissionType.ALL
+            AnonymousAccessPermissions if review_visibility == "double-blind" else AllAccessPermissions
         )
-        return is_assignee and permission_type == available_permissions
+        return is_assignee and permission_type in available_permissions
 
-    def _check_assignment_by_round(self, article: Article, review_round: int) -> bool:
+    def _check_assignment_by_round(self, article: Article, review_round: int | None) -> bool:
         """Check if reviewer for the given round round number."""
         if review_round is None:
             # In this case we are only interested if the user has been reviewer at any time for current or past RR
