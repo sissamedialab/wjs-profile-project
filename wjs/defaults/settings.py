@@ -182,6 +182,7 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
     None: ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
     "JCOM": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
     "JCOMAL": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
+    "JCAP": ("plugins.wjs_review.events.checks_after_acceptance.jcap_ta_not_yet_confirmed",),
 }
 
 # Email addresses that must receive the notification when an article is published.

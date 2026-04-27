@@ -9,6 +9,7 @@ import requests
 from core.models import File, SupplementaryFile
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -17,6 +18,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils import translation
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, FormView, TemplateView, UpdateView, View
+from django_fsm import has_transition_perm
 from django_q.tasks import async_task
 from journal.models import Issue, Journal
 from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
@@ -651,6 +653,29 @@ class TypesetterTakeInCharge(AuthenticatedUserPassesTest, View):
                 kwargs={"pk": self.object.pk},
             ),
         )
+
+
+class EOConfirmsProductionReady(LoginRequiredMixin, View):
+    """EO manually confirms that an accepted article is ready for the typesetter.
+
+    Used for journals where the automatic check is blocked pending an out-of-band
+    confirmation by EO (e.g. JCAP).
+    """
+
+    model = ArticleWorkflow
+
+    def setup(self, request, *args, **kwargs):
+        super().setup(request, *args, **kwargs)
+        self.object = get_object_or_404(self.model, pk=self.kwargs["pk"])
+
+    def post(self, request, *args, **kwargs):
+        if not has_transition_perm(self.object.system_verifies_production_requirements, request.user):
+            messages.error(request, "This article cannot transition to Ready for Typesetter in its current state.")
+            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
+        self.object.system_verifies_production_requirements()
+        self.object.save()
+        messages.success(request, "Article confirmed as ready for typesetter.")
+        return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
 
 
 class UpdateSectionOrder(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
