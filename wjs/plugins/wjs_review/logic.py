@@ -97,6 +97,7 @@ from .logic__production import (  # noqa: F401
     AuthorSendsCorrections,
     BeginPublication,
     FinishPublication,
+    HandleDownloadRevisionFiles,
     ReadyForPublication,
     RequestProofs,
     TypesettedFilesUpload,
@@ -4653,65 +4654,25 @@ class BaseConvertLatexReport:
     def yakunin_log_filename(self):
         raise NotImplementedError
 
-    def _create_in_memory_ini_file(self) -> BytesIO:
-        """
-        Creates an in-memory .ini file containing metadata related to the current article version.
-
-        Yet to be decides the caratheristics of the ini file.
-
-        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
-        :rtype: BytesIO
-        """
-        ini_content = f"""
-        [wjs]
-        text = Not for distribution ...WRITEME...
-        x = {settings.WATERMARK_X_POSITION}
-        y = {settings.WATERMARK_Y_POSITION}
-        """
-
-        ini_file = BytesIO(ini_content.encode("utf-8"))
-        ini_file.name = "wj.ini"
-        ini_file.seek(0)
-        return ini_file
-
-    def run(self):
-        """
-        Executes the process for generating, handling, and processing a LaTeX file using the Yakunin client service.
-
-        The method prepares a temporary directory for the process, creates required files, and interacts with the
-        Yakunin client to apply a watermark and handle the resulting files, ensuring clean up is performed after
-        execution. Error handling should be extended for robustness.
-
-        :return: Result of the `_handle_generated_file` method which processes the generated file.
-        :rtype: Any
-        """
-        tmpdir = None
-        tex_file = self._prepare_tex_file()
-        client = YakuninClient(file=tex_file, filename=f"{self.report_filename}.tex")
-
-        try:
-            tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
-            self.logfile = self._save_yakunin_logs(log)
-            self._raise_for_yakunin_errors(log)
-            return self._handle_generated_file(tmpdir)
-        except YakuninRequestError as e:
-            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
-            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
-            raise YakuninRequestError(msg) from e
-        finally:
-            if tmpdir:
-                shutil.rmtree(tmpdir)
-
     def _prepare_tex_file(self) -> bytes:
         """
-        Prepares the LaTeX file content as a byte-encoded string. This method combines a preamble retrieved
-        from a database and the report text, then appends the LaTeX document end command. The resulting
-        content is encoded into UTF-8.
+        Prepare the LaTeX file content
+
+        This method combines a preamble retrieved from a database and the report text, then appends the LaTeX document
+        end command. The resulting content is encoded into UTF-8.
 
         :return: The complete LaTeX document as a UTF-8 encoded byte string.
         :rtype: bytes
+
         """
         preamble = LatexPreamble.objects.get(journal=self.instance.article.journal).report_preamble
+        frozen_authors = self.instance.article.frozen_authors()
+        authors = frozen_authors if frozen_authors.exists() else self.instance.article.authors.all()
+        context = {
+            "article": self.instance.article,
+            "authors": authors,
+        }
+        preamble = HandleDownloadRevisionFiles.render_latexpreamble(preamble, context)
         full_text = f"{preamble}\n\n{self.report_text}\n\n" + r"\end{document}"
         return full_text.encode("utf-8")
 
@@ -4771,6 +4732,34 @@ class BaseConvertLatexReport:
         :raises NotImplementedError: If the method is not implemented
         """
         raise NotImplementedError
+
+    def run(self):
+        """
+        Executes the process for generating, handling, and processing a LaTeX file using the Yakunin client service.
+
+        The method prepares a temporary directory for the process, creates required files, and interacts with the
+        Yakunin client to apply a watermark and handle the resulting files, ensuring clean up is performed after
+        execution. Error handling should be extended for robustness.
+
+        :return: Result of the `_handle_generated_file` method which processes the generated file.
+        :rtype: Any
+        """
+        tmpdir = None
+        tex_file = self._prepare_tex_file()
+        client = YakuninClient(file=tex_file, filename=f"{self.report_filename}.tex")
+
+        try:
+            tmpdir, log = client.call_yakunin_mkpdf()
+            self.logfile = self._save_yakunin_logs(log)
+            self._raise_for_yakunin_errors(log)
+            return self._handle_generated_file(tmpdir)
+        except YakuninRequestError as e:
+            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
+            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
+            raise YakuninRequestError(msg) from e
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir)
 
 
 @dataclasses.dataclass()
