@@ -501,6 +501,60 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def jcap_ta_pending_notification() -> tuple[SettingValue, ...]:
+        ta_pending_subject_setting: SettingParams = {
+            "name": "jcap_ta_pending_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for JCAP TA pending notification to EO"),
+            "description": _(
+                "Subject of the message sent to EO when a JCAP article is accepted "
+                "but production readiness has not yet been confirmed.",
+            ),
+            "is_translatable": False,
+        }
+        ta_pending_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "[JCAP] Action required: confirm production readiness for article {{ article.pk }}",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            ta_pending_subject_setting,
+            ta_pending_subject_setting_value,
+            ta_pending_subject_setting["name"],
+            force=force,
+        )
+        ta_pending_body_setting: SettingParams = {
+            "name": "jcap_ta_pending_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body for JCAP TA pending notification to EO"),
+            "description": _(
+                "Body of the message sent to EO when a JCAP article is accepted "
+                "but production readiness has not yet been confirmed.",
+            ),
+            "is_translatable": False,
+        }
+        ta_pending_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": (
+                "Article {{ article.pk }} ({{ article.title }}) has been accepted "
+                "but production readiness has not yet been confirmed.<br><br>"
+                'Please check and confirm from the <a href="{{ article.articleworkflow.url }}">'
+                "article page</a>."
+            ),
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            ta_pending_body_setting,
+            ta_pending_body_setting_value,
+            ta_pending_body_setting["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     def hijack_notification_message() -> tuple[SettingValue, ...]:
         hijack_notification_subject: SettingParams = {
             "name": "hijack_notification_subject",
@@ -2097,6 +2151,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(hijack_notification_message())
         csv_writer.write_settings(admin_deems_unimportant())
         csv_writer.write_settings(admin_requires_resubmission())
+        csv_writer.write_settings(jcap_ta_pending_notification())
         csv_writer.write_settings(prophy_settings())
         csv_writer.write_settings(due_date_postpone_message())
         csv_writer.write_settings(due_date_far_future_message())

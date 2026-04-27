@@ -935,6 +935,16 @@ class PaperHasEditorReport(BaseState):
 class Accepted(BaseState):
     """Accepted"""
 
+    article_actions = (
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="eo confirms production ready",
+            label="Confirm production readiness",
+            view_name="wjs_eo_confirm_production_ready",
+            is_post=True,
+        ),
+    ) + BaseState.article_actions
+
 
 class ToBeRevised(BaseState):
     """To be revised"""

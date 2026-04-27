@@ -73,6 +73,7 @@ from .views__production import (  # noqa F401;
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
     DownloadRevisionFiles,
+    EOConfirmsProductionReady,
     EOSendBackToTypesetterView,
     FinishPublicationView,
     ListAnnotatedFilesView,
@@ -305,6 +306,11 @@ urlpatterns = [
         name="wjs_send_back_to_typ",
     ),
     path("take_in_charge/<int:pk>/", TypesetterTakeInCharge.as_view(), name="wjs_typ_take_in_charge"),
+    path(
+        "confirm_production_ready/<int:pk>/",
+        EOConfirmsProductionReady.as_view(),
+        name="wjs_eo_confirm_production_ready",
+    ),
     path(
         "download_file/<int:article_id>/<int:file_id>",
         DownloadSingleFile.as_view(),

@@ -1113,7 +1113,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.ACCEPTED,
         target=ReviewStates.READY_FOR_TYPESETTER,
-        # TODO: permission=,
+        permission=permissions.has_eo_role_by_article,
         # TODO: conditions=[],
     )
     def system_verifies_production_requirements(self):
