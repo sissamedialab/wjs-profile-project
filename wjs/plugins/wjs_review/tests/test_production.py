@@ -35,6 +35,7 @@ from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
 from ..logic__production import (
+    AttachGalleys,
     BeginPublication,
     FinishPublication,
     HandleDownloadRevisionFiles,
@@ -581,6 +582,69 @@ def test_automatic_preamble_generation(
     )
     for piece in expected_preamble_pieces:
         assert piece in rendered_preamble
+
+
+@pytest.mark.parametrize(
+    "src_value",
+    [
+        "./figure/image1.png",
+        "./a/b/c/x.y",
+        "/z",  # corner case that should not happen
+    ],
+)
+@pytest.mark.django_db
+def test_mangle_images(
+    tmp_path: Path,
+    src_value: str,
+):
+    """
+    mangle_images should replace <img src> with the stored image label and rewrite the galley file.
+
+    Note that mangle_images():
+    - takes its input from the galley that it is given,
+      thus we mock the part that gives the input (galley.file.get_file())
+    - writes its output into a file among the article files,
+      thus we mock the part that gives the output file path (galley.file.self_article_path())
+    - uses AttachGalleys.store_galleyimage() to save the image files themselves,
+      thus we mock that part too
+    """
+    mocked_galley = mock.MagicMock()
+    mocked_galley.file.get_file.return_value = f'<html><body><img src="{src_value}"/></body></html>'
+    # galley_file.self_article_path() must return a real writable path
+    out_path = tmp_path / "galley.html"
+    mocked_galley.file.self_article_path.return_value = out_path
+
+    service = AttachGalleys(
+        archive_with_galleys=b"",
+        article=None,
+        request=None,
+        expected_galleys=[],
+    )
+    service.path = tmp_path
+
+    # Weak spot: AttachGalleys.store_galleyimage() receives a Path,
+    # from which it takes the "name" (as in Path.name);
+    # that "name" is then used as label for the galley-image
+    # and as original filename for the associated file object,
+    # and then returned to the caller.
+    # It is the "link" between the HTML (<img src="name">) and the DB object.
+    # Here we simulate the relation between it and the galley-image file by taking the name of a Path
+    # created from the original image src value.
+    mocked_stored_file = mock.MagicMock()
+    mocked_stored_file.label = Path(src_value).name
+    with mock.patch.object(service, "store_galleyimage", return_value=mocked_stored_file) as mock_store:
+        service.mangle_images(mocked_galley)
+
+    # store_galleyimage() was called with the resolved image path and the galley;
+    # here we test that mangle_images() does not alter the value of the src attribute
+    expected_img_path = service.path / src_value
+    mock_store.assert_called_once_with(expected_img_path, mocked_galley)
+
+    # the rewritten HTML contains the new src
+    written_html = out_path.read_bytes().decode()
+    assert f'src="{mocked_stored_file.label}"' in written_html
+    # the original relative path is gone
+    assert src_value not in written_html
 
 
 @pytest.mark.django_db
@@ -1581,4 +1645,5 @@ def test_set_label_of_esm_file(
     assert response.status_code == 200
     assigned_to_typesetter_article.refresh_from_db()
     s_files = assigned_to_typesetter_article.supplementary_files.all().exclude(id__in=existing_supplementary_files_ids)
+    assert s_files.count() == 1 and s_files[0].label == new_supplementary_file_label
     assert s_files.count() == 1 and s_files[0].label == new_supplementary_file_label

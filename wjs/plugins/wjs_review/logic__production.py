@@ -1003,20 +1003,13 @@ class AttachGalleys:
         html: HtmlElement = lxml.html.fromstring(galley_string)
         images = html.findall(".//img")
         for image_element in images:
-            # We expect the "src" attribute to contain a pathname (full path);
-            # NB: this pathname existed when the img file was created on jcomassistant:
-            #     it does not exist in the filesystem where we opened the processed archive!
-            # It might also contain a query-string part: that we drop with the split("?")
-            wrong_pathname = Path(image_element.attrib["src"].split("?")[0])
-            # Expecting something like "/tmp/tmpabc/..."
-            # the first 3 parts ("/", "tmp", "tmpabc") can be dropped
-            img_src = self.path.joinpath(*wrong_pathname.parts[-2:])
+            # We expect the "src" attribute to contain a relative pathname
+            img_src = self.path.joinpath(image_element.attrib["src"])
             img_obj = self.store_galleyimage(img_src, galley)
             # Remember that, in the HTML galley, the `src` attribute is relative to the article's URL
             image_element.attrib["src"] = img_obj.label
 
-        with open(galley_file.self_article_path(), "wb") as out_file:
-            out_file.write(lxml.html.tostring(html, pretty_print=False))
+        Path(galley_file.self_article_path()).write_bytes(lxml.html.tostring(html, pretty_print=False))
 
     def _get_singlegalley_path(self, suffix: str) -> Path:
         """
