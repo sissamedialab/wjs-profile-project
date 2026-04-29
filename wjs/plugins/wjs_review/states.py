@@ -1207,7 +1207,7 @@ class TypesetterSelected(BaseState):
             is_post=True,
         ),
         ArticleAction(
-            permission=permissions.is_article_typesetter,
+            permission=permissions.is_article_typesetter_or_eo,
             name="draft_article_page",
             label="View HTML",
             view_name="wjs_draft_article_page",
@@ -1342,6 +1342,12 @@ class Proofreading(BaseState):
             custom_get_confirm=get_publishable_confirm_text,
             is_post=True,
         ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter_or_eo,
+            name="draft_article_page",
+            label="View HTML",
+            view_name="wjs_draft_article_page",
+        ),
     ) + BaseState.article_actions
     article_buttons = (
         ArticleButton(
@@ -1423,6 +1429,12 @@ class ReadyForPublication(BaseState):
             name="sync tex and db",
             label="Sync TeX and DB",
             view_name="wjs_sync_tex_db",
+        ),
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="draft_article_page",
+            label="View HTML",
+            view_name="wjs_draft_article_page",
         ),
     ) + BaseState.article_actions
 
