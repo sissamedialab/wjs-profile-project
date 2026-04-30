@@ -1,0 +1,39 @@
+{% extends "wjs/base/base.html" %}
+{% load i18n django_bootstrap5 %}
+
+{% block title %}
+  {% translate "Reset password" %}
+{% endblock title %}
+
+{% block content %}
+<div class="col-sm-12">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+
+      <div class="row">
+        <div class="col-md-6 offset-md-3">
+
+          <p class="text-dark mb-4">
+            {% translate "Enter your email address to begin the reset process." %}
+          </p>
+
+          {% include "admin/elements/forms/messages_in_callout.html" with form=form %}
+
+          <form method="post" action="">
+            {% csrf_token %}
+
+            {% bootstrap_field form.email_address %}
+
+            <div class="text-center mt-4">
+              {% translate "Request token" as btn_label %}
+              {% bootstrap_button button_type="submit" button_class="btn-primary" content=btn_label %}
+            </div>
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock content %}
