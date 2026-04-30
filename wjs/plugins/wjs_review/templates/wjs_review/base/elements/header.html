@@ -49,13 +49,11 @@
             </nav>
             {% block top_menu %}
             {% endblock top_menu %}
-            <div class="align-content-center">
-              {% if request.user.is_authenticated and view.role %}
-                <button class="wjs-header__role-label" type="button">
-                  {% translate "Viewing as" %}: {{ view.role_label }}
-                </button>
-              {% endif %}
-            </div>
+            {% if request.user.is_authenticated and view.role %}
+                <div class="wjs-header__role-label align-content-center" role="status" aria-live="polite">
+                  {% translate "Viewing as" %}: <strong>{{ view.role_label }}</strong>
+                </div>
+            {% endif %}
           </div>
         </div>
       </div>
