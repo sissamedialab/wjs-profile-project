@@ -7,6 +7,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import JSONField
 from django.forms import TextInput
+from django.utils.timezone import now
 from django.utils.translation import gettext as _
 from django_bleach.forms import BleachField as BleachFormField
 from journal.models import Issue, Journal
@@ -58,11 +59,13 @@ class JCOMProfile(Account):
     )
     gender = models.CharField(_("Gender"), choices=GENDER_CHOICES, default="", blank=True)
     year_of_birth = models.IntegerField(_("Year of birth"), null=True, blank=True)
-    alternative_email = models.EmailField(_("Institutional email address"), null=True, blank=True)
+    alternative_email = models.EmailField(_("Alternative email address"), null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # is_admin is a flag of janeway which protects some manager site parts
         self.is_admin = self.is_superuser
+        if self.gdpr_checkbox and not self.gdpr_acceptance:
+            self.gdpr_acceptance = now()
         super().save(*args, **kwargs)
 
 

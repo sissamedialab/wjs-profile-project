@@ -19,7 +19,7 @@
 
           {% include "admin/elements/forms/messages_in_callout.html" with form=form %}
 
-          <form method="post" action="">
+          <form class="wjs-profile-form" method="post" action="">
             {% csrf_token %}
 
             {% bootstrap_field form.email_address %}

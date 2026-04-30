@@ -15,6 +15,7 @@ from django.utils.translation import gettext_lazy as _
 from journal.models import Issue
 from submission.models import Article
 
+from wjs.defaults import settings
 from wjs.jcom_profile.permissions import has_eo_or_director_role, has_eo_role
 from wjs.jcom_profile.utils import citation_name
 
@@ -360,3 +361,14 @@ def get_profile_section(context):
     if matched_prefixes:
         return matched_prefixes[0]
     return request.resolver_match.url_name
+
+
+@register.filter()
+def is_field_available(journal, field_name):
+    """
+    Verify if a field - feature is available in the current journal.
+
+    We may want to port this to janeway setting, for now it's an overkill.
+    """
+    fields = settings.PROFILE_FIELDS.get(journal.code, settings.PROFILE_FIELDS[None])
+    return field_name in fields

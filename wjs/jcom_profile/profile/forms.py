@@ -3,34 +3,32 @@ from core.models import Interest
 from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from submission.models import Keyword
 from utils.middleware import context_request
 
 from ..constants import GENDER_FORM_CHOICES, PROFESSIONS_FORM
+from ..forms import _get_privacy_url
 from ..models import JCOMProfile, WjsMiniHTMLFormField
+from ..templatetags.wjs_tags import is_field_available
 
 
 class WjsPersonalInfoForm(EditAccountForm):
     """Form used to change personal info."""
 
-    first_name = forms.CharField(label=_("First name"), help_text=_("Required"), required=True)
+    first_name = forms.CharField(label=_("First name"), required=False)
     middle_name = forms.CharField(label=_("Middle name"), required=False)
-    last_name = forms.CharField(label=_("Last name"), help_text=_("Required"), required=True)
-    year_of_birth = forms.IntegerField(
-        label=_("Year of birth"),
-        required=False,
+    last_name = forms.CharField(label=_("Last name"), required=True)
+    year_of_birth = forms.IntegerField(label=_("Year of birth"), required=False)
+    gender = forms.ChoiceField(label=_("Gender"), choices=GENDER_FORM_CHOICES, required=False)
+    profession = forms.ChoiceField(label=_("Profession"), required=False, choices=PROFESSIONS_FORM)
+    privacy_notice = forms.DateTimeField(
+        label=_("Privacy notice acknowledged on"), widget=forms.DateTimeInput(attrs={"readonly": True}), required=False
     )
-    gender = forms.ChoiceField(
-        label=_("Gender"),
-        choices=GENDER_FORM_CHOICES,
-        required=False,
-    )
-    profession = forms.ChoiceField(
-        label=_("Profession"), help_text=_("Required"), required=True, choices=PROFESSIONS_FORM
-    )
-    privacy_notice = forms.DateField(
-        label=_("Privacy notice acknowledge on"), widget=forms.DateInput(attrs={"readonly": True}), required=False
+    gdpr_checkbox = forms.BooleanField(
+        required=True,
+        label=_("Agree to our Privacy Policy"),
     )
     biography = WjsMiniHTMLFormField(
         label=_("Biography"),
@@ -51,6 +49,7 @@ class WjsPersonalInfoForm(EditAccountForm):
             "preferred_timezone",
             "biography",
             "privacy_notice",
+            "gdpr_checkbox",
         )
         exclude = None
 
@@ -59,8 +58,26 @@ class WjsPersonalInfoForm(EditAccountForm):
             kwargs["initial"] = {}
         if kwargs["instance"]:
             kwargs["initial"]["privacy_notice"] = kwargs["instance"].jcomprofile.gdpr_acceptance
+        self.journal = kwargs.pop("journal")
 
+        if not is_field_available(self.journal, "profession") and "data" in kwargs:
+            data = kwargs["data"].copy()
+            data["profession"] = 0
+            kwargs["data"] = data
         super().__init__(*args, **kwargs)
+
+        privacy_url = _get_privacy_url(self.journal)
+        self.fields["first_name"].required = False
+        self.fields["gdpr_checkbox"].label = mark_safe(
+            _('Agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
+        )
+        if self.instance.jcomprofile.gdpr_acceptance:
+            self.fields["gdpr_checkbox"].widget = forms.HiddenInput()
+        else:
+            self.fields["privacy_notice"].widget = forms.HiddenInput()
+        for field in self.fields:
+            if self.fields[field].required:
+                self.fields[field].help_text = _("Required")
 
 
 class WjsEmailChangeForm(EditAccountForm):
@@ -85,6 +102,7 @@ class WjsEmailChangeForm(EditAccountForm):
         return self.cleaned_data["new_email"]
 
     def __init__(self, *args, **kwargs):
+        self.journal = kwargs.pop("journal")
         super().__init__(*args, **kwargs)
         self.fields["email"].widget.attrs.update({"readonly": True})
 
@@ -100,6 +118,10 @@ class WjsPasswordChangeForm(EditAccountForm):
         model = JCOMProfile
         fields = ("current_password",)
         exclude = None
+
+    def __init__(self, *args, **kwargs):
+        self.journal = kwargs.pop("journal")
+        super().__init__(*args, **kwargs)
 
     def clean_current_password(self):
         if not self.instance.check_password(self.cleaned_data["current_password"]):
@@ -141,6 +163,10 @@ class WjsAdditionalInfoForm(EditAccountForm):
             "records_other",
         )
 
+    def __init__(self, *args, **kwargs):
+        self.journal = kwargs.pop("journal")
+        super().__init__(*args, **kwargs)
+
 
 class WjsInterestsForm(EditAccountForm):
     """Form used to change password."""
@@ -154,12 +180,12 @@ class WjsInterestsForm(EditAccountForm):
 
     def __init__(self, *args, **kwargs):
         """Set the required fields."""
-        journal = kwargs.pop("journal")
+        self.journal = kwargs.pop("journal")
         kwargs["initial"]["keywords"] = Keyword.objects.filter(
             word__in=kwargs["instance"].interest.values_list("name", flat=True)
         ).order_by("word")
         super().__init__(*args, **kwargs)
-        self.fields["keywords"].queryset = journal.keywords.exclude(word="").order_by("word")
+        self.fields["keywords"].queryset = self.journal.keywords.exclude(word="").order_by("word")
 
     def save(self, commit=True):
         self.instance.interest.clear()

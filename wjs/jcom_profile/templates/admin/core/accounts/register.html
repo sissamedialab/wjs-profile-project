@@ -1,5 +1,5 @@
 {% extends "wjs/base/base.html" %}
-{% load i18n django_bootstrap5 %}
+{% load django_bootstrap5 i18n wjs_tags %}
 
 {% block title %}
   {% translate "Register for an account with SISSA Journals" %}
@@ -16,7 +16,7 @@
         </div>
       {% endcomment %}
 
-      <form method="post" class="form">
+      <form class="wjs-profile-form" method="post">
         {% csrf_token %}
 
         <div class="row">
@@ -26,7 +26,7 @@
           <div class="col-md-4">{% bootstrap_field form.last_name %}</div>
         </div>
 
-        {% if journal.code != "JQuant" %}
+        {% if journal|is_field_available:"profession" %}
         <div class="row">
           <div class="col-md-6">{% bootstrap_field form.profession %}</div>
         </div>
