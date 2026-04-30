@@ -1,0 +1,58 @@
+{% extends "wjs/base/base.html" %}
+{% load i18n django_bootstrap5 %}
+
+{% block title %}
+  {% if account %}{% translate "Activate Account" %}{% else %}{% translate "No account" %}{% endif %}
+{% endblock title %}
+
+{% block content %}
+<div class="col-sm-12">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+
+      <div class="row">
+        <div class="col-md-6 offset-md-3">
+
+          {% if account %}
+            {% if form.errors %}
+              <div class="alert alert-danger shadow-none border-0 mb-4" role="alert">
+                {% bootstrap_form_errors form %}
+              </div>
+            {% endif %}
+
+            <p class="text-dark text-center mb-4">
+              {% translate "You can complete the activation process by clicking the button below." %}
+            </p>
+
+            <form method="post">
+              {% csrf_token %}
+              <div class="text-center">
+                {% translate "Activate Account" as btn_label %}
+                {% bootstrap_button button_type="submit" name="activate" content=btn_label button_class="btn-primary" %}
+              </div>
+            </form>
+
+          {% else %}
+            <div class="alert alert-warning border-0 shadow-none mb-4" role="alert">
+              <p class="mb-0 text-dark">
+                {% blocktranslate %}
+                  Sorry, we could not find an account to activate, or your account is active
+                  already. You can check if it is active by attempting to log in.
+                {% endblocktranslate %}
+              </p>
+            </div>
+
+            <div class="text-center">
+              {% url 'core_login' as login_url %}
+              {% translate "Login" as login_label %}
+              {% bootstrap_button button_type="link" href=login_url content=login_label button_class="btn-outline-primary" %}
+            </div>
+          {% endif %}
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock content %}

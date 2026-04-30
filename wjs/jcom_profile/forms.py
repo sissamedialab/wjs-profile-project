@@ -126,6 +126,10 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         self.fields["gdpr_checkbox"].label = mark_safe(
             _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
         )
+        self.fields["first_name"].required = False
+        for field in self.fields:
+            if self.fields[field].required:
+                self.fields[field].help_text = _("Required")
 
     def clean_password_2(self):
         """Validate password."""

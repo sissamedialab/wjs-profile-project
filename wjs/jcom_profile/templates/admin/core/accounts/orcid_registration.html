@@ -1,0 +1,65 @@
+{% extends "wjs/base/base.html" %}
+{% load i18n django_bootstrap5 wjs_tags %}
+
+{% block title %}
+  {% translate "Unregistered ORCiD" %}
+{% endblock title %}
+
+{% block content %}
+  <div class="col-sm-12">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+
+        <div class="row">
+          <div class="col-md-6 offset-md-3">
+
+            <p class="text-dark mb-4">
+              {% blocktranslate %}
+                The ORCiD you logged in with is not currently linked with an
+                account in our system. You can either register a new account, or login with
+                an existing account to link your ORCiD for future use.
+              {% endblocktranslate %}
+            </p>
+
+            <form method="post" action="{% url 'core_login' %}">
+              {% csrf_token %}
+
+              <div class="mb-3">
+                <label class="form-label" for="id_user_name">Email</label>
+                <input type="text" name="user_name" maxlength="255" class="form-control" placeholder="Email" required="" id="id_user_name">
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="id_user_pass">Password</label>
+                <input type="password" name="user_pass" autocomplete="current-password" maxlength="255" class="form-control" placeholder="Password" required="" id="id_user_pass">
+              </div>
+              <input name="orcid_token" type="hidden" value="{{ token.token }}">
+
+              <div class="text-center mt-4">
+                {% translate "Log in" as btn_login %}
+                {% bootstrap_button button_type="submit" content=btn_login button_class="btn-primary" %}
+              </div>
+            </form>
+
+            <hr class="my-4">
+
+            <div class="text-center">
+              <div class="mb-3">
+                {% url 'core_get_reset_token' as reset_url %}
+                {% translate "Forgotten your password?" as text_reset %}
+                {% bootstrap_button button_type="link" href=reset_url content=text_reset button_class="btn-link text-decoration-underline fw-bold" %}
+              </div>
+
+              <div class="mt-4">
+                {% url 'core_register' as register_url %}
+                {% translate "Register a new account" as text_reg %}
+                {% bootstrap_button button_type="link" href=register_url|concat:"?token="|concat:token.token content=text_reg button_class="btn-outline-primary btn-lg w-100" %}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+{% endblock content %}

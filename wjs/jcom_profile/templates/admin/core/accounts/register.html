@@ -1,0 +1,83 @@
+{% extends "wjs/base/base.html" %}
+{% load i18n django_bootstrap5 %}
+
+{% block title %}
+  {% translate "Register for an account with SISSA Journals" %}
+{% endblock title %}
+
+{% block content %}
+<div class="col-sm-12">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <!-- FIXME: Remove the comment below once the ORCID registration is fixed -->
+      {% comment %}
+        <div class="mb-4 pb-3">
+          {% include "wjs/themes/wjs-bootstrap/templates/admin/core/accounts/orcid_registration.html" with button_classes="btn btn-outline-primary w-100" %}
+        </div>
+      {% endcomment %}
+
+      <form method="post" class="form">
+        {% csrf_token %}
+
+        <div class="row">
+          <div class="col-md-2">{% bootstrap_field form.salutation %}</div>
+          <div class="col-md-3">{% bootstrap_field form.first_name %}</div>
+          <div class="col-md-3">{% bootstrap_field form.middle_name %}</div>
+          <div class="col-md-4">{% bootstrap_field form.last_name %}</div>
+        </div>
+
+        {% if journal.code != "JQuant" %}
+        <div class="row">
+          <div class="col-md-6">{% bootstrap_field form.profession %}</div>
+        </div>
+        {% endif %}
+
+        {% if form.register_as_reader %}
+        <div class="p-3 bg-light rounded mb-4 border">
+          {% bootstrap_field form.register_as_reader layout='inline' %}
+        </div>
+        {% endif %}
+
+        {% bootstrap_field form.email %}
+
+        <div class="row">
+          <div class="col-md-6">{% bootstrap_field form.password_1 %}</div>
+          <div class="col-md-6">{% bootstrap_field form.password_2 %}</div>
+        </div>
+
+        <div class="alert alert-info py-4 shadow-none border-0 bg-light mb-4" role="note">
+          <p class="fw-bold mb-2">{% translate "Password Rules" %}:</p>
+          <ul class="ps-4 mb-3 text-dark">
+            {% include "common/elements/password_rules.html" %}
+          </ul>
+          <p class="mb-0">
+            {% blocktranslate %}
+              Read our <a href="#" data-bs-toggle="modal" data-bs-target="#password-modal" class="text-decoration-underline fw-bold">password guide</a>.
+            {% endblocktranslate %}
+          </p>
+        </div>
+
+        {% if journal_settings.general.display_register_page_notice %}
+          <div class="mb-4 text-secondary">
+            {{ journal_settings.general.register_page_notice|safe }}
+          </div>
+        {% endif %}
+
+        {% bootstrap_field form.gdpr_checkbox %}
+        {% bootstrap_field form.captcha %}
+
+        {% for hidden_field in form.hidden_fields %}
+          {{ hidden_field }}
+        {% endfor %}
+
+        <div class="text-center mt-5">
+          {% translate "Register" as btn_label %}
+          {% bootstrap_button button_type="submit" button_class="btn-primary" content=btn_label %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% include "admin/core/accounts/password_guide.html" %}
+{% endblock content %}
