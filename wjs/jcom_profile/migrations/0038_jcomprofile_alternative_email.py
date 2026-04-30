@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="jcomprofile",
             name="alternative_email",
-            field=models.EmailField(blank=True, max_length=254, null=True, verbose_name="Institutional email address"),
+            field=models.EmailField(blank=True, max_length=254, null=True, verbose_name="Alternative email address"),
         ),
     ]

@@ -40,9 +40,11 @@
                 <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile_additional" %} wjs-profile-nav__item--active{% endif %}">
                   <a class="wjs-profile-nav__link" href="{{ core_edit_profile_additional }}">Additional information</a>
                 </li>
-                <li class="wjs-profile-nav__item{% if profile_section == "edit_newsletters" %} wjs-profile-nav__item--active{% endif %}">
-                  <a class="wjs-profile-nav__link" href="{{ edit_newsletters }}">Publication alert</a>
-                </li>
+                {% if journal|is_field_available:"publication_alert" %}
+                  <li class="wjs-profile-nav__item{% if profile_section == "edit_newsletters" %} wjs-profile-nav__item--active{% endif %}">
+                    <a class="wjs-profile-nav__link" href="{{ edit_newsletters }}">Publication alert</a>
+                  </li>
+                {% endif %}
               </ul>
             </nav>
           {% endblock profile_sidebar %}

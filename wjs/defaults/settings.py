@@ -504,6 +504,40 @@ ISSUE_TRACKER_URLS = {
 URLs of the issue trackers used for the "Open Issue" button in actions section.
 """
 
+PROFILE_FIELDS = {
+    None: (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "gender",
+        "profession",
+        "biography",
+        "alternative_email",
+        "personal_interest",
+        "publication_alert",
+        "records_arxiv",
+        "records_inspire",
+        "records_scix",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "records_other",
+    ),
+    "JQuant": (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "gender",
+        "alternative_email",
+        "personal_interest",
+        "records_arxiv",
+        "records_inspire",
+        "records_other",
+    ),
+}
+
 SUBMISSION_KEYWORDS_INTERVAL_PER_JOURNAL = {
     None: (2, 4),
     "JQuant": (1, 3),
