@@ -494,3 +494,9 @@ ISSUE_TRACKER_URLS = {
 """
 URLs of the issue trackers used for the "Open Issue" button in actions section.
 """
+
+SUBMISSION_KEYWORDS_INTERVAL_PER_JOURNAL = {
+    None: (2, 4),
+    "JQuant": (1, 3),
+    "JCAP": (1, 3),
+}
