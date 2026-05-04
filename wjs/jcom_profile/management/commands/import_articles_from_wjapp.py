@@ -214,7 +214,7 @@ class Command(BaseCommand):
 
             if not http_ba_username and self.journal.code.upper() == "JCOM":
                 import_logic.logger.error(
-                    f"Missing Basic Authentication username for {self.journal.code.upper()}. "
+                    f"Missing Basic Authentication username for {self.journal.code}. "
                     f"Check your django settings to proceed."
                 )
                 return 1

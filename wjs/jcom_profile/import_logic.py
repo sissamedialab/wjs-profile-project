@@ -1379,7 +1379,7 @@ WHERE editorCod=%(editor_cod)s
         if not editor_maxworkload:
             editor_maxworkload = 1
             logger.warning(
-                f"{self.journal.code.upper()} ST: Missing editor max workload, forced to 1 "
+                f"{self.journal.code} ST: Missing editor max workload, forced to 1 "
                 f"{self.article.id} / {self.preprintid}"
             )
             # import JHEP/JCAP ST exception not raised ValueError("Missing editor max workload")

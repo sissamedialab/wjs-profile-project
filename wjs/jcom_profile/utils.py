@@ -308,17 +308,18 @@ def create_rich_fake_request(journal: Journal, settings: dict, user: Account = N
 def get_eo_user(obj: Union[Article, Journal]) -> Account:
     """Return the EO system user."""
     if isinstance(obj, Article):
-        code = obj.journal.code.lower()
+        code = obj.journal.code
     else:
-        code = obj.code.lower()
+        code = obj.code
 
-    email = f"{code}-eo@{code}.sissa.it"
+    code_lower = code.lower()
+    email = f"{code_lower}-eo@{code_lower}.sissa.it"
     account, created = Account.objects.get_or_create(
         email=email,
         defaults={
             "username": email,
             "first_name": "",
-            "last_name": f"{code.upper()} Editorial Office",
+            "last_name": f"{code} Editorial Office",
             "is_active": True,
         },
     )
