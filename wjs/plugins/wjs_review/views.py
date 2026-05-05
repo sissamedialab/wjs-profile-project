@@ -571,7 +571,10 @@ class BaseWorkOnIssue(BaseRelatedViewsMixin, ListView):
         return (
             super()
             .get_queryset()
-            .filter(journal=self.request.journal, date__gte=timezone.now().date())
+            .filter(
+                Q(journal=self.request.journal)
+                & (Q(date__gte=timezone.now().date()) | Q(current_issue=self.request.journal))
+            )
             .order_by("date")
         )
 
