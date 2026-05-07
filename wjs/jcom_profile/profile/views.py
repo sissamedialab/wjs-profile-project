@@ -5,7 +5,7 @@ from django.db import IntegrityError
 from django.forms.models import ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import UpdateView
 
@@ -100,9 +100,14 @@ class ProfileEmailEditView(BaseProfileEditView):
 
     def form_valid(self, form):
         try:
-            logic.handle_email_change(self.request, form.cleaned_data["new_email"], next_url=self.get_success_url())
-            messages.success(self.request, self.update_message)
-            return redirect(reverse("website_index"))
+            if form.cleaned_data["new_email"]:
+                logic.handle_email_change(
+                    self.request, form.cleaned_data["new_email"], next_url=self.get_success_url()
+                )
+                messages.success(self.request, self.update_message)
+                return redirect(self.get_success_url())
+            else:
+                return super().form_valid(form)
         except IntegrityError:
             return self.form_invalid(form)
 

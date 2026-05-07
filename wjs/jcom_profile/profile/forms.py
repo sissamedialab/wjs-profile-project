@@ -92,6 +92,8 @@ class WjsEmailChangeForm(EditAccountForm):
         exclude = None
 
     def clean_new_email(self):
+        if not self.cleaned_data.get("new_email"):
+            return None
         validate_email(self.cleaned_data["new_email"])
         if (
             self.instance.__class__.objects.filter(email=self.cleaned_data["new_email"])
