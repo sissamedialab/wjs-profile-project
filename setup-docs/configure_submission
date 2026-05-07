@@ -21,10 +21,18 @@ pushd ${local_dir}
 echo "Downloading settings and expanding"
 curl -sL -u "53dCwQJaKny3wig:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/53dCwQJaKny3wig/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JQuant"
 curl -sL -u "CZrXCtMkMBjJL5C:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/CZrXCtMkMBjJL5C/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JCAP"
+curl -sL -u "AzdbefkdoqmSDJX:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/AzdbefkdoqmSDJX/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JCOM"
+curl -sL -u "r6nLPK6SZTywmze:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/r6nLPK6SZTywmze/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JCOMAL"
+
+
 mv ${local_dir}/configs/JQuant/Submission\ settings/*csv ${local_dir}/configs/JQuant/
-rm ${local_dir}/configs/JQuant/Submission\ settings/*
+rm -rf ${local_dir}/configs/JQuant/Submission\ settings/*
 mv ${local_dir}/configs/JCAP/Submission\ settings/*csv ${local_dir}/configs/JCAP/
-rm ${local_dir}/configs/JCAP/Submission\ settings/*
+rm -rf ${local_dir}/configs/JCAP/Submission\ settings/*
+mv ${local_dir}/configs/JCOM/Submission\ settings/*csv ${local_dir}/configs/JCOM/
+rm -rf ${local_dir}/configs/JCOM/Submission\ settings/*
+mv ${local_dir}/configs/JCOMAL/Submission\ settings/*csv ${local_dir}/configs/JCOMAL/
+rm -rf ${local_dir}/configs/JCOMAL/Submission\ settings/*
 popd
 
 echo "Importing settings"
