@@ -1,0 +1,47 @@
+{% extends "wjs/profile/base.html" %}
+{% load django_bootstrap5 static i18n wjs_tags %}
+
+{% block page_title %}{% translate "Paper assignments parameters" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Paper assignments parameters" %}</h1>
+
+  <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="wjs-profile-form__main">
+      {% bootstrap_field form.workload wrapper_class="mb-4" %}
+      <div class="mb-4">
+        <p>Please select the keywords that best describe your areas of expertise. </p>
+        <label class="form-label" for="id_workload">{{ form.keywords.label }}</label>
+        {% regroup form.keywords|decorate_widgets_for_regroup by first_letter as keyword_list %}
+        <div class="accordion" id="accordionKeywords">
+          {% for group in keyword_list %}
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="heading-{{ forloop.counter }}">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse-{{ forloop.counter }}">
+                  {{ group.grouper }}
+                </button>
+              </h2>
+              <div id="collapse-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ forloop.counter }}" data-bs-parent="#accordionKeywords">
+                <div class="accordion-body">
+                  {% for keyword in group.list %}
+                    <div class="form-check d-flex flex-row">
+                      <input class="form-check-input" type="checkbox" name="keywords" value="{{ keyword.value }}" id="{{ form.keywords.id_for_label }}-{{ keyword.value }}" {% if keyword.selected %}checked{% endif %}>
+                      <label class="form-check-label ms-2" for="{{ form.keywords.id_for_label }}-{{ keyword.value }}">
+                        {{ keyword.choice_label }}
+                      </label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="wjs-profile-form__footer">
+      {% translate "Update" as update_label %}
+      {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
+    </div>
+  </form>
+{% endblock profile_form %}

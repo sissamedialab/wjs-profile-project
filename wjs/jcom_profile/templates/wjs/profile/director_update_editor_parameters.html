@@ -1,0 +1,26 @@
+{% extends "wjs/base/base.html" %}
+{% load django_bootstrap5 static %}
+
+{% block title %}
+  {% translate "Update editor parameters" %}
+{% endblock title %}
+
+{% block content %}
+  <div class="col-sm-12">
+    <div class="card p-4">
+      <form method="post" class="wjs-showcase__update-parameters-form">
+        {% csrf_token %}
+
+        {{ formset.management_form }}
+
+        {% bootstrap_formset formset %}
+
+        {% bootstrap_field form.workload %}
+
+        {% bootstrap_field form.brake_on %}
+
+        {% bootstrap_button button_type="submit" content="Submit" button_class="btn-primary" %}
+      </form>
+    </div>
+  </div>
+{% endblock content %}

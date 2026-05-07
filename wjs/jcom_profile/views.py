@@ -114,7 +114,7 @@ class StaffWorkloadParametersUpdate(UserPassesTestMixin, UpdateView):
 
     model = StaffWorkloadParameters
     form_class = forms.UpdateAssignmentParametersForm
-    template_name = "submission/update_editor_parameters.html"
+    template_name = "wjs/profile/update_editor_parameters.html"
     raise_exception = True
 
     def test_func(self):
@@ -148,7 +148,7 @@ class DirectorStaffWorkloadParametersUpdate(UserPassesTestMixin, UpdateView):
 
     model = StaffWorkloadParameters
     form_class = forms.DirectorStaffWorkloadParametersForm
-    template_name = "submission/director_update_editor_parameters.html"
+    template_name = "wjs/profile/director_update_editor_parameters.html"
     raise_exception = True
 
     def test_func(self):
