@@ -155,6 +155,7 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
 
         arxiv_category_values = (
             ArticleSubmission.objects.exclude(arxiv_category="")
+            .filter(article__journal=self._journal)
             .values_list("arxiv_category", flat=True)
             .distinct()
             .order_by("arxiv_category")

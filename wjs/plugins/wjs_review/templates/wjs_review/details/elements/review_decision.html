@@ -28,7 +28,6 @@
               {% if decision.decision_editor_report_pdf %}
                 <a class="btn btn-primary" href="{% url 'download_single_file' workflow.article.pk decision.decision_editor_report_pdf.pk %}"
                    target="_blank">{{ decision.decision_editor_report_pdf.label|default_if_none:decision.decision_editor_report_pdf.original_filename }}</a>
-                {% bootstrap_button button_class="btn-link" data_bs_toggle="modal" data_bs_target=modal_target content=open_source_label %}
                 <hr>
               {% elif decision.decision_editor_report %}
                 {% bootstrap_button data_bs_toggle="modal" data_bs_target=modal_target content=open_label %}
