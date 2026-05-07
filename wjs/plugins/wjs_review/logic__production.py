@@ -49,6 +49,7 @@ from plugins.typesetting.models import (
     TypesettingAssignment,
     TypesettingRound,
 )
+from plugins.wjs_submission.step7.views import get_article_fundings
 from production.logic import save_galley, save_galley_image
 from submission.models import (
     STAGE_PROOFING,
@@ -536,21 +537,23 @@ class HandleDownloadRevisionFiles:
         all_files = manuscript_files + data_figure_files + supplementary_files + source_files
         return all_files
 
-    def _generate_automatic_preamble(self):
+    @staticmethod
+    def _generate_automatic_preamble(article: Article) -> (str, str):
         try:
-            automatic_preamble_text = LatexPreamble.objects.get(journal=self.workflow.article.journal).preamble
+            automatic_preamble_text = LatexPreamble.objects.get(journal=article.journal).preamble
         except LatexPreamble.DoesNotExist:
-            logger.error(f"Missing preamble template for {self.workflow.article.journal.code}.")
+            logger.error(f"Missing preamble template for {article.journal.code}.")
             automatic_preamble_text = (
-                f"Missing preamble template for {self.workflow.article.journal.code}\nPlease contact assistance.\n"
+                f"Missing preamble template for {article.journal.code}\nPlease contact assistance.\n"
             )
         context = {
-            "journal": self.workflow.article.journal,
-            "article": self.workflow.article,
+            "journal": article.journal,
+            "article": article,
+            "articles_fundings": get_article_fundings(article),
         }
-        rendered_preamble = self.render_latexpreamble(automatic_preamble_text, context)
+        rendered_preamble = HandleDownloadRevisionFiles.render_latexpreamble(automatic_preamble_text, context)
         # TODO: refactor with utils.guess_tex_filename()
-        preamble_name = f"{self.workflow.article.journal.code.lower()}-{self.workflow.article.id}-preamble.tex"
+        preamble_name = f"{article.journal.code.lower()}-{article.id}-preamble.tex"
         return rendered_preamble, preamble_name
 
     @staticmethod
@@ -586,7 +589,10 @@ class HandleDownloadRevisionFiles:
                     archive.write(settings.WJS_TYPESET_REVISION_MOCK_FILE, arcname=file.original_filename)
                 else:
                     archive.write(file_path, arcname=file.original_filename)
-            automatic_preamble, preamble_name = self._generate_automatic_preamble()
+
+            automatic_preamble, preamble_name = HandleDownloadRevisionFiles._generate_automatic_preamble(
+                self.workflow.article,
+            )
             archive.writestr(preamble_name, automatic_preamble)
 
         in_memory.seek(0)
