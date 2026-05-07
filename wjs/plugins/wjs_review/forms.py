@@ -1761,40 +1761,7 @@ class WithdrawPreprintForm(forms.Form):
         return self.instance
 
 
-class JCOMReportForm(forms.Form):
-    EVALUATION_CHOICES = [
-        ("", "---"),
-        ("Poor", _("Poor")),
-        ("Acceptable", _("Acceptable")),
-        ("Good", _("Good")),
-        ("Excellent", _("Excellent")),
-    ]
-    EVALUATION_CHOICES_NOT_APPLICABLE = EVALUATION_CHOICES + [("Not applicable", _("Not applicable"))]
-    RECOMMENDATION_CHOICES = [
-        ("", "---"),
-        ("publish", _("It can be published in this form.")),
-        (
-            "revise_minor",
-            _(
-                "There are some weaknesses or errors. The author(s) should revise the paper, taking the reviewers` "
-                "comments into account."
-            ),
-        ),
-        (
-            "revise_major",
-            _(
-                "There are major weaknesses or errors. The author(s) should rewrite the paper, along the lines "
-                "indicated by the reviewers` comments."
-            ),
-        ),
-        ("reject", _("The paper is not to be published.")),
-    ]
-    FOLLOWUP_CHOICES = [
-        ("", "---"),
-        ("no_review", _("I don't think it will be necessary for me to review the article again.")),
-        ("second_review", _("Send me back the revised paper for a second review.")),
-        ("another_reviewer", _("Send the paper for review to another reviewer.")),
-    ]
+class BaseReportForm(forms.Form):
     YES_NO_CHOICES = [
         ("yes", _("Yes")),
         ("no", _("No")),
@@ -1804,26 +1771,6 @@ class JCOMReportForm(forms.Form):
         label=_("Any conflict of interest to declare?"),
         widget=forms.RadioSelect,
         choices=YES_NO_CHOICES,
-    )
-    # EVALUATION
-    structure_and_writing_style = forms.ChoiceField(
-        choices=EVALUATION_CHOICES, label=_("Structure and Writing Style"), required=True
-    )
-    originality = forms.ChoiceField(choices=EVALUATION_CHOICES, label=_("Originality"), required=True)
-    scope_and_methods = forms.ChoiceField(
-        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Scope and Methods"), required=True
-    )
-    argument_and_discussion = forms.ChoiceField(
-        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Argument and Discussion"), required=True
-    )
-    # RECOMMENDATION
-    recommendation = forms.ChoiceField(choices=RECOMMENDATION_CHOICES, label=_("Recommendation"), required=True)
-    # FOLLOW-UP ACTIONS
-    follow_up_action = forms.ChoiceField(choices=FOLLOWUP_CHOICES, label=_("Follow-up Action"), required=False)
-    suggested_reviewers = forms.CharField(
-        label=_("Suggested reviewer(s)"),
-        required=False,
-        widget=forms.Textarea(attrs={"rows": 3, "placeholder": _("name/email")}),
     )
     editor_cover_letter = WjsMiniHTMLFormField(
         label=_("Cover letter for the Editor-in-Charge"),
@@ -1888,6 +1835,31 @@ class JCOMReportForm(forms.Form):
         elif self.reviewer_report_type == "tex+text":
             self.fields["review_choice"].required = True
 
+    def get_logic_instance(self) -> SubmitReview:
+        """Instantiate :py:class:`SubmitReview` class."""
+        service = SubmitReview(
+            assignment=self.instance.workflowreviewassignment,
+            form=self,
+            submit_final=self.submit_final,
+            request=self.request,
+        )
+        return service
+
+    def save(self, commit: bool = True) -> ReviewAssignment:
+        """
+        Change the state of the review using :py:class:`SubmitReview`.
+
+        Errors are added to the form if the logic fails.
+        """
+        try:
+            service = self.get_logic_instance()
+            service.run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
     def clean(self):
         cleaned_data = super().clean()
         conflict_of_interest = cleaned_data.get("conflict_of_interest")
@@ -1910,7 +1882,7 @@ class JCOMReportForm(forms.Form):
                     f"to discuss with them whether you should send your review."
                 ),
             )
-        if recommendation in ["revise_minor", "revise_major"]:
+        if recommendation in ["revise_minor", "revise_major"] and "follow_up_action" in cleaned_data:
             if not follow_up_action:
                 self.add_error("follow_up_action", _("This field is required if the recommendation is to revise."))
         if self.reviewer_report_type == "tex+text":
@@ -1943,30 +1915,106 @@ class JCOMReportForm(forms.Form):
                 )
         return cleaned_data
 
-    def get_logic_instance(self) -> SubmitReview:
-        """Instantiate :py:class:`SubmitReview` class."""
-        service = SubmitReview(
-            assignment=self.instance.workflowreviewassignment,
-            form=self,
-            submit_final=self.submit_final,
-            request=self.request,
-        )
-        return service
 
-    def save(self, commit: bool = True) -> ReviewAssignment:
-        """
-        Change the state of the review using :py:class:`SubmitReview`.
+class JCOMReportForm(BaseReportForm):
+    EVALUATION_CHOICES = [
+        ("", "---"),
+        ("Poor", _("Poor")),
+        ("Acceptable", _("Acceptable")),
+        ("Good", _("Good")),
+        ("Excellent", _("Excellent")),
+    ]
+    EVALUATION_CHOICES_NOT_APPLICABLE = EVALUATION_CHOICES + [("Not applicable", _("Not applicable"))]
+    RECOMMENDATION_CHOICES = [
+        ("", "---"),
+        ("publish", _("It can be published in this form.")),
+        (
+            "revise_minor",
+            _(
+                "There are some weaknesses or errors. The author(s) should revise the paper, taking the reviewers` "
+                "comments into account."
+            ),
+        ),
+        (
+            "revise_major",
+            _(
+                "There are major weaknesses or errors. The author(s) should rewrite the paper, along the lines "
+                "indicated by the reviewers` comments."
+            ),
+        ),
+        ("reject", _("The paper is not to be published.")),
+    ]
+    FOLLOWUP_CHOICES = [
+        ("", "---"),
+        ("no_review", _("I don't think it will be necessary for me to review the article again.")),
+        ("second_review", _("Send me back the revised paper for a second review.")),
+        ("another_reviewer", _("Send the paper for review to another reviewer.")),
+    ]
+    # EVALUATION
+    structure_and_writing_style = forms.ChoiceField(
+        choices=EVALUATION_CHOICES, label=_("Structure and Writing Style"), required=True
+    )
+    originality = forms.ChoiceField(choices=EVALUATION_CHOICES, label=_("Originality"), required=True)
+    scope_and_methods = forms.ChoiceField(
+        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Scope and Methods"), required=True
+    )
+    argument_and_discussion = forms.ChoiceField(
+        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Argument and Discussion"), required=True
+    )
+    # RECOMMENDATION
+    recommendation = forms.ChoiceField(choices=RECOMMENDATION_CHOICES, label=_("Recommendation"), required=True)
+    # FOLLOW-UP ACTIONS
+    follow_up_action = forms.ChoiceField(choices=FOLLOWUP_CHOICES, label=_("Follow-up Action"), required=False)
+    suggested_reviewers = forms.CharField(
+        label=_("Suggested reviewer(s)"),
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": _("name/email")}),
+    )
 
-        Errors are added to the form if the logic fails.
-        """
-        try:
-            service = self.get_logic_instance()
-            service.run()
-        except ValidationError as e:
-            self.add_error(None, e)
-            raise
-        self.instance.refresh_from_db()
-        return self.instance
+
+class JQuantReportForm(BaseReportForm):
+    EVALUATION_CHOICES = [
+        ("", "---"),
+        ("Poor", _("Poor")),
+        ("Fair", _("Fair")),
+        ("Good", _("Good")),
+        ("Excellent", _("Excellent")),
+    ]
+    EVALUATION_CHOICES_NOT_APPLICABLE = EVALUATION_CHOICES + [("Not applicable", _("Not applicable"))]
+    RECOMMENDATION_CHOICES = [
+        ("", "---"),
+        ("accept", _("Accept")),
+        (
+            "revise_minor",
+            _("Minor revision"),
+        ),
+        (
+            "revise_major",
+            _("Major revision"),
+        ),
+        ("reject", _("Reject")),
+    ]
+    # EVALUATION
+    soundness = forms.ChoiceField(
+        choices=EVALUATION_CHOICES, label=_("Soundness of the methodology and arguments"), required=True
+    )
+    originality = forms.ChoiceField(
+        choices=EVALUATION_CHOICES, label=_("Originality and contribution to the existing literature"), required=True
+    )
+    significance = forms.ChoiceField(
+        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Significance and potential impact"), required=True
+    )
+    clarity = forms.ChoiceField(
+        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Clarity and organization of the manuscript"), required=True
+    )
+    suitability = forms.ChoiceField(
+        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Suitability for the journal’s scope"), required=True
+    )
+    appropriateness = forms.ChoiceField(
+        choices=EVALUATION_CHOICES_NOT_APPLICABLE, label=_("Appropriateness of the manuscript length"), required=True
+    )
+    # RECOMMENDATION
+    recommendation = forms.ChoiceField(choices=RECOMMENDATION_CHOICES, label=_("Recommendation"), required=True)
 
 
 class ConfirmVersionForm(BaseEditorRevisionRequestEditForm):

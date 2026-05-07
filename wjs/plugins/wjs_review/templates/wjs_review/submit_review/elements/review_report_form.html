@@ -4,7 +4,6 @@
   {% csrf_token %}
   <div class="col">
     {% bootstrap_form_errors form type='non_fields' %}
-    {# FIXME: We might want to refactor this implementation if we find a way to express this structure with django-bootstrap4 #}
     <div class="mb-3">
       {% bootstrap_field form.conflict_of_interest required_css_class="required-field" field_class="d-flex gap-3" %}
       <!-- djlint:off -->
@@ -21,7 +20,12 @@
       </div>
     </div>
     <div class="mb-3">
-      {% bootstrap_form form required_css_class="required-field" exclude='conflict_of_interest, author_review, review_file, author_file_title, author_review_tex, review_choice' %}
+      {% bootstrap_form form required_css_class="required-field" exclude='conflict_of_interest, author_review, review_file, author_file_title, author_review_tex, review_choice, editor_cover_letter' %}
+    </div>
+    <div class="mb-3">
+      {% bootstrap_field form.editor_cover_letter required_css_class="required-field" %}
+    </div>
+    <div class="mb-3">
       {% if form.reviewer_report_type == 'tex+text' %}
         {% bootstrap_field form.review_choice required_css_class="required-field" field_class="d-flex gap-3" %}
       {% endif %}
