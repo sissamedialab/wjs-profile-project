@@ -439,6 +439,24 @@ def is_user_article_reviewer(article: ArticleWorkflow, user: Account) -> bool:
 
 
 @register.filter
+def is_user_article_author_or_eo(article: ArticleWorkflow, user: Account) -> bool:
+    """Return True if user is the corresponding author of the article or is EO."""
+    return permissions.is_article_author(article, user) or permissions.has_eo_role_by_article(article, user)
+
+
+@register.filter
+def is_article_production_involved(article: ArticleWorkflow, user: Account) -> bool:
+    """
+    Return True if user is involved in the production pages (corresponding author of the article, typesetter or EO).
+    """
+    return (
+        permissions.is_article_author(article, user)
+        or permissions.is_article_typesetter(article, user)
+        or permissions.has_eo_role_by_article(article, user)
+    )
+
+
+@register.filter
 def is_user_article_author(article: ArticleWorkflow, user: Account) -> bool:
     """Return True if user is the corresponding author of the article."""
     return permissions.is_article_author(article, user)

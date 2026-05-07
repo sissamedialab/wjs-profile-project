@@ -1,0 +1,8 @@
+<span class="file-link">
+    {% if not hide_label and not as_button %}<span class="file-link__label">{% firstof label file.label %}</span>{% endif %}
+  {% if revision_view %}
+    <a class="{% if as_button %}btn btn-outline-primary{% else %}file-link__link{% endif %}" href="{% url 'download_revision_files' article.articleworkflow.pk %}" target="_blank">{% if filename_prefix %}{{ filename_prefix }} {% endif %}{% firstof filename file.original_filename %}</a>
+  {% else %}
+    <a class="{% if as_button %}btn btn-outline-primary{% else %}file-link__link{% endif %}" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{% if filename_prefix %}{{ filename_prefix }} {% endif %}{% firstof filename file.original_filename %}</a>
+  {% endif %}
+</span>
