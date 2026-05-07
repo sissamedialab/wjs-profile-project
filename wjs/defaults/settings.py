@@ -438,6 +438,8 @@ WJS_SHOW_EDITOR_KEYWORDS = []
 WJS_REVIEW_CUSTOM_REPORT_FORMS = {
     None: "plugins.wjs_review.forms.JCOMReportForm",
     "JCOM": "plugins.wjs_review.forms.JCOMReportForm",
+    "JCOMAL": "plugins.wjs_review.forms.JCOMReportForm",
+    "JQuant": "plugins.wjs_review.forms.JQuantReportForm",
 }
 
 # (x,y) position of the watermark
