@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from core.models import SettingValue
 from django.core.management.base import BaseCommand
 from django.db.models import Q
+from submission.models import SubmissionConfiguration
 
 
 @dataclass
@@ -28,6 +29,24 @@ class Setting:
         }
 
 
+@dataclass
+class Configuration:
+    name: str
+    verbose: str
+    default: str
+    value: str
+    origin: str
+
+    def to_dict(self):
+        return {
+            "field name": self.name,
+            "field verbose name": self.verbose,
+            "default value": self.default,
+            "current value": self.value,
+            "origin": self.origin,
+        }
+
+
 class Command(BaseCommand):
     help = "Export all journal settings to a csv file."
 
@@ -47,16 +66,19 @@ class Command(BaseCommand):
             default="/tmp/all_settings.csv",
         )
 
-    def handle(self, *args, **options):
-        """Entry point."""
-        # Extracting all the settin values, either with a journal (the overrides) and without (the defaults) ordered
-        # by journal value (ie: the defaults come last)
-        # Later the first value is taken into account so the override will take precedence over the default
+    def _export_settings(self, journal, group=""):
+        """
+        Extract all the setting values
+
+        It extracts either with a journal (the overrides) and without (the defaults) ordered
+        by journal value (ie: the defaults come last)
+        Later the first value is taken into account so the override will take precedence over the default
+        """
         setting_values = SettingValue.objects.filter(
-            Q(journal__code=options["journal"]) | Q(journal__isnull=True),
+            Q(journal__code=journal) | Q(journal__isnull=True),
         )
-        if options["group"]:
-            setting_values = setting_values.filter(setting__group__name=options["group"])
+        if group:
+            setting_values = setting_values.filter(setting__group__name=group)
         setting_values = setting_values.values(
             "setting__name",
             "setting__group__name",
@@ -84,9 +106,43 @@ class Command(BaseCommand):
 
             setting.value = value["value"]
             setting.journal = value["journal__code"]
+        return rows, csv_headers
+
+    def _export_submissionconfiguration(self, journal):
+        """
+        Extract all the setting values
+
+        It extracts either with a journal (the overrides) and without (the defaults) ordered
+        by journal value (ie: the defaults come last)
+        Later the first value is taken into account so the override will take precedence over the default
+        """
+        configuration = SubmissionConfiguration.objects.get(journal__code=journal)
+        csv_headers = ["field name", "field verbose name", "current value", "default value", "origin"]
+
+        rows = {}
+        for field in configuration._meta.get_fields():
+            if field.name not in ("id", "journal"):
+                setting = Configuration(
+                    name=field.name,
+                    verbose=str(field.verbose_name),
+                    default=field.default,
+                    value=getattr(configuration, field.name),
+                    origin="SubmissionConfiguration",
+                )
+                rows[field.name] = setting
+        return rows, csv_headers
+
+    def handle(self, *args, **options):
+        """Entry point."""
+
+        if options["group"] == "submissionconfiguration":
+            rows, csv_headers = self._export_submissionconfiguration(options["journal"])
+        else:
+            rows, csv_headers = self._export_settings(options["journal"], options["group"])
 
         with open(options["output"], mode="w", newline="", encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=csv_headers)
             writer.writeheader()
             for key, setting in rows.items():
                 writer.writerow(setting.to_dict())
+        self.stdout.write(self.style.SUCCESS(f"Successfully dumped fields to {options['output']}"))

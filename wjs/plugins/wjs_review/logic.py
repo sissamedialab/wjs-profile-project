@@ -1807,16 +1807,11 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
             self.article.correspondence_author_id = correspondence_author
         if authors_contributions := self.revision_storage.data.get("authors_contributions"):
             self.article.submission_data.authors_contributions = authors_contributions
+            self.revision.authors_contributions = authors_contributions
         if owner := self.revision_storage.data.get("owner"):
             self.article.owner_id = owner
         if affiliation_country := self.revision_storage.data.get("affiliation_country"):
             self.article.submission_data.affiliation_country_id = affiliation_country
-
-        if authors_contributions := self.revision_storage.data.get("authors_contributions"):
-            revision_request = EditorRevisionRequest.objects.filter(
-                article=self.article, date_completed__isnull=True
-            ).latest("date_requested")
-            revision_request.authors_contributions = authors_contributions
 
         ArticleAuthorOrder.objects.filter(article=self.article).delete()
         article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage)
