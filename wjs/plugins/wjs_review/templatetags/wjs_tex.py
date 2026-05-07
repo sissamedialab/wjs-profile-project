@@ -1,3 +1,4 @@
+from core.models import SupplementaryFile
 from django import template
 from plugins.wjs_submission.models import CollaborationRelation
 from submission.models import Article
@@ -24,3 +25,9 @@ def collaborations(article: Article) -> list[str]:
         "collaboration__name",
         flat=True,
     )
+
+
+@register.filter
+def size(esm: SupplementaryFile) -> int:
+    """Return the file size in bytes of the given supplementary file."""
+    return esm.file.get_file_size(Article.objects.get(pk=esm.file.article_id))

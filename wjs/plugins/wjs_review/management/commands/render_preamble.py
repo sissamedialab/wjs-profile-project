@@ -18,14 +18,8 @@ class Command(BaseCommand):
         except Article.DoesNotExist:
             raise CommandError(f"Article {article_id} does not exist")
 
-        try:
-            preamble_template = LatexPreamble.objects.get(journal=article.journal).preamble
-        except LatexPreamble.DoesNotExist:
+        if not LatexPreamble.objects.filter(journal=article.journal).exists():
             raise CommandError(f"No LaTeX preamble template found for journal {article.journal.code}")
 
-        context = {
-            "journal": article.journal,
-            "article": article,
-        }
-        rendered = HandleDownloadRevisionFiles.render_latexpreamble(preamble_template, context)
+        rendered, _ = HandleDownloadRevisionFiles._generate_automatic_preamble(article)
         self.stdout.write(rendered)
