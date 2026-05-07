@@ -1,4 +1,4 @@
-{% load django_bootstrap5 static %}
+{% load django_bootstrap5 static wjs_tags %}
 {% url "wjs_message_write" pk=workflow.pk recipient_id=author.pk as add_message %}
 {% translate "Send message" as send_message_label %}
 {% translate "Close" as close_modal %}
@@ -33,7 +33,7 @@
   {% endwith %}
   </div>
 
-  {% if author.biography %}
+  {% if author.biography and journal|is_field_available:"biography" %}
     <div class="accordion accordion-flush" id="accordionAuthor{{ author.id }}">
       <div class="accordion-item">
         <h2 class="accordion-header" id="headingBio{{ author.id }}">
@@ -61,32 +61,46 @@
       </div>
       <div class="modal-body">
         <ul class="list-group list-group-flush list-unstyled">
+          {% if author.jcomprofile.records_arxiv and journal|is_field_available:"records_arxiv" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/arxiv_logo.png" %}" alt="arxiv logo">
-            <a href="#">{{ author.get_full_name }}'s arXiv page</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_arxiv }}">{{ author.get_full_name }}'s arXiv page</a>
           </li>
+          {% endif %}
+          {% if author.jcomprofile.records_inspire and journal|is_field_available:"records_inspire" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/inspire_logo.png" %}" alt="inspire logo">
-            <a href="#">{{ author.get_full_name }}'s Inspire page</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_inspire }}">{{ author.get_full_name }}'s Inspire page</a>
           </li>
+          {% endif %}
+          {% if author.jcomprofile.records_scix and journal|is_field_available:"records_scix" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/scix_logo.png" %}" alt="scix logo">
-            <a href="#">{{ author.get_full_name }}'s SciX page</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_scix }}">{{ author.get_full_name }}'s SciX page</a>
           </li>
+          {% endif %}
+          {% if author.linkedin and journal|is_field_available:"linkedin" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/linkedin_logo.png" %}" alt="linkedin logo">
-            <a href="#">{{ author.get_full_name }}'s website</a>
+            <a target="_blank" href="{{ author.linkedin }}">{{ author.get_full_name }}'s website</a>
           </li>
+          {% endif %}
+          {% if author.facebook and journal|is_field_available:"facebook" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/facebook_logo.png" %}" alt="facebook logo">
-            <a href="#">{{ author.get_full_name }}'s facebook</a>
+            <a target="_blank" href="{{ author.facebook }}">{{ author.get_full_name }}'s facebook</a>
           </li>
+          {% endif %}
+          {% if author.twitter and journal|is_field_available:"twitter" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3"><i class="bi bi-link-45deg"></i>
-            <a href="#">{{ author.get_full_name }}'s website</a>
+            <a target="_blank" href="{{ author.twitter }}">{{ author.get_full_name }}'s website</a>
           </li>
+          {% endif %}
+          {% if author.email and journal|is_field_available:"email" %}
           <li class="py-2 d-flex flex-row gap-3 text-primary"><i class="bi bi-envelope-fill"></i>
             <a href="mailto:{{ author.email }}">{{ author.email }}</a>
           </li>
+          {% endif %}
         </ul>
       </div>
       <div class="modal-footer">
