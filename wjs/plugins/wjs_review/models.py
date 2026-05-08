@@ -1964,6 +1964,7 @@ class WorkflowReviewAssignment(ReviewAssignment):
         ]
 
     def withdraw(self):
+        # TODO: Remove this when available upstream
         self.date_complete = timezone.now()
         self.decision = ReviewerDecisions.DECISION_WITHDRAWN.value
         self.is_complete = True
