@@ -71,6 +71,9 @@ class WjsPersonalInfoForm(EditAccountForm):
         self.fields["gdpr_checkbox"].label = mark_safe(
             _('Agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
         )
+        if not is_field_available(self.journal, "profession"):
+            self.fields["profession"].required = False
+            self.fields["profession"].widget = forms.HiddenInput()
         if self.instance.jcomprofile.gdpr_acceptance:
             self.fields["gdpr_checkbox"].widget = forms.HiddenInput()
         else:
