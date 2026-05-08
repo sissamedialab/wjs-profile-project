@@ -89,9 +89,11 @@ EXTRAFIELDS_FRAGMENTS_PRESS = EXTRAFIELDS_FRAGMENTS + [
     'privacy/">Privacy Policy</a></span>',
 ]
 
-ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
+ASSIGNMENT_PARAMETERS_LINK = (
+    '<a class="wjs-profile-nav__link" href="/JCOM/update/parameters/">Edit assignment parameters</a>'
+)
 
-ASSIGNMENT_PARAMS = """<span class="card-title">Edit assignment parameters</span>"""
+ASSIGNMENT_PARAMS = """Edit assignment parameters</a>"""
 
 
 @pytest.fixture

@@ -18,7 +18,7 @@ from utils import setting_handler
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
 from wjs.jcom_profile.tests.conftest import (
-    ASSIGNMENT_PARAMETERS_SPAN,
+    ASSIGNMENT_PARAMETERS_LINK,
     _create_published_articles,
     _journal_factory,
 )
@@ -313,7 +313,7 @@ def test_assignment_parameters_button_is_in_edit_profile_interface_if_user_is_eo
     response = client.get(url)
     assert response.status_code == 200
     if user_role in ["eo", "section-editor"]:
-        assert ASSIGNMENT_PARAMETERS_SPAN in response.content.decode()
+        assert ASSIGNMENT_PARAMETERS_LINK in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -326,7 +326,7 @@ def test_assignment_parameters_button_is_not_present_without_journal(
     url = "/profile/"
     response = client.get(url)
     assert response.status_code == 200
-    assert ASSIGNMENT_PARAMETERS_SPAN not in response.content.decode()
+    assert ASSIGNMENT_PARAMETERS_LINK not in response.content.decode()
 
 
 @pytest.mark.django_db

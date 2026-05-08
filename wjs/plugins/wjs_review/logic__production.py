@@ -44,6 +44,7 @@ from events import logic as events_logic
 from identifiers.logic import get_dois_for_articles
 from identifiers.models import Identifier
 from lxml.html import HtmlElement
+from plugins.wjs_submission.step7.views import get_article_fundings
 from production.logic import save_galley, save_galley_image
 from submission.models import (
     STAGE_PROOFING,
@@ -55,7 +56,6 @@ from submission.models import (
     Keyword,
     KeywordArticle,
 )
-from plugins.wjs_submission.step7.views import get_article_fundings
 from typesetting.models import GalleyProofing, TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request

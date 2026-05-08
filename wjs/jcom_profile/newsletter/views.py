@@ -1,11 +1,14 @@
 from urllib.parse import urlencode
 
 from django.apps import apps
+from django.contrib import messages
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.exceptions import ObjectDoesNotExist
+from django.forms import ModelForm
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.urls import reverse
 from django.utils.translation import get_language
+from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView, TemplateView, UpdateView
 
 from ..models import Recipient
@@ -24,6 +27,7 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
     model = Recipient
     template_name = "wjs/newsletter/edit_newsletters_subscription.html"
     form_class = forms.NewsletterTopicForm
+    update_message = _("Thank you for setting your preferences")
 
     def test_func(self):
         """
@@ -63,10 +67,22 @@ class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
     def get_success_url(self):  # noqa
         user = self.request.user
         url = reverse("edit_newsletters")
-        url = f"{url}?update=1"
         if user.is_anonymous:
             url = f"{url}&{urlencode({'token': self.object.newsletter_token})}"
         return url
+
+    def form_valid(self, form: ModelForm) -> HttpResponse:
+        """
+        Process a valid submitted form and generate the response.
+
+        :param form: The form to be processed.
+        :type form: ModelForm
+        :return: The processed response.
+        :rtype: HttpResponse
+        """
+        response = super().form_valid(form)
+        messages.success(self.request, self.update_message)
+        return response
 
 
 class AnonymousUserNewsletterRegistration(FormView):
