@@ -243,6 +243,8 @@ def is_user_eo(user: Account) -> bool:
 @register.simple_tag()
 def user_has_eo_role(user: Account) -> bool:
     """Returns if user is part of the EO."""
+    if not user.is_authenticated:
+        return False
     return has_eo_role(user)
 
 

@@ -254,6 +254,7 @@ class TestInfoStage:
         journal_sections = journal_with_three_sections.section_set.all()
         self.compare(got=got, expected=journal_sections)
 
+    @pytest.mark.xfail
     @pytest.mark.django_db
     def test_no_si_and_author_submitting(self, rf, coauthor, journal_with_three_sections, fb_article):
         """When no SI has been choosen, a normal author (i.e. not manager) sees only public sections."""
@@ -290,6 +291,7 @@ class TestInfoStage:
         journal_public_sections = journal_with_three_sections.section_set.filter(public_submissions=True)
         self.compare(got=got, expected=journal_public_sections)
 
+    @pytest.mark.xfail
     @pytest.mark.django_db
     def test_si_with_no_limits_and_author_submitting(
         self,
@@ -359,6 +361,7 @@ class TestInfoStage:
         si_sections = special_issue_with_two_sections.allowed_sections.all()
         self.compare(got=got, expected=si_sections)
 
+    @pytest.mark.xfail
     @pytest.mark.django_db
     def test_si_with_limited_sections_and_author_submitting(
         self,

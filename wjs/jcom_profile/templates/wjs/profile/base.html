@@ -4,6 +4,7 @@
 {% block content_wrapper %}
   {% get_profile_section as profile_section %}
   {% user_has_role request "section-editor" False as user_is_editor %}
+  {% user_has_eo_role request.user as user_is_eo %}
   {% url "core_edit_profile" as core_edit_profile %}
   {% url "core_edit_profile_email" as core_edit_profile_email %}
   {% url "core_edit_profile_password" as core_edit_profile_password %}
@@ -31,12 +32,12 @@
                 <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile_password" %} wjs-profile-nav__item--active{% endif %}">
                   <a class="wjs-profile-nav__link" href="{{ core_edit_profile_password }}">{% translate "Password" %}</a>
                 </li>
-                {% if not user_is_editor %}
+                {% if not user_is_editor and not user_is_eo %}
                   <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile_interests" %} wjs-profile-nav__item--active{% endif %}">
                     <a class="wjs-profile-nav__link" href="{{ core_edit_profile_interests }}">{% translate "Keywords" %}</a>
                   </li>
                 {% endif %}
-                {% if user_is_editor %}
+                {% if user_is_editor or user_is_eo %}
                   <li class="wjs-profile-nav__item{% if profile_section == "edit_newsletters" %} wjs-profile-nav__item--active{% endif %}">
                     <a class="wjs-profile-nav__link" href="{{ assignment_parameters }}">{% translate "Edit assignment parameters" %}</a>
                   </li>
