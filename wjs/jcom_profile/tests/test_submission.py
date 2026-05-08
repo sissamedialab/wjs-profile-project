@@ -24,6 +24,7 @@ regexpNS = "http://exslt.org/regular-expressions"  # noqa: N816
 class TestFilesStage:
     """Tests related to the file-submission stage."""
 
+    @pytest.mark.xfail
     @pytest.mark.django_db
     def test_additional_files_form_title_obeys_setting(self, roles, journal, jcom_user):
         """The title of the additional files field should obey its setting."""

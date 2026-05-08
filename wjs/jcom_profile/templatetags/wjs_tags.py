@@ -370,5 +370,7 @@ def is_field_available(journal, field_name):
 
     We may want to port this to janeway setting, for now it's an overkill.
     """
+    if not journal:
+        return False
     fields = settings.PROFILE_FIELDS.get(journal.code, settings.PROFILE_FIELDS[None])
     return field_name in fields
