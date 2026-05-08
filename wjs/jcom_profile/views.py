@@ -672,7 +672,7 @@ class IMUStep2(TemplateView):
             stage=submission_models.STAGE_UNSUBMITTED,
         )
         article.save()  # why doesn't it get saved using `create`?!?
-        FrozenAuthor.objects.all().delete()
+        FrozenAuthor.objects.filter(article=article).delete()
         FrozenAuthor.objects.create(article=article, author=author)
         self.special_issue.articles.add(article)
         article.refresh_from_db()
