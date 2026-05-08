@@ -16,6 +16,7 @@
         </div>
       {% endcomment %}
 
+      {{ form.errors }}
       <form class="wjs-profile-form" method="post">
         {% csrf_token %}
 
@@ -26,11 +27,9 @@
           <div class="col-md-4">{% bootstrap_field form.last_name %}</div>
         </div>
 
-        {% if journal|is_field_available:"profession" %}
         <div class="row">
           <div class="col-md-6">{% bootstrap_field form.profession %}</div>
         </div>
-        {% endif %}
 
         {% if form.register_as_reader %}
         <div class="p-3 bg-light rounded mb-4 border">

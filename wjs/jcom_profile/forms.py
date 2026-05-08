@@ -41,7 +41,7 @@ from .models import (
     WjsMiniHTMLFormField,
 )
 from .settings_helpers import get_article_language_choices
-from .templatetags.wjs_tags import display_title
+from .templatetags.wjs_tags import display_title, is_field_available
 
 logger = get_logger(__name__)
 
@@ -126,6 +126,9 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         self.fields["gdpr_checkbox"].label = mark_safe(
             _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
         )
+        if not is_field_available(self.journal, "profession"):
+            self.fields["profession"].required = False
+            self.fields["profession"].widget = forms.HiddenInput()
         self.fields["first_name"].required = False
         for field in self.fields:
             if self.fields[field].required:
