@@ -3,7 +3,7 @@
   {% translate "Update" as manage_label %}
   {% url "assignment_parameters" editor_pk=editor.pk as manage_url %}
   <tr>
-    <td>{{ editor.full_name }} {% hijack_button user=editor size="medium" %}</td>
+    <td>{{ editor.full_name }}</td>
     <td>{{ editor.affiliation }}</td>
     <td>{% get_max_workload editor=editor journal=journal as max_workload %}{% if max_workload < 0 %}<span class="bg-warning">{% translate "Parameters not correctly set up! Click \"Update\" and then \"Submit\"." %}</span> {% endif %}{{ max_workload }}
 </td>
@@ -21,6 +21,9 @@
     </td>
     <td>
       {% bootstrap_button button_type="link" name="reviewer_decision" target="_blank" href=manage_url content=manage_label %}
+    </td>
+    <td>
+      {% hijack_button user=editor size="medium" %}
     </td>
   </tr>
 {% endfor %}
