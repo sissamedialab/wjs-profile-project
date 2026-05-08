@@ -575,7 +575,7 @@ PROFILE_FIELDS = {
 }
 
 SUBMISSION_KEYWORDS_INTERVAL_PER_JOURNAL = {
-    None: (2, 4),
-    "JQuant": (1, 3),
+    None: (1, 4),
+    "JQuant": (2, 4),
     "JCAP": (1, 3),
 }
