@@ -54,7 +54,9 @@
               </div>
             {% endif %}
           {% endif %}
-          {% include "wjs_review/make_decision/elements/review_files_table.html" %}
+          {% if not_metadata_change %}
+            {% include "wjs_review/make_decision/elements/review_files_table.html" %}
+          {% endif %}
           {% if form.withdraw_notice %}
             <div class="py-3">
               <hr class="border border-secondary border-2 opacity-75">
