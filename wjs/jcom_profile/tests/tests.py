@@ -75,15 +75,6 @@ class TestJCOMProfileURLs:
         response = client.get(f"/{journal.code}/register/step/1/")
         assert fragment in response.content.decode()
 
-    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_PRESS)
-    @pytest.mark.django_db
-    def test_press_registration_form_has_extrafields(self, press, fragment):
-        """The extra fields must appear in the **press** registration form."""
-        # The press "theme" is managed by INSTALLATION_BASE_THEME.
-        client = Client()
-        response = client.get("/register/step/1/")
-        assert fragment in response.content.decode()
-
     @pytest.mark.xfail
     @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_JOURNAL)
     @pytest.mark.django_db

@@ -8,7 +8,7 @@ https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 import os
 from pathlib import Path
 
-from core.janeway_global_settings import TEMPLATES
+from core.janeway_global_settings import STATIC_URL, TEMPLATES
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
@@ -579,3 +579,5 @@ SUBMISSION_KEYWORDS_INTERVAL_PER_JOURNAL = {
     "JQuant": (2, 4),
     "JCAP": (1, 3),
 }
+
+TINYMCE_JS_URL = f"{STATIC_URL}/tinymce/tinymce.min.js"
