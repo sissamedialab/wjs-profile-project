@@ -488,8 +488,8 @@ Allow EO to hijack superusers.
 
 WJS_USE_WJS_SUBMISSION = {
     None: True,
-    "JCOM": False,
-    "JCOMAL": False,
+    "JCOM": True,
+    "JCOMAL": True,
 }
 """
 Use custom submission/revision process or the standard one.
