@@ -19,6 +19,7 @@ ORCIDS = [
 ]
 
 
+@pytest.mark.skip("User can't edit ORCID value anymore")
 @pytest.mark.parametrize(
     argnames="orcid,valid",
     argvalues=ORCIDS,

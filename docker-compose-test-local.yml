@@ -30,7 +30,7 @@
 # ** run tests
 #
 # Run::
-#     pytest -c ${CI_PROJECT_DIR}/pytest.ini ${CI_PROJECT_DIR}/ -v -n 6 --reverse -m "not fix_labels" --create-db
+#     pytest ${CI_PROJECT_DIR}/ -v -n 6 --create-db
 #
 # ** reset database
 #
@@ -65,6 +65,7 @@
 services:
   db:
     image: postgres:13.8
+    domainname: db
     # Must match with test_settings.DATABASES
     environment:
       - POSTGRES_USER=janeway
@@ -86,7 +87,7 @@ services:
       retries: 5
 
   janeway:
-    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:1.8
     volumes:
       - /tmp:/host-tmp
       - .:/build/wjs/wjs-profile-project

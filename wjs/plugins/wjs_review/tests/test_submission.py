@@ -30,6 +30,7 @@ BLEACH_CASES = [
 ]
 
 
+@pytest.mark.skip("Old submission is not used anymore")
 @pytest.mark.django_db
 def test_create_coauthor_during_submission(
     article: Article,
@@ -89,6 +90,7 @@ def test_bleach_title_param(string_with_tag, bleached_string):
     assert title == bleached_string
 
 
+@pytest.mark.skip("Old submission is not used anymore")
 @pytest.mark.parametrize(("string_with_tag", "bleached_string"), BLEACH_CASES)
 @pytest.mark.django_db
 def test_submission_form(sections, article, journal, string_with_tag, bleached_string):
