@@ -3,7 +3,7 @@ from argparse import RawTextHelpFormatter
 
 from django.core.management.base import BaseCommand
 from journal.models import Journal
-from submission.models import Licence, Section
+from submission.models import Field, Licence, Section
 from utils.setting_handler import get_setting, save_setting
 
 
@@ -16,6 +16,7 @@ class Command(BaseCommand):
     Some special group names to handle non-core janeway settings:
 
     - submissionconfiguration: Save SubmissionConfiguration setting value.
+    - submissionfields: Create additional submission fields (existing are dropped)
     - plugins: use 'plugin:<group_name>' as group_name.
     """  # noqa
 
@@ -60,6 +61,25 @@ class Command(BaseCommand):
         journal.submissionconfiguration.save()
         return csv_rows
 
+    def _set_submission_fields(self, journal: Journal, csv_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+        """Set submission fields from CSV rows."""
+        Field.objects.filter(journal=journal).all().delete()
+        applied_settings = []
+        for index, row in enumerate(csv_rows):
+            field = Field.objects.create(
+                journal=journal,
+                name=row["name"],
+                kind=row.get("kind", "text"),
+                width=row.get("width", "full"),
+                required=row.get("required", True),
+                choices=row.get("choices", ""),
+                help_text=row["help_text"],
+                order=index,
+                display=True,
+            )
+            applied_settings.append(field)
+        return applied_settings
+
     def _set_settings(self, journal: Journal, csv_rows: list[dict[str, str]]) -> list[dict[str, str]]:
         """Set settings from CSV rows."""
         applied_settings = []
@@ -83,6 +103,8 @@ class Command(BaseCommand):
         journal = Journal.objects.get(code=options["journal"])
         if options["group_name"] == "submissionconfiguration":
             applied_settings = self._set_submission_configuration(journal, csv_rows)
+        elif options["group_name"] == "submissionfields":
+            applied_settings = self._set_submission_fields(journal, csv_rows)
         else:
             applied_settings = self._set_settings(journal, csv_rows)
         if options["verbosity"] > 1:
