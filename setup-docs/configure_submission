@@ -39,6 +39,8 @@ echo "Importing settings"
 python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202603_all_settings.csv
 echo "Importing submission settings"
 python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202603_submission_settings.csv --group-name submissionconfiguration
+echo "Importing submission fields"
+python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202603_submission_fields.csv --group-name submissionfields
 echo "Importing WJS submission settings"
 python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202604_wjs_submission_settings.csv
 
