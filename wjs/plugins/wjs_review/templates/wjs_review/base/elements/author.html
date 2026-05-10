@@ -82,7 +82,7 @@
           {% if author.linkedin and journal|is_field_available:"linkedin" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/linkedin_logo.png" %}" alt="linkedin logo">
-            <a target="_blank" href="{{ author.linkedin }}">{{ author.get_full_name }}'s website</a>
+            <a target="_blank" href="{{ author.linkedin }}">{{ author.get_full_name }}'s LinkedIn</a>
           </li>
           {% endif %}
           {% if author.facebook and journal|is_field_available:"facebook" %}
@@ -93,7 +93,7 @@
           {% endif %}
           {% if author.twitter and journal|is_field_available:"twitter" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3"><i class="bi bi-link-45deg"></i>
-            <a target="_blank" href="{{ author.twitter }}">{{ author.get_full_name }}'s website</a>
+            <a target="_blank" href="{{ author.twitter }}">{{ author.get_full_name }}'s bluesky</a>
           </li>
           {% endif %}
           {% if author.email and journal|is_field_available:"email" %}

@@ -1,7 +1,7 @@
 {% load django_bootstrap5 i18n static %}
 <p>
-  {% blocktranslate %}
-    Please confirm that you do not wish to receive any JCOM publication alert
+  {% blocktranslate with code=journal.code %}
+    Please confirm that you do not wish to receive any {{ code }} publication alert
   {% endblocktranslate %}
 </p>
 <form method="post">
