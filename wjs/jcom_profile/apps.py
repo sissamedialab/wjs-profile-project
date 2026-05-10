@@ -1,5 +1,6 @@
 """Configure this application."""
 
+import os.path
 from pathlib import Path
 
 # https://docs.djangoproject.com/en/4.0/ref/applications/
@@ -12,7 +13,7 @@ class JCOMProfileConfig(AppConfig):
 
     name = "wjs.jcom_profile"
     verbose_name = "WJS JCOM profile"
-    path = Path(__file__).parent.absolute()
+    path = str(Path(__file__).parent.absolute())
 
     def _prevent_public_email_send(self):
         """
@@ -36,7 +37,7 @@ class JCOMProfileConfig(AppConfig):
         core_forms.RegistrationForm = forms.JCOMRegistrationForm
 
         # Inject bas jcom templates directory to allow overriding templates from wjs-themes to inject wjs templates
-        settings.TEMPLATES[0]["DIRS"].insert(0, self.path / "templates")
+        settings.TEMPLATES[0]["DIRS"].insert(0, os.path.join(self.path, "templates"))
         self.register_hooks()
         self._prevent_public_email_send()
 
