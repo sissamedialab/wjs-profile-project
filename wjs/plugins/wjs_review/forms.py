@@ -1795,7 +1795,7 @@ class BaseReportForm(forms.Form):
         required=False,
         help_text=_(
             r"Please write your comments in the text area and/or upload a file."
-            r"br><br>Please DO NOT SIGN THE REPORT."
+            r"<br><br>Please DO NOT SIGN THE REPORT."
         ),
     )
     author_review_tex = forms.CharField(
