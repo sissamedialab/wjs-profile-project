@@ -575,9 +575,8 @@ PROFILE_FIELDS = {
 }
 
 SUBMISSION_KEYWORDS_INTERVAL_PER_JOURNAL = {
-    None: (1, 4),
+    None: (1, 3),
     "JQuant": (2, 4),
-    "JCAP": (1, 3),
 }
 
 TINYMCE_JS_URL = f"{STATIC_URL}/tinymce/tinymce.min.js"
