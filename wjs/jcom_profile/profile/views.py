@@ -96,7 +96,8 @@ class ProfileEmailEditView(BaseProfileEditView):
     form_class = WjsEmailChangeForm
     template_name = "wjs/profile/personal_email_edit.html"
     success_url = reverse_lazy("core_edit_profile_email")
-    update_message = _("Email change started.")
+    update_message = _("Alternative email updated.")
+    update_message_2 = _("Email change started.")
 
     def form_valid(self, form):
         try:
@@ -104,7 +105,7 @@ class ProfileEmailEditView(BaseProfileEditView):
                 logic.handle_email_change(
                     self.request, form.cleaned_data["new_email"], next_url=self.get_success_url()
                 )
-                messages.success(self.request, self.update_message)
+                messages.success(self.request, self.update_message_2)
                 return redirect(self.get_success_url())
             else:
                 return super().form_valid(form)
