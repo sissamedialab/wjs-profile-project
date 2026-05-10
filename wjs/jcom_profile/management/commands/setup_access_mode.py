@@ -63,7 +63,7 @@ class Command(BaseCommand):
                     "copyright": "Authors",
                 },
             },
-            "JQUANT": {
+            "JQuant": {
                 "oa-cern": {
                     "licence": "CC BY 4.0",
                     "copyright": "CERN for the benefit of the collaboration",
