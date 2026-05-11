@@ -1761,14 +1761,14 @@ class PopulateRevisionSteps:
                 revision_storage=self.revision_storage,
             ).run()
         self.revision.revision_flow_type = self.revision_storage.revision_flow_type
-        now = timezone.now()
+        _now = timezone.now()
         if (
             self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL
             and self.revision.editor_decision.decision == ArticleWorkflow.Decisions.MAJOR_REVISION
         ):
-            self.article.articleworkflow.last_major_revision = now
+            self.article.articleworkflow.last_major_revision = _now
             self.article.articleworkflow.save()
-        self.revision.last_major_revision = now
+        self.revision.last_major_revision = _now
 
 
 @dataclasses.dataclass()
