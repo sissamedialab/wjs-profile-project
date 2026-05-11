@@ -72,9 +72,9 @@ from submission.models import (
     STAGE_ASSIGNED,
     STAGE_UNDER_REVISION,
     Article,
-    ArticleAuthorOrder,
     Field,
     FieldAnswer,
+    FrozenAuthor,
 )
 from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
@@ -1813,17 +1813,14 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
         if affiliation_country := self.revision_storage.data.get("affiliation_country"):
             self.article.submission_data.affiliation_country_id = affiliation_country
 
-        ArticleAuthorOrder.objects.filter(article=self.article).delete()
+        FrozenAuthor.objects.filter(article=self.article).delete()
         article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage)
         for article_author in article_authors:
-            ArticleAuthorOrder.objects.create(
+            FrozenAuthor.objects.create(
                 article=self.article,
                 author=article_author.author,
                 order=article_author.order,
             )
-        self.article.authors.set(
-            ArticleAuthorOrder.objects.filter(article=self.article).values_list("author", flat=True)
-        )
         ArticleCollaboration.objects.filter(article=self.article).delete()
         article_collaborations = RevisionArticleCollaboration.objects.filter(revision_storage=self.revision_storage)
         for article_collaboration in article_collaborations:
