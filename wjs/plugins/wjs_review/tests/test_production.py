@@ -789,8 +789,6 @@ def test_publication(
     Test publication.
 
     An article in state ready-for-publication can be published by EO.
-
-    Not testing Janeway-related stuff, such as snapshotting authors.
     """
     assert rfp_article.section.name == "Article"
     workflow: ArticleWorkflow = rfp_article.articleworkflow
@@ -1415,8 +1413,6 @@ def test_identifiers_on_publication(
     """Test publication.
 
     An article in state ready-for-publication can be published by EO.
-
-    Not testing Janeway-related stuff, such as snapshotting authors.
     """
 
     # production settings and crossref_test True

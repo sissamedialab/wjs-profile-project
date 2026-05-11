@@ -7,7 +7,7 @@ from django.test.client import Client
 from django.urls import reverse
 from identifiers import logic
 from identifiers.models import Identifier
-from submission.models import Article
+from submission.models import Article, FrozenAuthor
 
 from wjs.jcom_profile.models import JCOMProfile
 
@@ -84,8 +84,7 @@ def test_doi_batch(
     """
     normal_user.janeway_account.orcid = orcid
     normal_user.janeway_account.save()
-    article.authors.add(normal_user.janeway_account)
-    article.snapshot_authors()
+    FrozenAuthor.objects.create(user=normal_user.janeway_account, article=article)
     identifier = doi_identifier(article)
     template_context = logic.create_crossref_doi_batch_context(
         article.journal,

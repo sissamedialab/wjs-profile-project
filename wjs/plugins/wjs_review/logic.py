@@ -2630,8 +2630,6 @@ class HandleDecision:
         :rtype: Article
         """
         self.workflow.article.accept_article()
-        # FIXME: Remove after syncing with upstream to include commit fd0464d
-        self.workflow.article.snapshot_authors(self.workflow.article, force_update=False)
 
         self.workflow.editor_writes_editor_report()
         self.workflow.editor_accepts_paper()

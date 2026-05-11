@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 from django.utils.termcolors import colorize
-from submission.models import STAGE_ACCEPTED, STAGE_ASSIGNED, Article, FrozenAuthor
+from submission.models import STAGE_ACCEPTED, STAGE_ASSIGNED, Article
 
 from wjs.jcom_profile.utils import get_eo_user
 
@@ -36,9 +36,6 @@ def rollback_accepted(article: Article) -> None:
         article.save()
         article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_SELECTED
         article.articleworkflow.save()
-
-        # Delete snapshotted authors
-        FrozenAuthor.objects.filter(article=article).delete()
 
         # Delete acceptance-related core.models.Tasks
         # No specific task found while examinig JCOM_3501.

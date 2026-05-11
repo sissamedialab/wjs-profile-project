@@ -1819,8 +1819,6 @@ Please retry and contact assistance is the problem persists.
     def update_state(self):
         """Bumb state and stage."""
         self.workflow.finish_publication()
-        # Apply Janeway logic (snapshot authors etc.)
-
         # TODO: in import_utils, we verify the article's issue's date against the article publication date. This makes
         # sense in the context of setting some metadata on the issue that we did not have before, but does it makes
         # sense here also?
@@ -1828,7 +1826,6 @@ Please retry and contact assistance is the problem persists.
         # ... if article.date_published < article.issue.date_published:
         # ...   article.issue.date = article.date_published
 
-        # Also, there might be reasons to snapshot the authors before,
         # i.e. when the identifiers are set.
         import_utils.publish_article(self.workflow.article)
 
