@@ -1701,9 +1701,14 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         If form is not valid or exception is raised by the logic, the form is rendered again with the error.
         """
         report_form = self._get_report_form()
+
+        reviewer_report_type = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value
+        forced_tex = "tex" in reviewer_report_type
         if report_form.is_valid():
             try:
-                if report_form.cleaned_data["review_choice"] == "tex":
+                if report_form.cleaned_data["review_choice"] == "tex" or forced_tex:
                     service = LatexReportConvertService(
                         request=self.request,
                         converter_class=ConvertReviewerLatexReport,
