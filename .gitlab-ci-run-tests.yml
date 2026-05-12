@@ -2,10 +2,11 @@
   tags:
     - fast-test
   stage: test
-  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:1.8
+  image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:${JANEWAY_VERSION}
 
   # NB: Must match with test_settings.DATABASES
   variables:
+    JANEWAY_VERSION: "1.8"
     POSTGRES_USER: janeway
     POSTGRES_PASSWORD: janeway
     POSTGRES_DB: janeway
