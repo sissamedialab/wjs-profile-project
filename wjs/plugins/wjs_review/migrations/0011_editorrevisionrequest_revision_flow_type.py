@@ -19,6 +19,7 @@ class Migration(migrations.Migration):
                     ("metadata", "Metadata change"),
                     ("full", "Revision submission"),
                 ],
+                default="full",
                 max_length=10,
                 verbose_name="Revision flow type",
             ),
