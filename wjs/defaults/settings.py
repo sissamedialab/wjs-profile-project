@@ -65,7 +65,7 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "default@default.it"
 
 LOGIN_REDIRECT_URL = reverse_lazy("core_edit_profile")
-LOGIN_URL = reverse_lazy("core_login")
+LOGIN_URL = "/login/"
 
 # CATCHA_TYPE should be either 'simple_math', 'recaptcha' or 'hcaptcha' to enable captcha
 # fields, otherwise disabled
