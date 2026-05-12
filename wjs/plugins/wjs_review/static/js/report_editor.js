@@ -23,7 +23,9 @@ function checkDateVisibility(decision) {
  * @return {void} - Does not return a value.
  */
 function copyReviewerReport(id, reviewOrder) {
-  const text = document.querySelector(`#author_review_tex_modal-${id} .modal-body`)?.innerText.trim();
+  const text = document
+    .querySelector(`#author_review_tex_modal-${id} .modal-body, #author_review_modal-${id} .modal-body`)
+    ?.innerText.trim();
   if (!text) return;
   const editor = document.getElementById("id_decision_editor_report");
   if (!editor) return;
