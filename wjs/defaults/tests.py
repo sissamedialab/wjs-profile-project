@@ -83,3 +83,4 @@ CACHES = {
     }
 }
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
+LOGIN_URL = reverse_lazy("core_login")  # noqa
