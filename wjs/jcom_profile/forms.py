@@ -354,13 +354,13 @@ class SearchForm(JanewaySearchForm):
     )
     sections = forms.ModelMultipleChoiceField(
         label=_("Filter by article type"),
-        queryset=Section.objects.all(),
+        queryset=Section.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
     )
     keywords = forms.ModelMultipleChoiceField(
         label=_("Filter by keyword"),
-        queryset=Keyword.objects.all(),
+        queryset=Keyword.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
     )
@@ -427,6 +427,8 @@ class SearchForm(JanewaySearchForm):
             journal=self.journal,
             is_filterable=True,
         ).order_by("sequence", "name")
+        if self.fields["sections"].queryset.count() < 2:
+            self.fields["sections"].widget = forms.HiddenInput()
         self.fields["keywords"].queryset = (
             Keyword.objects.filter(
                 article__journal=self.journal,
@@ -436,6 +438,8 @@ class SearchForm(JanewaySearchForm):
             .annotate(articles_count=Count("article"))
             .order_by("word")
         )
+        if self.fields["keywords"].queryset.count() < 2:
+            del self.fields["keywords"]
 
     @property
     def selected_filters(self):
