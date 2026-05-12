@@ -24,11 +24,11 @@
       {% if journal|is_field_available:"twitter" %}
         {% bootstrap_field form.twitter wrapper_class="mb-4" %}
       {% endif %}
-      {% if journal|is_field_available:"records_other" %}
-      {% bootstrap_field form.linkedin wrapper_class="mb-4" %}
+      {% if journal|is_field_available:"linkedin" %}
+        {% bootstrap_field form.linkedin wrapper_class="mb-4" %}
       {% endif %}
       {% if journal|is_field_available:"records_other" %}
-      {% bootstrap_field form.records_other wrapper_class="mb-4" %}
+        {% bootstrap_field form.records_other wrapper_class="mb-4" %}
       {% endif %}
     </div>
     <div class="wjs-profile-form__footer">
