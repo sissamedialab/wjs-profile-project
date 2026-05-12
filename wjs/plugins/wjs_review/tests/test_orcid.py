@@ -84,7 +84,7 @@ def test_doi_batch(
     """
     normal_user.janeway_account.orcid = orcid
     normal_user.janeway_account.save()
-    FrozenAuthor.objects.create(user=normal_user.janeway_account, article=article)
+    FrozenAuthor.objects.create(author=normal_user.janeway_account, article=article)
     identifier = doi_identifier(article)
     template_context = logic.create_crossref_doi_batch_context(
         article.journal,
