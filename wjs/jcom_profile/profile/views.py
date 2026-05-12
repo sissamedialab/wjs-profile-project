@@ -5,7 +5,7 @@ from django.db import IntegrityError
 from django.forms.models import ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import UpdateView
 
@@ -33,8 +33,39 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
     update_message = _("Profile updated.")
 
     def get(self, *args, **kwargs):
-        self.request.session["next"] = self.request.GET.get("next", None)
+        self.next_url = self.request.GET.get("next", None)
         return super().get(*args, **kwargs)
+
+    @property
+    def next_url(self):
+        """
+        Get the next URL stored in the session.
+
+        This property fetches the value of the "next" key from the session object
+        associated with the request.
+
+        :returns: The value of the "next" key in the session, or None if it is not set.
+        """
+        return self.request.session.get("next")
+
+    @next_url.setter
+    def next_url(self, value):
+        """
+        Set the 'next' URL value in the current session.
+
+        This setter updates the "next" key in the request session with the provided value.
+        It is typically used to store a redirection target URL.
+
+        :param value: The value to set the 'next' key in the session.
+        """
+        referer = self.request.headers.get("referer", "")
+        profile_url = reverse("core_edit_profile")
+        submission_url = reverse("wjs_submission_1")
+        if profile_url not in referer and submission_url not in referer:
+            value = None
+        if not value:
+            return
+        self.request.session["next"] = value
 
     def get_success_url(self) -> str:
         """
@@ -47,8 +78,8 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
         :return: The URL to redirect to after a successful operation.
         :rtype: str
         """
-        if self.request.session.get("next", None):
-            return self.request.session["next"]
+        if self.next_url:
+            return self.next_url
         return super().get_success_url()
 
     def form_valid(self, form: ModelForm) -> HttpResponse:
@@ -68,6 +99,10 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
         """
         response = super().form_valid(form)
         messages.success(self.request, self.update_message)
+        try:
+            del self.request.session["next"]
+        except KeyError:
+            pass
         return response
 
     def get_form_kwargs(self):
