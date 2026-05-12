@@ -32,6 +32,25 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
     model = JCOMProfile
     update_message = _("Profile updated.")
 
+    def get(self, *args, **kwargs):
+        self.request.session["next"] = self.request.GET.get("next", None)
+        return super().get(*args, **kwargs)
+
+    def get_success_url(self) -> str:
+        """
+        Determine the URL to redirect to after a successful operation.
+
+        This method checks if a 'next' URL has been set in the session data
+        and uses it as the success URL if available. Otherwise, it will fall
+        back to the default success URL provided by the parent class.
+
+        :return: The URL to redirect to after a successful operation.
+        :rtype: str
+        """
+        if self.request.session.get("next", None):
+            return self.request.session["next"]
+        return super().get_success_url()
+
     def form_valid(self, form: ModelForm) -> HttpResponse:
         """
         Process a valid submitted form and generate the response.
