@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_review %}
+{% load django_bootstrap5 i18n wjs_review wjs_tags %}
 <h6 class="fw-bold text-primary">
   {% translate "Typesetter files" %}
 </h6>
@@ -10,7 +10,7 @@
     <div class="d-flex gap-2">
       {% if workflow|is_user_one_of_the_authors:request.user %}
         {% for galley in version.assignment.galleys_created.all %}
-          {% if galley.label == "PDF" %}
+          {% if galley.file.original_filename|endswith:"PDF" %}
               {# djlint:off #}
             {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-pdf"></i>' as_button=True %}
               {# djlint:on #}
@@ -18,15 +18,15 @@
         {% endfor %}
       {% else %}
         {% for galley in version.assignment.galleys_created.all %}
-          {% if galley.label == "PDF" %}
+          {% if galley.file.original_filename|endswith:"PDF" %}
               {# djlint:off #}
             {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-pdf"></i>' as_button=True %}
               {# djlint:on #}
-          {% elif galley.label == "EPUB" %}
+          {% elif galley.file.original_filename|endswith:"EPUB" %}
               {# djlint:off #}
             {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-xml"></i>' as_button=True %}
               {# djlint:on #}
-          {% elif galley.label == "HTML" %}
+          {% elif galley.file.original_filename|endswith:"HTML" %}
               {# djlint:off #}
             {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-html"></i>' as_button=True %}
               {# djlint:on #}

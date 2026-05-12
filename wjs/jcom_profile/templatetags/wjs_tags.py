@@ -49,6 +49,14 @@ def get_value(dictionary, key):
 
 
 @register.filter
+def endswith(word: str, value: str) -> bool:
+    """
+    Check if word ends with value.
+    """
+    return word.lower().endswith(value.lower())
+
+
+@register.filter
 def concat(base_string, suffix):
     """Concatenate two strings (non string items will be casted to strings)."""
     return f"{base_string}{suffix}"

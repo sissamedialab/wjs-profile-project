@@ -492,6 +492,7 @@ class TogglePublishableFlagView(HtmxMixin, AuthenticatedUserPassesTest, View):
             self.object = TogglePublishableFlag(workflow=self.object).run()
         except ValueError as e:
             kwargs["message"] = str(e)
+            messages.error(self.request, str(e))
             return self.get(request, **kwargs)
         return HttpResponseRedirect(self.get_success_url())
 
