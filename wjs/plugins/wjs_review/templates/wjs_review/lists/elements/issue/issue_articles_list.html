@@ -1,4 +1,4 @@
-{% load wjs_articles %}
+{% load i18n wjs_articles %}
     <form class="base-form" hx-post="{% url "issue_article_order" issue.pk %}" hx-trigger="end" hx-target="#response-{{ issue.pk }}">
       <div class="d-none issue-table-response-status py-2 px-4 bg-secondary text-white" id="response-{{ issue.pk }}"></div>
       {% if not view.read_only %}

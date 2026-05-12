@@ -1,5 +1,5 @@
 {% extends "wjs/base/base.html" %}
-{% load i18n django_bootstrap5 wjs_tags %}
+{% load django_bootstrap5 i18n wjs_tags %}
 
 {% block title %}
   {% translate "Unregistered ORCiD" %}
@@ -24,13 +24,15 @@
             <form method="post" action="{% url 'core_login' %}">
               {% csrf_token %}
 
+              {% translate "Email" as email_label %}
+              {% translate "Password" as password_label %}
               <div class="mb-3">
-                <label class="form-label" for="id_user_name">Email</label>
-                <input type="text" name="user_name" maxlength="255" class="form-control" placeholder="Email" required="" id="id_user_name">
+                <label class="form-label" for="id_user_name">{{ email_label }}</label>
+                <input type="text" name="user_name" maxlength="255" class="form-control" placeholder="{{ email_label }}" required="" id="id_user_name">
               </div>
               <div class="mb-3">
-                <label class="form-label" for="id_user_pass">Password</label>
-                <input type="password" name="user_pass" autocomplete="current-password" maxlength="255" class="form-control" placeholder="Password" required="" id="id_user_pass">
+                <label class="form-label" for="id_user_pass">{{ password_label }}</label>
+                <input type="password" name="user_pass" autocomplete="current-password" maxlength="255" class="form-control" placeholder="{{ password_label }}" required="" id="id_user_pass">
               </div>
               <input name="orcid_token" type="hidden" value="{{ token.token }}">
 

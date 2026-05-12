@@ -8,7 +8,7 @@
   <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
 
     <div class="wjs-profile-form__main">
-      <p>Please select the keywords that best describe your areas of expertise. </p>
+      <p>{% translate "Please select the keywords that best describe your areas of expertise." %}</p>
 
       {% csrf_token %}
       {% regroup form.keywords|decorate_widgets_for_regroup by first_letter as keyword_list %}

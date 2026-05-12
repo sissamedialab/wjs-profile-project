@@ -1,28 +1,28 @@
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 i18n %}
 <div class="mb-3">
   <div>
     <h2>{% translate "Title and abstract" %}</h2>
     <table class="table">
       <tr {% if title_tex != title_db %}class="table-warning"{% endif %}>
-        <td colspan="2">Title</td>
+        <td colspan="2">{% translate "Title" %}</td>
       </tr>
       <tr>
-        <td>TeX</td>
+        <td>{% translate "TeX" %}</td>
         <td>{{ title_tex }}</td>
       </tr>
       <tr>
-        <td>DB</td>
+        <td>{% translate "DB" %}</td>
         <td>{{ title_db }}</td>
       </tr>
       <tr {% if abstract_tex != abstract_db %}class="table-warning"{% endif %}>
-        <td colspan="2">Abstract</td>
+        <td colspan="2">{% translate "Abstract" %}</td>
       </tr>
       <tr>
-        <td>TeX</td>
+        <td>{% translate "TeX" %}</td>
         <td>{{ abstract_tex }}</td>
       </tr>
       <tr>
-        <td>DB</td>
+        <td>{% translate "DB" %}</td>
         <td>{{ abstract_db }}</td>
       </tr>
     </table>

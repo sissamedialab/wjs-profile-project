@@ -1,5 +1,5 @@
 {% extends "wjs/profile/base.html" %}
-{% load django_bootstrap5 static i18n wjs_tags %}
+{% load django_bootstrap5 i18n static wjs_tags %}
 
 {% block page_title %}{% translate "Paper assignments parameters" %}{% endblock page_title %}
 
@@ -11,7 +11,7 @@
     <div class="wjs-profile-form__main">
       {% bootstrap_field form.workload wrapper_class="mb-4" %}
       <div class="mb-4">
-        <p>Please select the keywords that best describe your areas of expertise. </p>
+        <p>{% translate "Please select the keywords that best describe your areas of expertise." %}</p>
         <label class="form-label" for="id_workload">{{ form.keywords.label }}</label>
         {% regroup form.keywords|decorate_widgets_for_regroup by first_letter as keyword_list %}
         <div class="accordion" id="accordionKeywords">

@@ -1,5 +1,5 @@
 {% extends "wjs/base/base.html" %}
-{% load django_bootstrap5 static %}
+{% load django_bootstrap5 i18n static %}
 
 {% block title %}
   {% translate "Update editor parameters" %}
@@ -19,7 +19,8 @@
 
         {% bootstrap_field form.brake_on %}
 
-        {% bootstrap_button button_type="submit" content="Submit" button_class="btn-primary" %}
+        {% translate "Submit" as submit_label %}
+        {% bootstrap_button button_type="submit" content=submit_label button_class="btn-primary" %}
       </form>
     </div>
   </div>

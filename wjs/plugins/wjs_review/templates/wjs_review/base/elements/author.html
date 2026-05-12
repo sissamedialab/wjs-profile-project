@@ -1,5 +1,6 @@
-{% load django_bootstrap5 static wjs_tags %}
+{% load django_bootstrap5 i18n static wjs_tags %}
 {% url "wjs_message_write" pk=workflow.pk recipient_id=author.pk as add_message %}
+{% translate "Contacts" as contacts_label %}
 {% translate "Send message" as send_message_label %}
 {% translate "Close" as close_modal %}
 
@@ -29,7 +30,7 @@
   </div>
 
   {% with modal_pk=author.pk|stringformat:"s" %}
-    {% bootstrap_button type="button" button_class="btn-primary" data_bs_toggle="modal" data_bs_target="#modal-"|add:modal_pk content="Contacts" title="Contacts" %}
+    {% bootstrap_button type="button" button_class="btn-primary" data_bs_toggle="modal" data_bs_target="#modal-"|add:modal_pk content=contacts_label title=contacts_label %}
   {% endwith %}
   </div>
 
@@ -56,7 +57,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 class="modal-title fw-bold h5" id="modalLabel-{{ author.pk }}">{{ author.get_full_name }} - Contacts</h3>
+        <h3 class="modal-title fw-bold h5" id="modalLabel-{{ author.pk }}">{% blocktranslate with name=author.get_full_name %}{{ name }} - Contacts{% endblocktranslate %}</h3>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -64,36 +65,36 @@
           {% if author.jcomprofile.records_arxiv and journal|is_field_available:"records_arxiv" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/arxiv_logo.png" %}" alt="arxiv logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_arxiv }}">{{ author.get_full_name }}'s arXiv page</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_arxiv }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s arXiv page{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.jcomprofile.records_inspire and journal|is_field_available:"records_inspire" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/inspire_logo.png" %}" alt="inspire logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_inspire }}">{{ author.get_full_name }}'s Inspire page</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_inspire }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s Inspire page{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.jcomprofile.records_scix and journal|is_field_available:"records_scix" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/scix_logo.png" %}" alt="scix logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_scix }}">{{ author.get_full_name }}'s SciX page</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_scix }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s SciX page{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.linkedin and journal|is_field_available:"linkedin" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/linkedin_logo.png" %}" alt="linkedin logo">
-            <a target="_blank" href="{{ author.linkedin }}">{{ author.get_full_name }}'s LinkedIn</a>
+            <a target="_blank" href="{{ author.linkedin }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s LinkedIn{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.facebook and journal|is_field_available:"facebook" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/facebook_logo.png" %}" alt="facebook logo">
-            <a target="_blank" href="{{ author.facebook }}">{{ author.get_full_name }}'s facebook</a>
+            <a target="_blank" href="{{ author.facebook }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s facebook{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.twitter and journal|is_field_available:"twitter" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3"><i class="bi bi-link-45deg"></i>
-            <a target="_blank" href="{{ author.twitter }}">{{ author.get_full_name }}'s bluesky</a>
+            <a target="_blank" href="{{ author.twitter }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s bluesky{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.email and journal|is_field_available:"email" %}

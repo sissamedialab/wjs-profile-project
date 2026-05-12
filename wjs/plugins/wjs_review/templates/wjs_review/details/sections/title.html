@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
+{% load django_bootstrap5 i18n wjs_articles wjs_review wjs_tags %}
 {% article_css_classes workflow as article_classes %}
 {% with doi=article.get_doi pubid=article.get_pubid %}
   <div class="d-flex justify-content-between">
@@ -25,15 +25,19 @@
       {% elif workflow|is_user_article_editor:request.user %}
         {% url "wjs_article_decision" pk=workflow.pk as make_decision_url %}
       {% endif %}
+      {% translate "Make decision" as make_decision_label %}
+      <!-- djlint:off -->
+      {% translate '<i class="bi bi-info-circle"></i> Guidelines' as guidelines_label %}
+      <!-- djlint:on -->
       {% if make_decision_url and article|editor_can_make_decision %}
-        {% bootstrap_button "Make decision" href=make_decision_url button_class="btn-primary" %}
+        {% bootstrap_button make_decision_label href=make_decision_url button_class="btn-primary" %}
       {% endif %}
       {% if workflow|is_user_article_author:request.user %}
-        {% bootstrap_button '<i class="bi bi-info-circle"></i> Guidelines' href="/site/authors" button_class="btn-outline-primary" target="_blank" %}
+        {% bootstrap_button guidelines_label href="/site/authors" button_class="btn-outline-primary" target="_blank" %}
       {% elif workflow|is_user_article_editor:request.user %}
-        {% bootstrap_button '<i class="bi bi-info-circle"></i> Guidelines' href="/site/editors" button_class="btn-outline-primary" target="_blank" %}
+        {% bootstrap_button guidelines_label href="/site/editors" button_class="btn-outline-primary" target="_blank" %}
       {% elif workflow|is_user_article_reviewer:request.user %}
-        {% bootstrap_button '<i class="bi bi-info-circle"></i> Guidelines' href="/site/reviewers" button_class="btn-outline-primary" target="_blank" %}
+        {% bootstrap_button guidelines_label href="/site/reviewers" button_class="btn-outline-primary" target="_blank" %}
       {% endif %}
     </div>
   </div>

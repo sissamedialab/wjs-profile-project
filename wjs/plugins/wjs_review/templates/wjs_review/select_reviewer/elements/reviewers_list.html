@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_review %}
+{% load django_bootstrap5 i18n wjs_review %}
 {% url "wjs_select_reviewer" workflow.pk as wjs_select_reviewer %}
 {% for user in users %}
   {% url "wjs_invite_reviewer_prophy" workflow.pk user.author_id as invite_reviewer_prophy %}
@@ -59,6 +59,6 @@
   </tr>
 {% empty %}
     <tr>
-       No user found
+      {% translate "No user found" %}
     </tr>
 {% endfor %}
