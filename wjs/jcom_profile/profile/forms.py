@@ -60,10 +60,6 @@ class WjsPersonalInfoForm(EditAccountForm):
             kwargs["initial"]["privacy_notice"] = kwargs["instance"].jcomprofile.gdpr_acceptance
         self.journal = kwargs.pop("journal")
 
-        if not is_field_available(self.journal, "profession") and "data" in kwargs:
-            data = kwargs["data"].copy()
-            data["profession"] = 0
-            kwargs["data"] = data
         super().__init__(*args, **kwargs)
 
         privacy_url = _get_privacy_url(self.journal)
@@ -81,6 +77,24 @@ class WjsPersonalInfoForm(EditAccountForm):
         for field in self.fields:
             if self.fields[field].required:
                 self.fields[field].help_text = _("Required")
+
+    def clean_profession(self) -> int | None:
+        """
+        Cleans and validates the 'profession' field.
+
+        This method checks the 'profession' field provided in the cleaned data
+        and ensures that it is not empty. If the field is empty, it returns None.
+        Otherwise, it returns the validated profession.
+
+        :return: The validated profession if present, otherwise None.
+        """
+        profession = self.cleaned_data["profession"]
+        if not profession:
+            return None
+        try:
+            return int(profession)
+        except ValueError:
+            return None
 
 
 class WjsEmailChangeForm(EditAccountForm):
