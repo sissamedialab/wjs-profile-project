@@ -1,4 +1,4 @@
-{% load wjs_articles wjs_review wjs_tags %}
+{% load i18n wjs_articles wjs_review wjs_tags %}
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user pending_review=workflow.article|article_pending_review_by_user:request.user completed_review=workflow.article|article_completed_review_by_user:request.user %}
   <tr {% if attention_flag %}class="table-warning fw-bold"{% endif %}>

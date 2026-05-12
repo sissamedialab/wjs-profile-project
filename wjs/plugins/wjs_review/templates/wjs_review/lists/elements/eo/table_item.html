@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
+{% load django_bootstrap5 i18n wjs_articles wjs_review wjs_tags %}
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>

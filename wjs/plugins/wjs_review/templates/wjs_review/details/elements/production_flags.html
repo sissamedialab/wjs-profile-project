@@ -1,4 +1,4 @@
-{% load wjs_review %}
+{% load i18n wjs_review %}
 {% spaceless %}
   {% if workflow|is_production_state %}
   {% if workflow|is_user_article_typesetter:request.user or workflow|is_user_article_supervisor:request.user %}

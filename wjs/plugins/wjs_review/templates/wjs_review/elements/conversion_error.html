@@ -1,6 +1,7 @@
+{% load i18n %}
 <div>
-  <h4>Conversion Error</h4>
+  <h4>{% translate "Conversion Error" %}</h4>
   <p>{{ error }}</p>
-  <p>Please correct and test the pdf again.</p>
-  <p>Download the file for the details: <a target="_blank" href="{{ conversion_log_url }}">download</a></p>
+  <p>{% translate "Please correct and test the pdf again." %}</p>
+  <p>{% blocktranslate with url=conversion_log_url %}Download the file for the details: <a target="_blank" href="{{ url }}">download</a>{% endblocktranslate %}</p>
 </div>

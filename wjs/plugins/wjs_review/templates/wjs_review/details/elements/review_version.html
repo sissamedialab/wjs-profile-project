@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_permissions wjs_review %}
+{% load django_bootstrap5 i18n wjs_permissions wjs_review %}
 <div class="accordion-item">
   <h2 class="accordion-header" id="review-{{ version.number }}">
     <button class="accordion-button {% if not version.latest or production %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-review-{{ version.number }}"

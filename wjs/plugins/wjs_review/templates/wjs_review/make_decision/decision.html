@@ -1,6 +1,6 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 static %}
-{% load wjs_review wjs_articles wjs_tags %}
+{% load django_bootstrap5 i18n static %}
+{% load wjs_articles wjs_review wjs_tags %}
 {% block content_wrapper %}
   {% translate "Reviewers: " as reviewers_text %}
   {% translate "The following form includes any reports that you have just decided to send the authors. Please consider personalising the text and modifying any reviewer report as appropriate. After clicking \"Confirm\", the Author will receive the resulting text as \"Editor report\", along with the file(s) that you have chosen to send them (if any)." as editor_report_info %}
@@ -65,7 +65,8 @@
               {% bootstrap_field form.withdraw_notice label_class="fw-bold" addon_before=courtesy_notes_reviwers addon_before_class=None %}
             {% endwith %}
           {% endif %}
-          {% bootstrap_button button_type="submit" name="submit" value=1 content="Confirm" %}
+          {% translate "Confirm" as confirm_label %}
+          {% bootstrap_button button_type="submit" name="submit" value=1 content=confirm_label %}
           {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
         </div>
       </div>

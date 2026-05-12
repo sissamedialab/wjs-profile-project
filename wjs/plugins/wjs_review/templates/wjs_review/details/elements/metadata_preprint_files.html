@@ -1,4 +1,4 @@
-{% load wjs_permissions wjs_review wjs_tags %}
+{% load i18n wjs_permissions wjs_review wjs_tags %}
 {% with version=review_versions.0 %}
   {% if latest_only %}
     {% user_has_access_to workflow=workflow user=request.user target=workflow permission_type=PermissionType.NO_NAMES review_round=version.number as has_file_access %}
@@ -17,7 +17,7 @@
       <h2 class="accordion-header" id="admin-files">
         <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-admin-files" aria-expanded="false" aria-controls="collapse-admin-files"
                 title="{% translate "Administrative files, data/figure files that will not be published" %}">
-          {{ journal_settings.styling.submission_figures_data_title|safe }} &nbsp;&nbsp; <i class="bi bi-journal-medical"></i>
+          {{ journal_settings.styling.submission_figures_data_title|striptags }} &nbsp;&nbsp; <i class="bi bi-journal-medical"></i>
         </button>
       </h2>
       <div id="collapse-admin-files" class="accordion-collapse collapse" aria-labelledby="admin-files" data-bs-parent="#metadata">

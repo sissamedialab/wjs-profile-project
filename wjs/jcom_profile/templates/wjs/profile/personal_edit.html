@@ -43,7 +43,8 @@
     {% bootstrap_field form.privacy_notice wrapper_class="mb-4" %}
     {% bootstrap_field form.gdpr_checkbox wrapper_class="mb-4" %}
     <div class="wjs-profile-form__footer">
-      <p class="w-50 mb-0">If you have any questions about how your personal data is managed, please contact <a href="mailto:privacy@medialab.sissa.it">privacy@medialab.sissa.it</a>
+      <p class="w-50 mb-0">
+        {% blocktranslate %}If you have any questions about how your personal data is managed, please contact <a href="mailto:privacy@medialab.sissa.it">privacy@medialab.sissa.it</a>{% endblocktranslate %}
       </p>
       {% translate "Update" as update_label %}
       {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}

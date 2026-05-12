@@ -6,15 +6,15 @@
 {% block profile_form %}
   <h1 class="wjs-profile-form__title">{% translate "Email" %}</h1>
   <p>
-    Enter your <b>institutional</b> email address as either your primary or alternative address.<br>
-    JQuant <b>correspondence will be sent to your primary address</b>; the alternative will be used only if needed.
+    {% blocktranslate %}Enter your <b>institutional</b> email address as either your primary or alternative address.<br>
+    JQuant <b>correspondence will be sent to your primary address</b>; the alternative will be used only if needed.{% endblocktranslate %}
   </p>
   <p>
-    <b>Note</b>: on changing your email address:
+    {% blocktranslate %}<b>Note</b>: on changing your email address:{% endblocktranslate %}
   </p>
   <ul>
-    <li>you will be <b>logged out</b> and your account will be marked as inactive until you follow the instructions in the verification email.</li>
-    <li>also your username <b>will change</b>, as email and username are one and the same.</li>
+    <li>{% blocktranslate %}you will be <b>logged out</b> and your account will be marked as inactive until you follow the instructions in the verification email.{% endblocktranslate %}</li>
+    <li>{% blocktranslate %}also your username <b>will change</b>, as email and username are one and the same.{% endblocktranslate %}</li>
   </ul>
   <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
     <div class="wjs-profile-form__main">
