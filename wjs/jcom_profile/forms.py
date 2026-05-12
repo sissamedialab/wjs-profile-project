@@ -7,7 +7,7 @@ from core import models as core_models
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db.models import Count, QuerySet
+from django.db.models import BLANK_CHOICE_DASH, Count, QuerySet
 from django.forms import ModelForm, inlineformset_factory
 from django.urls import reverse
 from django.utils import timezone
@@ -384,7 +384,7 @@ class SearchForm(JanewaySearchForm):
     )
     identifier_type = forms.ChoiceField(
         label=_("Identifier type"),
-        choices=identifier_choices,
+        choices=(tuple(BLANK_CHOICE_DASH) + identifier_choices),
         required=False,
     )
     article_title = forms.CharField(
@@ -439,7 +439,7 @@ class SearchForm(JanewaySearchForm):
             .order_by("word")
         )
         if self.fields["keywords"].queryset.count() < 2:
-            del self.fields["keywords"]
+            self.fields["keywords"].widget = forms.HiddenInput()
 
     @property
     def selected_filters(self):
@@ -471,6 +471,8 @@ class SearchForm(JanewaySearchForm):
             for field in text_fields.keys()
             if self.cleaned_data.get(field, None)
         }
+        if "article_identifier" not in non_empty_values and "identifier_type" in non_empty_values:
+            del non_empty_values["identifier_type"]
         return {text_fields[field]: value for field, value in non_empty_values.items()}
 
     def get_search_filters(self) -> dict[str, str]:
