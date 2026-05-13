@@ -27,7 +27,7 @@ from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
 from plugins.wjs_submission.models import RevisionStorage
-from review.const import EditorialDecisions, ReviewerDecisions
+from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
     ReviewAssignment,
@@ -1962,13 +1962,6 @@ class WorkflowReviewAssignment(ReviewAssignment):
                 review_assignments=[self],
             )
         ]
-
-    def withdraw(self):
-        # TODO: Remove this when available upstream
-        self.date_complete = timezone.now()
-        self.decision = ReviewerDecisions.DECISION_WITHDRAWN.value
-        self.is_complete = True
-        self.save()
 
 
 class ProphyAccount(models.Model):
