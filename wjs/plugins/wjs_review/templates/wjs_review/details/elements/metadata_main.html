@@ -92,5 +92,19 @@
         <td>{% if typesetting_assigment %}{{ typesetting_assigment.typesetter }}{% hijack_button user=typesetting_assigment.typesetter %}{% else %}{% translate "N/A" %}{% endif %}</td>
       </tr>
     {% endif %}
+    {% if request.user|is_user_eo %}
+      {% if workflow.article.primary_issue %}
+        <tr>
+          <th>{% translate "Assigned Issue" %}</th>
+          <td>{{ workflow.article.primary_issue }}</td>
+        </tr>
+      {% endif %}
+      {% if workflow.article.projected_issue %}
+        <tr>
+          <th>{% translate "Planned Issue" %}</th>
+          <td>{{ workflow.article.projected_issue }}</td>
+        </tr>
+      {% endif %}
+    {% endif %}
   {% endif %}
 </table>
