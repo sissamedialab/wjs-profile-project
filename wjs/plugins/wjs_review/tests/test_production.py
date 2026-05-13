@@ -22,11 +22,11 @@ from django.urls import reverse
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Journal
-from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
-from submission.models import Article, Keyword, Section
+from submission.models import Article, FrozenAuthor, Keyword, Section
+from typesetting.models import GalleyProofing
 from utils import setting_handler
 
 from wjs.jcom_profile import constants
@@ -35,6 +35,7 @@ from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
 from ..logic__production import (
+    AttachGalleys,
     BeginPublication,
     FinishPublication,
     HandleDownloadRevisionFiles,
@@ -583,6 +584,69 @@ def test_automatic_preamble_generation(
         assert piece in rendered_preamble
 
 
+@pytest.mark.parametrize(
+    "src_value",
+    [
+        "./figure/image1.png",
+        "./a/b/c/x.y",
+        "/z",  # corner case that should not happen
+    ],
+)
+@pytest.mark.django_db
+def test_mangle_images(
+    tmp_path: Path,
+    src_value: str,
+):
+    """
+    mangle_images should replace <img src> with the stored image label and rewrite the galley file.
+
+    Note that mangle_images():
+    - takes its input from the galley that it is given,
+      thus we mock the part that gives the input (galley.file.get_file())
+    - writes its output into a file among the article files,
+      thus we mock the part that gives the output file path (galley.file.self_article_path())
+    - uses AttachGalleys.store_galleyimage() to save the image files themselves,
+      thus we mock that part too
+    """
+    mocked_galley = mock.MagicMock()
+    mocked_galley.file.get_file.return_value = f'<html><body><img src="{src_value}"/></body></html>'
+    # galley_file.self_article_path() must return a real writable path
+    out_path = tmp_path / "galley.html"
+    mocked_galley.file.self_article_path.return_value = out_path
+
+    service = AttachGalleys(
+        archive_with_galleys=b"",
+        article=None,
+        request=None,
+        expected_galleys=[],
+    )
+    service.path = tmp_path
+
+    # Weak spot: AttachGalleys.store_galleyimage() receives a Path,
+    # from which it takes the "name" (as in Path.name);
+    # that "name" is then used as label for the galley-image
+    # and as original filename for the associated file object,
+    # and then returned to the caller.
+    # It is the "link" between the HTML (<img src="name">) and the DB object.
+    # Here we simulate the relation between it and the galley-image file by taking the name of a Path
+    # created from the original image src value.
+    mocked_stored_file = mock.MagicMock()
+    mocked_stored_file.label = Path(src_value).name
+    with mock.patch.object(service, "store_galleyimage", return_value=mocked_stored_file) as mock_store:
+        service.mangle_images(mocked_galley)
+
+    # store_galleyimage() was called with the resolved image path and the galley;
+    # here we test that mangle_images() does not alter the value of the src attribute
+    expected_img_path = service.path / src_value
+    mock_store.assert_called_once_with(expected_img_path, mocked_galley)
+
+    # the rewritten HTML contains the new src
+    written_html = out_path.read_bytes().decode()
+    assert f'src="{mocked_stored_file.label}"' in written_html
+    # the original relative path is gone
+    assert src_value not in written_html
+
+
 @pytest.mark.django_db
 def test_production_flag_galleys_ok(
     assigned_to_typesetter_article: Article,
@@ -725,8 +789,6 @@ def test_publication(
     Test publication.
 
     An article in state ready-for-publication can be published by EO.
-
-    Not testing Janeway-related stuff, such as snapshotting authors.
     """
     assert rfp_article.section.name == "Article"
     workflow: ArticleWorkflow = rfp_article.articleworkflow
@@ -794,7 +856,7 @@ def test_publication_with_fake_galley_generation(
     # TODO: patch core.files.save_file_to_article so that a core.File is generated, but no file arrives on the
     # filesystem
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/",
     ):
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
@@ -815,6 +877,7 @@ def test_publication_multiple_articles(
     create_jcom_user: Callable,
     http_server: ThreadedHTTPServer,
     review_sections: list[Section],  # noqa: ARG001
+    install_wjs_submission_settings: Callable,  # noqa: ARG001
 ):
     """Publication proceeds correctly even if one article's final galleys fail.
 
@@ -849,7 +912,7 @@ def test_publication_multiple_articles(
     )
     _jump_article_to_rfp(a1, typ, fake_request)
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/",
     ):
         service = BeginPublication(workflow=a1.articleworkflow, user=typ, request=fake_request)
         service.run()
@@ -868,7 +931,7 @@ def test_publication_multiple_articles(
     )
     _jump_article_to_rfp(a2, typ, fake_request)
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/server_error"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/server_error",
     ):
         #                                                                                           ⮴ 💩 ⮵
         service = BeginPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
@@ -892,7 +955,7 @@ def test_publication_multiple_articles(
     )
     _jump_article_to_rfp(a3, typ, fake_request)
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/",
     ):
         service = BeginPublication(workflow=a3.articleworkflow, user=typ, request=fake_request)
         service.run()
@@ -902,7 +965,7 @@ def test_publication_multiple_articles(
 
     # retry a2: expect change in the state, but not in the pubid etc.
     with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/good_galleys_zip"
+        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/",
     ):
         service = FinishPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
         #    ⚠  Finish! (not "Begin")
@@ -1265,7 +1328,9 @@ def test_identifiers_on_author_sends_corrections(
 @pytest.mark.skipif("not config.getoption('--run-academic')", reason="See wjs-profile-projects#197")
 @pytest.mark.parametrize("user_is_author", (True, False))
 @pytest.mark.django_db
-def test_identifiers_on_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is_author: bool):
+def test_identifiers_on_author_deems_paper_rfp(
+    stage_proofing_article: Article, client, user_is_author: bool, install_wjs_submission_settings: Callable
+):
     """The author can deem rft only articles that have all production flags in the expected state."""
 
     # production settings and crossref_test True
@@ -1348,8 +1413,6 @@ def test_identifiers_on_publication(
     """Test publication.
 
     An article in state ready-for-publication can be published by EO.
-
-    Not testing Janeway-related stuff, such as snapshotting authors.
     """
 
     # production settings and crossref_test True
@@ -1476,6 +1539,7 @@ def test_identifiers_on_eo_sends_back_to_typesetter(
     assert identifiers_models.Identifier.objects.filter(article=stage_proofing_article).count() == 2
 
 
+@pytest.mark.xfail(reason="Since Janeway 1.8 authors are frozen when added to the article")
 @pytest.mark.django_db
 def test_authors_frozen_at_acceptance(assigned_article: Article, fake_request: HttpRequest):
     """Verify that authors are frozen (snapshotted) at acceptance."""
@@ -1501,16 +1565,15 @@ def test_authors_frozen_at_acceptance(assigned_article: Article, fake_request: H
 def test_preamble_authors(accepted_article: Article, keywords: QuerySet[Keyword]):
     """Document a viable preamble template."""
     article = accepted_article
-    assert article.authors.count() == 2
     assert len(article.frozen_authors()) == 2
 
-    a1: Account = article.authors.order_by("id").first()
+    a1: FrozenAuthor = article.frozen_authors().order_by("author__pk").first()
     # Note that here we modify the account, not the froze-author object,
     # but FrozenAuthor objects have `orcid` and `biography` properties (and other)
     # that fallback to the account values if values from FA are missing.
-    a1.orcid = "1234-0000-0000-000X"
-    a1.biography = "Vita, morte e miracoli."
-    a1.save()
+    a1.author.orcid = "1234-0000-0000-000X"
+    a1.author.biography = "Vita, morte e miracoli."
+    a1.author.save()
 
     for kwd in keywords[:3]:
         article.keywords.add(kwd)
@@ -1578,4 +1641,5 @@ def test_set_label_of_esm_file(
     assert response.status_code == 200
     assigned_to_typesetter_article.refresh_from_db()
     s_files = assigned_to_typesetter_article.supplementary_files.all().exclude(id__in=existing_supplementary_files_ids)
+    assert s_files.count() == 1 and s_files[0].label == new_supplementary_file_label
     assert s_files.count() == 1 and s_files[0].label == new_supplementary_file_label

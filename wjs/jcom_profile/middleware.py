@@ -17,7 +17,7 @@ class PrivacyAcknowledgedMiddleware(MiddlewareMixin):
     def process_request(request):
         """Ensure that the logged-in user has acknowledged the privacy policy.
 
-        Kick in only if there is a logged-in user (otherwise return None).
+        Kick in only if there is a logged-in and not hijacked user (otherwise return None).
         Let alone /logout and /profile.
 
         If the logged-in user hasn't got a gdpr_policy flag, set a
@@ -25,6 +25,9 @@ class PrivacyAcknowledgedMiddleware(MiddlewareMixin):
 
         """
         if not hasattr(request, "user"):
+            return None
+
+        if getattr(request.user, "is_hijacked", False):
             return None
 
         free_paths = getattr(settings, "CORE_PRIVACY_MIDDLEWARE_ALLOWED_URLS", [])

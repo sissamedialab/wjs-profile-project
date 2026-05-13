@@ -1,3 +1,5 @@
-{% for issue in issues %}
-  {% include "wjs_review/lists/elements/issue/issue_detail.html" %}
-{% endfor %}
+<ul class="p-0">
+  {% for issue in issues %}
+  <li class="list-group-item">{% include "wjs_review/lists/elements/issue/issue_detail.html" %}</li>
+  {% endfor %}
+</ul>

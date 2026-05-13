@@ -5,13 +5,18 @@ from django.conf import settings
 from django.urls import include, path, re_path
 from journal import views as journal_views
 
-from wjs.jcom_profile import experimental_views, views
-from wjs.jcom_profile.newsletter import views as newsletter_views
-from wjs.jcom_profile.views import AuthorSearchView, KeywordListView
+from . import experimental_views, views
+from .newsletter import views as newsletter_views
+from .profile import views as profile_views
+from .views import AuthorSearchView, KeywordListView
 
 urlpatterns = [
-    path("profile/", views.edit_profile, name="core_edit_profile"),
-    path("register/step/1/", views.register, name="core_register"),
+    path("profile/", profile_views.ProfilePersonalEditView.as_view(), name="core_edit_profile"),
+    path("profile/email/", profile_views.ProfileEmailEditView.as_view(), name="core_edit_profile_email"),
+    path("profile/password/", profile_views.ProfilePasswordEditView.as_view(), name="core_edit_profile_password"),
+    path("profile/info/", profile_views.ProfileAdditionalEditView.as_view(), name="core_edit_profile_additional"),
+    path("profile/interests/", profile_views.ProfileInterestsEditView.as_view(), name="core_edit_profile_interests"),
+    path("profile/affiliations/", views.ProfileAffiliationsEditView.as_view(), name="core_edit_profile_affiliations"),
     re_path(
         r"^register/activate/gdpr/(?P<token>.+)/",
         views.confirm_gdpr_acceptance,
@@ -59,27 +64,27 @@ urlpatterns = [
     ),
     path(
         "update/newsletters/",
-        views.NewsletterParametersUpdate.as_view(),
+        newsletter_views.NewsletterParametersUpdate.as_view(),
         name="edit_newsletters",
     ),
     path(
         "register/newsletters/",
-        views.AnonymousUserNewsletterRegistration.as_view(),
+        newsletter_views.AnonymousUserNewsletterRegistration.as_view(),
         name="register_newsletters",
     ),
     path(
         "register/newsletters/email-sent/",
-        views.AnonymousUserNewsletterConfirmationEmailSent.as_view(),
+        newsletter_views.AnonymousUserNewsletterConfirmationEmailSent.as_view(),
         name="register_newsletters_email_sent",
     ),
     path(
         "newsletters/unsubscribe/confirm/",
-        views.UnsubscribeUserConfirmation.as_view(),
+        newsletter_views.UnsubscribeUserConfirmation.as_view(),
         name="unsubscribe_newsletter_confirm",
     ),
-    re_path(
-        r"^newsletters/unsubscribe/(?P<token>\w+)/$",
-        views.unsubscribe_newsletter,
+    path(
+        "newsletters/unsubscribe/<str:token>/",
+        newsletter_views.unsubscribe_newsletter,
         name="unsubscribe_newsletter",
     ),
     path(
@@ -158,11 +163,6 @@ urlpatterns = [
     ),
     path("keywords/", KeywordListView.as_view(), name="keywords_list"),
     path("search_authors/<int:article_id>/", AuthorSearchView.as_view(), name="author_search"),
-    path(
-        "registration_success",
-        views.registration_success,
-        name="registration_success",
-    ),
 ]
 
 # Some experimental / Easter-egg URLs

@@ -2,8 +2,8 @@
 {% load django_bootstrap5 static wjs_permissions %}
 
 {% block content_wrapper %}
-  <div class="container mb-3">
+  <main class="container mb-3">
     {% include "wjs_review/article_messages/elements/messages_list.html" %}
     {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
-  </div>
+  </main>
 {% endblock content_wrapper %}

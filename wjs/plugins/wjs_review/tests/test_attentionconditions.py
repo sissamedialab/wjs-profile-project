@@ -10,7 +10,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
 from django.utils import timezone
 from django.utils.timezone import localtime, now
-from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review import conditions, states
 from plugins.wjs_review.logic import (
     AssignToReviewer,
@@ -33,6 +32,7 @@ from plugins.wjs_review.states import EditorSelected, EditorToBeSelected
 from review import models as review_models
 from review.models import ReviewForm
 from submission.models import Article
+from typesetting.models import GalleyProofing
 
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import get_eo_user

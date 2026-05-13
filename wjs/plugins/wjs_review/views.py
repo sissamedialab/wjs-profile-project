@@ -16,7 +16,15 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import InvalidPage, Page, Paginator
 from django.db import IntegrityError
-from django.db.models import F, Max, OuterRef, Q, QuerySet, Subquery
+from django.db.models import (
+    F,
+    Max,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    prefetch_related_objects,
+)
 from django.db.models.functions import Coalesce
 from django.forms import models as model_forms
 from django.http import (
@@ -49,10 +57,10 @@ from django_filters.views import FilterMixin, FilterView
 from events import logic as event_logic
 from journal.logic import get_all_tables_from_html
 from journal.models import Issue, IssueType, Journal
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_submission.models import ArticleSubmission, SubmissionArticleFunding
 from review import logic as review_logic
-from submission.models import Article, FrozenAuthor
+from submission.models import Article
+from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -65,6 +73,7 @@ from wjs.jcom_profile.utils import get_eo_user
 
 from . import permissions
 from .communication_utils import get_messages_related_to_me, group_messages_by_version
+from .conversion import LatexReportConvertService
 from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,
@@ -105,10 +114,12 @@ from .forms import (
 )
 from .logic import (
     AdminActions,
+    BaseConvertLatexReport,
     ConvertEditorLatexReport,
     ConvertReviewerLatexReport,
     HandleMessage,
     YakuninPDFGenerationError,
+    YakuninPDFGenerationWarnings,
     YakuninRequestError,
     render_template_from_setting,
     states_when_article_is_considered_archived,
@@ -130,6 +141,7 @@ from .models import (
     ArticleWorkflow,
     EditorDecision,
     EditorRevisionRequest,
+    LatexPreamble,
     Message,
     MessageRecipients,
     PermissionAssignment,
@@ -316,7 +328,7 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
 
     def get_queryset(self):
         """Filter article by state and filterset values."""
-        base_qs = self.model._default_manager.all()
+        base_qs = self.model._default_manager.select_related("article").all()
         base_qs = self._apply_base_filters(base_qs)
         base_qs = self._annotate_last_revision_date(base_qs)
         if "editor_sorting" in self.get_ordering() or "-editor_sorting" in self.get_ordering():
@@ -333,6 +345,8 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
     def get_context_data(self, **kwargs):
         """Add the filterset."""
         context = super().get_context_data(**kwargs)
+        if self.request.user.is_authenticated:
+            prefetch_related_objects([self.request.user], "groups")
         context["filter"] = self.filterset
         context["ordering_value"] = self._get_ordering_value()
         return context
@@ -557,7 +571,10 @@ class BaseWorkOnIssue(BaseRelatedViewsMixin, ListView):
         return (
             super()
             .get_queryset()
-            .filter(journal=self.request.journal, date__gte=timezone.now().date())
+            .filter(
+                Q(journal=self.request.journal)
+                & (Q(date__gte=timezone.now().date()) | Q(current_issue=self.request.journal))
+            )
             .order_by("date")
         )
 
@@ -1684,29 +1701,28 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         If form is not valid or exception is raised by the logic, the form is rendered again with the error.
         """
         report_form = self._get_report_form()
+
+        reviewer_report_type = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value
         if report_form.is_valid():
+            is_tex_report = report_form.cleaned_data["review_choice"] == "tex" or "tex" in reviewer_report_type
+            tex_report_content = str(self.request.POST.get("author_review_tex"))
             try:
-                if self.request.POST.get("author_review_tex", None):
-                    client = ConvertReviewerLatexReport(
+                if is_tex_report and tex_report_content:
+                    service = LatexReportConvertService(
+                        request=self.request,
+                        converter_class=ConvertReviewerLatexReport,
                         report_text=self.request.POST.get("author_review_tex"),
-                        instance=self.object.workflowreviewassignment,
+                        assignment=self.object.workflowreviewassignment,
                     )
                     try:
-                        client.run()
-                    except YakuninPDFGenerationError:
-                        logfile = core_models.File.objects.get(
-                            article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
+                        service.run()
+                    except Exception as e:
+                        report_form.add_error("author_review_tex", mark_safe(str(e)))
+                        return self.render_to_response(
+                            self.get_context_data(report_form=report_form, warnings=mark_safe(str(e)))
                         )
-                        download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
-                        link_html = (
-                            f"Error generating the report. A diagnostic log is available: "
-                            f'<a href="{download_url}" target="_blank">Download log</a>'
-                        )
-                        report_form.add_error(None, mark_safe(link_html))
-                        return self.render_to_response(self.get_context_data(report_form=report_form))
-                    except YakuninRequestError as e:
-                        report_form.add_error(None, mark_safe(str(e)))
-                        return self.render_to_response(self.get_context_data(report_form=report_form))
                 report_form.save()
                 return HttpResponseRedirect(self.get_success_url())
             except (ValueError, ValidationError) as e:
@@ -1858,11 +1874,11 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
                         article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
                     )
                     download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
-                    link_html = (
+                    error_message = (
                         f"Error generating the report. A diagnostic log is available:"
                         f' <a href="{download_url}" target="_blank">Download log</a>'
                     )
-                    form.add_error(None, mark_safe(link_html))
+                    form.add_error(None, mark_safe(error_message))
                     return self.render_to_response(self.get_context_data(form=form))
                 except YakuninRequestError as e:
                     form.add_error(None, mark_safe(str(e)))
@@ -1880,6 +1896,9 @@ class ArticleAdminDecision(BaseRelatedViewsMixin, UpdateView):
         context["tex_review_allowed"] = get_setting(
             setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
         ).value in ["tex", "tex+text"]
+        context["richtext_review_allowed"] = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value in ["rich_text", "tex+text"]
         return context
 
 
@@ -1974,25 +1993,17 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
                 setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
             ).value in ["tex", "tex+text"] and form.cleaned_data.get("decision_editor_report", None):
                 assignment = WjsEditorAssignment.objects.get_current(self.object.article.articleworkflow)
-                client = ConvertEditorLatexReport(
-                    report_text=form.cleaned_data.get("decision_editor_report"), instance=assignment
+                service = LatexReportConvertService(
+                    request=self.request,
+                    converter_class=ConvertEditorLatexReport,
+                    report_text=form.cleaned_data.get("decision_editor_report") or "",
+                    assignment=assignment,
                 )
                 try:
-                    client.run()
-                except YakuninPDFGenerationError:
-                    logfile = core_models.File.objects.get(
-                        article_id=self.object.article.pk, original_filename=client.yakunin_log_filename
-                    )
-                    download_url = reverse("download_single_file", args=[self.object.article.pk, logfile.pk])
-                    link_html = (
-                        f"Error generating the report. A diagnostic log is available:"
-                        f' <a href="{download_url}" target="_blank">Download log</a>'
-                    )
-                    form.add_error(None, mark_safe(link_html))
-                    return self.render_to_response(self.get_context_data(form=form))
-                except YakuninRequestError as e:
-                    form.add_error(None, mark_safe(str(e)))
-                    return self.render_to_response(self.get_context_data(form=form))
+                    service.run()
+                except Exception as e:
+                    form.add_error("decision_editor_report", mark_safe(str(e)))
+                    return self.render_to_response(self.get_context_data(form=form, warnings=mark_safe(str(e))))
             return super().form_valid(form)
         except (ValueError, ValidationError) as e:
             form.add_error(None, e)
@@ -3459,7 +3470,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
 
         The list is filtered by removing current editor, if any.
         """
-        article_authors = self.object.article.authors.all()
+        article_authors = self.object.article.author_accounts.all()
         try:
             current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
         except WjsEditorAssignment.DoesNotExist:
@@ -3830,6 +3841,9 @@ class DownloadSingleFile(AuthenticatedUserPassesTest, View):
         ]:
             if aw:
                 related_instances.append((self.article, True))
+        # ArticleSubmission's files
+        if self.article.submission_data.cover_letter_file:
+            related_instances.append((self.article, True))
         # Add a tuple to related_instances with the second item being if use the primary  permission (True) or the
         # Secondary permission (False)
 
@@ -3920,9 +3934,9 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
     template_name = "journal/article.html"
 
     def test_func(self):
-        """Only the typesetter should be able to access this view."""
+        """Only the typesetter or EO should be able to access this view."""
         self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
-        return permissions.is_article_typesetter(self.workflow, self.request.user)
+        return permissions.is_article_typesetter_or_eo(self.workflow, self.request.user)
 
     def get_context_data(self, **kwargs):
         """Add context data for the template."""
@@ -3968,14 +3982,93 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
             },
         )
 
-        # Freeze authors: the template expects to see frozen-authors
-        FrozenAuthor.objects.filter(article=self.workflow.article).delete()
-        self.workflow.article.snapshot_authors()
-
         return context
 
 
-class ElaborateLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+class BaseConvertLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+    """
+    Pass report text to Yakunin for conversion and report any error.
+
+    Ensures authenticated user access and supports error handling for LaTeX
+    conversions using Yakunin PDF generation.
+
+    :ivar assignment: Represents the current assignment related to the article.
+    :type assignment: Assignment
+    :ivar converter_class: Represents the converter class for generating the editor report.
+    :type converter_class: type[ConvertEditorLatexReport]
+    :ivar request: The HTTP request object for this view.
+    :type request: HttpRequest
+    """
+
+    converter_class: type[BaseConvertLatexReport]
+
+    def test_func(self):
+        raise NotImplementedError()
+
+    def post(self, request, *args, **kwargs):
+        """
+        Process a HTMX request to generate and return a downloadable LaTeX review file.
+
+        In case of errors, the message is reported via HX-Trigger with event yakunin-error.
+
+        :param request: HTTP request object containing POST data
+        :type request: HttpRequest
+        :param args: Additional positional arguments
+        :type args: tuple
+        :param kwargs: Additional keyword arguments
+        :type kwargs: dict
+        :return: HTTP response with appropriate status and headers for LaTeX generation
+        :rtype: HttpResponse
+        :raises YakuninPDFGenerationError: If an error occurs during PDF generation
+        :raises YakuninPDFGenerationWarnings: If warnings occur during PDF generation
+        :raises YakuninRequestError: If there's an error in the Yakunin request
+        :raises LatexPreamble.DoesNotExist: If the required LaTeX configuration is missing
+        :raises Exception: For unhandled exceptions during the process
+        """
+        service = LatexReportConvertService(
+            request=self.request,
+            converter_class=self.converter_class,
+            report_text=self.request.POST.get(self.report_field) or "",
+            assignment=self.assignment,
+        )
+        try:
+            download_url = service.run()
+        except (
+            YakuninPDFGenerationError,
+            YakuninPDFGenerationWarnings,
+            YakuninRequestError,
+            LatexPreamble.DoesNotExist,
+        ) as e:
+            response = HttpResponse(status=400)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            return response
+        except Exception as e:
+            response = HttpResponse(status=500)
+            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
+            return response
+        response = HttpResponse(status=204)
+        response["HX-Redirect"] = download_url
+        return response
+
+
+class ConvertLatexReviewerReportView(BaseConvertLatexReportView):
+    """
+    Generate the reviewer report using yakunin.
+
+    Retrieves an assigned workflow review object based on the assignment ID provided in
+    the URL and ensures that only authorized reviewers can access the view.
+
+    :ivar assignment: Workflow review assignment linked to the provided assignment ID.
+    :type assignment: WorkflowReviewAssignment
+    :ivar converter_class: Represents the converter class for generating the editor report.
+    :type converter_class: type[ConvertEditorLatexReport]
+    :ivar report_field: Represents the field name for the editor report.
+    :type report_field: str
+    """
+
+    converter_class: type[ConvertReviewerLatexReport] = ConvertReviewerLatexReport
+
+    report_field = "author_review_tex"
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
@@ -3984,40 +4077,23 @@ class ElaborateLatexReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
     def test_func(self):
         return permissions.is_article_reviewer(self.assignment.article.articleworkflow, self.request.user)
 
-    def post(self, request, *args, **kwargs):
-        try:
-            client = ConvertReviewerLatexReport(
-                report_text=self.request.POST.get("author_review_tex"),
-                instance=self.assignment,
-            )
-            generated_tex_review = client.run()
-        except YakuninPDFGenerationError as e:
-            logfile = core_models.File.objects.get(
-                article_id=self.assignment.article.pk, original_filename=client.yakunin_log_filename
-            )
-            download_url = reverse(
-                "download_single_file",
-                args=[self.assignment.article.pk, logfile.pk],
-            )
-            response = HttpResponse(status=400)
-            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
-            response["HX-Redirect"] = download_url
-            return response
-        except YakuninRequestError as e:
-            response = HttpResponse(status=400)
-            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
-            return response
 
-        download_url = reverse(
-            "download_single_file",
-            args=[self.assignment.article.pk, generated_tex_review.pk],
-        )
-        response = HttpResponse(status=204)
-        response["HX-Redirect"] = download_url
-        return response
+class ConvertLatexEditorReportView(BaseConvertLatexReportView):
+    """
+    Generate the editor report using yakunin.
 
 
-class ElaborateLatexEditorReportView(HtmxMixin, AuthenticatedUserPassesTest, View):
+    :ivar assignment: Represents the current editor assignment fetched using the workflow.
+    :type assignment: WjsEditorAssignment
+    :ivar converter_class: Represents the converter class for generating the editor report.
+    :type converter_class: type[ConvertEditorLatexReport]
+    :ivar report_field: Represents the field name for the editor report.
+    :type report_field: str
+    """
+
+    converter_class: type[ConvertEditorLatexReport] = ConvertEditorLatexReport
+
+    report_field = "decision_editor_report"
 
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
@@ -4026,38 +4102,6 @@ class ElaborateLatexEditorReportView(HtmxMixin, AuthenticatedUserPassesTest, Vie
 
     def test_func(self):
         return permissions.is_article_editor_or_eo(self.assignment.article.articleworkflow, self.request.user)
-
-    def post(self, request, *args, **kwargs):
-        try:
-            client = ConvertEditorLatexReport(
-                report_text=self.request.POST.get("decision_editor_report"),
-                instance=self.assignment,
-            )
-            generated_tex_review = client.run()
-        except YakuninPDFGenerationError as e:
-            logfile = core_models.File.objects.get(
-                article_id=self.assignment.article.pk, original_filename=client.yakunin_log_filename
-            )
-            download_url = reverse(
-                "download_single_file",
-                args=[self.assignment.article.pk, logfile.pk],
-            )
-            response = HttpResponse(status=400)
-            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
-            response["HX-Redirect"] = download_url
-            return response
-        except YakuninRequestError as e:
-            response = HttpResponse(status=400)
-            response["HX-Trigger"] = json.dumps({"yakunin-error": str(e)})
-            return response
-
-        download_url = reverse(
-            "download_single_file",
-            args=[self.assignment.article.pk, generated_tex_review.pk],
-        )
-        response = HttpResponse(status=204)
-        response["HX-Redirect"] = download_url
-        return response
 
 
 class ConvertTextToLatex(HtmxMixin, AuthenticatedUserPassesTest, View):

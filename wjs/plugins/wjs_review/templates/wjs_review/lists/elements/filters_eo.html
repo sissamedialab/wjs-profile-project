@@ -1,4 +1,4 @@
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 i18n settings %}
 {% translate "Search" as search_label %}
 {% translate "Reset filters" as reset_label %}
 <div class="row gap-4 mb-3">
@@ -14,6 +14,13 @@
     {% bootstrap_field filter.form.typesetter size="sm" wrapper_class="table-filter col" placeholder="" %}
   {% endif %}
   {% bootstrap_field filter.form.article size="sm" wrapper_class="table-filter col" placeholder="" %}
+</div>
+<div class="row gap-4 mb-3">
+  {% bootstrap_field filter.form.collaboration size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% if journal|setting:"arxiv_field_status" != "disabled" %}
+    {% bootstrap_field filter.form.arxiv_category size="sm" wrapper_class="table-filter col" placeholder="" %}
+  {% endif %}
+  {% bootstrap_field filter.form.keywords size="sm" wrapper_class="table-filter col" placeholder="" %}
 </div>
 <div class="row gap-4 mb-3">
   {% bootstrap_field filter.form.eo_in_charge size="sm" wrapper_class="table-filter col" placeholder="" %}

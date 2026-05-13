@@ -1,9 +1,9 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 static %}
-{% load wjs_review wjs_articles wjs_tags %}
+{% load django_bootstrap5 i18n static %}
+{% load wjs_articles wjs_review wjs_tags %}
 {% block content_wrapper %}
   {% translate "Reviewers: " as reviewers_text %}
-  {% translate "Please paste here all reviewer comments that you wish to send the Author. Feel free to modify them as you see fit. After clicking \"Send\", the Author will receive them as \"Editor report\", along with the file(s) that you have chosen to send them (if any)." as editor_report_info %}
+  {% translate "The following form includes any reports that you have just decided to send the authors. Please consider personalising the text and modifying any reviewer report as appropriate. After clicking \"Confirm\", the Author will receive the resulting text as \"Editor report\", along with the file(s) that you have chosen to send them (if any)." as editor_report_info %}
   {% article_css_classes workflow as article_classes %}
   <div class="container mb-3">
     <div class="row">
@@ -29,7 +29,6 @@
           {% endif %}
           {% get_available_transitions workflow as transitions %}
           {% csrf_token %}
-          {% bootstrap_form_errors form layout='inline' %}
           <div class="col-md-2">
             {% if form.hide_decision %}
               {% bootstrap_field form.decision wrapper_class="visually-hidden" %}
@@ -43,27 +42,21 @@
             {% bootstrap_field form.date_due wrapper_class="date-due mb-3" %}
           {% endif %}
           {% if form.decision_editor_report %}
-            {% bootstrap_field form.decision_editor_report label_class="fw-bold" addon_before=editor_report_info addon_before_class=None %}
+            {% bootstrap_field form.decision_editor_report label_class="fw-bold" wrapper_class="mb-3 form-field-help-text-order" error_css_class="form-field-error-alert js-hide-on-pdf-error" addon_before=editor_report_info addon_before_class=None %}
             {% if tex_review_allowed %}
-            <div id="pdf_error" class="alert alert-danger d-none"></div>
-            <div class="d-flex justify-content-end mt-1">
-              <button
-                  type="button"
-                  class="btn btn-primary btn-sm"
-                  hx-post="{% url 'elaborate-latex-editor-report' workflow.pk %}"
-                  hx-include="[name='decision_editor_report']"
-                     hx-on="
-                      htmx:beforeRequest: clearError();
-                      htmx:responseError: showError(event);
-                      htmx:afterRequest: clearErrorOnSuccess(event);
-                  "
-              >
-                  Test PDF
-              </button>
+              {% if not form.decision_editor_report.error %}
+                <div class="alert alert-danger text-danger js-pdf-error d-none"></div>
+              {% endif %}
+              <div class="d-flex justify-content-end mt-1">
+                {% url 'elaborate-latex-editor-report' workflow.pk as download_report %}
+                {% translate "Test PDF" as use_report_label %}
+                {% bootstrap_button type="button" content=use_report_label button_class="btn-primary btn-sm" hx_post=download_report hx_include="[name='decision_editor_report']" hx_on="htmx:beforeRequest: clearError();htmx:responseError: logError(event);htmx:afterRequest: clearErrorOnSuccess(event);" %}
               </div>
             {% endif %}
           {% endif %}
-          {% include "wjs_review/make_decision/elements/review_files_table.html" %}
+          {% if not_metadata_change %}
+            {% include "wjs_review/make_decision/elements/review_files_table.html" %}
+          {% endif %}
           {% if form.withdraw_notice %}
             <div class="py-3">
               <hr class="border border-secondary border-2 opacity-75">
@@ -72,68 +65,17 @@
               {% bootstrap_field form.withdraw_notice label_class="fw-bold" addon_before=courtesy_notes_reviwers addon_before_class=None %}
             {% endwith %}
           {% endif %}
-          {% bootstrap_button button_type="submit" name="submit" value=1 content="Confirm" %}
+          {% translate "Confirm" as confirm_label %}
+          {% bootstrap_button button_type="submit" name="submit" value=1 content=confirm_label %}
           {% include "wjs_review/base/elements/back.html" with workflow=workflow %}
         </div>
       </div>
     </form>
   </div>
-  <script>
-    function checkDateVisibility(decision) {
-      if (["minor_revisions", "major_revisions", "tech_revisions"].indexOf(decision.selectedOptions[0].value) > -1) {
-        document.querySelector(".date-due").classList.remove("visually-hidden");
-      } else {
-        document.querySelector(".date-due").classList.add("visually-hidden");
-      }
-    }
-
-    (function() {
-      "use strict";
-      const decision = document.querySelector("#id_decision");
-
-      decision.addEventListener("change", function() {
-        checkDateVisibility(decision);
-      });
-
-      checkDateVisibility(decision);
-
-    })();
-
-  document.addEventListener("click", e => {
-    if (!e.target.classList.contains("copy-tex-btn")) return
-    const id = e.target.dataset.reviewId
-    const text = document.querySelector(`#author_review_tex_modal-${id} .modal-body`)?.innerText.trim()
-    if (!text) return
-    const editor = document.getElementById("id_decision_editor_report")
-    if (!editor) return
-    if (editor.value) editor.value += "\n\n-------------------\n\n"
-    editor.value += text
-  })
-  document.body.addEventListener("htmx:afterOnLoad", e => {
-    if (!e.target.classList.contains("copy-tex-btn")) return
-    const latex = e.detail.xhr.responseText.trim()
-    if (!latex) return
-    const editor = document.getElementById("id_decision_editor_report")
-    if (!editor) return
-    if (editor.value) editor.value += "\n\n-------------------\n\n"
-    editor.value += latex
-  })
-
-  document.body.addEventListener("yakunin-error", ev => {
-      document.getElementById("pdf_error").innerText = ev.detail.value;
-      document.getElementById("pdf_error").classList.remove("d-none");
-  });
-
-  function clearError() {
-      document.getElementById("pdf_error").innerText = "";
-      document.getElementById("pdf_error").classList.add("d-none");
-  }
-
-  document.body.addEventListener("htmx:afterRequest", event => {
-      const xhr = event.detail.xhr;
-      if (xhr.status >= 200 && xhr.status < 300) {
-          clearError();
-      }
-  });
-  </script>
 {% endblock content_wrapper %}
+
+{% block js %}
+  {{ block.super }}
+  <script src="{% static "js/report_editor.js" %}"></script>
+  <script src="{% static "js/handle_latex_report.js" %}"></script>
+{% endblock js %}

@@ -1,4 +1,4 @@
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 i18n %}
 <div class="mb-3">
   <div>
     <h2>{% translate "Authors" %}</h2>
@@ -71,7 +71,7 @@
       </div>
       <div>⇨</div>
       <div>
-        <p>DB:</p>
+        <p>{% translate "DB:" %}</p>
         <ol>
           {% for a in authors_db %}
             <li>

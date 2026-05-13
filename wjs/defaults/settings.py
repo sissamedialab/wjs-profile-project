@@ -8,7 +8,7 @@ https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 import os
 from pathlib import Path
 
-from core.janeway_global_settings import TEMPLATES
+from core.janeway_global_settings import STATIC_URL, TEMPLATES
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
@@ -65,7 +65,7 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "default@default.it"
 
 LOGIN_REDIRECT_URL = reverse_lazy("core_edit_profile")
-LOGIN_URL = reverse_lazy("core_login")
+LOGIN_URL = "/login/"
 
 # CATCHA_TYPE should be either 'simple_math', 'recaptcha' or 'hcaptcha' to enable captcha
 # fields, otherwise disabled
@@ -182,6 +182,7 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
     None: ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
     "JCOM": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
     "JCOMAL": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
+    "JCAP": ("plugins.wjs_review.events.checks_after_acceptance.jcap_ta_not_yet_confirmed",),
 }
 
 # Email addresses that must receive the notification when an article is published.
@@ -372,11 +373,15 @@ Q_CLUSTER = {
     "workers": 1,
     "sync": True,
     "redis": REDIS_QCLUSTER_URL,
-    "retry": 90,
-    "timeout": 60,
+    "retry": 330,
+    "timeout": 300,
 }
 
-
+# NB: do not change the cache backend:
+# we use `django_cache.delete_pattern()` that only works with Redis!
+# See
+# - specs#2416
+# - https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/merge_requests/1270#note_60214
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
@@ -387,12 +392,17 @@ CACHES = {
     },
 }
 
+# Seconds to keep role-for-article entries in Redis cache (15 days).
+ROLE_FOR_ARTICLE_CACHE_TTL = 1296000
+# Cache key version for role-for-article Redis entries.
+ROLE_FOR_ARTICLE_CACHE_VER = 1
+
 LOCALE_PATHS = [Path(__file__).parents[1] / "locale"]
 
 PROOFING_ASSIGNMENT_MIN_DUE_DAYS = 3
 PROOFING_ASSIGNMENT_MAX_DUE_DAYS = 7
 
-JCOMASSISTANT_URL = "http://wjs-services.ud.sissamedialab.it:1234/jcomassistant/"
+JCOMASSISTANT_URL = "http://wjs-services.ud.sissamedialab.it:1234/api/v2/"
 YAKUNIN_URL = "http://wjs-services.ud.sissamedialab.it:1235/"
 
 # Extra configuration to be added to the .ini file sent to yakunin
@@ -414,7 +424,7 @@ WJS_TYPESET_REVISION_MOCK_FILE = ""
 # We might have an issue if we want to customize this per journal, but I would leave as an issue as it has a low impact
 # for now as it's just the dashboard css
 BOOTSTRAP5 = {
-    "css_url": "/static/wjs-bootstrap/css/wjs_review.css",
+    "css_url": "/static/wjs-bootstrap/css/base.css",
     "hyphenate_attribute_prefixes": ["data", "hx", "aria"],
 }
 
@@ -428,11 +438,20 @@ WJS_SHOW_EDITOR_KEYWORDS = []
 WJS_REVIEW_CUSTOM_REPORT_FORMS = {
     None: "plugins.wjs_review.forms.JCOMReportForm",
     "JCOM": "plugins.wjs_review.forms.JCOMReportForm",
+    "JCOMAL": "plugins.wjs_review.forms.JCOMReportForm",
+    "JQuant": "plugins.wjs_review.forms.JQuantReportForm",
 }
 
 # (x,y) position of the watermark
 WATERMARK_X_POSITION = 10
 WATERMARK_Y_POSITION = 720
+
+CORE_THEMES = [
+    "OLH",
+    "material",
+    "clean",
+    "wjs-bootstrap",
+]
 
 WJS_ARTICLE_LANGUAGES = {
     None: [("eng", _("English"))],
@@ -469,8 +488,8 @@ Allow EO to hijack superusers.
 
 WJS_USE_WJS_SUBMISSION = {
     None: True,
-    "JCOM": False,
-    "JCOMAL": False,
+    "JCOM": True,
+    "JCOMAL": True,
 }
 """
 Use custom submission/revision process or the standard one.
@@ -484,3 +503,85 @@ ISSUE_TRACKER_URLS = {
 """
 URLs of the issue trackers used for the "Open Issue" button in actions section.
 """
+
+PROFILE_FIELDS = {
+    None: (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "email",
+        "gender",
+        "profession",
+        "biography",
+        "alternative_email",
+        "personal_interest",
+        "publication_alert",
+        "records_arxiv",
+        "records_inspire",
+        "records_scix",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "records_other",
+    ),
+    "JCOM": (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "email",
+        "gender",
+        "profession",
+        "biography",
+        "alternative_email",
+        "personal_interest",
+        "publication_alert",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "records_other",
+    ),
+    "JCOMAL": (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "email",
+        "gender",
+        "profession",
+        "biography",
+        "alternative_email",
+        "personal_interest",
+        "publication_alert",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "records_other",
+    ),
+    "JQuant": (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "email",
+        "gender",
+        "alternative_email",
+        "personal_interest",
+        "records_arxiv",
+        "records_inspire",
+        "records_other",
+    ),
+}
+
+SUBMISSION_KEYWORDS_INTERVAL_PER_JOURNAL = {
+    None: (1, 3),
+    "JQuant": (2, 4),
+    "JHEP": (1, 4),
+}
+
+TINYMCE_JS_URL = f"{STATIC_URL}/tinymce/tinymce.min.js"
+
+
+SUBMISSION_ARTICLE_LANGUAGES = WJS_ARTICLE_LANGUAGES
+SUBMISSION_ENABLE_FREE_KEYWORD = False

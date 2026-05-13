@@ -1,48 +1,56 @@
-{% load django_bootstrap5 wjs_review %}
-<h4 id="typesetting-assignment-{{ version.number }}">{% translate "Version files" %}</h4>
-<div class="container">
-  <div class="row">
-    {% if version.assignment.galleys_created.exists %}
-      <div class="col-4">
-        <h5>
-          <i class="bi bi-journals pe-2"></i> {% translate "Galleys" %}
-        </h5>
-        <ul class="list-group mb-0">
-          {% if workflow|is_user_one_of_the_authors:request.user %}
-            {% for galley in version.assignment.galleys_created.all %}
-              {% if galley.label|slice:":3" == "PDF" %}
-                <li class="list-group-item p-0">
-                  <a class="btn btn-link"
-                     href="{% url 'download_single_file' article.pk galley.file.pk %}">{{ galley.label }}</a>
-                </li>
-              {% endif %}
-            {% endfor %}
-          {% else %}
-            {% for galley in version.assignment.galleys_created.all %}
-              <li class="list-group-item p-0">
-                <a class="btn btn-link"
-                   href="{% url 'download_single_file' article.pk galley.file.pk %}">{{ galley.label }}</a>
-              </li>
-            {% endfor %}
+{% load django_bootstrap5 i18n wjs_review wjs_tags %}
+<h6 class="fw-bold text-primary">
+  {% translate "Typesetter files" %}
+</h6>
+{% if version.assignment.galleys_created.exists %}
+  <div class="border-bottom pb-3 mb-2">
+    <h6 class="fw-bold">
+      <i class="bi bi-journals pe-2"></i> {% translate "Galleys" %}
+    </h6>
+    <div class="d-flex gap-2">
+      {% if workflow|is_user_one_of_the_authors:request.user %}
+        {% for galley in version.assignment.galleys_created.all %}
+          {% if galley.file.original_filename|endswith:"PDF" %}
+              {# djlint:off #}
+            {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-pdf"></i>' as_button=True %}
+              {# djlint:on #}
           {% endif %}
-        </ul>
-      </div>
-    {% endif %}
-    {% if version.assignment.files_to_typeset.exists %}
-      <div class="col-4">
-        <h5>
-          <i class="bi bi-journals pe-2"></i>
-          {% translate "Source files" %}
-        </h5>
-        <ul class="list-group mb-0">
-          {% for file in version.assignment.files_to_typeset.all %}
-            <li class="list-group-item p-0">
-              <a class="btn btn-link"
-                 href="{% url 'download_single_file' file.article.pk file.pk %}">{{ file.original_filename }}</a>
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
-    {% endif %}
+        {% endfor %}
+      {% else %}
+        {% for galley in version.assignment.galleys_created.all %}
+          {% if galley.file.original_filename|endswith:"PDF" %}
+              {# djlint:off #}
+            {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-pdf"></i>' as_button=True %}
+              {# djlint:on #}
+          {% elif galley.file.original_filename|endswith:"EPUB" %}
+              {# djlint:off #}
+            {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-xml"></i>' as_button=True %}
+              {# djlint:on #}
+          {% elif galley.file.original_filename|endswith:"HTML" %}
+              {# djlint:off #}
+            {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-html"></i>' as_button=True %}
+              {# djlint:on #}
+          {% else %}
+              {# djlint:off #}
+            {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-doc"></i>' as_button=True %}
+              {# djlint:on #}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    </div>
   </div>
-</div>
+{% endif %}
+{% if version.assignment.files_to_typeset.exists %}
+  <div>
+    <h6 class="fw-bold">
+      <i class="bi bi-journals pe-2"></i> {% translate "Source files" %}
+    </h6>
+    <ul class="list-group">
+      {% for file in version.assignment.files_to_typeset.all %}
+        <li class="list-group-item">
+          {% include "wjs_review/elements/file_download_link.html" with file=file article=file.article hide_label=True %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}

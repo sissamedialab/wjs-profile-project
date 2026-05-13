@@ -338,6 +338,9 @@ def set_language_specific_field(article, field, value, clear_en=False):
 def sync_frozen_authors_with_authors(article: Article):
     """Reset frozen authors and recreate them from authors respecting the order."""
 
+    raise DeprecationWarning("Since Janeway 1.8 this does not work anymore.")
+    # FIXME: Since Janeway 1.8 this does not work anymore: one must ensure frozen authors are set during the normal
+    #  workflow
     # Sync A.authors and A.frozen_authors
     # Note that there is a pre-delete signal on FrozenAuthors
     # that removes all authors/authors-order from the article
@@ -364,7 +367,7 @@ def publish_article(article: Article):
     # see src/journal/views.py:1078
     article.stage = submission_models.STAGE_PUBLISHED
 
-    sync_frozen_authors_with_authors(article)
+    # Since Janeway 1.8 we no longer need to sync frozen authors with authors
 
     article.close_core_workflow_objects()
     if article.date_published < article.issue.date_published:

@@ -63,7 +63,7 @@ services:
       retries: 5
 
   janeway:
-    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop
+    image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:${JANEWAY_VERSION:develop}
     volumes:
       - /tmp:/host-tmp
     depends_on:

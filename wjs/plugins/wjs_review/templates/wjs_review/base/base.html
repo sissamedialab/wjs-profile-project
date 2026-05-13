@@ -1,33 +1,25 @@
 {% extends "wjs/base/base.html" %}
-{% load static %}
-
-{% block journal_css %}
-  <link rel="stylesheet" href="{% static "wjs-bootstrap/css/wjs_review.css?v=11" %}">
-{% endblock journal_css %}
-
-{% block breadcrumbs_wrapper %}
-  <nav class="container d-flex justify-content-between mb-3{% if view.breadcrumbs %} pb-3 border-bottom{% endif %}">
-    <ul class="nav breadcrumbs">
-      {% block breadcrumbs %}
-        {% if view.breadcrumbs %}
-          {% for link in view.breadcrumbs %}
-            {% include "wjs/base/elements/breadcrumb_items.html" with url=link.url title=link.title current=link.current %}
-          {% endfor %}
-        {% else %}
-          <div class="text-bg-warning">
-            DEFINE <span class="font-monospace">block breadcrumbs</span> in {{ view.template_name }}
-          </div>
-        {% endif %}
-      {% endblock breadcrumbs %}
-    </ul>
-    {% block breadcrumbs_right %}
-    {% endblock breadcrumbs_right %}
-  </nav>
-{% endblock breadcrumbs_wrapper %}
+{% load i18n static %}
 
 {% block header %}
   {% include "wjs_review/base/elements/header.html" %}
 {% endblock header %}
+
+{% block breadcrumbs_wrapper %}
+  {% if view.breadcrumbs %}
+    <nav class="container d-flex justify-content-between mb-3 pb-3 border-bottom" aria-label="{% translate "Breadcrumbs" %}">
+      <ul class="nav breadcrumbs">
+        {% block breadcrumbs %}
+          {% for link in view.breadcrumbs %}
+            {% include "wjs/base/elements/breadcrumb_items.html" with url=link.url title=link.title current=link.current is_in_list=True %}
+          {% endfor %}
+        {% endblock breadcrumbs %}
+      </ul>
+      {% block breadcrumbs_right %}
+      {% endblock breadcrumbs_right %}
+    </nav>
+  {% endif %}
+{% endblock breadcrumbs_wrapper %}
 
 {% block footer %}
   {% include "wjs_review/base/elements/footer.html" %}

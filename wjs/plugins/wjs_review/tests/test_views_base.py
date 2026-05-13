@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 from core import files as core_files
 from django.core.files import File as DjangoFile
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from typesetting.models import GalleyProofing, TypesettingAssignment
 
 from ..communication_utils import log_operation
 from ..models import ProphyAccount, WjsEditorAssignment
@@ -27,63 +27,63 @@ def test_wjs_review_archived_papers(assigned_article, client):
 
 
 @pytest.mark.django_db
-def test_wjs_review_eo_pending(journal, eo_user, client):
+def test_wjs_review_eo_pending(journal, eo_user, client, install_wjs_submission_settings):
     client.force_login(eo_user)
     response = client.get(f"/{journal.code}/plugins/wjs-review-articles/eo/pending/")
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_wjs_review_eo_archived(journal, eo_user, client):
+def test_wjs_review_eo_archived(journal, eo_user, client, install_wjs_submission_settings):
     client.force_login(eo_user)
     response = client.get(f"/{journal.code}/plugins/wjs-review-articles/eo/archived/")
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_wjs_review_eo_production(journal, eo_user, client):
+def test_wjs_review_eo_production(journal, eo_user, client, install_wjs_submission_settings):
     client.force_login(eo_user)
     response = client.get(f"/{journal.code}/plugins/wjs-review-articles/eo/production/")
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_wjs_review_eo_workon(journal, eo_user, client):
+def test_wjs_review_eo_workon(journal, eo_user, client, install_wjs_submission_settings):
     client.force_login(eo_user)
     response = client.get(f"/{journal.code}/plugins/wjs-review-articles/eo/workon/")
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_wjs_review_director_pending(journal, director, client):
+def test_wjs_review_director_pending(journal, director, client, install_wjs_submission_settings):
     client.force_login(director)
     response = client.get(f"/{journal.code}/plugins/wjs-review-articles/director/pending/")
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_wjs_review_director_archived(journal, director, client):
+def test_wjs_review_director_archived(journal, director, client, install_wjs_submission_settings):
     client.force_login(director)
     response = client.get(f"/{journal.code}/plugins/wjs-review-articles/director/archived/")
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_wjs_review_director_workon(journal, director, client):
+def test_wjs_review_director_workon(journal, director, client, install_wjs_submission_settings):
     client.force_login(director)
     response = client.get(f"/{journal.code}/plugins/wjs-review-articles/director/workon/")
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_wjs_review_author_pending(assigned_article, client):
+def test_wjs_review_author_pending(assigned_article, client, install_wjs_submission_settings):
     client.force_login(assigned_article.correspondence_author)
     response = client.get(f"/{assigned_article.journal.code}/plugins/wjs-review-articles/author/pending/")
     assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_wjs_review_author_archived(assigned_article, client):
+def test_wjs_review_author_archived(assigned_article, client, install_wjs_submission_settings):
     client.force_login(assigned_article.correspondence_author)
     response = client.get(f"/{assigned_article.journal.code}/plugins/wjs-review-articles/author/archived/")
     assert response.status_code == 200
@@ -254,7 +254,7 @@ def test_wjs_invite_reviewer_prophy(assigned_article, eo_user, client):
 
 
 @pytest.mark.django_db
-def test_wjs_article_details(assigned_article, eo_user, client):
+def test_wjs_article_details(assigned_article, eo_user, client, install_wjs_submission_settings):
     client.force_login(eo_user)
     response = client.get(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/status/{assigned_article.articleworkflow.pk}/"

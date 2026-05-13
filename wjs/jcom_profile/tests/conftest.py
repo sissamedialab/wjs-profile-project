@@ -25,6 +25,7 @@ from journal import models as journal_models
 from journal.models import Issue, IssueType, Journal
 from press.models import Press
 from submission import models as submission_models
+from submission.logic import add_author_using_email
 from submission.models import Section
 from utils import setting_handler
 from utils.install import (
@@ -88,9 +89,11 @@ EXTRAFIELDS_FRAGMENTS_PRESS = EXTRAFIELDS_FRAGMENTS + [
     'privacy/">Privacy Policy</a></span>',
 ]
 
-ASSIGNMENT_PARAMETERS_SPAN = """<span class="card-title">Edit assignment parameters</span>"""  # noqa
+ASSIGNMENT_PARAMETERS_LINK = (
+    '<a class="wjs-profile-nav__link" href="/JCOM/update/parameters/">Edit assignment parameters</a>'
+)
 
-ASSIGNMENT_PARAMS = """<span class="card-title">Edit assignment parameters</span>"""
+ASSIGNMENT_PARAMS = """Edit assignment parameters</a>"""
 
 
 @pytest.fixture
@@ -481,7 +484,7 @@ def jcom_doi_prefix(journal: Journal):
 
 
 @pytest.fixture
-def journal_factory(press):
+def journal_factory(press, roles):
     """Provide a factory to create a journal."""
 
     def create_journal(code):
@@ -522,7 +525,8 @@ def _article(author, coauthor, journal, sections, submitted=False):
         section=random.choice(sections),
         language="eng",
     )
-    article.authors.add(author, coauthor)
+    add_author_using_email(author.email, article)
+    add_author_using_email(coauthor.email, article)
     for file_ext in ["_es.pdf", "_en.pdf", ".epub"]:
         file_obj = File.objects.create(original_filename=f"JCOM_0101_2022_R0{article.pk}{file_ext}")
         article.manuscript_files.add(file_obj)

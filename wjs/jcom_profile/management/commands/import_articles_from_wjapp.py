@@ -17,7 +17,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from identifiers import models as identifiers_models
 from journal.models import Issue, IssueType, Journal
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic import (
     EditorRevisionRequest,
     PermissionAssignment,
@@ -37,6 +36,7 @@ from review.models import (
 )
 from submission import models as submission_models
 from submission.models import Licence
+from typesetting.models import TypesettingAssignment, TypesettingRound
 
 import wjs.jcom_profile.import_file_manager as import_file_manager
 import wjs.jcom_profile.import_logic as import_logic
@@ -214,7 +214,7 @@ class Command(BaseCommand):
 
             if not http_ba_username and self.journal.code.upper() == "JCOM":
                 import_logic.logger.error(
-                    f"Missing Basic Authentication username for {self.journal.code.upper()}. "
+                    f"Missing Basic Authentication username for {self.journal.code}. "
                     f"Check your django settings to proceed."
                 )
                 return 1

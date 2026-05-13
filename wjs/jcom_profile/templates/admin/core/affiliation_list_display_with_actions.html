@@ -1,0 +1,41 @@
+{% load django_bootstrap5 i18n next_url %}
+
+{# djlint:off H025 #}
+{% translate "<i class=\"bi bi-pencil\"></i> Edit" as edit_label %}
+{% translate "<i class=\"bi bi-trash\"></i> Delete" as delete_label %}
+{% translate "<i class=\"bi bi-arrow-repeat\"></i> Get primary affiliation from ORCID" as primary_label %}
+{% translate "<i class=\"bi bi-arrow-repeat\"></i> Update all affiliations from ORCID" as all_label %}
+{% translate "<i class=\"bi bi-plus\"></i> Add affiliation" as add_affiliation %}
+{# djlint:on #}
+
+<div class="d-flex flex-column gap-3 mb-4">
+  {% for affiliation in interface.affiliations %}
+      <div class="wjs-profile-form__affiliation">
+        <div class="wjs-profile-form__affiliation-info">
+            {% include "admin/core/affiliation_display.html" with affiliation=affiliation display_primary=True %}
+        </div>
+        <div class="d-flex flex-row gap-3">
+          {% url_with_return 'core_affiliation_update' affiliation.pk as edit_url %}
+          {% url_with_return 'core_affiliation_delete' affiliation.pk as remove_url %}
+
+          {% bootstrap_button button_class="btn-outline-primary" href=edit_url button_type="link" content=edit_label %}
+          {% bootstrap_button button_class="btn-outline-secondary" href=remove_url button_type="link" content=delete_label %}
+        </div>
+      </div>
+  {% empty %}
+    <div class="alert alert-info">{% translate "Please select your affiliation(s)" %}</div>
+  {% endfor %}
+</div>
+
+<div class="wjs-profile-form__affiliations-actions">
+  {% url_with_return 'core_affiliation_update_from_orcid' 'primary' as primary_url %}
+  {% url_with_return 'core_affiliation_update_from_orcid' 'all' as all_url %}
+  {% url_with_return 'core_organization_search' as create_url %}
+
+  {% if interface.orcid %}
+    {% bootstrap_button button_class="btn-outline-primary" href=primary_url button_type="link" content=primary_label %}
+    {% bootstrap_button button_class="btn-outline-primary" href=all_url button_type="link" content=all_label %}
+  {% endif %}
+  {% bootstrap_button button_class="btn-outline-primary" href=create_url button_type="link" content=add_affiliation %}
+
+</div>

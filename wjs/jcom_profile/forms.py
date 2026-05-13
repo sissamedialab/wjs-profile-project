@@ -4,11 +4,10 @@ import re
 import uuid
 
 from core import models as core_models
-from core.forms import EditAccountForm
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db.models import Count
+from django.db.models import BLANK_CHOICE_DASH, Count, QuerySet
 from django.forms import ModelForm, inlineformset_factory
 from django.urls import reverse
 from django.utils import timezone
@@ -28,7 +27,6 @@ from submission.forms import (
     SubmissionCommentsForm,
 )
 from submission.models import Keyword, Section
-from utils import logic as utils_logic
 from utils.forms import CaptchaForm, JanewayTranslationModelForm
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
@@ -38,13 +36,12 @@ from wjs.jcom_profile.models import WjsSimpleBleach
 from .constants import ORCID_VALIDATION_REGEXP
 from .models import (
     JCOMProfile,
-    Recipient,
     StaffKeyword,
     StaffWorkloadParameters,
     WjsMiniHTMLFormField,
 )
-from .settings_helpers import get_article_language_choices, get_journal_language_choices
-from .templatetags.wjs_tags import display_title
+from .settings_helpers import get_article_language_choices
+from .templatetags.wjs_tags import display_title, is_field_available
 
 logger = get_logger(__name__)
 
@@ -93,68 +90,6 @@ def validate_orcid(value):
         )
 
 
-class JCOMProfileForm(EditAccountForm):
-    """Additional fields of the JCOM profile."""
-
-    email = forms.EmailField(label=_("Email"), required=False)
-    current_password = forms.CharField(widget=forms.PasswordInput, label=_("Current Password"), required=False)
-    new_password_one = forms.CharField(widget=forms.PasswordInput, label=_("New Password"), required=False)
-    new_password_two = forms.CharField(widget=forms.PasswordInput, label=_("Repeat New Password"), required=False)
-    gdpr_checkbox = forms.BooleanField(
-        initial=False,
-        required=True,
-        label=_("By registering an account you agree to our Privacy Policy"),
-    )
-    twitter = forms.CharField(label=_("X.com handle"), required=False)
-    orcid = forms.CharField(
-        label=_("ORCID ID"),
-        validators=[validate_orcid],
-        widget=forms.TextInput(
-            attrs={
-                "placeholder": "0000-0000-0000-0000",
-                "pattern": ORCID_VALIDATION_REGEXP,
-                "title": _("Please provide the ORCID using only the id notation: 0000-0000-0000-0000"),
-                "minlength": "19",
-                "maxlength": "19",
-            },
-        ),
-        required=False,
-    )
-
-    class Meta:
-        model = JCOMProfile
-        exclude = (
-            "email",
-            "username",
-            "activation_code",
-            "email_sent",
-            "date_confirmed",
-            "confirmation_code",
-            "is_active",
-            "is_staff",
-            "is_admin",
-            "date_joined",
-            "password",
-            "is_superuser",
-            "janeway_account",
-            "invitation_token",
-            "interests",
-        )
-
-    def __init__(self, *args, **kwargs):
-        """Set the required fields."""
-        self.journal = kwargs.pop("journal")
-        super().__init__(*args, **kwargs)
-        privacy_url = _get_privacy_url(self.journal)
-        self.fields["department"].required = False
-        self.fields["institution"].required = True
-        self.fields["country"].required = True
-        self.fields["keywords"].queryset = Keyword.objects.exclude(word_en="").order_by("word_en")
-        self.fields["gdpr_checkbox"].label = mark_safe(
-            _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
-        )
-
-
 class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
     """
     A form that creates a user.
@@ -179,9 +114,6 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
             "first_name",
             "middle_name",
             "last_name",
-            "department",
-            "institution",
-            "country",
             "profession",
             "gdpr_checkbox",
         )
@@ -194,6 +126,13 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         self.fields["gdpr_checkbox"].label = mark_safe(
             _('By registering an account you agree to our <a href="%s">Privacy Policy</a>') % privacy_url,
         )
+        if not is_field_available(self.journal, "profession"):
+            self.fields["profession"].required = False
+            self.fields["profession"].widget = forms.HiddenInput()
+        self.fields["first_name"].required = False
+        for field in self.fields:
+            if self.fields[field].required:
+                self.fields[field].help_text = _("Required")
 
     def clean_password_2(self):
         """Validate password."""
@@ -369,7 +308,6 @@ class IMUEditExistingAccounts(forms.ModelForm):
             "middle_name",
             "last_name",
             "email",
-            "institution",
         ]
 
 
@@ -398,72 +336,6 @@ class IMUHelperForm(forms.Form):
     title = forms.CharField(max_length=999, required=False, strip=True, empty_value=None)
 
 
-class NewsletterTopicForm(forms.ModelForm):
-    topics = forms.ModelMultipleChoiceField(
-        label="",
-        queryset=None,
-        widget=forms.CheckboxSelectMultiple,
-        required=False,
-    )
-    news = forms.BooleanField(required=False, label=_("I want to receive alerts about news published in the journal."))
-    language = forms.ChoiceField(
-        required=True,
-        label=_("Preferred language for alerts"),
-        choices=settings.LANGUAGES,
-    )
-
-    class Meta:
-        model = Recipient
-        fields = (
-            "topics",
-            "news",
-            "language",
-        )
-
-    def __init__(self, *args, **kwargs):
-        """Prepare the queryset for topics."""
-        self.base_fields["topics"].queryset = kwargs.get("instance").journal.keywords.all().order_by("word")
-
-        # Manage the language field's choices
-        request = utils_logic.get_current_request()
-        available_languages = []
-        if request and request.journal:
-            available_languages = get_journal_language_choices(request.journal)
-
-        super().__init__(*args, **kwargs)
-
-        if len(available_languages) > 1:
-            self.fields["language"].choices = available_languages
-        else:
-            # Let's hide the language select if there is only one choice
-            del self.fields["language"]
-
-    def clean(self):
-        """
-        Log a warning if the user choose no topics and no news.
-
-        We do _not_ raise a Validation error untill specs#474 is done.
-        """
-        cleaned_data = super().clean()
-
-        topics = cleaned_data.get("topics")
-        news = cleaned_data.get("news")
-        if len(topics) == 0 and news is False:
-            logger.warning(f"Recipient {self.instance.email}/{self.instance.user} selected no topics and no news.")
-            # after #474 # raise ValidationError(
-            # after #474 #     _('You have selected no news and no topics.
-            # after #474 #        Please either choose something or click "Unsubscribe".'),
-            # after #474 # )
-
-        return cleaned_data
-
-
-class RegisterUserNewsletterForm(CaptchaForm):
-    """Register an Anonymous user to a newsletter."""
-
-    email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={"placeholder": _("Your email address")}))
-
-
 class SearchForm(JanewaySearchForm):
     SEARCH_FILTERS = [
         "title",
@@ -482,13 +354,13 @@ class SearchForm(JanewaySearchForm):
     )
     sections = forms.ModelMultipleChoiceField(
         label=_("Filter by article type"),
-        queryset=Section.objects.all(),
+        queryset=Section.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
     )
     keywords = forms.ModelMultipleChoiceField(
         label=_("Filter by keyword"),
-        queryset=Keyword.objects.all(),
+        queryset=Keyword.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
     )
@@ -512,7 +384,7 @@ class SearchForm(JanewaySearchForm):
     )
     identifier_type = forms.ChoiceField(
         label=_("Identifier type"),
-        choices=identifier_choices,
+        choices=(tuple(BLANK_CHOICE_DASH) + identifier_choices),
         required=False,
     )
     article_title = forms.CharField(
@@ -555,6 +427,8 @@ class SearchForm(JanewaySearchForm):
             journal=self.journal,
             is_filterable=True,
         ).order_by("sequence", "name")
+        if self.fields["sections"].queryset.count() < 2:
+            self.fields["sections"].widget = forms.HiddenInput()
         self.fields["keywords"].queryset = (
             Keyword.objects.filter(
                 article__journal=self.journal,
@@ -564,6 +438,42 @@ class SearchForm(JanewaySearchForm):
             .annotate(articles_count=Count("article"))
             .order_by("word")
         )
+        if self.fields["keywords"].queryset.count() < 2:
+            self.fields["keywords"].widget = forms.HiddenInput()
+
+    @property
+    def selected_filters(self):
+        """
+        Filters and their values selected by the user, keyed by their label.
+
+        All non-empty values are returned as list of items to simplify rendering in the template.
+        """
+        text_fields = {
+            "article_search": _("Text"),
+            "sections": _("Article type"),
+            "keywords": _("Keywords"),
+            "year": _("Year"),
+            "article_identifier": _("Identifier"),
+            "identifier_type": _("Identifier type"),
+            "article_title": _("Title"),
+            "article_abstract": _("Abstract"),
+            "article_authors": _("Authors name"),
+            "date_from": _("From"),
+            "date_to": _("To"),
+        }
+        # Filter field data to remove empty valuers and convert each item to a list of values
+        non_empty_values = {
+            field: (
+                self.cleaned_data.get(field, [])
+                if isinstance(self.cleaned_data.get(field, None), (list, tuple, QuerySet))
+                else [self.cleaned_data.get(field, None)]
+            )
+            for field in text_fields.keys()
+            if self.cleaned_data.get(field, None)
+        }
+        if "article_identifier" not in non_empty_values and "identifier_type" in non_empty_values:
+            del non_empty_values["identifier_type"]
+        return {text_fields[field]: value for field, value in non_empty_values.items()}
 
     def get_search_filters(self) -> dict[str, str]:
         """Generate a dictionary of search_filters from a search form."""

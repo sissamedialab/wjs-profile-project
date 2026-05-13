@@ -1,0 +1,28 @@
+{% extends "wjs/profile/base.html" %}
+
+{% load django_bootstrap5 i18n next_url static %}
+
+{% block page_title %}{% translate "Confirm removal of affiliation" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Confirm removal of affiliation" %}</h1>
+
+  <div class="mb-4">
+    {% include "admin/core/affiliation_display.html" %}
+  </div>
+
+  <div class="alert alert-warning">
+    <p class="mb-0">{% translate "Are you sure you want to remove this affiliation?" %}</p>
+  </div>
+
+  <form method="post" class="wjs-profile-form">
+    {% csrf_token %}
+    <div class="d-flex gap-2 justify-content-end">
+      {% translate "Yes, remove" as remove_label %}
+      {% bootstrap_button content=remove_label button_type="submit" button_class="btn-primary" %}
+      <a href="{{ request.GET.next }}" class="btn btn-outline-secondary">
+        {% translate "Cancel" %}
+      </a>
+    </div>
+  </form>
+{% endblock profile_form %}

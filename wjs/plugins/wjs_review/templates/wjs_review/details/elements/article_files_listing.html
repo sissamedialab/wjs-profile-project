@@ -1,106 +1,68 @@
-{% load wjs_permissions wjs_review wjs_tags %}
+{% load i18n wjs_permissions wjs_review wjs_tags %}
 <ul class="list-group mb-3">
-  {% if production %}
-    {% if article.galley_set.exists %}
-      <li class="list-group-item fw-bold">
-        {% translate "Rendered Galleys" %}
-        <ul class="list-group mb-1">
-          {% for file in article.galley_set.all %}
-            {% if galley.file_id %}
-              <li class="list-group-item">
-                <a class="btn btn-link" href="{% url 'download_single_file' article.pk galley.file_id %}" target="_blank">{{ galley.file.original_filename }} {{ galley.label }}</a>
-              </li>
-            {% endif %}
-          {% empty %}
+  {% if production and version.galleyproofing.proofed_files.exists %}
+    <li class="list-group-item fw-bold">
+      {% translate "Manuscript Files" %}
+      <ul class="list-group mb-1">
+        {% for file in version.galleyproofing.proofed_files.all %}
+          {% if galley.file_id %}
             <li class="list-group-item">
-              {% translate "no galleys yet" %}
+              {% include "wjs_review/elements/file_download_link.html" with file=galley article=article hide_label=True %}
             </li>
-          {% endfor %}
+          {% endif %}
+        {% empty %}
+          <li class="list-group-item">
+            {% translate "no galleys yet" %}
+          </li>
+        {% endfor %}
+      </ul>
+    </li>
+  {% else %}
+    <li class="list-group-item fw-bold">
+      {% translate "Manuscript Files" %}
+      <ul class="list-group mb-1">
+        {% for file in article.manuscript_files.all %}
+          <li class="list-group-item">
+            {% include "wjs_review/elements/file_download_link.html" with file=file article=article hide_label=True %}
+          </li>
+        {% endfor %}
+      </ul>
+    </li>
+  {% endif %}
+
+  {% if production_versions and typeset_files %}
+    {% user_has_access_to workflow=workflow user=request.user target=production_versions.0.assignment permission_type=BinaryPermissionType.ALL review_round=production_versions.0.number secondary_permission=True as typeset_files %}
+      <li class="list-group-item fw-bold">
+        {% translate "Files to typeset" %}
+        <ul class="list-group mb-1">
+          <li class="list-group-item">
+              {% translate "Download files to typeset" as files_to_typeset_label %}
+              {% include "wjs_review/elements/file_download_link.html" with label=files_to_typeset_label article=article revision_view=True %}
+          </li>
         </ul>
       </li>
-    {% endif %}
-
+  {% else %}
     {% if article.source_files.exists %}
       <li class="list-group-item fw-bold">
         {% translate "Source Files" %}
         <ul class="list-group mb-1">
           {% for file in article.source_files.all %}
             <li class="list-group-item">
-              <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
+              {% include "wjs_review/elements/file_download_link.html" with file=file article=article hide_label=True %}
             </li>
           {% endfor %}
         </ul>
       </li>
     {% endif %}
-
-    {% if version.round.article.articleworkflow.supplementary_files_at_acceptance.exists %}
-      <li class="list-group-item fw-bold">
-        {% translate "Supplementary files at acceptance" %}
-        <ul class="list-group mb-1">
-          {% for file in version.round.article.articleworkflow.supplementary_files_at_acceptance.all %}
-            <li class="list-group-item"><a href="{% url 'download_single_file' version.round.article.pk file.file.pk %}">{{ file.file.original_filename }}</a></li>
-          {% endfor %}
-        </ul>
-      </li>
-    {% endif %}
-    {% if production_versions %}
-      {% user_has_access_to workflow=workflow user=request.user target=production_versions.0.assignment permission_type=BinaryPermissionType.ALL review_round=production_versions.0.number secondary_permission=True as typeset_files %}
-      {% if typeset_files %}
-        <li class="list-group-item fw-bold">
-          {% translate "Files to typeset" %}
-          <ul class="list-group mb-1">
-            <li class="list-group-item">
-              <a class="btn btn-link" href="{% url 'download_revision_files' pk=workflow.pk %}" target="_blank">{% translate "Download files to typeset" %}</a>
-            </li>
-          </ul>
-        </li>
-      {% endif %}
-    {% endif %}
   {% endif %}
 
-  <li class="list-group-item fw-bold">
-    {% translate "Manuscript Files" %}
-    <ul class="list-group mb-1">
-      {% for file in article.manuscript_files.all %}
-        <li class="list-group-item">
-          <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
-        </li>
-      {% endfor %}
-    </ul>
-  </li>
-
-  {% if article.data_figure_files.exists %}
-    <li class="list-group-item fw-bold">
-      {{ journal_settings.styling.submission_figures_data_title|safe }}
-      <ul class="list-group mb-1">
-        {% for file in article.data_figure_files.all %}
-          <li class="list-group-item">
-            <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
-          </li>
-        {% endfor %}
-      </ul>
-    </li>
-  {% endif %}
-
-  {% if article.supplementary_files.exists %}
-    <li class="list-group-item fw-bold">
-      {% translate "Supplementary Files" %}
-      <ul class="list-group mb-1">
-        {% for file in article.supplementary_files.all %}
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.file.pk %}" target="_blank">{{ file.file.original_filename }}</a>
-          </li>
-        {% endfor %}
-      </ul>
-    </li>
-  {% endif %}
   {% if article.submission_data.cas %}
     <li class="list-group-item fw-bold">
       {% translate "CAS Declaration" %}
       <ul class="list-group mb-1">
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            {{ article.submission_data.get_cas_display }}<br>{% if article.submission_data.cas_url %}<a href="{{ article.submission_data.cas_url }}" target="_blank">{{ article.submission_data.cas_url }}</a>{% endif %}
-          </li>
+        <li class="list-group-item fw-medium">
+          {{ article.submission_data.get_cas_display }}<br>{% if article.submission_data.cas_url %}<a href="{{ article.submission_data.cas_url }}" target="_blank">{{ article.submission_data.cas_url }}</a>{% endif %}
+        </li>
       </ul>
     </li>
   {% endif %}
@@ -109,25 +71,10 @@
     <li class="list-group-item fw-bold">
       {% translate "DAS Declaration" %}
       <ul class="list-group mb-1">
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            {{ article.submission_data.get_das_display }}<br>{% if article.submission_data.das_url %}<a href="{{ article.submission_data.das_url }}" target="_blank">{{ article.submission_data.das_url }}</a>{% endif %}
-          </li>
+        <li class="list-group-item fw-medium">
+          {{ article.submission_data.get_das_display }}<br>{% if article.submission_data.das_url %}<a href="{{ article.submission_data.das_url }}" target="_blank">{{ article.submission_data.das_url }}</a>{% endif %}
+        </li>
       </ul>
     </li>
-  {% endif %}
-
-  {% if article.submission_data.administrative_files.exists %}
-    {% if request.user|is_user_eo or workflow|is_user_article_author:request.user %}
-      <li class="list-group-item fw-bold">
-        {% translate "Administrative Files" %}
-        <ul class="list-group mb-1">
-          {% for file in article.submission_data.administrative_files.all %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              <a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a>
-            </li>
-          {% endfor %}
-        </ul>
-      </li>
-    {% endif %}
   {% endif %}
 </ul>

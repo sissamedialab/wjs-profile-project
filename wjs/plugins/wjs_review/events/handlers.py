@@ -14,7 +14,6 @@ from events import logic as events_logic
 from plugins.wjs_submission.models import ArticleSubmission
 from submission import logic as submission_logic
 from submission import models as submission_models
-from utils import setting_handler
 from utils.logger import get_logger
 
 from wjs.jcom_profile.utils import render_template_from_setting
@@ -56,22 +55,13 @@ def on_article_submission_start(**kwargs) -> None:
     """Assign current user as main author."""
     article = kwargs["article"]
     request = kwargs["request"]
-    user_automatically_author = setting_handler.get_setting(
-        "general",
-        "user_automatically_author",
-        request.journal,
-    ).processed_value
-    user_automatically_main_author = setting_handler.get_setting(
-        "general",
-        "user_automatically_main_author",
-        request.journal,
-    ).processed_value
 
-    if user_automatically_main_author and user_automatically_author:
-        submission_logic.add_user_as_author(request.user, article)
-        if user_automatically_main_author:
-            article.correspondence_author = request.user
-            article.save()
+    # Janeway 1.8 always add the current user as correspondence author
+    # FIXME: Article.authors and related methods has been deprecated. To reduce the impact of the migration we are
+    #   going to keep its usage, removing in the future
+    submission_logic.add_user_as_author(request.user, article)
+    article.correspondence_author = request.user
+    article.save()
 
 
 def process_submission(**kwargs) -> None:
@@ -194,7 +184,7 @@ def notify_coauthors_article_submission(**kwargs):
     #  notify coauthors
     article = kwargs["article"]
     request = kwargs["request"]
-    if article.authors.count() == 1:
+    if article.author_accounts.count() == 1:
         # no co-authors (only the correspondence author)
         return
 
@@ -212,7 +202,7 @@ def notify_coauthors_article_submission(**kwargs):
     )
 
     # Send per-coauthor customized notifications
-    coauthors = [c for c in article.authors.all() if c != article.correspondence_author]
+    coauthors = [c for c in article.author_accounts if c != article.correspondence_author]
     for coauthor in coauthors:
         # we call the recipient "author" because thus the template is easier to read
         context["author"] = coauthor
@@ -328,14 +318,19 @@ def _run_conversion(
     file_id: int,
     feedback_ws_url: str | None = None,
     feedback_ws_name: str | None = None,
+    feedback_uuid: str | None = None,
     *,
     is_revision: bool = False,
 ):
+    logger.info(
+        f"Running conversion for {article_id} - {file_id} - {feedback_ws_url} - {feedback_uuid} - {is_revision}"
+    )
     conversion = ConvertManuscriptToPdf(
         article_id=article_id,
         file_id=file_id,
         feedback_ws_url=feedback_ws_url,
         feedback_ws_name=feedback_ws_name,
+        feedback_uuid=feedback_uuid,
         is_revision=is_revision,
     )
     conversion.run()
@@ -348,6 +343,7 @@ def convert_manuscript_to_pdf(**kwargs) -> None:
     file_obj = kwargs["file_id"]  # Upstream misnomer
     feedback_ws_url = kwargs.get("feedback_ws_url")
     feedback_ws_name = kwargs.get("feedback_ws_name")
+    feedback_uuid = kwargs.get("feedback_uuid")
     is_revision = kwargs.get("is_revision", False)
 
     if file_type.startswith("manuscript"):
@@ -358,6 +354,7 @@ def convert_manuscript_to_pdf(**kwargs) -> None:
                 file_id=file_obj.pk,
                 feedback_ws_url=feedback_ws_url,
                 feedback_ws_name=feedback_ws_name,
+                feedback_uuid=feedback_uuid,
                 is_revision=is_revision,
             )
         else:

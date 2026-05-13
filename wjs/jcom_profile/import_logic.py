@@ -21,11 +21,6 @@ from django.core.files import File as DjangoFile
 from django.db.models import Q
 from django.utils import timezone
 from journal.models import Journal
-from plugins.typesetting.models import (
-    GalleyProofing,
-    TypesettingAssignment,
-    TypesettingRound,
-)
 from plugins.wjs_review import communication_utils
 from plugins.wjs_review.logic import (
     AssignToEditor,
@@ -64,6 +59,8 @@ from plugins.wjs_review.permissions import is_article_typesetter
 from plugins.wjs_review.utils import get_report_form
 from review.models import ReviewRound
 from submission import models as submission_models
+from submission.models import FrozenAuthor
+from typesetting.models import GalleyProofing, TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -1379,7 +1376,7 @@ WHERE editorCod=%(editor_cod)s
         if not editor_maxworkload:
             editor_maxworkload = 1
             logger.warning(
-                f"{self.journal.code.upper()} ST: Missing editor max workload, forced to 1 "
+                f"{self.journal.code} ST: Missing editor max workload, forced to 1 "
                 f"{self.article.id} / {self.preprintid}"
             )
             # import JHEP/JCAP ST exception not raised ValueError("Missing editor max workload")
@@ -1489,17 +1486,15 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
             # be added to all authors: JCOM_028A_1024
 
             if author != self.article.correspondence_author:
-                order = len(self.article.authors.all()) + 1
+                order = len(self.article.author_accounts.all()) + 1
 
-                submission_models.ArticleAuthorOrder.objects.create(
+                submission_models.FrozenAuthor.objects.create(
                     article=self.article,
                     author=author,
                     order=order,
                 )
                 if not author.check_role(self.journal, "author", staff_override=False):
                     author.add_account_role("author", self.journal)
-                self.article.authors.add(author)
-                self.article.save()
 
             with freezegun.freeze_time(
                 self.article.date_submitted,
@@ -1651,8 +1646,7 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
                     f"fix for {self.preprintid}/{self.imported_version_num} "
                     f" removed author {self.editor_to_assign} (coauthor as editor known case)"
                 )
-                self.article.authors.remove(self.editor_to_assign)
-                self.article.save()
+                FrozenAuthor.objects.filter(article=self.article, author=self.editor_to_assign).delete()
 
             self.deselect_editor_as_reviewer()
 
@@ -3872,10 +3866,8 @@ class SelectCoauthorAction(BaseActionManager):
         ):
             if not coauthor.check_role(self.journal, "author", staff_override=False):
                 coauthor.add_account_role("author", self.journal)
-            self.article.authors.add(coauthor)
-            self.article.save()
-            order = len(self.article.authors.all())
-            submission_models.ArticleAuthorOrder.objects.get_or_create(
+            order = self.article.next_frozen_author_order()
+            submission_models.FrozenAuthor.objects.get_or_create(
                 article=self.article,
                 author=coauthor,
                 defaults={
@@ -3915,7 +3907,7 @@ class SwapCorrespondenceAuthor(BaseActionManager):  # noqa N801
             self.connection,
         )
         logger.debug(f"swap corresponding author, new: {new_author}")
-        assert new_author in self.article.authors.all()
+        assert new_author in self.article.author_accounts.all()
 
         # when the action swaps between the past author of version 1
         # added at first action SYS_ASS_ED and the current correspondence

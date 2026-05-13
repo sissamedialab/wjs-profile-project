@@ -32,3 +32,6 @@ jcomassistant.log
 .emacs.desktop*
 .aider*
 tmp
+.DS_Store
+
+setup-docs/configs/**/*.csv

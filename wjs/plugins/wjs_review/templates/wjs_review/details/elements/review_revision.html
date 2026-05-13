@@ -1,4 +1,4 @@
-{% load static wjs_review %}
+{% load i18n static wjs_review %}
 
 <div class="accordion-item">
   <h2 class="accordion-header" id="heading-revision-{{ version.number }}">
@@ -10,40 +10,48 @@
       <ul class="list-group m-0 p-0">
         {% if article_info.manuscript_files.exists %}
           <li class="list-group-item fw-bold">
-            {% translate "Files" %}
+            {% translate "PDF File" %}
             <ul class="list-group mb-1">
               {% for file in article_info.manuscript_files.all %}
-                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a></li>
+                <li class="list-group-item">
+                  {% include "wjs_review/elements/file_download_link.html" with file=file article=article hide_label=True %}
+                </li>
               {% endfor %}
             </ul>
           </li>
         {% endif %}
         {% if article_info.source_files.exists %}
           <li class="list-group-item fw-bold">
-            {% translate "Source Files" %}
+            {% translate "Source File" %}
             <ul class="list-group mb-1">
               {% for file in article_info.source_files.all %}
-                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a></li>
+                <li class="list-group-item">
+                  {% include "wjs_review/elements/file_download_link.html" with file=file article=article hide_label=True %}
+                </li>
               {% endfor %}
             </ul>
           </li>
         {% endif %}
-        {% if article_info.data_figure_files.exists %}
+        {% if workflow|is_user_article_author_or_eo:request.user and article_info.data_figure_files.exists %}
           <li class="list-group-item fw-bold">
-            {% translate "Data / Figures" %}
+            <span title="{% translate "Administrative files, data/figure files that will not be published" %}">{{ journal_settings.styling.submission_figures_data_title|safe }}</span>
             <ul class="list-group mb-1">
               {% for file in article_info.data_figure_files.all %}
-                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk file.pk %}" target="_blank">{{ file.original_filename }}</a></li>
+                <li class="list-group-item">
+                  {% include "wjs_review/elements/file_download_link.html" with file=file article=article %}
+                </li>
               {% endfor %}
             </ul>
           </li>
         {% endif %}
         {% if article_info.supplementary_files.exists %}
           <li class="list-group-item fw-bold">
-            {% translate "Supplementary files" %}
+            <span title="{% translate "Electronic supplementary material to be published alongside the paper" %}">{% translate "Supplementary files" %}</span>
             <ul class="list-group mb-1">
               {% for supp_file in article_info.supplementary_files.all %}
-                <li class="list-group-item"><a class="btn btn-link" href="{% url 'download_single_file' article.pk supp_file.file.pk %}" target="_blank">{{ supp_file.file.original_filename }}</a></li>
+                <li class="list-group-item">
+                  {% include "wjs_review/elements/file_download_link.html" with file=supp_file.file article=article %}
+                </li>
               {% endfor %}
             </ul>
           </li>

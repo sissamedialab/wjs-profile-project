@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_review wjs_tags static %}
+{% load django_bootstrap5 i18n static wjs_review wjs_tags %}
 {% load wjs_review %}
 {% translate "Select" as select_label %}
 {% translate "Search" as search_label %}
@@ -28,6 +28,7 @@
         hx-target="#new-editor-form"
         hx-swap="innerHTML"
         hx-on::after-request="document.getElementById('new-editor-form').style.display = 'block';">
+      <label class="form-check-label visually-hidden" for="selected-editor-{{ user.pk }}">{{ select_label }} {{ user.get_full_name }}</label>
     </td>
   </tr>
 {% endfor %}

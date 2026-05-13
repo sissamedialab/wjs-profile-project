@@ -1,0 +1,14 @@
+{% extends "wjs/profile/base.html" %}
+{% load django_bootstrap5 i18n static %}
+
+{% block page_title %}{% translate "Publication alert" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Publication alert" %}</h1>
+  <p>
+    {% blocktranslate with journal_code=object.journal.code journal_name=object.journal.name %}
+    Thank you for unsubscribing from {{ journal_name }} publication alert.<br>
+    You can subscribe again at any time form the <a href="/">{{ journal_name }} home page</a>.
+    {% endblocktranslate %}
+  </p>
+{% endblock profile_form %}

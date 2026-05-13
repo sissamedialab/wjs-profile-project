@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import pycountry
 from core.models import Account
 from django import template
+from django.forms import BoundField
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -12,7 +13,9 @@ from django.utils.safestring import mark_safe
 from django.utils.timezone import localtime, now
 from django.utils.translation import gettext_lazy as _
 from journal.models import Issue
+from submission.models import Article
 
+from wjs.defaults import settings
 from wjs.jcom_profile.permissions import has_eo_or_director_role, has_eo_role
 from wjs.jcom_profile.utils import citation_name
 
@@ -46,6 +49,14 @@ def get_value(dictionary, key):
 
 
 @register.filter
+def endswith(word: str, value: str) -> bool:
+    """
+    Check if word ends with value.
+    """
+    return word.lower().endswith(value.lower())
+
+
+@register.filter
 def concat(base_string, suffix):
     """Concatenate two strings (non string items will be casted to strings)."""
     return f"{base_string}{suffix}"
@@ -70,8 +81,13 @@ def has_attr(obj, attr):
 
 
 @register.filter
-def how_to_cite(article):
-    """Return APA-style how-to-cite for JCOM."""
+def how_to_cite(article: Article) -> str:
+    """Return a how-to-cite string for an article.
+
+    Format depends on the journal:
+    - JCOM: APA-style
+    - other journals: author list, title, journal, month (year) page. doi
+    """
     # Warning: there exist two `citation_name()`: the original from FrozenAuthor and ours from utils
     if not article.frozenauthor_set.exists():
         return ""
@@ -84,12 +100,22 @@ def how_to_cite(article):
     else:
         author_str = ", ".join(author_names[:-1])
         author_str += f" and {author_names[-1]}"
-    htc = (
-        f"{author_str} ({article.date_published.year})."
-        f" {article.title} <i>{article.journal.code}</i>"
-        f" {article.issue.volume}({article.issue.issue}), {article.page_numbers}."
-        f" https://doi.org/{article.get_doi()}"
-    )
+    if article.journal.code.startswith("JCOM"):
+        htc = (
+            f"{author_str} ({article.date_published.year})."
+            f" {article.title} <i>{article.journal.code}</i>"
+            f" {article.issue.volume}({article.issue.issue}), {article.page_numbers}."
+            f" https://doi.org/{article.get_doi()}"
+        )
+    else:
+        # Note that, for these journals, Issue objects are created with issue=month and volume=year - wjs/specs#2631
+        htc = (
+            f"{author_str},"
+            f" <i>{article.title}</i>,"
+            f" <i>{article.journal.code}</i>"
+            f" {article.issue.issue} ({article.issue.volume}) {article.page_numbers}."
+            f" https://doi.org/{article.get_doi()}"
+        )
     return htc
 
 
@@ -225,6 +251,8 @@ def is_user_eo(user: Account) -> bool:
 @register.simple_tag()
 def user_has_eo_role(user: Account) -> bool:
     """Returns if user is part of the EO."""
+    if not user.is_authenticated:
+        return False
     return has_eo_role(user)
 
 
@@ -263,7 +291,9 @@ def list_non_correspondence_authors(article):
     Returns a comma-separated list of authors from the article,
     excluding the correspondence author.
     """
-    authors = [author.full_name() for author in article.authors.all() if author != article.correspondence_author]
+    authors = [
+        author.full_name() for author in article.author_accounts.all() if author != article.correspondence_author
+    ]
     return ", ".join(authors)
 
 
@@ -302,3 +332,55 @@ def add_matomo_params(url):
     params["mtm_kwd"] = [localtime(now()).date().strftime("%Y%m%d")]
     new_query = urlencode(params, doseq=True)
     return urlunparse(parsed._replace(query=new_query))
+
+
+@register.filter
+def decorate_widgets_for_regroup(field: BoundField):
+    """
+    Add decoration to widgets for regrouping based on the first letter.
+
+    Iterate over the widgets in the provided `BoundField` and return a list of
+    decorated dictionaries. Each dictionary includes the first uppercase letter
+    of the choice label, the original choice label, and additional widget data
+    if the widget has a `value` in its data.
+
+    :param field: A `BoundField` containing widgets that need to be processed.
+    :return: A list of dictionaries representing decorated widgets.
+    :raises TypeError: If `field` is not an instance of `BoundField`.
+    """
+    if not field:
+        return []
+    return [
+        {"first_letter": widget.choice_label[0].upper(), "choice_label": widget.choice_label, **widget.data}
+        for widget in field
+        if widget.data["value"]
+    ]
+
+
+@register.simple_tag(takes_context=True)
+def get_profile_section(context):
+    request = context["request"]
+    prefixes = {
+        "profile/organization": "core_edit_profile_affiliations",
+        "^profile/organization": "core_edit_profile_affiliations",
+        "profile/affiliation": "core_edit_profile_affiliations",
+        "^profile/affiliation": "core_edit_profile_affiliations",
+    }
+    route = request.resolver_match.route
+    matched_prefixes = [section for prefix, section in prefixes.items() if route.startswith(prefix)]
+    if matched_prefixes:
+        return matched_prefixes[0]
+    return request.resolver_match.url_name
+
+
+@register.filter()
+def is_field_available(journal, field_name):
+    """
+    Verify if a field - feature is available in the current journal.
+
+    We may want to port this to janeway setting, for now it's an overkill.
+    """
+    if not journal:
+        return False
+    fields = settings.PROFILE_FIELDS.get(journal.code, settings.PROFILE_FIELDS[None])
+    return field_name in fields

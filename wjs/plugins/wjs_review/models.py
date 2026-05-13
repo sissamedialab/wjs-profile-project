@@ -26,7 +26,7 @@ from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
+from plugins.wjs_submission.models import RevisionStorage
 from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
@@ -35,6 +35,7 @@ from review.models import (
     RevisionRequest,
 )
 from submission.models import Article, Section
+from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -499,6 +500,7 @@ class ArticleWorkflow(TimeStampedModel):
     latex_desc = models.TextField(null=True, blank=True)
 
     social_media_short_description = models.TextField(_("Short description for social media"), null=True, blank=True)
+    last_major_revision = models.DateTimeField(_("Last major revision"), null=True, blank=True)
 
     objects = ArticleWorkflowQuerySet.as_manager()
 
@@ -508,7 +510,7 @@ class ArticleWorkflow(TimeStampedModel):
 
     @property
     def article_authors(self) -> QuerySet[Account]:
-        authors = self.article.authors.all()
+        authors = self.article.author_accounts.all()
         if self.article.correspondence_author:
             authors |= Account.objects.filter(pk=self.article.correspondence_author.pk)
         return authors
@@ -517,13 +519,12 @@ class ArticleWorkflow(TimeStampedModel):
     def article_authors_string(self) -> str:
         authors = []
         correspondence_author = self.article.correspondence_author
-        for aao in self.article.articleauthororder_set.all():
-            author = aao.author
+        for author in self.article.author_accounts:
             if author == correspondence_author:
                 email_address = author.email
                 authors.append(f"{author.get_full_name()} ({email_address})")
             else:
-                authors.append(f"{aao.author.get_full_name()}")
+                authors.append(f"{author.get_full_name()}")
         authors_string = ", ".join(authors)
         return authors_string
 
@@ -620,7 +621,59 @@ class ArticleWorkflow(TimeStampedModel):
             return self.ReviewStates(value).label
         return value
 
+    @property
+    def revision_flow_type(self) -> str | None:
+        """
+        Retrieve the revision flow type from the last completed revision request.
+
+        :return: Revision flow type if available, otherwise None
+        :rtype: str | None:
+        """
+        if self.last_completed_revision_request:
+            return self.last_completed_revision_request.revision_flow_type
+        return None
+
+    @property
+    def revision_flow_label(self) -> str | None:
+        """
+        Retrieve the display label of the revision flow type for the last completed revision request.
+
+        :return: Display label of the revision flow type, or None if no revision request is completed.
+        :rtype: str | None
+        """
+        if self.last_completed_revision_request:
+            return self.last_completed_revision_request.get_revision_flow_type_display()
+        return None
+
+    @cached_property
+    def last_completed_revision_request(self):
+        """
+        Retrieve the most recent completed editor revision request for the associated article.
+
+        :return: The most recent completed EditorRevisionRequest instance or None
+                 if no completed request exists.
+        :rtype: EditorRevisionRequest | None
+        :raises EditorRevisionRequest.DoesNotExist: Raised when no completed
+                                                     revision request is found.
+        """
+        try:
+            return EditorRevisionRequest.objects.filter(
+                article=self.article,
+                date_completed__isnull=False,
+            ).latest("date_completed")
+        except EditorRevisionRequest.DoesNotExist:
+            return None
+
     def pending_revision_request(self):
+        """
+        Retrieve a pending revision request for the associated article.
+
+        :return: An instance of EditorRevisionRequest if found, or None if no
+                 pending request exists.
+        :rtype: EditorRevisionRequest or None
+        :raises EditorRevisionRequest.DoesNotExist: If the requested object
+                does not exist in the database.
+        """
         try:
             return EditorRevisionRequest.objects.get(
                 article=self.article,
@@ -1062,7 +1115,7 @@ class ArticleWorkflow(TimeStampedModel):
         field=state,
         source=ReviewStates.ACCEPTED,
         target=ReviewStates.READY_FOR_TYPESETTER,
-        # TODO: permission=,
+        permission=permissions.has_eo_role_by_article,
         # TODO: conditions=[],
     )
     def system_verifies_production_requirements(self):
@@ -1160,6 +1213,8 @@ class ArticleWorkflow(TimeStampedModel):
         Versions are checked against the user's permissions to ensure that only the versions the user has rights on are
         returned.
 
+        Versions are returned in inverted order, with the most recent version first.
+
         :param user: The user for which the versions are generated.
         :type user: Account
         :return: The list of versions the user has rights on.
@@ -1169,7 +1224,7 @@ class ArticleWorkflow(TimeStampedModel):
 
         versions = []
         for index, review_round in enumerate(self.article.reviewround_set.all().order_by("-round_number")):
-            decisions = EditorDecision.objects.filter(workflow=self, review_round=review_round)
+            decisions = EditorDecision.objects.filter(workflow=self, review_round=review_round).order_by("-created")
             review_assignments = self._get_sorted_review_assignments(review_round)
             editor_assigment = WjsEditorAssignment.objects.filter(
                 article=self.article, review_rounds=review_round
@@ -1211,7 +1266,9 @@ class ArticleWorkflow(TimeStampedModel):
                     )
                 )
             if has_permission:
-                revisions = EditorRevisionRequest.objects.filter(article=self.article, review_round=review_round)
+                revisions = EditorRevisionRequest.objects.filter(
+                    article=self.article, review_round=review_round
+                ).order_by("-date_requested")
                 if review_round.round_number > 1:
                     revisions |= EditorRevisionRequest.objects.filter(
                         article=self.article, review_round__round_number=review_round.round_number - 1
@@ -1731,6 +1788,10 @@ class EditorRevisionRequest(RevisionRequest):
     title = models.CharField(max_length=999, blank=True, null=True, verbose_name=_("Title"))
     abstract = JanewayBleachField(blank=True, null=True, verbose_name=_("Abstract"))
     authors_contributions = models.TextField(blank=True, null=True, verbose_name=_("Authors contributions"))
+    revision_flow_type = models.CharField(
+        _("Revision flow type"), max_length=10, choices=RevisionStorage.RevisionFlowType.choices
+    )
+    last_major_revision = models.DateTimeField(_("Last major revision"), null=True, blank=True)
 
     class Meta:
         ordering = ("date_requested",)
@@ -1786,6 +1847,7 @@ class WorkflowReviewAssignment(ReviewAssignment):
         verbose_name=_("Editor invite message"),
     )
     objects = WorkflowReviewAssignmentQuerySet.as_manager()
+    shared_report = models.BooleanField(default=False, verbose_name=_("Shared report"))
 
     # Map janeway's statuses to an ordered dict to map to our own statuses
     statuses = {

@@ -1,53 +1,53 @@
-{% load django_bootstrap5 %}
-{% load wjs_review wjs_tags %}
-<h5 id="galleyproofing-{{ version.number }}">{% translate "Author Proofreading" %}</h5>
-{% if version.galleyproofing.notes %}
-  {% translate "Author notes" as notes_label %}
-  {% translate "Read" as open_label %}
-  {% with author_notes_id="author_notes-"|concat:version.number %}
-    {% with target_author_notes_id="#"|concat:author_notes_id %}
-      <div class="mb-3">
-        {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=target_author_notes_id content=notes_label %}
-        {% include "wjs_review/base/elements/modal.html" with modal_id=author_notes_id modal_title=notes_label modal_body=version.galleyproofing.notes|safe %}
+{% load django_bootstrap5 i18n wjs_review wjs_tags %}
+{% if version.galleyproofing.proofed_files.exists or version.galleyproofing.notes or version.galleyproofing.annotated_files.exists %}
+  <h6 id="galleyproofing-{{ version.number }}" class="fw-bold text-primary">
+    {% translate "Author's corrections" %}
+  </h6>
+  {% if version.galleyproofing.proofed_files.exists %}
+    <div class="border-bottom pb-3 mb-2">
+      <h6 class="fw-bold">
+        <i class="bi bi-journals pe-2"></i> {% translate "Galleys" %}
+      </h6>
+      <div class="d-flex gap-2">
+        {% for galley in version.galleyproofing.proofed_files.all %}
+          {% if galley.file.original_filename|endswith:"PDF" %}
+              {# djlint:off #}
+            {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-pdf"></i>' as_button=True %}
+              {# djlint:on #}
+          {% endif %}
+        {% endfor %}
       </div>
+    </div>
+  {% endif %}
+  {% if version.galleyproofing.notes %}
+    {% translate "Show author notes" as notes_label %}
+    {% translate "Read" as open_label %}
+    {% with author_notes_id="author_notes-"|concat:version.number %}
+      {% with target_author_notes_id="#"|concat:author_notes_id %}
+        <div class="border-bottom pb-3 mb-2">
+          <h6 class="h6 fw-bold">
+            <i class="bi bi-journals pe-2"></i> {% translate "Author notes" %}
+          </h6>
+          <div class="d-flex gap-2">
+            {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=target_author_notes_id content=notes_label %}
+            {% include "wjs_review/base/elements/modal.html" with modal_id=author_notes_id modal_title=notes_label modal_body=version.galleyproofing.notes|safe %}
+          </div>
+        </div>
+      {% endwith %}
     {% endwith %}
-  {% endwith %}
+  {% endif %}
+  {% if version.galleyproofing.annotated_files.exists %}
+    <div>
+      <h6 class="fw-bold">
+        <i class="bi bi-journals pe-2"></i> {% translate "Annotated files" %}
+      </h6>
+      <ul class="list-group">
+        {% for file in version.galleyproofing.annotated_files.all %}
+          <li class="list-group-item">
+            {% include "wjs_review/elements/file_download_link.html" with file=file article=file.article hide_label=True %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
 {% endif %}
-<div class="container">
-  <div class="row">
-    {% if version.galleyproofing.proofed_files.exists %}
-      <div class="col-6">
-        <h6>
-          <i class="bi bi-journals pe-2"></i> {% translate "Galleys" %}
-        </h6>
-        <ul class="list-group mb-0">
-          {% for galley in version.galleyproofing.proofed_files.all %}
-            {% if galley.label|slice:":3" == "PDF" %}
-              <li class="list-group-item p-0">
-                <a class="btn btn-link"
-                   href="{% url 'download_single_file' article.pk galley.file.pk %}">{{ galley.label }}</a>
-              </li>
-            {% endif %}
-          {% endfor %}
-        </ul>
-      </div>
-    {% endif %}
-  </div>
-  <div class="row">
-    {% if version.galleyproofing.annotated_files.exists %}
-      <div class="col-6">
-        <h6>
-          <i class="bi bi-journals pe-2"></i> {% translate "Annotated files" %}
-        </h6>
-        <ul class="list-group mb-0">
-          {% for file in version.galleyproofing.annotated_files.all %}
-            <li class="list-group-item p-0">
-              <a class="btn btn-link"
-                 href="{% url 'download_single_file' file.article.pk file.pk %}">{{ file.original_filename }}</a>
-            </li>
-          {% endfor %}
-        </ul>
-      </div>
-    {% endif %}
-  </div>
-</div>

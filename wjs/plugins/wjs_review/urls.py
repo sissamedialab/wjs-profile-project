@@ -17,6 +17,8 @@ from .views import (
     AuthorArchived,
     AuthorPending,
     AuthorWithdrawPreprint,
+    ConvertLatexEditorReportView,
+    ConvertLatexReviewerReportView,
     ConvertTextToLatex,
     DeleteRevisionFile,
     DeselectReviewer,
@@ -33,8 +35,6 @@ from .views import (
     EditorDeclineAssignmentView,
     EditorPending,
     EditorWorkOnIssue,
-    ElaborateLatexEditorReportView,
-    ElaborateLatexReportView,
     EOArchived,
     EOPending,
     EOProduction,
@@ -73,6 +73,7 @@ from .views__production import (  # noqa F401;
     CreateSupplementaryFileView,
     DeleteSupplementaryFileView,
     DownloadRevisionFiles,
+    EOConfirmsProductionReady,
     EOSendBackToTypesetterView,
     FinishPublicationView,
     ListAnnotatedFilesView,
@@ -306,6 +307,11 @@ urlpatterns = [
     ),
     path("take_in_charge/<int:pk>/", TypesetterTakeInCharge.as_view(), name="wjs_typ_take_in_charge"),
     path(
+        "confirm_production_ready/<int:pk>/",
+        EOConfirmsProductionReady.as_view(),
+        name="wjs_eo_confirm_production_ready",
+    ),
+    path(
         "download_file/<int:article_id>/<int:file_id>",
         DownloadSingleFile.as_view(),
         name="download_single_file",
@@ -314,11 +320,13 @@ urlpatterns = [
     path("withdraw/<int:pk>/", AuthorWithdrawPreprint.as_view(), name="wjs_author_withdraw_preprint"),
     path("issue/<int:pk>/toggle-batch/", ToggleIssueBatch.as_view(), name="toggle-issue-batch"),
     path(
-        "elaborate_latex_report/<int:assignment_id>", ElaborateLatexReportView.as_view(), name="elaborate-latex-report"
+        "elaborate_latex_report/<int:assignment_id>",
+        ConvertLatexReviewerReportView.as_view(),
+        name="elaborate-latex-report",
     ),
     path(
         "elaborate_editor_latex_report/<int:workflow_id>",
-        ElaborateLatexEditorReportView.as_view(),
+        ConvertLatexEditorReportView.as_view(),
         name="elaborate-latex-editor-report",
     ),
     path(

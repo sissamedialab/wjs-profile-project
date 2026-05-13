@@ -1,0 +1,127 @@
+{% extends "wjs/profile/base.html" %}
+
+{% load django_bootstrap5 i18n next_url static %}
+
+{% block page_title %}{% translate "Add Affiliation" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Add Affiliation" %}</h1>
+
+  <div class="mb-4">
+    {% include "admin/core/affiliation_summary.html" %}
+  </div>
+
+  <h2 class="h4 mb-3 text-primary fw-bold border-bottom pb-2">{% translate "Search for organization" %}</h2>
+
+  <form method="get" id="{{ facet_form.id }}" class="mb-4">
+    <input type="hidden" name="next" value="{{ request.GET.next }}">
+    <div class="input-group">
+      <input
+        id="{{ facet_form.q.id_for_label }}"
+        name="{{ facet_form.q.name }}"
+        class="form-control"
+        value="{{ facet_form.q.value|default:'' }}"
+        placeholder="e.g. birkbeck"
+        type="search"
+        aria-label="{{ facet_form.q.label }}">
+      <button type="submit" class="btn btn-primary">
+        <i class="fa fa-search"></i>
+        {% translate "Search" %}
+      </button>
+    </div>
+  </form>
+
+  <div class="d-flex flex-column gap-3 mb-4">
+    {% for organization in organization_list %}
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div class="flex-grow-1">
+              <h3 class="h5 card-title text-primary fw-bold">{{ organization.ror_display }}</h3>
+              <div class="row small mt-2">
+                {% if organization.also_known_as %}
+                  <div class="col-md-12 mb-2">
+                    <span class="fw-bold d-block">{% translate "Also known as" %}</span>
+                    <ul class="list-unstyled mb-0">
+                      {% for aka in organization.also_known_as.all %}
+                        <li>{{ aka }}</li>
+                      {% empty %}
+                        <li>-</li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endif %}
+                <div class="col-md-6 mb-2">
+                  <span class="fw-bold d-block text-primary">{% translate "Locations" %}</span>
+                  <ul class="list-unstyled mb-0">
+                    {% for location in organization.locations.all %}
+                      <li>{{ location }}</li>
+                    {% empty %}
+                      <li>-</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+              <div class="small mt-1">
+                {% if organization.ror_id %}
+                  <div class="mb-1">
+                    <span class="fw-bold">{% translate "ROR ID" %}:</span>
+                    <a href="{{ organization.uri }}" target="_blank" rel="noopener">{{ organization.uri }}</a>
+                  </div>
+                {% endif %}
+                {% if organization.website %}
+                  <div>
+                    <span class="fw-bold">{% translate "Website" %}:</span>
+                    <a href="{{ organization.website }}" target="_blank" rel="noopener">{{ organization.website }}</a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div>
+              {% if account %}
+                {% url_with_next 'core_affiliation_create' organization.pk as create_url %}
+              {% elif article and author %}
+                {% url_with_next 'submission_affiliation_create' article.pk author.pk organization.pk as create_url %}
+              {% endif %}
+              <a href="{{ create_url }}" class="btn btn-primary btn-sm">
+                <i class="fa fa-plus"></i>
+                {% translate "Add affiliation" %}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      {% if facet_form.q.value %}
+        <div class="alert alert-info">
+          <strong>{% translate "No organizations to display." %}</strong>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="card bg-light mb-4">
+    <div class="card-body">
+      <h3 class="h5 card-title text-primary fw-bold">{% translate "Organization not found?" %}</h3>
+      <p class="card-text mb-3">
+        {% translate "If you can't find your organization, you can create a custom one." %}
+      </p>
+      {% if account %}
+        {% url_with_next 'core_organization_name_create' as create_url %}
+      {% elif article and author %}
+        {% url_with_next 'submission_organization_name_create' article.pk author.pk as create_url %}
+      {% endif %}
+      <a href="{{ create_url }}" class="btn btn-outline-primary btn-sm">
+        <i class="fa fa-plus"></i>
+        {% translate "Create organization" %}
+      </a>
+    </div>
+  </div>
+
+  {% if organization_list %}
+    <div class="d-flex justify-content-center">
+      {% include "wjs/base/elements/pagination.html" with page=page_obj %}
+    </div>
+  {% endif %}
+
+{% endblock profile_form %}

@@ -1,0 +1,19 @@
+{% load django_bootstrap5 i18n static %}
+<p>
+  {% blocktranslate with code=journal.code %}
+    Please confirm that you do not wish to receive any {{ code }} publication alert
+  {% endblocktranslate %}
+</p>
+<form method="post">
+  {% csrf_token %}
+  {% translate "Yes" as yes_label %}
+  {% translate "No" as no_label %}
+  {% if object.newsletter_token %}
+    {% url "unsubscribe_newsletter" object.newsletter_token as unsubscribe_newsletter %}
+    {% bootstrap_button button_class="btn-primary" href=unsubscribe_newsletter button_type="link" content=yes_label %}
+  {% else %}
+    {% url "unsubscribe_newsletter" object.pk as unsubscribe_newsletter %}
+    {% bootstrap_button button_class="btn-primary" href=unsubscribe_newsletter button_type="link" content=yes_label %}
+  {% endif %}
+  {% bootstrap_button button_class="btn-outline-secondary" data_bs_dismiss="modal" button_type="button" content=no_label %}
+</form>

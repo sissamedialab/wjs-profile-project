@@ -1406,7 +1406,7 @@ def test_hijack_notifications(
         assert not send_notification
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_role_for_article(
     assigned_article: Article,
     fake_request: HttpRequest,

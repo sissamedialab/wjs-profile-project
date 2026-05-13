@@ -9,7 +9,6 @@ import datetime
 import os
 import re
 import shutil
-import tarfile
 import tempfile
 import traceback
 import zipfile
@@ -45,11 +44,7 @@ from events import logic as events_logic
 from identifiers.logic import get_dois_for_articles
 from identifiers.models import Identifier
 from lxml.html import HtmlElement
-from plugins.typesetting.models import (
-    GalleyProofing,
-    TypesettingAssignment,
-    TypesettingRound,
-)
+from plugins.wjs_submission.step7.views import get_article_fundings
 from production.logic import save_galley, save_galley_image
 from submission.models import (
     STAGE_PROOFING,
@@ -57,9 +52,11 @@ from submission.models import (
     STAGE_TYPESETTING,
     Article,
     ArticleAuthorOrder,
+    FrozenAuthor,
     Keyword,
     KeywordArticle,
 )
+from typesetting.models import GalleyProofing, TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
 from utils.setting_handler import get_setting
@@ -69,7 +66,6 @@ from wjs.jcom_profile.import_utils import (
     decide_galley_label,
     evince_language_from_filename_and_article,
     process_body,
-    sync_frozen_authors_with_authors,
 )
 from wjs.jcom_profile.models import Correspondence
 from wjs.jcom_profile.permissions import has_eo_role
@@ -537,21 +533,23 @@ class HandleDownloadRevisionFiles:
         all_files = manuscript_files + data_figure_files + supplementary_files + source_files
         return all_files
 
-    def _generate_automatic_preamble(self):
+    @staticmethod
+    def _generate_automatic_preamble(article: Article) -> (str, str):
         try:
-            automatic_preamble_text = LatexPreamble.objects.get(journal=self.workflow.article.journal).preamble
+            automatic_preamble_text = LatexPreamble.objects.get(journal=article.journal).preamble
         except LatexPreamble.DoesNotExist:
-            logger.error(f"Missing preamble template for {self.workflow.article.journal.code}.")
+            logger.error(f"Missing preamble template for {article.journal.code}.")
             automatic_preamble_text = (
-                f"Missing preamble template for {self.workflow.article.journal.code}\nPlease contact assistance.\n"
+                f"Missing preamble template for {article.journal.code}\nPlease contact assistance.\n"
             )
         context = {
-            "journal": self.workflow.article.journal,
-            "article": self.workflow.article,
+            "journal": article.journal,
+            "article": article,
+            "articles_fundings": get_article_fundings(article),
         }
-        rendered_preamble = self.render_latexpreamble(automatic_preamble_text, context)
+        rendered_preamble = HandleDownloadRevisionFiles.render_latexpreamble(automatic_preamble_text, context)
         # TODO: refactor with utils.guess_tex_filename()
-        preamble_name = f"{self.workflow.article.journal.code.lower()}-{self.workflow.article.id}-preamble.tex"
+        preamble_name = f"{article.journal.code.lower()}-{article.id}-preamble.tex"
         return rendered_preamble, preamble_name
 
     @staticmethod
@@ -587,7 +585,10 @@ class HandleDownloadRevisionFiles:
                     archive.write(settings.WJS_TYPESET_REVISION_MOCK_FILE, arcname=file.original_filename)
                 else:
                     archive.write(file_path, arcname=file.original_filename)
-            automatic_preamble, preamble_name = self._generate_automatic_preamble()
+
+            automatic_preamble, preamble_name = HandleDownloadRevisionFiles._generate_automatic_preamble(
+                self.workflow.article,
+            )
             archive.writestr(preamble_name, automatic_preamble)
 
         in_memory.seek(0)
@@ -866,6 +867,9 @@ class AttachGalleys:
     article: Article
     request: HttpRequest
 
+    expected_galleys: list[str]
+    "The galleys that we should process"
+
     public_galley: bool = False
     """Control the public flag of the galleys.
 
@@ -877,27 +881,6 @@ class AttachGalleys:
     path: Path = dataclasses.field(init=False)
     "Path of the tmpdir where the upack-method unpacked the received files"
 
-    def unpack_targz_from_jcomassistant(self) -> Path:
-        """
-        Unpack a tar.gz.
-
-        Create and use a temporary folder.
-        The caller should clean up if necessary.
-        """
-        # FIXME: this method is not currently used
-        unpack_dir = tempfile.mkdtemp()
-        # Use BytesIO to treat bytes data as a file
-        with BytesIO(self.archive_with_galleys) as file_obj:
-            # Open the tar.gz archive
-            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
-                # Extract all contents into the unpack directory
-                tar.extractall(path=unpack_dir)
-        unpack_dir = Path(unpack_dir)
-
-        logger.debug(f"...jcomassistant processed files are in {unpack_dir}.")
-        self.path = unpack_dir
-        return self.path
-
     def unpack_zip_from_jcomassistant(self) -> Path:
         """
         Unpack a zip.
@@ -906,8 +889,10 @@ class AttachGalleys:
         The caller should clean up if necessary.
         """
         self.path = tempfile.mkdtemp()
-        with zipfile.ZipFile(BytesIO(self.archive_with_galleys)) as archive:
-            archive.extractall(self.path)
+        with zipfile.ZipFile(BytesIO(self.archive_with_galleys)) as zip_archive:
+            # Note that we don't fear zip slip here, even with python < 3.12,
+            # because the archive comes from a trusted source
+            zip_archive.extractall(self.path)  # noqa: S202 - false positive: this is not tarfile.extractall()!
 
         self.path = Path(self.path)
 
@@ -920,8 +905,6 @@ class AttachGalleys:
 
         Expect the logfile to contain log-formatted lines suchs as:
         DEBUG From: ...
-
-        Re-emit only info, wraning, error and critical.
 
         Also return if any error or critical was found (return True if all is good).
         """
@@ -944,10 +927,10 @@ class AttachGalleys:
                 elif line.startswith("WARNING"):
                     logger.warning(f"JA {line[14:-1]}")
                 elif line.startswith("ERROR"):
-                    logger.error(f"JA {line[12:-1]}")
+                    logger.warning(f"JA {line[12:-1]}")
                     has_error_or_critical = True
                 elif line.startswith("CRITICAL"):
-                    logger.critical(f"JA {line[15:-1]}")
+                    logger.warning(f"JA {line[15:-1]}")
                     has_error_or_critical = True
                 elif line.startswith("DEBUG"):
                     logger.debug(f"JA {line[12:-1]}")
@@ -955,12 +938,13 @@ class AttachGalleys:
 
     def _check_conditions(self):
         """
-        Check for errors in the log files and if the expected files exist.
-
-        We should get at least one PDF, one HTML and one EPUB file.
+        Ensure we can proceed:
+        - check for errors in the JA log files
+        - check that all galleys have been created (the log file should report any issue, but still...👾)
+        - check that we know how to process every galley
 
         Raises:
-            ValueError: if there were any errors upstream
+            ValueError: if there were any errors upstream or if se don't know how to process some galley
 
             FileNotFoundError: if any of the expected file could not be found
 
@@ -970,13 +954,19 @@ class AttachGalleys:
             msg = f"Errors found during galley generation for {self.article.id}."
             # We do not log any message, because it is common to have some errors in the initial phases of typesetting
             raise ValueError(msg)
-        for extension in ("html", "epub", "pdf"):
+
+        for expected_galley in self.expected_galleys:
+            extension = expected_galley
             if not any(self.path.glob(f"*.{extension}")):
                 msg = f"Missing galley with extension {extension} for {self.article.id}."
                 # If this happens there might be some kind of miss-understanding with upstream:
                 # if any file is missing, some error should have been reported!
                 logger.error(msg)
                 raise FileNotFoundError(msg)
+
+            if not hasattr(self, f"save_{expected_galley}"):
+                msg = f"Cannot process galley {expected_galley} for {self.article.id}."
+                raise ValueError(msg)
 
     def store_galleyimage(self, image_pathname: Path, galley: Galley) -> JanewayFile:
         """Get the image from the processed archive, save it, and link it to the galley.
@@ -1015,20 +1005,13 @@ class AttachGalleys:
         html: HtmlElement = lxml.html.fromstring(galley_string)
         images = html.findall(".//img")
         for image_element in images:
-            # We expect the "src" attribute to contain a pathname (full path);
-            # NB: this pathname existed when the img file was created on jcomassistant:
-            #     it does not exist in the filesystem where we opened the processed archive!
-            # It might also contain a query-string part: that we drop with the split("?")
-            wrong_pathname = Path(image_element.attrib["src"].split("?")[0])
-            # Expecting something like "/tmp/tmpabc/..."
-            # the first 3 parts ("/", "tmp", "tmpabc") can be dropped
-            img_src = self.path.joinpath(*wrong_pathname.parts[-2:])
+            # We expect the "src" attribute to contain a relative pathname
+            img_src = self.path.joinpath(image_element.attrib["src"])
             img_obj = self.store_galleyimage(img_src, galley)
             # Remember that, in the HTML galley, the `src` attribute is relative to the article's URL
             image_element.attrib["src"] = img_obj.label
 
-        with open(galley_file.self_article_path(), "wb") as out_file:
-            out_file.write(lxml.html.tostring(html, pretty_print=False))
+        Path(galley_file.self_article_path()).write_bytes(lxml.html.tostring(html, pretty_print=False))
 
     def _get_singlegalley_path(self, suffix: str) -> Path:
         """
@@ -1071,7 +1054,6 @@ class AttachGalleys:
             label=label,
             save_to_disk=True,
             public=self.public_galley,
-            html_prettify=False,
         )
         self._check_html_galley_mimetype(galley)
         self.mangle_images(galley)
@@ -1131,14 +1113,20 @@ class AttachGalleys:
         logger.debug(f"PDF galley {label} set onto {self.article.id}")
         return galley
 
+    def _save_all_galleys(self) -> list[Galley]:
+        """Save all galleys created by JA."""
+        galleys_created = []
+        for expected_galley in self.expected_galleys:
+            save_galley_method = getattr(self, f"save_{expected_galley}")
+            galleys_created.append(save_galley_method())
+        return galleys_created
+
     def run(self):
         # TODO: review me with specs#774: missing management of multilingual papers and PDF compilation
-        # TODO: if targz: -> self.unpack_targz_from_jcomassistant()
-        galleys_created = []
         try:
             self.path = self.unpack_zip_from_jcomassistant()
             self._check_conditions()
-            galleys_created.extend((self.save_epub(), self.save_html(), self.save_pdf()))
+            galleys_created = self._save_all_galleys()
 
         except Exception as e:
             # This logic is generally called asynchronously, so we don't
@@ -1187,6 +1175,7 @@ Please go to the <a href="{self.article.articleworkflow.url}">web page</a>
         """
         jcomassistant_response_content = File(
             BytesIO(self.archive_with_galleys),
+            # TODO: review in issue specs#2541
             name="jcomassistant_response.tar.gz",
         )
         processed_archive_as_galley = save_galley(
@@ -1216,6 +1205,17 @@ class TypesetterTestsGalleyGeneration:
     assignment: TypesettingAssignment
     request: HttpRequest  # Used in Janeway's save_galley, in log_operation and maybe in _check_conditions
 
+    expected_galleys: list[str] = dataclasses.field(init=False)
+    "The galleys that should be generated for this journal"
+
+    def __post_init__(self):
+        """Find out what are the galleys that we should expect to find in the JA response."""
+        self.expected_galleys = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="expected_galleys",
+            journal=self.assignment.round.article.journal,
+        ).processed_value
+
     def _check_user_conditions(self):
         """Check if the user is article's typesetter."""
         return is_article_typesetter(self.assignment.round.article.articleworkflow, self.request.user)
@@ -1242,15 +1242,18 @@ class TypesetterTestsGalleyGeneration:
 
     def _jcom_assistant_client(self):
         assistant = JcomAssistantClient(
-            archive_with_files_to_process=self.assignment.files_to_typeset.first(), user=self.assignment.typesetter
+            archive_with_files_to_process=self.assignment.files_to_typeset.first(),
+            user=self.assignment.typesetter,
+            galleys_to_request=self.expected_galleys,
         )
         response = assistant.ask_jcomassistant_to_process()
         return response
 
     def _mock_jcom_assistant_client(self, path_to_mock_file):
         """
-        Invoke :py:class:`AttachGalleys` with a mock JCOM Assistant response file to run the class without access
-        to JCOM Assistant endpoint.
+        Invoke :py:class:`AttachGalleys` with a mock JCOM Assistant response file
+
+        This runs the class without access to JCOM Assistant endpoint.
         """
         with open(path_to_mock_file, "rb") as f:
             response = f.read()
@@ -1259,6 +1262,7 @@ class TypesetterTestsGalleyGeneration:
             article=self.assignment.round.article,
             request=self.request,
             public_galley=False,
+            expected_galleys=self.expected_galleys,
         ).run()
 
     def _get_and_save_galleys(self):
@@ -1277,6 +1281,7 @@ class TypesetterTestsGalleyGeneration:
                 article=self.assignment.round.article,
                 request=self.request,
                 public_galley=False,
+                expected_galleys=self.expected_galleys,
             ).run()
         # Detach the galleys from the article:
         # A.galley_set should contain only publication-ready galleys
@@ -1311,15 +1316,21 @@ class JcomAssistantClient:
 
     archive_with_files_to_process: File  # Usually a zip/tar.gz file object containing the TeX source files to process
     user: Account
+    galleys_to_request: list[str]
+    "The galleys that we should expect"
 
     def ask_jcomassistant_to_process(self) -> requests.Response:
-        """Send the given zip file to jcomassistant for processing.
-
-        Return the path to a folder with the unpacked response.
         """
-        url = settings.JCOMASSISTANT_URL
-        logger.debug(f"Contacting jcomassistant service at {url}...")
+        Send the given zip file to jcomassistant for galley processing.
 
+        Returns:
+            Response: usually a zip file from the server.
+
+        Raises:
+            ValueError: if the server does not return 200/OK code.
+            NotImplementedError: if WJS is unable to process the file/path.
+
+        """
         # TODO: please decide what you want!
         if isinstance(self.archive_with_files_to_process, JanewayFile):  # File???
             file_path = self.archive_with_files_to_process.self_article_path()
@@ -1330,8 +1341,11 @@ class JcomAssistantClient:
                 f"Don't know how to open {type(self.archive_with_files_to_process)} for jcomassistant processing!",
             )
 
-        files = {"file": open(file_path, "rb")}
-        response = requests.post(url=url, files=files)
+        galley_list: list[tuple[str, str]] = [("generate", galley) for galley in self.galleys_to_request]
+        url = f"{settings.JCOMASSISTANT_URL}galleys?{urlencode(galley_list)}"
+        files = {"file": Path(file_path).open("rb")}
+        logger.debug(f"Contacting jcomassistant service at {url}...")
+        response = requests.post(url=url, files=files)  # noqa: S113 (consciuosly disabling timeout)
         if response.status_code != 200:
             article = self.archive_with_files_to_process.article
             communication_utils.notify_async_event(
@@ -1357,17 +1371,26 @@ class ReadyForPublication:
         Check that the FSM allows the transaction.
 
         Take the operator into consideration.
+
+        Raises:
+          ValueError: if the user is not the author or the typesetter.
+
         """
         # TODO: might want to verify some of the checks of specs#791 here
         if is_article_author(self.workflow, self.user):
             return can_proceed(self.workflow.author_deems_paper_ready_for_publication)
-        elif is_article_typesetter(self.workflow, self.user):
+        if is_article_typesetter(self.workflow, self.user):
             return can_proceed(self.workflow.typesetter_deems_paper_ready_for_publication)
-        else:
-            raise ValueError(f"Unexpected user attempting the transaction ({self.user=}).")
+        raise ValueError(f"Unexpected user attempting the transaction ({self.user=}).")
 
     def _update_state(self):
-        """Run FSM transition."""
+        """
+        Run FSM transition.
+
+        Raises:
+          ValueError: if the user is not the author or the typesetter.
+
+        """
         ta: TypesettingAssignment = self.workflow.get_latest_typesetting_assignment(only_completed=False)
         if is_article_author(self.workflow, self.user):
             self.workflow.author_deems_paper_ready_for_publication()
@@ -1729,6 +1752,17 @@ class FinishPublication:
     user: Account  # this user will be contacted is somwthing goes wrong during galley generation
     request: HttpRequest  # we'll end-up calling Janeway's save_galley_image(), that needs a request obj
 
+    expected_galleys: list[str] = dataclasses.field(init=False)
+    "The galleys that should be generated for this journal"
+
+    def __post_init__(self):
+        """Find out what are the galleys that we should expect to find in the JA response."""
+        self.expected_galleys = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="expected_galleys",
+            journal=self.workflow.article.journal,
+        ).processed_value
+
     def check_conditions(self) -> Tuple[bool, Optional[str]]:
         if self.workflow.state not in [
             ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS,
@@ -1741,6 +1775,7 @@ class FinishPublication:
         assistant = JcomAssistantClient(
             archive_with_files_to_process=self.workflow.publication_galleys_source_file,
             user=self.user,
+            galleys_to_request=self.expected_galleys,
         )
         response = assistant.ask_jcomassistant_to_process()
         return response
@@ -1754,6 +1789,7 @@ class FinishPublication:
             article=self.workflow.article,
             request=self.request,
             public_galley=True,
+            expected_galleys=self.expected_galleys,
         ).run()
         self.workflow.article.galley_set.set(galleys_created)
 
@@ -1783,8 +1819,6 @@ Please retry and contact assistance is the problem persists.
     def update_state(self):
         """Bumb state and stage."""
         self.workflow.finish_publication()
-        # Apply Janeway logic (snapshot authors etc.)
-
         # TODO: in import_utils, we verify the article's issue's date against the article publication date. This makes
         # sense in the context of setting some metadata on the issue that we did not have before, but does it makes
         # sense here also?
@@ -1792,7 +1826,6 @@ Please retry and contact assistance is the problem persists.
         # ... if article.date_published < article.issue.date_published:
         # ...   article.issue.date = article.date_published
 
-        # Also, there might be reasons to snapshot the authors before,
         # i.e. when the identifiers are set.
         import_utils.publish_article(self.workflow.article)
 
@@ -1983,7 +2016,7 @@ class MetadataFromTeX:
         # abstract should be the same in the two source files.
         tex_source_file = self._get_source_file()
         files = {"file": tex_source_file}
-        url = settings.JCOMASSISTANT_URL.replace("jcomassistant/", "texdata")
+        url = f"{settings.JCOMASSISTANT_URL}texdata"
         response = requests.post(url=url, files=files, timeout=10)
         if response.status_code != 200:
             msg = f"Unexpected status code {response.status_code} for {url}"
@@ -2062,9 +2095,7 @@ class MetadataFromTeX:
         if self._data["authors_errors"]:
             raise ValueError(self._data["authors_errors"])
 
-        # 🤔 article.authors.clear() does not delete records in the "through" table!?
-        self.workflow.article.authors.clear()
-        ArticleAuthorOrder.objects.filter(article=self.workflow.article).delete()
+        FrozenAuthor.objects.filter(article=self.workflow.article).delete()
         for order, am in enumerate(self._data["authors_map"]):
             if am.must_be_created:
                 author = Account.objects.create(
@@ -2084,11 +2115,7 @@ class MetadataFromTeX:
                 # - orcid
                 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1804
 
-            # ???? why do I need both authors.add(author) and AAO.create(author...) ????
-            self.workflow.article.authors.add(author)
-            ArticleAuthorOrder.objects.create(article=self.workflow.article, order=order, author=author)
-
-        sync_frozen_authors_with_authors(self.workflow.article)
+            FrozenAuthor.objects.create(article=self.workflow.article, order=order, author=author)
 
     # TODO: refactor with logic__production.BeginPublication._get_source_file()
     def _get_source_file(self) -> BytesIO:
@@ -2203,7 +2230,7 @@ class MetadataFromTeX:
                 author__id=OuterRef("id"),
             ).values_list("order"),
         )
-        db_authors = article.authors.all().annotate(order=subq).order_by("order")
+        db_authors = article.author_accounts.all().annotate(order=subq).order_by("order")
 
         # 🤔 ugly code: side effect in a method that returns something...
         self._data["authors_db"] = db_authors
@@ -2284,7 +2311,7 @@ class MetadataFromTeX:
         similaraccounts_warning = """Similar accounts: either set the orcid on the existing account (if the TeX has
         it), or create/edit a "correspondence" (a mapping) with the TeX email."""
         try:
-            wjapp_mapping = self.workflow.article.authors.get(
+            wjapp_mapping = self.workflow.article.author_accounts.get(
                 first_name=tex_author["first_name"],
                 last_name=tex_author["surname"],
             )
@@ -2293,7 +2320,7 @@ class MetadataFromTeX:
         except Account.MultipleObjectsReturned:
             # Any other euristics after this would contain these accounts also.
             # So we can stop here and ask for help.
-            similar_accounts = self.workflow.article.authors.filter(
+            similar_accounts = self.workflow.article.author_accounts.filter(
                 first_name=tex_author["first_name"],
                 last_name=tex_author["surname"],
             )
@@ -2310,7 +2337,7 @@ class MetadataFromTeX:
             )
 
         try:
-            wjapp_mapping = self.workflow.article.authors.get(
+            wjapp_mapping = self.workflow.article.author_accounts.get(
                 last_name=tex_author["surname"],
             )
         except Account.DoesNotExist:
@@ -2318,7 +2345,7 @@ class MetadataFromTeX:
         except Account.MultipleObjectsReturned:
             # Any other euristics after this would contain these accounts also.
             # So we can stop here and ask for help.
-            similar_accounts = self.workflow.article.authors.filter(
+            similar_accounts = self.workflow.article.author_accounts.filter(
                 last_name=tex_author["surname"],
             )
             return MetadataFromTeX.AuthorStruct(

@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
+{% load django_bootstrap5 i18n wjs_articles wjs_review wjs_tags %}
 <!-- djlint:off -->
 {% translate "Issue Files" as modal_title_label %}
 {% translate "Notes" as notes_title_label %}
@@ -6,97 +6,79 @@
 {% translate "Add a note <i class=\"bi bi-pencil\"></i>" as add_note %}
 <!-- djlint:on -->
 <table class="table table-bordered">
-  <tr>
-    <th>{% translate "Title" %}</th>
-    <td>
-      {{ issue.issue_title }}
-    </td>
-  </tr>
-  <tr>
-    <th>{% if issue.managing_editors.count == 1 %}{% translate "Editor" %}{% else %}{% translate "Editors" %}{% endif %}</th>
-    <td>
-      {{ issue.managing_editors.all|join:", " }}
-    </td>
-  </tr>
-  <tr>
-    <th>{% translate "Dates" %}</th>
-    <td class="p-0">
-      <table class="table table-sm m-0">
-        <tr>
-          <th class="col-3">{% translate "Open" %}</th>
-          <th class="col-3">{% translate "Close" %}</th>
-          <th class="col-3">{% translate "Publish" %}</th>
-          <th class="col-3"></th>
-        </tr>
-        <tr>
-          <td>
-            {{ issue.date_open|date:DATE_FORMAT }}
-          </td>
-          <td>
-            {{ issue.date_close|date:DATE_FORMAT }}
-          </td>
-          <td>
-            {{ issue.date|date:DATE_FORMAT }}
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-  <tr>
-    <th>{% translate "Manuscripts" %}</th>
-    <td class="p-0">
-      <table class="table table-sm m-0">
-        <tr>
-          <th class="col-3">{% translate "Expected" %}</th>
-          <th class="col-3">{% translate "Pending" %}</th>
-          <th class="col-3">{% translate "Published" %}</th>
-          <th class="col-3">{% translate "Other" %}</th>
-        </tr>
-        <tr>
-          <td>
-            {{ issue.expected_submissions|default:0 }}
-          </td>
-          <td>
-            {% special_issue_paper_pending issue %}
-          </td>
-          <td>
-            {% special_issue_paper_published issue %}
-          </td>
-          <td>
-            {% special_issue_paper_others issue %}
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-  <tr>
-    <th>{% translate "Files" %}</th>
-    <td>
-      {% if issue.cover_image %}
-        <a class="btn btn-outline-primary" href="{{ issue.cover_image.url }}" target="_blank"><i class="bi bi-filetype-jpg"></i> {{ issue.cover_image.name }}</a>
-      {% endif %}
-      {% for file in issue.documents.all %}
-        <a class="btn btn-outline-primary" href="{% url 'journal_issue_download_document' issue.pk file.pk %}" target="_blank"><i class="bi bi-filetype-doc"></i> {{ file.original_filename }}</a>
-      {% endfor %}
-    </td>
-  </tr>
-  <tr>
-    <th>{% translate "Notes" %}</th>
-    <td>
-      {% if request.user|is_user_eo %}
-        {% last_eo_note target=issue as note %}
-      {% else %}
-        {% last_user_note target=issue as note %}
-      {% endif %}
-      {% if note %}
-        {% with modal_id="notes_modal-"|concat:issue.pk modal_target="#notes_modal-"|concat:issue.pk %}
-          {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target content=read_label %}
-          {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body|safe %}
-        {% endwith %}
-      {% endif %}
-      {% if not view.read_only %}
-        {% bootstrap_button button_class="btn-outline-primary" content=add_note %}
-      {% endif %}
-    </td>
-  </tr>
+  <caption class="visually-hidden">{% translate "Publication details" %} {{ issue.issue_title }}</caption>
+  <tbody>
+    <tr>
+      <th scope="row">{% translate "Title" %}</th>
+      <td>{{ issue.issue_title }}</td>
+    </tr>
+
+    <tr>
+      <th scope="row">
+        {% if issue.managing_editors.count == 1 %}{% translate "Editor" %}{% else %}{% translate "Editors" %}{% endif %}
+      </th>
+      <td>{{ issue.managing_editors.all|join:", " }}</td>
+    </tr>
+
+    <tr>
+      <th scope="row">{% translate "Dates" %}</th>
+      <td>
+        <div class="row g-0">
+          <div class="col-4"><strong>{% translate "Open" %}:</strong> {{ issue.date_open|date:DATE_FORMAT }}</div>
+          <div class="col-4"><strong>{% translate "Close" %}:</strong> {{ issue.date_close|date:DATE_FORMAT }}</div>
+          <div class="col-4"><strong>{% translate "Publish" %}:</strong> {{ issue.date|date:DATE_FORMAT }}</div>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <th scope="row">{% translate "Manuscripts" %}</th>
+      <td>
+        <div class="row g-0">
+          <div class="col-3"><strong>{% translate "Expected" %}:</strong> {{ issue.expected_submissions|default:0 }}</div>
+          <div class="col-3"><strong>{% translate "Pending" %}:</strong> {% special_issue_paper_pending issue %}</div>
+          <div class="col-3"><strong>{% translate "Published" %}:</strong> {% special_issue_paper_published issue %}</div>
+          <div class="col-3"><strong>{% translate "Other" %}:</strong> {% special_issue_paper_others issue %}</div>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <th scope="row">{% translate "Files" %}</th>
+      <td>
+        {% if issue.cover_image %}
+          <a class="btn btn-outline-primary mb-1" href="{{ issue.cover_image.url }}" target="_blank">
+            <i class="bi bi-filetype-jpg" aria-hidden="true"></i> {{ issue.cover_image.name }}
+          </a>
+        {% endif %}
+        {% for file in issue.documents.all %}
+          <a class="btn btn-outline-primary mb-1" href="{% url 'journal_issue_download_document' issue.pk file.pk %}" target="_blank">
+            <i class="bi bi-filetype-doc" aria-hidden="true"></i> {{ file.original_filename }}
+          </a>
+        {% endfor %}
+      </td>
+    </tr>
+
+    <tr>
+      <th scope="row">{% translate "Notes" %}</th>
+      <td>
+        {% if request.user|is_user_eo %}
+          {% last_eo_note target=issue as note %}
+        {% else %}
+          {% last_user_note target=issue as note %}
+        {% endif %}
+
+        {% if note %}
+          {% with modal_id="notes_modal-"|concat:issue.pk modal_target="#notes_modal-"|concat:issue.pk %}
+            {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=modal_target content=read_label %}
+            {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=notes_title_label modal_body_title=note.subject modal_body=note.body|safe %}
+          {% endwith %}
+        {% endif %}
+
+        {% if not view.read_only %}
+          {% bootstrap_button button_class="btn-outline-primary" content=add_note %}
+        {% endif %}
+      </td>
+    </tr>
+  </tbody>
 </table>

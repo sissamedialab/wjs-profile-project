@@ -1,0 +1,84 @@
+{% load i18n securitytags %}
+
+{% is_editor as user_is_editor %}
+
+<div class="row">
+  {% if account %}
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "User" %}</label>
+      <p class="mb-0">{{ account.full_name }}</p>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "Email" %}</label>
+      <p class="mb-0">{{ account.email }}</p>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "ORCID" %}</label>
+      <p class="mb-0">{{ account.orcid|default:"-" }}</p>
+    </div>
+  {% elif author %}
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "Author" %}</label>
+      <p class="mb-0">{{ author.full_name }}</p>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "Email" %}</label>
+      <p class="mb-0">{{ author.email }}</p>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-bold text-primary">{% translate "ORCID" %}</label>
+      <p class="mb-0">{{ author.orcid|default:"-" }}</p>
+    </div>
+  {% endif %}
+</div>
+
+{% if article %}
+  <div class="row">
+    <div class="col-md-4">
+      <label class="form-label fw-bold">{% translate "Article ID" %}</label>
+      <p class="mb-0">{{ article.pk }}</p>
+    </div>
+    <div class="col-md-8 mb-3">
+      <label class="form-label fw-bold">{% translate "Article title" %}</label>
+      <p class="mb-0">{{ article.safe_title }}</p>
+    </div>
+  </div>
+{% endif %}
+
+{% if author %}
+  {% if user_is_editor or request.user.is_staff %}
+    <div class="card mt-3">
+      <div class="card-header">
+        <h2 class="h5 mb-0">{% translate "Related settings" %}</h2>
+      </div>
+      <div class="card-body">
+        <ul class="mb-0">
+          <li>
+            {% blocktrans with status=journal_settings.metadata.author_job_title|yesno:"on,off" %}
+              Job titles are turned {{ status }}.
+            {% endblocktrans %}
+            <a target="_blank" href="{% url 'core_edit_setting' 'metadata' 'author_job_title' %}">
+              [{% translate "change" %}]
+            </a>
+          </li>
+          <li>
+            {% blocktrans with status=journal_settings.metadata.author_department|yesno:"on,off" %}
+              Department names are turned {{ status }}.
+            {% endblocktrans %}
+            <a target="_blank" href="{% url 'core_edit_setting' 'metadata' 'author_department' %}">
+              [{% translate "change" %}]
+            </a>
+          </li>
+          <li>
+            {% blocktrans with status=journal_settings.metadata.author_affiliation_dates|yesno:"on,off" %}
+              Affiliation dates are turned {{ status }}.
+            {% endblocktrans %}
+            <a target="_blank" href="{% url 'core_edit_setting' 'metadata' 'author_affiliation_dates' %}">
+              [{% translate "change" %}]
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  {% endif %}
+{% endif %}

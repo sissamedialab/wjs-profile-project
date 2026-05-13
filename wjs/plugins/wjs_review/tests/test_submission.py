@@ -5,7 +5,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.test.client import Client
 from django.urls import reverse
-from submission.models import Article, Keyword, Licence, Section
+from submission.models import Article, FrozenAuthor, Keyword, Licence, Section
 
 from wjs.jcom_profile.forms import KeywordSelectionArticleInfoSubmit
 from wjs.jcom_profile.models import JCOMProfile, WjsSimpleBleach
@@ -30,6 +30,7 @@ BLEACH_CASES = [
 ]
 
 
+@pytest.mark.skip("Old submission is not used anymore")
 @pytest.mark.django_db
 def test_create_coauthor_during_submission(
     article: Article,
@@ -59,20 +60,21 @@ def test_create_coauthor_during_submission(
         data={
             "first_name": "Marco",
             "last_name": "Caco",
-            "email": new_email,
+            "frozen_email": new_email,
             "add_author": "",  # ⇦ this triggers the creation of new Account!
         },
     )
-    # When a new co-author is created and added to the article,
-    # we are redirected to the submit-authors stage
-    assert response.status_code == 302
-    assert response.headers["Location"] == url
-
+    # When a new co-author is created and added to the article the page is rendered again and success message is
+    # added to the messages list.
+    assert response.status_code == 200
+    messages = list(response.context["messages"])
+    assert f"Marco Caco ({new_email}) added to the article." == messages[0].message
     # Here is the interesting part:
     # a new Account has been created
     # but it's not active (this is a problem)
-    assert Account.objects.get(email=new_email)
-    assert not Account.objects.get(email=new_email).is_active
+    with pytest.raises(Account.DoesNotExist):
+        assert Account.objects.get(email=new_email)
+    assert FrozenAuthor.objects.filter(frozen_email=new_email).exists()
 
 
 @pytest.mark.parametrize(("string_with_tag", "bleached_string"), BLEACH_CASES)
@@ -88,6 +90,7 @@ def test_bleach_title_param(string_with_tag, bleached_string):
     assert title == bleached_string
 
 
+@pytest.mark.skip("Old submission is not used anymore")
 @pytest.mark.parametrize(("string_with_tag", "bleached_string"), BLEACH_CASES)
 @pytest.mark.django_db
 def test_submission_form(sections, article, journal, string_with_tag, bleached_string):

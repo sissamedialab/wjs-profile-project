@@ -1,15 +1,14 @@
-{% load django_bootstrap5 wjs_articles wjs_review wjs_tags %}
+{% load django_bootstrap5 i18n wjs_articles wjs_review wjs_tags %}
 {% article_css_classes workflow as article_classes %}
 {% with doi=article.get_doi pubid=article.get_pubid %}
   <div class="d-flex justify-content-between">
     <div class="d-flex align-items-center gap-3">
-      <h3>
+      <h1 class="page-title">
         {% if article.section %}<span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span> -{% endif %}
         {% if pubid %}{{ pubid }} -{% endif %}
         {{ workflow }}
-      </h3>
+      </h1>
       {% if workflow|is_user_article_manager:request.user or workflow|is_user_article_author:request.user %}
-        <h5>
         <span class="badge {{ article_classes.state_css }}" title="{% translate "State" %}: {{ workflow.state_label }}">
           {{ workflow.state_label }}<br>
           {% with status_date=workflow.article|get_status_date_label %}
@@ -18,7 +17,6 @@
             {% endif %}
           {% endwith %}
         </span>
-        </h5>
       {% endif %}
     </div>
     <div class="d-flex align-items-center gap-3">
@@ -27,24 +25,31 @@
       {% elif workflow|is_user_article_editor:request.user %}
         {% url "wjs_article_decision" pk=workflow.pk as make_decision_url %}
       {% endif %}
+      {% translate "Make decision" as make_decision_label %}
+      <!-- djlint:off -->
+      {% translate '<i class="bi bi-info-circle"></i> Guidelines' as guidelines_label %}
+      <!-- djlint:on -->
       {% if make_decision_url and article|editor_can_make_decision %}
-        {% bootstrap_button "Make decision" href=make_decision_url button_class="btn-primary" %}
+        {% bootstrap_button make_decision_label href=make_decision_url button_class="btn-primary" %}
       {% endif %}
       {% if workflow|is_user_article_author:request.user %}
-        {% bootstrap_button '<i class="bi bi-info-circle"></i> Guidelines' href="/site/authors" button_class="btn-outline-primary" target="_blank" %}
+        {% bootstrap_button guidelines_label href="/site/authors" button_class="btn-outline-primary" target="_blank" %}
       {% elif workflow|is_user_article_editor:request.user %}
-        {% bootstrap_button '<i class="bi bi-info-circle"></i> Guidelines' href="/site/editors" button_class="btn-outline-primary" target="_blank" %}
+        {% bootstrap_button guidelines_label href="/site/editors" button_class="btn-outline-primary" target="_blank" %}
       {% elif workflow|is_user_article_reviewer:request.user %}
-        {% bootstrap_button '<i class="bi bi-info-circle"></i> Guidelines' href="/site/reviewers" button_class="btn-outline-primary" target="_blank" %}
+        {% bootstrap_button guidelines_label href="/site/reviewers" button_class="btn-outline-primary" target="_blank" %}
       {% endif %}
     </div>
   </div>
   {% if doi %}
-    <div><a class="text-decoration-none h3"
-    {% if workflow.state == "Published" %}
-            href="https://doi.org/{{ doi }}"
-    {% else %}
-            href="#" title="DOI not yet registered"
-    {% endif %}
-  >https://doi.org/{{ doi }}{% endif %}</a></div>
+    <div>
+      {% if workflow.state == "Published" %}
+        {% if "https" in doi %}
+          <a class="text-decoration-none h4" href="{{ doi }}">{{ doi }}</a>
+        {% else %}
+          <a class="text-decoration-none h4" href="https://doi.org/{{ doi }}">https://doi.org/{{ doi }}</a>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% endif %}
 {% endwith %}

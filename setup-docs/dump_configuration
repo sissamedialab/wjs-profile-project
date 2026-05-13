@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -e
+
+if [[ -z "$1" || -z "$2" ]]; then
+    echo -e "Missing journal.\nUsage: $0 <journal-name> <output-dir>"
+  exit 1
+fi
+
+journal=$1
+output="$2"
+
+
+echo "Dump settings to csv in ${output}\n"
+
+echo "Exporting general settings"
+python -W ignore manage.py export_settings ${journal} --output "${output}/202603_all_settings_new.csv"
+echo "Exporting submission configuration settings"
+python -W ignore manage.py export_settings ${journal} --group=submissionconfiguration --output "${output}/202603_submission_settings_new.csv"
+echo "Exporting submission fields settings"
+python -W ignore manage.py export_submission_fields ${journal} --output "${output}/202603_submission_fields_new.csv"
+echo "Exporting WJS submission settings"
+python -W ignore manage.py export_settings ${journal} --group=wjs_submission --output "${output}/202604_wjs_submission_settings_new.csv"

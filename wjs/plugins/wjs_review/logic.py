@@ -11,6 +11,7 @@ import shutil
 import tarfile
 import tempfile
 import time
+import uuid
 import xml.etree.ElementTree as ET  # noqa
 from copy import copy
 from functools import cached_property
@@ -26,7 +27,7 @@ from channels.layers import get_channel_layer
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
 from core import models as core_models
-from core.models import AccountRole, Role
+from core.models import AccountRole, Role, SupplementaryFile
 from dateutil.parser import parse
 from django import forms
 from django.conf import settings
@@ -49,8 +50,17 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
-from plugins.typesetting.models import TypesettingAssignment
+from plugins.wjs_submission.conversion import (
+    TASK_LOG_PREFIX,
+    get_feedback_logfile,
+    report_yakunin_errors,
+    report_yakunin_warnings,
+)
 from plugins.wjs_submission.models import (
+    ArticleCollaboration,
+    ArticleSubmission,
+    RevisionArticleAuthorOrder,
+    RevisionArticleCollaboration,
     RevisionStorage,
     RevisionSubmissionArticleFunding,
     SubmissionArticleFunding,
@@ -64,7 +74,9 @@ from submission.models import (
     Article,
     Field,
     FieldAnswer,
+    FrozenAuthor,
 )
+from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -78,14 +90,14 @@ from wjs.jcom_profile.utils import (
     render_template_from_setting,
 )
 
-from ..wjs_submission.models import ArticleSubmission
 from . import communication_utils, permissions
 from .events.assignment import dispatch_assignment
-from .logic__production import (  # noqa F401
+from .logic__production import (  # noqa: F401
     AssignTypesetter,
     AuthorSendsCorrections,
     BeginPublication,
     FinishPublication,
+    HandleDownloadRevisionFiles,
     ReadyForPublication,
     RequestProofs,
     TypesettedFilesUpload,
@@ -614,6 +626,7 @@ class AssignToReviewer:
             assignment.report_form_answers = self.form_data.get("report_form_answers", default_report_form_answers)
             assignment.editor_invite_message = None
             assignment.tex_report_pdf = None
+            assignment.shared_report = False
             assignment.save()
             # this is needed because janeway set assignment.due_date to a datetime object, even if the field is a date
             # by refreshing it from db, the value is casted to a date object
@@ -1703,6 +1716,190 @@ class AuthorHandleRevisionObsolete:
             return self.revision
 
 
+@dataclasses.dataclass()
+class PopulateRevisionSteps:
+    """Orchestrate the transfer of data from the revision storage to its proper place."""
+
+    article: Article
+    revision: EditorRevisionRequest
+    revision_storage: RevisionStorage
+
+    def run(self):
+        PopulateRevisionStep1(
+            article=self.article,
+            revision=self.revision,
+            revision_storage=self.revision_storage,
+        ).run()
+        if self.revision_storage.revision_flow_type in {
+            RevisionStorage.RevisionFlowType.FULL,
+            RevisionStorage.RevisionFlowType.METADATA,
+        }:
+            PopulateRevisionStep4(
+                article=self.article,
+                revision=self.revision,
+                revision_storage=self.revision_storage,
+            ).run()
+        if self.revision_storage.revision_flow_type in {
+            RevisionStorage.RevisionFlowType.FULL,
+            RevisionStorage.RevisionFlowType.METADATA,
+        }:
+            PopulateRevisionStep5(
+                article=self.article,
+                revision=self.revision,
+                revision_storage=self.revision_storage,
+            ).run()
+        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
+            PopulateRevisionStep6(
+                article=self.article,
+                revision=self.revision,
+                revision_storage=self.revision_storage,
+            ).run()
+        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
+            PopulateRevisionStep7(
+                article=self.article,
+                revision=self.revision,
+                revision_storage=self.revision_storage,
+            ).run()
+        self.revision.revision_flow_type = self.revision_storage.revision_flow_type
+        _now = timezone.now()
+        if (
+            self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL
+            and self.revision.editor_decision.decision == ArticleWorkflow.Decisions.MAJOR_REVISION
+        ):
+            self.article.articleworkflow.last_major_revision = _now
+            self.article.articleworkflow.save()
+        self.revision.last_major_revision = _now
+
+
+@dataclasses.dataclass()
+class BasePopulateRevisionStep:
+    article: Article
+    revision: EditorRevisionRequest
+    revision_storage: RevisionStorage
+
+    def run(self):
+        raise NotImplementedError()
+
+
+class PopulateRevisionStep1(BasePopulateRevisionStep):
+    def run(self):
+        if cover_letter_note := self.revision_storage.data.get("comments_editor"):
+            self.revision.author_note = cover_letter_note
+        if file_id := self.revision_storage.data.get("cover_letter_file"):
+            self.revision.cover_letter_file = core_models.File.objects.get(id=file_id)
+        if new_competing_interests := self.revision_storage.data.get("competing_interests"):
+            self.article.competing_interests = new_competing_interests
+        # Additional submission fields
+        for additional_submission_field in Field.objects.filter(journal=self.article.journal).order_by("order"):
+            if additional_submission_field.name in self.revision_storage.data:
+                # Using "update_or_create" (instead of just "update"), because the author could have filled some answer
+                # that he had left empty during the first submission.
+                FieldAnswer.objects.update_or_create(
+                    article=self.article,
+                    field=additional_submission_field,
+                    defaults={"answer": self.revision_storage.data.get(additional_submission_field.name)},
+                )
+
+
+class PopulateRevisionStep4(BasePopulateRevisionStep):
+    def run(self):
+        if correspondence_author := self.revision_storage.data.get("correspondence_author"):
+            self.article.correspondence_author_id = correspondence_author
+        if authors_contributions := self.revision_storage.data.get("authors_contributions"):
+            self.article.submission_data.authors_contributions = authors_contributions
+            self.revision.authors_contributions = authors_contributions
+        if owner := self.revision_storage.data.get("owner"):
+            self.article.owner_id = owner
+        if affiliation_country := self.revision_storage.data.get("affiliation_country"):
+            self.article.submission_data.affiliation_country_id = affiliation_country
+
+        FrozenAuthor.objects.filter(article=self.article).delete()
+        article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage)
+        for article_author in article_authors:
+            FrozenAuthor.objects.create(
+                article=self.article,
+                author=article_author.author,
+                order=article_author.order,
+            )
+        ArticleCollaboration.objects.filter(article=self.article).delete()
+        article_collaborations = RevisionArticleCollaboration.objects.filter(revision_storage=self.revision_storage)
+        for article_collaboration in article_collaborations:
+            ArticleCollaboration.objects.create(
+                article=self.article,
+                collaboration=article_collaboration.collaboration,
+                relation=article_collaboration.relation,
+                order=article_collaboration.order,
+            )
+
+
+class PopulateRevisionStep5(BasePopulateRevisionStep):
+    def run(self):
+        if new_title := self.revision_storage.data.get("title"):
+            self.revision.title = self.article.title
+            self.article.title = new_title
+        else:
+            self.revision.title = self.article.title
+
+        if new_abstract := self.revision_storage.data.get("abstract"):
+            self.revision.abstract = self.article.abstract
+            self.article.abstract = new_abstract
+        else:
+            self.revision.abstract = self.article.abstract
+        if language := self.revision_storage.data.get("language"):
+            self.article.language = language
+        if section := self.revision_storage.data.get("section"):
+            self.article.section_id = section
+
+
+class PopulateRevisionStep6(BasePopulateRevisionStep):
+    """Store cas, das and files."""
+
+    def run(self):
+        self.article.submission_data.cas = self.revision_storage.data.get("cas")
+        self.article.submission_data.cas_url = self.revision_storage.data.get("cas_url")
+        self.article.submission_data.das = self.revision_storage.data.get("das")
+        self.article.submission_data.das_url = self.revision_storage.data.get("das_url")
+
+        # Files
+        # (remember that the files from the previous version have already been saved to revision-request
+        # object when the revision was requested by the editor)
+        self.article.manuscript_files.set([self.revision_storage.data["manuscript_files"]])
+        self.article.source_files.set([self.revision_storage.data["source_files"]])
+
+        # Data/figure (aka administrative) files and supplementary files:
+        # let the article point directly to the ones selected during the revision, but do _not_ drop the rest
+        # (because files from prevision versions must be kept)
+        self.article.data_figure_files.set(self.revision_storage.data["data_figure_files"])
+        # Remember the revision-storage only stores the pk of the File record;
+        # the SupplementaryFile record does not yet exist.
+        esm_files = [
+            SupplementaryFile.objects.create(file_id=file_id)
+            for file_id in self.revision_storage.data["supplementary_files"]
+        ]
+        self.article.supplementary_files.set([esm_file.pk for esm_file in esm_files])
+
+
+class PopulateRevisionStep7(BasePopulateRevisionStep):
+    def run(self):
+        if access_mode := self.revision_storage.data.get("access_mode"):
+            self.article.submission_data.access_mode_id = access_mode
+        if special_request := self.revision_storage.data.get("special_request"):
+            self.article.submission_data.special_request = special_request
+
+        SubmissionArticleFunding.objects.filter(article=self.article).delete()
+        fundings = RevisionSubmissionArticleFunding.objects.filter(revision_storage=self.revision_storage)
+        for funding in fundings:
+            SubmissionArticleFunding.objects.create(
+                pk=funding.pk,
+                article=self.article,
+                name=funding.name,
+                fundref_id=funding.fundref_id,
+                funding_id=funding.funding_id,
+                funding_statement=funding.funding_statement,
+                country=funding.country,
+            )
+
+
 @dataclasses.dataclass
 class AuthorHandleRevision:
     """
@@ -1758,90 +1955,14 @@ class AuthorHandleRevision:
         # Please remember that files (manuscript, source files, etc.) have already been "copied" to the
         # revision-request object, when the revision request was created.
         #
-        # Old title and abstract are kept in the revision-request object
-        if new_title := self.revision_storage.data.get("title"):
-            self.revision.title = self.article.title
-            self.article.title = new_title
-        else:
-            self.revision.title = self.article.title
-
-        if new_abstract := self.revision_storage.data.get("abstract"):
-            self.revision.abstract = self.article.abstract
-            self.article.abstract = new_abstract
-        else:
-            self.revision.abstract = self.article.abstract
-
-        # Cover letter (note and file), manuscript and source-files are kept in the revision-request object
-        if cover_letter_note := self.revision_storage.data.get("comments_editor"):
-            self.revision.author_note = cover_letter_note
-        if file_id := self.revision_storage.data.get("cover_letter_file"):
-            self.revision.cover_letter_file = core_models.File.objects.get(id=file_id)
-
-        # The following fields directly overwrite existing values: no history is kept
-        if new_competing_interests := self.revision_storage.data.get("competing_interests"):
-            self.article.competing_interests = new_competing_interests
-        if correspondence_author := self.revision_storage.data.get("correspondence_author"):
-            self.article.correspondence_author_id = correspondence_author
-        if owner := self.revision_storage.data.get("owner"):
-            self.article.owner_id = owner
-        if affiliation_country := self.revision_storage.data.get("affiliation_country"):
-            self.article.submission_data.affiliation_country_id = affiliation_country
-        if access_mode := self.revision_storage.data.get("access_mode"):
-            self.article.submission_data.access_mode_id = access_mode
-        if special_request := self.revision_storage.data.get("special_request"):
-            self.article.submission_data.special_request = special_request
-        if language := self.revision_storage.data.get("language"):
-            self.article.language = language
-        if section := self.revision_storage.data.get("section"):
-            self.article.section_id = section
-
-        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
-            # store cas, das and files
-            self.article.submission_data.cas = self.revision_storage.data.get("cas")
-            self.article.submission_data.das = self.revision_storage.data.get("das")
-
-            # files
-            # (remember that the files from the previous version have already been saved to revision-request
-            # object when the revision was requested by the editor)
-            self.article.manuscript_files.set([self.revision_storage.data["manuscript_files"]])
-            self.article.source_files.set([self.revision_storage.data["source_files"]])
-
-            # data-figure and supplementary files:
-            # let the article point directly to the ones selected during the revision, but do _not_ drop the rest
-            self.article.data_figure_files.set(self.revision_storage.data["data_figure_files"])
-            self.article.supplementary_files.set(self.revision_storage.data["supplementary_files"])
-
-            # TODO: specs#2330 probably nothing to do for "administrative files"
+        PopulateRevisionSteps(
+            article=self.article, revision=self.revision, revision_storage=self.revision_storage
+        ).run()
 
         self.revision.save()
         self.article.submission_data.save()
-        self.article.save()
-
-        # Additional submission fields
-        for additional_submission_field in Field.objects.filter(journal=self.article.journal).order_by("order"):
-            if additional_submission_field.name in self.revision_storage.data:
-                # Using "update_or_create" (instead of just "update"), because the author could have filled some answer
-                # that he had left empty during the first submission.
-                FieldAnswer.objects.update_or_create(
-                    article=self.article,
-                    field=additional_submission_field,
-                    defaults={"answer": self.revision_storage.data.get(additional_submission_field.name)},
-                )
-
-        SubmissionArticleFunding.objects.filter(article=self.article).delete()
-        fundings = RevisionSubmissionArticleFunding.objects.filter(revision_storage=self.revision_storage)
-        for funding in fundings:
-            SubmissionArticleFunding.objects.create(
-                pk=funding.pk,
-                article=self.article,
-                name=funding.name,
-                fundref_id=funding.fundref_id,
-                funding_id=funding.funding_id,
-                funding_statement=funding.funding_statement,
-                country=funding.country,
-            )
-
         self.revision_storage.delete()
+        self.article.save()
 
     def _confirm_revision(self):
         """
@@ -2509,8 +2630,6 @@ class HandleDecision:
         :rtype: Article
         """
         self.workflow.article.accept_article()
-        # FIXME: Remove after syncing with upstream to include commit fd0464d
-        self.workflow.article.snapshot_authors(self.workflow.article, force_update=False)
 
         self.workflow.editor_writes_editor_report()
         self.workflow.editor_accepts_paper()
@@ -2735,7 +2854,7 @@ class HandleDecision:
         return decision
 
     def _handle_latex_pdf(self, decision):
-        """If decision contains a report and It has a latex version we save it in EditorDecision."""
+        """If decision contains a report and it has a latex version, we save it in EditorDecision."""
         assignment = WjsEditorAssignment.objects.get_current(self.workflow.article)
         if self.form_data.get("decision_editor_report", []) and assignment.editor_report_pdf_draft:
             decision.decision_editor_report_pdf = assignment.editor_report_pdf_draft
@@ -2763,6 +2882,8 @@ class HandleDecision:
                 )
             },
         )
+        assignment.shared_report = value == "yes"
+        assignment.save()
 
     def _get_editor_assignment(self) -> WjsEditorAssignment | None:
         """Return the current editor assignment (if any)."""
@@ -2773,13 +2894,33 @@ class HandleDecision:
             return None
 
     def _delete_editor_reminders(self):
-        """Delete all reminders for the editor.
+        """
+        Delete all reminders for the editor.
 
         When the editor makes a decision, he is done.
         """
         if assigment := self._get_editor_assignment():
             EditorShouldMakeDecisionReminderManager(self.workflow.article, assigment.editor).delete()
             EditorShouldSelectReviewerReminderManager(self.workflow.article, assigment.editor).delete()
+
+    def _delete_author_submission_log_files(self):
+        """
+        Remove conversion logs.
+
+        During submission, the author's sources are converted to PDF and log files of the process are created.
+
+        They are left around to allow us to debug eventual conversion errors not spotted during submission.
+        We assume the they are not needed anymore as soon as the editor makes a decision.
+        """
+        [
+            f.delete()
+            for f in core_models.File.objects.filter(
+                article_id=self.workflow.article.pk,
+                original_filename__startswith=TASK_LOG_PREFIX,
+            )
+        ]
+        self.workflow.article.submission_data.feedback_uuid = None
+        self.workflow.article.submission_data.save()
 
     def run(self) -> EditorDecision:
         with transaction.atomic():
@@ -2793,6 +2934,7 @@ class HandleDecision:
             if handler:
                 getattr(self, handler)(decision)
                 self._delete_editor_reminders()
+            self._delete_author_submission_log_files()
             return decision
 
 
@@ -3691,7 +3833,7 @@ class OpenAppeal:
 
     def _is_articles_author(self) -> bool:
         """Check if selected Editor is the article's author."""
-        return self.article.authors.filter(id=self.new_editor.id).exists()
+        return self.article.author_accounts.filter(id=self.new_editor.id).exists()
 
     def _has_another_past_rejection(self) -> bool:
         return (
@@ -3930,19 +4072,23 @@ class WithdrawPreprint:
 class YakuninPDFGenerationError(Exception):
     """Raised when Yakunin fails to generate the PDF due to content or processing issues."""
 
-    pass
+
+class YakuninPDFGenerationWarnings(Warning):
+    """Raised when Yakunin generate a PDF but report conversion warnings."""
 
 
 class YakuninRequestError(Exception):
     """Raised when the request to Yakunin fails (network, timeout, HTTP errors)."""
 
-    pass
-
 
 @dataclasses.dataclass
 class YakuninClient:
+    """Interact with Yakunin."""
+
     file: bytes
     filename: str
+    log: str | None = None
+    "Content of the yakunin-task.log file."
 
     def _handle_mock_file(self):
         """
@@ -3960,12 +4106,16 @@ class YakuninClient:
             return tmpdir, "No logs for mock file"
 
     def _request(
-        self, endpoint: str, files: dict[str, tuple[str, bytes]], data: Optional[Mapping[str, str]] = None
+        self,
+        endpoint: str,
+        files: dict[str, tuple[str, bytes]],
+        data: Mapping[str, str] | None = None,
     ) -> tuple[Path, str]:
         """
-        Sends a POST request to the specified endpoint with files and data, processes the response, and
-        handles potential issues such as network errors or problems with the response content. The method
-        is specifically used for interactions with the Yakunin system for generating PDFs.
+        Send a POST request to the specified endpoint with files and data.
+
+        Processes the response, and handles potential issues such as network errors or problems with the response
+        content. The method is specifically used for interactions with the Yakunin system for generating PDFs.
 
         :param endpoint: Endpoint URL path to which the request is sent.
         :type endpoint: str
@@ -3978,9 +4128,9 @@ class YakuninClient:
         :return: A tuple containing the path to the unpacked directory (as a Path object) and the
                  Yakunin log string extracted from the response.
         :rtype: tuple[Path, str]
-        :raises ValidationError: If there is an issue with the network connection, the request times out,
-                                  or the server returns an HTTP error.
-        :raises ValueError: If the Yakunin logs indicate an error during PDF generation.
+        :raises YakuninRequestError: If there is an issue with the network connection, the request times out,
+                                     or the server returns an HTTP error.
+
         """
         if getattr(settings, "YAKUNIN_MOCK_FILE", None):
             tmpdir, log = self._handle_mock_file()
@@ -3994,26 +4144,19 @@ class YakuninClient:
             raise YakuninRequestError(str(e)) from e
 
         tmpdir = self._unpack_response_file(response.content)
-        log = self._extract_yakunin_logs(tmpdir)
-        # store logs in a class variable to be able to access them later even if ValueError is raised
-        self._log = log
-        if not self._report_yakunin_errors(log):
-            shutil.rmtree(tmpdir)
-            raise YakuninPDFGenerationError(
-                _("Error generating the PDF file. A log file containing diagnostic details has been downloaded.")
-            )
-        return tmpdir, log
+        # The caller can have fast access to the conversion log through this attribute:
+        self.log = self._extract_yakunin_logs(tmpdir)
+        return tmpdir, self.log
 
-    # This method is not currently used bud could be useful, maybe?
+    # This method is not currently used but could be useful
     def call_yakunin_mkpdf(self) -> tuple[Path, str]:
         """
-        Calls the 'mkpdf/' endpoint to generate a PDF file using the provided file
-        data and filename. This method wraps the request and retrieves the result
-        including the file path and additional metadata.
+        Call the 'mkpdf/' endpoint.
 
-        :return: A tuple containing the path to the generated PDF file and metadata
-                 as a string.
-        :rtype: tuple[Path, str]
+        Generate a PDF file using the provided file data and filename.
+
+        :return: The path to the generated PDF file.
+        :rtype: Path
         """
         files = {
             "file": (
@@ -4055,9 +4198,10 @@ class YakuninClient:
             return self._request("watermark/ws/", files, {"feedback_ws_url": feedback_ws_url})
         return self._request("watermark/", files)
 
-    def _unpack_response_file(self, content: bytes) -> Path:
+    @staticmethod
+    def _unpack_response_file(content: bytes) -> Path:
         """
-        Unpacks the content of a tar.gz file into a temporary directory.
+        Unpack the content of a tar.gz file into a temporary directory.
 
         This function creates a temporary directory, unpacks the provided compressed
         content (in tar.gz format) into it, and returns the path of the created
@@ -4070,34 +4214,32 @@ class YakuninClient:
         """
         unpack_dir = tempfile.mkdtemp()
 
-        with BytesIO(content) as file_obj:
-            with tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
-                tar.extractall(path=unpack_dir)
-        unpack_dir = Path(unpack_dir)
+        with BytesIO(content) as file_obj, tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
+            tar.extractall(path=unpack_dir)
+        return Path(unpack_dir)
 
-        return unpack_dir
-
-    def _extract_yakunin_logs(self, tmpdir: Path) -> str:
+    @staticmethod
+    def _extract_yakunin_logs(tmpdir: Path) -> str:
         """
-        Extracts the content of a specific Yakunin log file located in a given temporary
-        directory. This method searches for the first occurrence of a log file named
-        'yakunin-task.log', reads its binary content, and decodes it into a string.
+        Extract the content of a Yakunin conversion log file.
+
+        Note that the filename is hardoced here, and must agree with
+        yakunin.utils.TASK_LOGFILE_NAME.
 
         :param tmpdir: A pathlib.Path object pointing to the temporary directory where
                        the Yakunin log file is expected to reside.
         :type tmpdir: Path
         :return: The decoded content of the Yakunin log file as a string.
         :rtype: str
+
         """
         yakunin_log_file = next(tmpdir.glob("yakunin-task.log"), None)
-        with open(yakunin_log_file, "rb") as log_file:
-            log_content = log_file.read()
-            return log_content.decode("utf-8")
+        return Path(yakunin_log_file).read_text(encoding="utf-8")
 
-    def _report_yakunin_errors(self, log: str) -> bool:
+    @staticmethod
+    def no_errors_in_log(log: str) -> bool:
         """
-        Analyzes the given log for critical or error-level messages and
-        determines whether any such messages are present.
+        Analyze the given log for critical or error-level messages.
 
         This function inspects each line of the given log string. If it encounters
         a line that starts with "ERROR" or "CRITICAL", it sets a flag indicating
@@ -4115,18 +4257,45 @@ class YakuninClient:
         has_error_or_critical = False
 
         for line in log.splitlines():
-            if line.startswith("ERROR"):
-                has_error_or_critical = True
-                break
-            elif line.startswith("CRITICAL"):
+            if line.startswith(("ERROR", "CRITICAL")):
                 has_error_or_critical = True
                 break
         return not has_error_or_critical
 
+    # TODO: move to wjs_submission / merge with Yakunin's TaskLogger.conversion_result() ?
+    @staticmethod
+    def conversion_result(log: str) -> str:
+        """
+        Give a short summary of the result of the conversion.
+
+        Returns:
+          error: if the conversion failed (one should not expect to find a PDF)
+          warning: if the PDF was generated, but there were some errors/warnings in the process
+          success: if the PDF was generated without errors/warnings
+
+        """
+        # We could have ERROR and WARNING in the same log;
+        # ERROR takes precedence: as soon as we find an error we don't care about warnings anymore;
+        # also, one or many WARNINGs are equivalent.
+        result = None
+        for line in log.splitlines():
+            if line.startswith(("ERROR", "CRITICAL")):
+                result = "error"
+                break
+            if not result and line.startswith("WARNING"):
+                result = "warning"
+            if line.startswith("⇧ Task log end."):
+                # This is a well-known boundary:
+                # see Yakunin's Archive.submission_archive()
+                break
+        if not result:
+            result = "success"
+        return result
+
 
 @dataclasses.dataclass
 class PressNotificationHandler:
-    """Send notification to journal press if required"""
+    """Send notification to journal press if required."""
 
     workflow: ArticleWorkflow
     request: HttpRequest
@@ -4195,29 +4364,63 @@ class ConvertManuscriptToPdf:
     file_id: int
     feedback_ws_url: str | None
     feedback_ws_name: str | None
-    is_revision: bool = False
+    feedback_uuid: uuid.UUID | None
 
-    _failed_conversion_log = "Failed conversion log ConvertManuscriptToPdf"
+    is_revision: bool = False
 
     @cached_property
     def article(self) -> Article:
         return Article.objects.get(pk=self.article_id)
 
-    @property
-    def yakunin_log_filename(self):
-        return f"conversion-task_{self.article}.log"
-
-    def _report_error_via_ws(self, status: str, error_description: str, log_file=None):
+    def _report_result_via_ws(self, result: str, text: str, log_url: str):
+        if not self.feedback_ws_name:
+            return
         channel_layer = get_channel_layer()
         payload = {
-            "status": status,
-            "text": error_description,
+            "result": result,
+            "text": text,
+            "data": log_url,
         }
-        if log_file:
-            payload["data"] = log_file
+        logger.debug(f"Report success via ws {payload}.")
         async_to_sync(channel_layer.group_send)(
-            f"group_{self.feedback_ws_name}", {"type": "error.log", "message": payload}
+            f"group_{self.feedback_ws_name}",
+            {"type": "completed.data", "message": payload},
         )
+
+    def _report_error_via_ws(self, error_description: str, log_url: str | None = None):
+        if not self.feedback_ws_name:
+            return
+        channel_layer = get_channel_layer()
+        payload = {
+            "status": "failed",
+            "text": error_description,
+            "data": log_url,
+        }
+        logger.debug(f"Report errors via ws {payload}.")
+        async_to_sync(channel_layer.group_send)(
+            f"group_{self.feedback_ws_name}",
+            {"type": "error.log", "message": payload},
+        )
+
+    def _get_logfile(self) -> tuple[core_models.File, str]:
+        """
+        Retrieve or create a logfile tied to the specified article and provide its download URL.
+
+        :return: A tuple containing the logfile object and its corresponding download URL
+        :rtype: tuple[core_models.File, str]
+        :raises core_models.File.DoesNotExist: If the file retrieval or creation fails
+        :raises django.urls.NoReverseMatch: If the URL reversal fails for the generated log URL
+        """
+        logfile, __ = core_models.File.objects.get_or_create(
+            article_id=self.article_id,
+            original_filename=get_feedback_logfile(self.feedback_uuid),
+        )
+        # We provide the log link after every conversion
+        log_url = reverse(
+            "download_single_file",
+            kwargs={"file_id": logfile.id, "article_id": self.article_id},
+        )
+        return logfile, log_url
 
     def run(self):
         """
@@ -4230,45 +4433,44 @@ class ConvertManuscriptToPdf:
         PDF is handled appropriately. Temporary directories used during the process
         are cleaned up to ensure no residual data remains.
 
-        :raises ValueError: If an error occurs during the Yakunin watermarking process.
+        :raises YakuninRequestError: If unable to contact Yakunin or got a 500 error.
 
         :return: The generated watermarked PDF file.
         """
         tmpdir = None
         ini = self._create_in_memory_ini_file()
         filename, file_bytes, file_obj = self._get_source_file()
+        client = YakuninClient(file=file_bytes, filename=filename)
+
+        logfile, log_url = self._get_logfile()
+
         try:
-            client = YakuninClient(file=file_bytes, filename=filename)
-            tmpdir, log_content = client.call_yakunin_watermark(ini_file=ini, feedback_ws_url=self.feedback_ws_url)
-            self.logfile = self._save_yakunin_logs(log_content)
-            generated_file = self._handle_generated_pdf(tmpdir, source_file=file_obj)
-            return generated_file
-        except YakuninPDFGenerationError as e:
-            log_content = getattr(client, "_log", None)
-            if not log_content:
-                log_content = str(e)
-            self.logfile = self._save_yakunin_logs(log_content)
-            log_file_url = reverse(
-                "download_single_file", kwargs={"file_id": self.logfile.id, "article_id": self.article_id}
+            tmpdir, log = client.call_yakunin_watermark(ini_file=ini, feedback_ws_url=self.feedback_ws_url)
+            # Always save the content of yakunin's log;
+            # if the conversion was successful, it will not be shown to the user.
+            logfile = self._save_yakunin_log(log, logfile)
+
+            self._report_result_via_ws(
+                result=logfile.description,
+                text="Detailed conversion log available.",
+                log_url=log_url,
             )
-            self._report_error_via_ws("error", str(e), log_file_url)
-            raise
-        except YakuninRequestError as e:
+
+            return self._handle_generated_pdf(tmpdir, source_file=file_obj)
+
+        except YakuninRequestError:
+            logger.exception(f"Yakunin request error for article {self.article_id}.")
             from_email = get_setting("general", "support_email", self.article.journal).processed_value
             msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
-            self.logfile = self._save_yakunin_logs(str(e))
-            log_file_url = reverse(
-                "download_single_file", kwargs={"file_id": self.logfile.id, "article_id": self.article_id}
-            )
-            self._report_error_via_ws("error", str(msg), log_file_url)
-            raise
+            self._report_error_via_ws(str(msg), log_url=log_url)
+
         finally:
             if tmpdir:
                 shutil.rmtree(tmpdir)
 
     def _create_in_memory_ini_file(self) -> BytesIO:
         """
-        Creates an in-memory .ini file containing metadata related to the current article version.
+        Create an in-memory .ini file containing metadata related to the current article version.
 
         The method generates a `.ini` configuration file in memory that stores information concerning
         the article being processed, such as its journal code, unique identifier, version number, and
@@ -4303,37 +4505,49 @@ y = {settings.WATERMARK_Y_POSITION}
         ini_file.seek(0)
         return ini_file
 
-    def _save_yakunin_logs(self, log: str) -> core_models.File:
+    def _save_yakunin_log(self, log: str, logfile: core_models.File) -> core_models.File:
         """
-        Saves the Yakunin logs associated with a specific conversion task. This function
-        takes a string containing log data, encodes it, and saves the log file as part
-        of an article's associated files. The file is saved with a standardized name
-        including the associated article's information.
+        Save the Yakunin log content.
+
+        Also set the logfile label (status) and description (result) based on the log content.
+        This should work around any issues that might have happened with the WS feedback.
 
         :param log: The log content to save, provided as a string.
         :type log: str
+        :param logfile: Logfile object to update.
+        :type logfile: core_models.File
         :return: None
         """
-        remove_existing_files_from_filesystem(self.article.pk, self.yakunin_log_filename)
-        log_file = BytesIO(log.encode("utf-8"))
-        log_content_file = File(log_file, name=self.yakunin_log_filename)
 
-        return core_files.save_file_to_article(
-            file_to_handle=log_content_file,
-            article=self.article,
-            owner=self.article.correspondence_author,
-            label=self._failed_conversion_log,
-        )
+        # NB: the logfile might have been changed (e.g. by the websocket feedbacks);
+        # so we re-read it from the DB.
+        logfile.refresh_from_db()
 
-    def _handle_generated_pdf(self, tmpdir: Path, source_file: File) -> File:
+        path = logfile.self_article_path()
+        Path(path).write_text(log, encoding="utf-8")
+
+        # If we are here, it means that Yakunin has completed the process.
+        logfile.label = "completed"
+
+        # Now that the conversion is completed,
+        # we can consider anything that is not "warning" or "error" as a success
+        result = YakuninClient.conversion_result(log)
+        if result != logfile.description:
+            logfile.description = result
+            logger.debug(f"Inconsistent result; was: {logfile.description}, set to: {result}.")
+
+        logfile.save()
+        return logfile
+
+    def _handle_generated_pdf(self, tmpdir: Path, source_file: File) -> File | None:
         """
         Handle the generated PDF.
 
         Processes it, and save it appropriately.
 
-        For new submissions, this method updates the article's
-        file associations, placing the generated PDF in the correct slot while
-        clearing and reassigning other related files.
+        For new submissions, this method updates the article's file associations,
+        placing the generated PDF in the correct slot
+        while clearing and reassigning other related files.
 
         For revisions, this method updates the revision_storage data,
         clearing eventually replaced files.
@@ -4346,17 +4560,21 @@ y = {settings.WATERMARK_Y_POSITION}
         :rtype: File
         """
         generated_pdf_path = next(tmpdir.glob("*.pdf"), None)
+        if not generated_pdf_path:
+            logger.warning(f"No PDF file generated for {self.article_id}")
+            return None
+
         # Let's call the PDF that we are storing in Janeway the same as the source file that originated it,
         # but with extension ".pdf"
         generated_pdf_filename = Path(source_file.original_filename).with_suffix(".pdf")
         if not self.is_revision:
             # We must remove eventual existing files before creating a new one, becase we are
             # re-using the same original filename.
-            remove_existing_files_from_filesystem(self.article.pk, generated_pdf_filename)
+            remove_existing_files_from_filesystem(self.article.pk, str(generated_pdf_filename))
             # HELP: can we simply remove the file currently associated to self.article.manuscript_files.first()?
 
         with generated_pdf_path.open("rb") as pdf_file:
-            generated_pdf = File(pdf_file, name=generated_pdf_filename)
+            generated_pdf = File(pdf_file, name=str(generated_pdf_filename))
             generated_manuscript = core_files.save_file_to_article(
                 file_to_handle=generated_pdf,
                 article=self.article,
@@ -4395,16 +4613,9 @@ y = {settings.WATERMARK_Y_POSITION}
             self.article.manuscript_files.add(generated_manuscript)
             self.article.save()
 
-        # Remove any log file from failed conversion
-        # Note that we cannot use queryset.delete(), because that does not call the model's delete() method
-        # (which unlinks the files)
-        [
-            f.delete()
-            for f in core_models.File.objects.filter(
-                article_id=self.article_id,
-                label=self._failed_conversion_log,
-            )
-        ]
+        # Do not remove the conversion log file just yet.
+        # It can be deleted further down the review process,
+        # e.g. when the editor takes any decision (accept/reject/ask-revision...).
 
         return generated_pdf
 
@@ -4424,80 +4635,52 @@ y = {settings.WATERMARK_Y_POSITION}
 
 
 @dataclasses.dataclass
-class ConvertEditorLatexReport:
+class BaseConvertLatexReport:
     report_text: str
     instance: WjsEditorAssignment
-
-    _failed_conversion_log = "Failed conversion log ConvertEditorLatexReport"
+    logfile: core_models.File | None = None
 
     @property
     def yakunin_log_filename(self):
-        return f"conversion-EA_{self.instance}.log"
-
-    def _create_in_memory_ini_file(self) -> BytesIO:
-        """
-        Creates an in-memory .ini file containing metadata related to the current article version.
-
-        Yet to be decides the caratheristics of the ini file.
-
-        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
-        :rtype: BytesIO
-        """
-        ini_content = f"""
-        [wjs]
-        text = Not for distribution ...WRITEME...
-        x = {settings.WATERMARK_X_POSITION}
-        y = {settings.WATERMARK_Y_POSITION}
-        """
-
-        ini_file = BytesIO(ini_content.encode("utf-8"))
-        ini_file.name = "wj.ini"
-        ini_file.seek(0)
-        return ini_file
-
-    def run(self):
-        """
-        Executes the process for generating, handling, and processing a LaTeX file using the Yakunin client service.
-
-        The method prepares a temporary directory for the process, creates required files, and interacts with the
-        Yakunin client to apply a watermark and handle the resulting files, ensuring clean up is performed after
-        execution. Error handling should be extended for robustness.
-
-        :return: Result of the `_handle_generated_file` method which processes the generated file.
-        :rtype: Any
-        """
-        tmpdir = None
-        try:
-            self.filename = f"latex_editor_report_EA-{self.instance.pk}"
-            tex_file = self._prepare_tex_file()
-            client = YakuninClient(file=tex_file, filename=self.filename)
-            tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
-            self.logfile = self._save_yakunin_logs(log)
-            return self._handle_generated_file(tmpdir)
-        except YakuninPDFGenerationError:
-            log = getattr(client, "_log", None)
-            self._save_yakunin_logs(log)
-            raise
-        except YakuninRequestError as e:
-            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
-            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
-            raise YakuninRequestError(msg) from e
-        finally:
-            if tmpdir:
-                shutil.rmtree(tmpdir)
+        raise NotImplementedError
 
     def _prepare_tex_file(self) -> bytes:
         """
-        Prepares the LaTeX file content as a byte-encoded string. This method combines a preamble retrieved
-        from a database and the report text, then appends the LaTeX document end command. The resulting
-        content is encoded into UTF-8.
+        Prepare the LaTeX file content
+
+        This method combines a preamble retrieved from a database and the report text, then appends the LaTeX document
+        end command. The resulting content is encoded into UTF-8.
 
         :return: The complete LaTeX document as a UTF-8 encoded byte string.
         :rtype: bytes
+
         """
         preamble = LatexPreamble.objects.get(journal=self.instance.article.journal).report_preamble
+        frozen_authors = self.instance.article.frozen_authors()
+        authors = frozen_authors if frozen_authors.exists() else self.instance.article.authors.all()
+        context = {
+            "article": self.instance.article,
+            "authors": authors,
+        }
+        preamble = HandleDownloadRevisionFiles.render_latexpreamble(preamble, context)
         full_text = f"{preamble}\n\n{self.report_text}\n\n" + r"\end{document}"
         return full_text.encode("utf-8")
+
+    def _raise_for_yakunin_errors(self, log: str):
+        """
+        Check for Yakunin errors in the given log and raise exceptions if errors / warnings are found.
+
+        :param log: Log content to be checked for Yakunin errors / warnings
+        :type log: str
+        :raises YakuninPDFGenerationError: If any Yakunin errors are found in the log
+        :raises YakuninPDFGenerationWarnings: If any Yakunin warnings are found in the log
+        """
+        filtered_lines = report_yakunin_errors(log)
+        if filtered_lines:
+            raise YakuninPDFGenerationError("Error during conversion")
+        filtered_lines = report_yakunin_warnings(log)
+        if filtered_lines:
+            raise YakuninPDFGenerationWarnings("Latex converted with warnings")
 
     def _save_yakunin_logs(self, log: str) -> core_models.File:
         """
@@ -4520,9 +4703,72 @@ class ConvertEditorLatexReport:
         return core_files.save_file_to_article(
             file_to_handle=log_content_file,
             article=self.instance.article,
-            owner=self.instance.editor,
+            owner=self.owner,
             label=self._failed_conversion_log,
         )
+
+    @property
+    def owner(self):
+        raise NotImplementedError
+
+    def _handle_generated_file(self, unpack_dir: Path) -> File:
+        """
+        Handle the processing of a generated file in a specified directory.
+
+        :param unpack_dir: Directory where the generated file is located
+        :type unpack_dir: Path
+        :return: Processed file object
+        :rtype: File
+        :raises NotImplementedError: If the method is not implemented
+        """
+        raise NotImplementedError
+
+    def run(self):
+        """
+        Executes the process for generating, handling, and processing a LaTeX file using the Yakunin client service.
+
+        The method prepares a temporary directory for the process, creates required files, and interacts with the
+        Yakunin client to apply a watermark and handle the resulting files, ensuring clean up is performed after
+        execution. Error handling should be extended for robustness.
+
+        :return: Result of the `_handle_generated_file` method which processes the generated file.
+        :rtype: Any
+        """
+        tmpdir = None
+        tex_file = self._prepare_tex_file()
+        client = YakuninClient(file=tex_file, filename=f"{self.report_filename}.tex")
+
+        try:
+            tmpdir, log = client.call_yakunin_mkpdf()
+            self.logfile = self._save_yakunin_logs(log)
+            self._raise_for_yakunin_errors(log)
+            return self._handle_generated_file(tmpdir)
+        except YakuninRequestError as e:
+            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
+            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
+            raise YakuninRequestError(msg) from e
+        finally:
+            if tmpdir:
+                shutil.rmtree(tmpdir)
+
+
+@dataclasses.dataclass()
+class ConvertEditorLatexReport(BaseConvertLatexReport):
+    _failed_conversion_log = "Failed conversion log ConvertEditorLatexReport"
+    _yakunin_log_filename_template = "conversion-EA_%s.log"
+    _report_filename = "latex_editor_report_EA-%s"
+
+    @property
+    def yakunin_log_filename(self):
+        return self._yakunin_log_filename_template % self.instance.pk
+
+    @property
+    def report_filename(self):
+        return self._report_filename % self.instance.pk
+
+    @property
+    def owner(self):
+        return self.instance.editor
 
     def _handle_generated_file(self, unpack_dir: Path) -> File:
         """
@@ -4532,158 +4778,68 @@ class ConvertEditorLatexReport:
         :param unpack_dir: A directory containing the unpacked files including the
             generated PDF.
         :type unpack_dir: Path
-        :return: A processed file associated with the article, labeled as "Yakunin
-            generated file".
+        :return: The processed PDF file saved and linked to the article.
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
-        generated_pdf_filename = f"{self.filename}.pdf"
+        generated_pdf_filename = f"{self.report_filename}.pdf"
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
-            generated_tex = core_files.save_file_to_article(
+            generated_pdf_jf = core_files.save_file_to_article(
                 file_to_handle=generated_pdf,
                 article=self.instance.article,
-                owner=self.instance.editor,
-                label="Yakunin generated file",
+                owner=self.owner,
+                label="Editor report PDF",
             )
-        self.instance.editor_report_pdf_draft = generated_tex
+        self.instance.editor_report_pdf_draft = generated_pdf_jf
         self.instance.save()
-        return generated_tex
+        return generated_pdf_jf
 
 
 @dataclasses.dataclass
-class ConvertReviewerLatexReport:
-    report_text: str
-    instance: WorkflowReviewAssignment
-
+class ConvertReviewerLatexReport(BaseConvertLatexReport):
     _failed_conversion_log = "Failed conversion log ConvertReviewerLatexReport"
+    _yakunin_log_filename_template = "conversion-RA_%s.log"
+    _report_filename = "latex_editor_report_RA-%s"
 
     @property
     def yakunin_log_filename(self):
-        return f"conversion-RA_{self.instance}.log"
+        return self._yakunin_log_filename_template % self.instance.pk
 
-    def _create_in_memory_ini_file(self) -> BytesIO:
-        """
-        Creates an in-memory .ini file containing metadata related to the current article version.
+    @property
+    def report_filename(self):
+        return self._report_filename % self.instance.pk
 
-        Yet to be decides the caratheristics of the ini file.
-
-        :return: A ``BytesIO`` object representing the generated .ini file with the appropriate content.
-        :rtype: BytesIO
-        """
-        ini_content = f"""
-        [wjs]
-        text = Not for distribution ...WRITEME...
-        x = {settings.WATERMARK_X_POSITION}
-        y = {settings.WATERMARK_Y_POSITION}
-        """
-
-        ini_file = BytesIO(ini_content.encode("utf-8"))
-        ini_file.name = "wj.ini"
-        ini_file.seek(0)
-        return ini_file
-
-    def run(self):
-        """
-        Executes the process to generate and handle a LaTeX report with Yakunin's watermarking process.
-
-        This method prepares the necessary LaTeX file, interacts with the Yakunin client to
-        apply a watermark, processes the logs, and handles the final output file. Temporary
-        directories are safely cleaned up upon completion.
-
-        :return: The result of the `_handle_generated_file` method, which processes the
-            final generated file.
-        :rtype: Any
-
-        :raises ValueError: Propagates an exception related to value errors encountered
-            during processing.
-        """
-        tmpdir = None
-        try:
-            self.filename = f"latex_report_RA-{self.instance.pk}"
-            tex_file = self._prepare_tex_file()
-            client = YakuninClient(file=tex_file, filename=self.filename)
-            tmpdir, log = client.call_yakunin_watermark(ini_file=self._create_in_memory_ini_file())
-            self.logfile = self._save_yakunin_logs(log)
-            return self._handle_generated_file(tmpdir)
-        except YakuninPDFGenerationError:
-            log = getattr(client, "_log", None)
-            self._save_yakunin_logs(log)
-            raise
-        except YakuninRequestError as e:
-            from_email = get_setting("general", "support_email", self.instance.article.journal).processed_value
-            msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
-            raise YakuninRequestError(msg) from e
-        finally:
-            if tmpdir:
-                shutil.rmtree(tmpdir)
-
-    def _prepare_tex_file(self) -> bytes:
-        """
-        Prepares and returns a LaTeX report file content as bytes.
-
-        This method generates a LaTeX document by combining a journal-specific
-        preamble and the report text, appending the necessary LaTeX document
-        ending sequence. The final content is then encoded into bytes.
-
-        :return: Bytes representing the LaTeX report file content.
-        :rtype: bytes
-        """
-        preamble = LatexPreamble.objects.get(journal=self.instance.article.journal).report_preamble
-        full_text = f"{preamble}\n\n{self.report_text}\n\n" + r"\end{document}"
-        return full_text.encode("utf-8")
-
-    def _save_yakunin_logs(self, log: str) -> core_models.File:
-        """
-        Saves Yakunin logs to a file associated with the current article instance.
-
-        The method processes the provided log string, encodes it into bytes,
-        creates a file with a specific naming convention, and saves it using
-        the associated article details for proper organization and access.
-
-        :param log: The log content to be saved, provided as a string.
-        :type log: str
-        :return: A File object representing the saved log file.
-        :rtype: core_models.File
-        """
-        remove_existing_files_from_filesystem(self.instance.article.pk, self.yakunin_log_filename)
-        log_file = BytesIO(log.encode("utf-8"))
-        log_content_file = File(log_file, name=self.yakunin_log_filename)
-
-        return core_files.save_file_to_article(
-            file_to_handle=log_content_file,
-            article=self.instance.article,
-            owner=self.instance.reviewer,
-            label=self._failed_conversion_log,
-        )
+    @property
+    def owner(self):
+        return self.instance.reviewer
 
     def _handle_generated_file(self, unpack_dir: Path) -> File:
         """
-        Handles a generated PDF file located in the given unpack directory and processes it
-        to save it as part of the associated article. This method assigns the processed file
-        to the current instance for further usage.
+        Handles a generated PDF file within the specified unpack directory, processes it,
+        and associates it with the relevant article.
 
-        :param unpack_dir: The directory in which the generated PDF file can be found
-                          (path should point to a directory containing the PDF file).
+        :param unpack_dir: A directory containing the unpacked files including the
+            generated PDF.
         :type unpack_dir: Path
         :return: The processed PDF file saved and linked to the article.
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
-        generated_pdf_filename = f"{self.filename}.pdf"
+        generated_pdf_filename = f"{self.report_filename}.pdf"
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
-            generated_tex = core_files.save_file_to_article(
+            generated_pdf_jf = core_files.save_file_to_article(
                 file_to_handle=generated_pdf,
                 article=self.instance.article,
-                owner=self.instance.reviewer,
-                label="Yakunin generated file",
+                owner=self.owner,
+                label="Reviewer report PDF",
             )
-        self.instance.tex_report_pdf = generated_tex
+        self.instance.tex_report_pdf = generated_pdf_jf
         self.instance.save()
-        return generated_tex
+        return generated_pdf_jf
 
 
 @dataclasses.dataclass

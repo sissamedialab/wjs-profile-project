@@ -4,16 +4,23 @@ from typing import Optional, get_args
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from journal.models import Journal
 from plugins.wjs_review.communication_utils import role_for_article
 from review.models import EditorAssignment, ReviewAssignment, RevisionRequest
 from submission.models import Article
+from typesetting.models import GalleyProofing, TypesettingAssignment
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 
 from . import permissions
-from .custom_types import AllowedBinaryPermissionType, AllowedPermissionType
+from .custom_types import (
+    AllAccessPermissions,
+    AllowedBinaryPermissionType,
+    AllowedPermissionType,
+    AnonymousAccessPermissions,
+)
 from .models import (
     ArticleWorkflow,
     EditorDecision,
@@ -266,7 +273,7 @@ class DirectorPermissionChecker(BasePermissionChecker):
         unsubmitted = self.workflow.state != ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
         if not unsubmitted and secondary_permission:
             return False
-        if self.workflow.article.authors.filter(pk=self.user.pk).exists():
+        if self.workflow.article.author_accounts.filter(pk=self.user.pk).exists():
             return False
         return base_permissions.has_director_role(self.workflow.article.journal, self.user)
 
@@ -455,19 +462,39 @@ class AuthorPermissionChecker(BasePermissionChecker):
             return permissions.is_one_of_the_authors(self.instance.articleworkflow, self.user)
         if isinstance(self.instance, RevisionRequest):
             is_an_author = permissions.is_one_of_the_authors(self.instance.article.articleworkflow, self.user)
-            return is_an_author and (
-                permission_type == PermissionAssignment.PermissionType.NO_NAMES
-                or permission_type == PermissionAssignment.BinaryPermissionType.ALL
-            )
+            return is_an_author and permission_type in AllAccessPermissions
         if isinstance(self.instance, EditorDecision):
             is_an_author = permissions.is_one_of_the_authors(self.instance.workflow, self.user)
-            return is_an_author and permission_type == PermissionAssignment.PermissionType.NO_NAMES
+            return is_an_author and permission_type in AnonymousAccessPermissions
         return False
 
 
 @dataclasses.dataclass
 class ReviewerPermissionChecker(BasePermissionChecker):
-    def _check_assignment_by_round(self, article: Article, review_round: int) -> bool:
+    """Encode defalt permissions for the reviewer."""
+
+    @staticmethod
+    def has_permission_give_review_type(
+        *,
+        is_assignee: bool,
+        journal: Journal,
+        permission_type: PermissionAssignment.PermissionType,
+    ) -> bool:
+        """Tell if the reviewer has the given permission, based on the review-type of the journal."""
+        review_visibility = get_setting(
+            "general",
+            "default_review_visibility",
+            journal=journal,
+            create=False,
+            default=True,
+        ).processed_value
+
+        available_permissions = (
+            AnonymousAccessPermissions if review_visibility == "double-blind" else AllAccessPermissions
+        )
+        return is_assignee and permission_type in available_permissions
+
+    def _check_assignment_by_round(self, article: Article, review_round: int | None) -> bool:
         """Check if reviewer for the given round round number."""
         if review_round is None:
             # In this case we are only interested if the user has been reviewer at any time for current or past RR
@@ -487,7 +514,7 @@ class ReviewerPermissionChecker(BasePermissionChecker):
         self,
         permission_type: PermissionAssignment.PermissionType = "",
         secondary_permission: bool = False,
-        review_round: Optional[int] = None,
+        review_round: int | None = None,
     ) -> bool:
         """
         Check if the user has the permission to access :py:attr:`instance` by default.
@@ -509,23 +536,40 @@ class ReviewerPermissionChecker(BasePermissionChecker):
         """
         if isinstance(self.instance, ReviewAssignment):
             return self.instance.reviewer == self.user
+
         if isinstance(self.instance, ArticleWorkflow):
             is_assignee = self._check_assignment_by_round(article=self.instance.article, review_round=review_round)
             if secondary_permission:
                 return is_assignee
-            else:
-                return is_assignee and permission_type == PermissionAssignment.PermissionType.NO_NAMES
+
+            return self.has_permission_give_review_type(
+                is_assignee=is_assignee,
+                journal=self.instance.article.journal,
+                permission_type=permission_type,
+            )
+
         if isinstance(self.instance, Article):
             is_assignee = self._check_assignment_by_round(article=self.instance, review_round=review_round)
             if secondary_permission:
                 return is_assignee
-            else:
-                return is_assignee and permission_type == PermissionAssignment.PermissionType.NO_NAMES
+
+            return self.has_permission_give_review_type(
+                is_assignee=is_assignee,
+                journal=self.instance.journal,
+                permission_type=permission_type,
+            )
+
         if isinstance(self.instance, RevisionRequest):
-            is_assignee = self.instance.article.reviewassignment_set.filter(reviewer=self.user).exists()
             if secondary_permission:
                 return False
-            return is_assignee and permission_type == PermissionAssignment.PermissionType.NO_NAMES
+
+            is_assignee = self.instance.article.reviewassignment_set.filter(reviewer=self.user).exists()
+            return self.has_permission_give_review_type(
+                is_assignee=is_assignee,
+                journal=self.instance.article.journal,
+                permission_type=permission_type,
+            )
+
         if isinstance(self.instance, EditorDecision):
             # Kind of redundant, but we want to clarify that reviewers have no access to editor decisions
             return False

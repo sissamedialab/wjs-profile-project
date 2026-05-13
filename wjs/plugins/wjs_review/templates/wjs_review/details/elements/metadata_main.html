@@ -1,4 +1,4 @@
-{% load django_bootstrap5 settings static wjs_permissions wjs_review wjs_tags %}
+{% load django_bootstrap5 i18n settings static wjs_permissions wjs_review wjs_tags %}
 <table class="table">
   {% if show_title_id %}
     <tr>
@@ -14,13 +14,31 @@
   {% if arxiv_field_status != "disabled" and article.submission_data %}
     <tr>
       <th>{% translate "ArXiv ID" %}</th>
-      <td>{% if article.submission_data.get_arxiv_id %}<a href="{{ article.submission_data.get_arxiv_doi }}" target="_blank">{{ article.submission_data.get_arxiv_id }}</a>  ({{ article.submission_data.arxiv_category }}){% else %}N.A.{% endif %}</td>
+      <td>{% if article.submission_data.get_arxiv_id %}<a href="{{ article.submission_data.get_arxiv_doi }}" target="_blank">{{ article.submission_data.get_arxiv_id }}</a>  ({{ article.submission_data.arxiv_category }}){% else %}
+        N.A.{% endif %}</td>
     </tr>
   {% endif %}
   {% if has_full_access %}
     <tr>
       <th>{% translate "Corresponding author" %}</th>
-      <td>{{ article.correspondence_author }}{% hijack_button user=article.correspondence_author %}</td>
+      <td>
+        {{ article.correspondence_author }}{% hijack_button user=article.correspondence_author %}
+        {% if article.collaborations.exists %}
+          {% for collaboration in workflow.article.collaborations.all %}
+            {{ collaboration }}
+            {% if request.user|is_user_eo or article|is_user_article_typesetter:request.user %}
+              {# djlint:off #}
+              {% translate "<i class=\"bi bi-card-heading\"></i>" as collab_data_icon %}
+              {# djlint:on #}
+              {% translate "Collaboration data" as collab_data_label %}
+              {% with target="#collaboration_data"|concat:collaboration.pk modal_id="collaboration_data"|concat:collaboration.pk %}
+                {% bootstrap_button type="button" button_class="btn-outline-primary btn-sm" data_bs_toggle="modal" data_bs_target=target content=collab_data_icon %}
+                {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=collab_data_label include_path="wjs_review/details/elements/metadata_collab_modal_body.html" %}
+              {% endwith %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+      </td>
     </tr>
   {% endif %}
   {% if article.date_submitted %}
@@ -73,6 +91,20 @@
         <th>{% translate "Typesetter" %}</th>
         <td>{% if typesetting_assigment %}{{ typesetting_assigment.typesetter }}{% hijack_button user=typesetting_assigment.typesetter %}{% else %}{% translate "N/A" %}{% endif %}</td>
       </tr>
+    {% endif %}
+    {% if request.user|is_user_eo %}
+      {% if workflow.article.primary_issue %}
+        <tr>
+          <th>{% translate "Assigned Issue" %}</th>
+          <td>{{ workflow.article.primary_issue }}</td>
+        </tr>
+      {% endif %}
+      {% if workflow.article.projected_issue %}
+        <tr>
+          <th>{% translate "Planned Issue" %}</th>
+          <td>{{ workflow.article.projected_issue }}</td>
+        </tr>
+      {% endif %}
     {% endif %}
   {% endif %}
 </table>

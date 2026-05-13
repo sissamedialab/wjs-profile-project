@@ -7,7 +7,7 @@ from django.test.client import Client
 from django.urls import reverse
 from identifiers import logic
 from identifiers.models import Identifier
-from submission.models import Article
+from submission.models import Article, FrozenAuthor
 
 from wjs.jcom_profile.models import JCOMProfile
 
@@ -19,6 +19,7 @@ ORCIDS = [
 ]
 
 
+@pytest.mark.skip("User can't edit ORCID value anymore")
 @pytest.mark.parametrize(
     argnames="orcid,valid",
     argvalues=ORCIDS,
@@ -50,7 +51,6 @@ def test_orcid_input(
         # The following fields are all mandatory:
         "first_name": normal_user.first_name or "Something",
         "last_name": normal_user.last_name or "Something",
-        "institution": normal_user.institution or "Something",
         "country": str(user.country.id) if user.country else str(country.id),
         "profession": normal_user.profession or "1",
         "gdpr_checkbox": "on",
@@ -66,7 +66,7 @@ def test_orcid_input(
 
 
 @pytest.mark.parametrize(
-    argnames=("orcid", "valid"),
+    argnames="orcid,valid",
     argvalues=ORCIDS,
 )
 @pytest.mark.django_db
@@ -80,13 +80,11 @@ def test_doi_batch(
     """
     Test handling of the users' orcids when creating the registration deposit.
 
-    Since we use both valid and invalid orcids (see :py:param: valid), this test also documents that the code that
-    builds the deposit does not verify the correctness of the orcid (this is acceptable).
+    Since we use both valid and invalid orcids (see :py:param: valid), this test verifies that orcids are fixed.
     """
     normal_user.janeway_account.orcid = orcid
     normal_user.janeway_account.save()
-    article.authors.add(normal_user.janeway_account)
-    article.snapshot_authors()
+    FrozenAuthor.objects.create(author=normal_user.janeway_account, article=article)
     identifier = doi_identifier(article)
     template_context = logic.create_crossref_doi_batch_context(
         article.journal,
@@ -101,9 +99,8 @@ def test_doi_batch(
     deposit = render(None, template, template_context, content_type="application/xml")
     content = deposit.content.decode()
     assert normal_user.first_name in content
-    assert orcid in content
-    # The "domain" part is blindly added by the template,
-    # but it prevents registration with crossref, because the
-    # deposit XML is not valid.
-    prefixed_orcid = f"https://orcid.org/{orcid}"
+    if not orcid.startswith("http"):
+        prefixed_orcid = f"https://orcid.org/{orcid}"
+    else:
+        prefixed_orcid = orcid.replace("http://", "https://")
     assert prefixed_orcid in content

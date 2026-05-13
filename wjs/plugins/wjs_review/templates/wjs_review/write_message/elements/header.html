@@ -1,11 +1,12 @@
+{% load i18n %}
 {% spaceless %}
   <p>
     {{ article.section }} {{ article.pk }}<br>
     {% translate "Title" %}: {{ article.title }}
-    {% if show_authors %}<br>{% if article.authors.count == 1 %}{% translate "Author" %}{% else %}{% translate "Authors" %}{% endif %}:
-    {% for ao in article.articleauthororder_set.all %}
-    {{ ao.author }}{% if not forloop.last %}, {% endif %}
-    {% endfor %}
+    {% if show_authors %}<br>{% if article.author_accounts.count == 1 %}{% translate "Author" %}{% else %}{% translate "Authors" %}{% endif %}:
+      {% for author in article.author_accounts.all %}
+        {{ author }}{% if not forloop.last %}, {% endif %}
+      {% endfor %}
     {% endif %}<br>
     <a href="{{ status_url }}">{% translate "Go to web page" %}</a>
     {% if article.articleworkflow and not system %}

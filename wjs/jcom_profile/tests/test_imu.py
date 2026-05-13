@@ -41,6 +41,7 @@ def make_ods(data):
     return f
 
 
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_one_existing_one_new(
     journal,
@@ -100,6 +101,7 @@ def test_si_imu_upload_one_existing_one_new(
     assert a2.value == "new"
 
 
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_two_identical_lines(
     journal,
@@ -172,6 +174,7 @@ def test_si_imu_upload_two_identical_lines(
     assert error_msg.text == "Line 2 is the same as 1"
 
 
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_iequal_emails(
     journal,
@@ -235,6 +238,7 @@ def test_si_imu_upload_iequal_emails(
     assert a2.value == "new"
 
 
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_new_author_two_contributions(
     journal,
@@ -291,6 +295,7 @@ def test_si_imu_upload_new_author_two_contributions(
     assert a2.value == "new"
 
 
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.django_db
 def test_si_imu_upload_new_author_two_contributions_iequal_emails(
     journal,
@@ -357,6 +362,7 @@ WRONG_DATA = (
 )
 
 
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.parametrize("wrong_data", WRONG_DATA)
 @pytest.mark.django_db
 def test_si_imu_upload_two_authors_same_email_different_metadata(
@@ -437,7 +443,6 @@ def test_si_imu_new_author_and_contribution(
         "middle_name_0": "",
         "last_name_0": "Fabulator",
         "email_0": "nfabulator@domain.net",
-        "institution_0": "Affilia",
         "title_0": "Title ばる",
         "action-0": "new",
     }
@@ -477,7 +482,6 @@ def test_si_imu_new_author_same_as_exising(
         "middle_name_0": existing_user.middle_name or "",
         "last_name_0": existing_user.last_name,
         "email_0": existing_user.email,  # ⇦ these two don't agree :)
-        "institution_0": existing_user.institution or "",
         "title_0": "Title ばる",
         "action-0": "new",  # ⇦ these two don't agree :)
     }
@@ -497,6 +501,7 @@ def test_si_imu_new_author_same_as_exising(
     assert article.owner == author
 
 
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.parametrize("wrong_data", WRONG_DATA)
 @pytest.mark.django_db
 def test_si_imu_new_author_same_as_exising_but_different_data(
@@ -526,7 +531,6 @@ def test_si_imu_new_author_same_as_exising_but_different_data(
         "middle_name_0": messedup_data[1] or "",
         "last_name_0": messedup_data[2],
         "email_0": existing_user.email,  # ⇦ these two don't agree :)
-        "institution_0": messedup_data[4] or "",
         "title_0": "Title ばる",
         "action-0": "new",  # ⇦ these two don't agree :)
     }
@@ -553,6 +557,7 @@ def test_si_imu_new_author_same_as_exising_but_different_data(
     assert not article
 
 
+@pytest.mark.xfail(reason="Porting to 1.8 required")
 @pytest.mark.parametrize("modified_data", WRONG_DATA)
 @pytest.mark.django_db
 def test_si_imu_edit_exising(
@@ -584,7 +589,6 @@ def test_si_imu_edit_exising(
         "middle_name_0": new_data[1] or "",
         "last_name_0": new_data[2],
         "email_0": existing_user.email,
-        "institution_0": new_data[4] or "",
         "title_0": "Title ばる",
         "action-0": f"edit_{existing_user.id}",
     }

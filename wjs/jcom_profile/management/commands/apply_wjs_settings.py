@@ -700,6 +700,8 @@ Thank you for registering to {{ request.journal.name }}.
 You can confirm your account at the following link:
 </p>
 <p><a href="{{ core_confirm_account_url }}">{{ core_confirm_account_url }}</a></p>
+
+
 """,
         )
         update_setting_default("subject_new_user_registration", "email_subject", "New Registration")

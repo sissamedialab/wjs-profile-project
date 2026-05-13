@@ -12,9 +12,9 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from faker.utils.text import slugify
-from plugins.typesetting.models import GalleyProofing
 from review.models import ReviewAssignment
 from submission.models import Article
+from typesetting.models import GalleyProofing
 
 from wjs.jcom_profile import permissions as base_permissions
 
@@ -216,16 +216,41 @@ def get_edit_metadata_revision_url(action: "ArticleAction", workflow: "ArticleWo
             )
 
 
+def get_article_issue_tracker_url(workflow: ArticleWorkflow, repo: str) -> str:
+    """Get the issue tracker url for the given article and repo."""
+    article = workflow.article
+    repo_url = settings.ISSUE_TRACKER_URLS.get(repo)
+
+    return f"{repo_url}new?issue[title]={article.pk} {article.title}"
+
+
 def get_article_pk_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
-    url = reverse(
-        action.view_name,
-        kwargs={
-            "article_id": workflow.article.pk,
-        },
-    )
+    from django.urls import NoReverseMatch
+
+    try:
+        url = reverse(
+            action.view_name,
+            kwargs={
+                "article_id": workflow.article.pk,
+            },
+        )
+    except NoReverseMatch:
+        try:
+            url = reverse(
+                action.view_name,
+                kwargs={
+                    "pk": workflow.article.pk,
+                },
+            )
+        except NoReverseMatch:
+            url = reverse(
+                action.view_name,
+                kwargs={
+                    "object_id": workflow.article.pk,
+                },
+            )
     if action.querystring_params is not None:
-        url += "?"
-        url += urllib.parse.urlencode(action.querystring_params)
+        return f"{url}?{urllib.parse.urlencode(action.querystring_params)}"
     return url
 
 
@@ -302,18 +327,14 @@ def galley_generation_in_progress(action: "ArticleAction", workflow: "ArticleWor
 
 
 @dataclasses.dataclass
-class ArticleAction:
+class ArticleButton:
     """An action that can be done on an Article."""
 
-    # see templates/wjs_review/details/elements/actions_button.html to see what the attributes are for 🙂
     name: str
     label: str
-    view_name: str
+    view_name: str = ""
     permission: Optional[Callable] = None
     tag: str = None
-    is_htmx: bool = False
-    is_modal: bool = False
-    is_post: bool = False
     order: int = 0
     tooltip: str = None
     querystring_params: dict = None
@@ -321,15 +342,8 @@ class ArticleAction:
     custom_get_url: Optional[Callable] = None
     custom_get_label: Optional[Callable] = None
     condition: Optional[Callable] = None
-    confirm: Optional[str] = ""
-    custom_get_confirm: Optional[Callable] = None
-
-    # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
-    # TODO: do we still need tag? let's keep it...
-
-    def __post_init__(self):
-        if self.is_modal:
-            self.is_htmx = True
+    button_class: str = "btn-outline-secondary"
+    target: str = "self"
 
     def as_dict(self, workflow: "ArticleWorkflow", user: Account):
         """Return parameters needed to build the action button."""
@@ -338,19 +352,19 @@ class ArticleAction:
             "slug": slugify(self.name),
             "label": self.custom_get_label(self, workflow, user) if self.custom_get_label else self.label,
             "tooltip": self.tooltip,
-            "url": self.custom_get_url(self, workflow, user) if self.custom_get_url else self.get_url(workflow, user),
+            "url": self.get_url(workflow, user),
             "tag": self.tag,
-            "is_htmx": self.is_htmx,
-            "is_modal": self.is_modal,
-            "is_post": self.is_post,
-            "confirm": self.custom_get_confirm(self, workflow, user) if self.custom_get_confirm else self.confirm,
             "disabled": self.disabled(self, workflow, user) if self.disabled else None,
             "id": id(self),
+            "button_class": self.button_class,
+            "target": self.target,
         }
 
     def get_url(self, workflow: "ArticleWorkflow", user: Account) -> str:
         """Return the URL of the view that is the entry point to manage the action."""
-        if self.view_name == "WRITEME!":
+        if self.custom_get_url:
+            return self.custom_get_url(self, workflow, user)
+        if self.view_name == "WRITEME!" or self.view_name == "":
             return "#"
         url = reverse(self.view_name, kwargs={"pk": workflow.id})
         if self.querystring_params is not None:
@@ -373,7 +387,42 @@ class ArticleAction:
 
     def _has_permission(self, workflow: "ArticleWorkflow", user: Account) -> bool:
         """Return true if the user has permission to run this action, given the current status of the article."""
+        if self.permission is None:
+            return True
         return self.permission(workflow, user)
+
+
+@dataclasses.dataclass
+class ArticleAction(ArticleButton):
+    """An action that can be done on an Article."""
+
+    # see templates/wjs_review/details/elements/actions_button.html to see what the attributes are for 🙂
+    is_htmx: bool = False
+    is_modal: bool = False
+    is_post: bool = False
+    confirm: Optional[str] = ""
+    custom_get_confirm: Optional[Callable] = None
+    button_class: str = ""
+
+    # TODO: refactor in ArticleAction(BaseAction) ReviewAssignmentAction(BaseAction)?
+    # TODO: do we still need tag? let's keep it...
+
+    def __post_init__(self):
+        if self.is_modal:
+            self.is_htmx = True
+
+    def as_dict(self, workflow: "ArticleWorkflow", user: Account):
+        """Return parameters needed to build the action button."""
+        dict_data = super().as_dict(workflow, user)
+        dict_data.update(
+            {
+                "is_htmx": self.is_htmx,
+                "is_modal": self.is_modal,
+                "is_post": self.is_post,
+                "confirm": self.custom_get_confirm(self, workflow, user) if self.custom_get_confirm else self.confirm,
+            }
+        )
+        return dict_data
 
 
 @dataclasses.dataclass
@@ -403,17 +452,13 @@ class ReviewAssignmentAction:
 
     def as_dict(self, assignment: "ReviewAssignment", user: Account):
         """Return parameters needed to build the action button."""
-        if self.custom_get_url:
-            url = self.custom_get_url(self, assignment, user)
-        else:
-            url = self.get_url(assignment, user)
         return {
             "assignment": assignment,
             "slug": slugify(self.name),
             "name": self.name,
             "label": self.label,
             "tooltip": self.tooltip,
-            "url": url,
+            "url": self.get_url(assignment, user),
             "is_htmx": self.is_htmx,
             "is_modal": self.is_modal,
             "is_post": self.is_post,
@@ -424,7 +469,9 @@ class ReviewAssignmentAction:
 
     def get_url(self, assignment: "ReviewAssignment", user: Account) -> str:
         """Return the URL of the view that is the entry point to manage the action."""
-        if self.view_name == "WRITEME!":
+        if self.custom_get_url:
+            return self.custom_get_url(self, assignment, user)
+        if self.view_name == "WRITEME!" or self.view_name == "":
             return "#"
         url = reverse(self.view_name, kwargs={"pk": assignment.id})
         if self.querystring_params is not None:
@@ -503,6 +550,55 @@ class BaseState:
             label="Withdraw manuscript",
             view_name="wjs_author_withdraw_preprint",
             condition=conditions.can_withdraw_preprint,
+        ),
+    )
+    article_buttons = (
+        ArticleButton(
+            name="add note",
+            tooltip="Add a personale node",
+            label='Add a note <i class="bi bi-pencil"></i>',
+            view_name="wjs_message_note",
+            button_class="btn-outline-primary",
+        ),
+        ArticleButton(
+            name="write message",
+            tooltip="Send message to a user involved in the article",
+            label='Write a message <i class="bi bi-chat-square-text"></i>',
+            view_name="wjs_message_write",
+        ),
+        ArticleButton(
+            permission=permissions.is_article_supervisor,
+            name="check message",
+            tooltip="Send message to a user involved in the article",
+            label='Check reminders plan <i class="bi bi-chat-square-text"></i>',
+            view_name="wjs_article_reminders",
+        ),
+        ArticleButton(
+            permission=permissions.has_eo_role_by_article,
+            name="article manager",
+            tooltip="Go to Janeway's Manager",
+            label="Manage",
+            view_name="manage_archive_article",
+            target="_blank",
+            custom_get_url=get_article_pk_url,
+        ),
+        ArticleButton(
+            permission=permissions.has_eo_role_by_article,
+            name="django admin",
+            tooltip="Go to Django admin interface",
+            label="Admin",
+            view_name="admin:submission_article_change",
+            target="_blank",
+            custom_get_url=get_article_pk_url,
+        ),
+        ArticleButton(
+            permission=permissions.has_eo_role_by_article,
+            name="open issue",
+            tooltip="Open Issue",
+            label='Open Issue <i class="bi bi-box-arrow-up-right"></i>',
+            view_name="custom",
+            target="_blank",
+            custom_get_url=lambda action, workflow, user: get_article_issue_tracker_url(workflow, repo="wjs-help"),
         ),
     )
     review_assignment_actions = (
@@ -839,6 +935,16 @@ class PaperHasEditorReport(BaseState):
 class Accepted(BaseState):
     """Accepted"""
 
+    article_actions = (
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="eo confirms production ready",
+            label="Confirm production readiness",
+            view_name="wjs_eo_confirm_production_ready",
+            is_post=True,
+        ),
+    ) + BaseState.article_actions
+
 
 class ToBeRevised(BaseState):
     """To be revised"""
@@ -1033,6 +1139,16 @@ class ReadyForTypesetter(BaseState):
             is_post=True,
         ),
     ) + BaseState.article_actions
+    article_buttons = (
+        ArticleButton(
+            permission=permissions.is_article_typesetter,
+            name="open rogna",
+            tooltip="Open Rogna",
+            label='Open Rogna <i class="bi bi-box-arrow-up-right"></i>',
+            target="_blank",
+            custom_get_url=lambda action, workflow, user: get_article_issue_tracker_url(workflow, repo="rogne"),
+        ),
+    ) + BaseState.article_buttons
 
 
 class TypesetterSelected(BaseState):
@@ -1091,7 +1207,7 @@ class TypesetterSelected(BaseState):
             is_post=True,
         ),
         ArticleAction(
-            permission=permissions.is_article_typesetter,
+            permission=permissions.is_article_typesetter_or_eo,
             name="draft_article_page",
             label="View HTML",
             view_name="wjs_draft_article_page",
@@ -1117,6 +1233,30 @@ class TypesetterSelected(BaseState):
             view_name="wjs_sync_tex_db",
         ),
     ) + BaseState.article_actions
+    article_buttons = (
+        ArticleButton(
+            permission=permissions.is_article_typesetter,
+            name="write author",
+            tooltip="Write to author",
+            label='Write to author <i class="bi bi-chat-square-text"></i>',
+            view_name="wjs_message_write_to_auwm",
+        ),
+        ArticleButton(
+            permission=permissions.is_article_author,
+            name="write typesetter",
+            tooltip="Write to typesetter",
+            label='Write to typesetter <i class="bi bi-chat-square-text"></i>',
+            view_name="wjs_message_write_to_typ",
+        ),
+        ArticleButton(
+            permission=permissions.is_article_typesetter,
+            name="open rogna",
+            tooltip="Open Rogna",
+            label='Open Rogna <i class="bi bi-box-arrow-up-right"></i>',
+            target="_blank",
+            custom_get_url=lambda action, workflow, user: get_article_issue_tracker_url(workflow, repo="rogne"),
+        ),
+    ) + BaseState.article_buttons
     review_assignment_actions = BaseState.review_assignment_actions + (
         ReviewAssignmentAction(
             permission=permissions.is_article_manager,
@@ -1202,7 +1342,37 @@ class Proofreading(BaseState):
             custom_get_confirm=get_publishable_confirm_text,
             is_post=True,
         ),
+        ArticleAction(
+            permission=permissions.is_article_typesetter_or_eo,
+            name="draft_article_page",
+            label="View HTML",
+            view_name="wjs_draft_article_page",
+        ),
     ) + BaseState.article_actions
+    article_buttons = (
+        ArticleButton(
+            permission=permissions.is_article_typesetter,
+            name="write author",
+            tooltip="Write to author",
+            label='Write to author <i class="bi bi-chat-square-text"></i>',
+            view_name="wjs_message_write_to_auwm",
+        ),
+        ArticleButton(
+            permission=permissions.is_article_author,
+            name="write typesetter",
+            tooltip="Write to typesetter",
+            label='Write to typesetter <i class="bi bi-chat-square-text"></i>',
+            view_name="wjs_message_write_to_typ",
+        ),
+        ArticleButton(
+            permission=permissions.is_article_typesetter,
+            name="open rogna",
+            tooltip="Open Rogna",
+            label='Open Rogna <i class="bi bi-box-arrow-up-right"></i>',
+            target="_blank",
+            custom_get_url=lambda action, workflow, user: get_article_issue_tracker_url(workflow, repo="rogne"),
+        ),
+    ) + BaseState.article_buttons
 
     @classmethod
     def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
@@ -1259,6 +1429,12 @@ class ReadyForPublication(BaseState):
             name="sync tex and db",
             label="Sync TeX and DB",
             view_name="wjs_sync_tex_db",
+        ),
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
+            name="draft_article_page",
+            label="View HTML",
+            view_name="wjs_draft_article_page",
         ),
     ) + BaseState.article_actions
 
@@ -1321,3 +1497,15 @@ class Published(BaseState):
             custom_get_url=get_identifier_id_url,
         ),
     )
+    article_buttons = (
+        ArticleButton(
+            permission=permissions.has_eo_role_by_article,
+            name="open pp",
+            tooltip="Open PP issue",
+            label='Open PP issue <i class="bi bi-box-arrow-up-right"></i>',
+            target="_blank",
+            custom_get_url=lambda action, workflow, user: get_article_issue_tracker_url(
+                workflow, repo="post-production"
+            ),
+        ),
+    ) + BaseState.article_buttons

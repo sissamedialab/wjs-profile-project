@@ -4,18 +4,16 @@
 {% endif %}
 {% if pending_proofs_version %}
   <div id="production" class="card border border-1 mb-4">
-    <h5 class="card-header fw-bolder">{% translate "Production" %}</h5>
+    <h2 class="card-header fw-bolder fs-5">{% translate "Production" %}</h2>
     <div class="card-body">
       {% include "wjs_review/details/elements/production_galleyproofing.html" with version=pending_proofs_version %}
     </div>
   </div>
 {% endif %}
 {% get_article_actions workflow "" as actions %}
-{% get_article_issue_tracker_url workflow "wjs-help" as wjs_help_issue_tracker_url %}
-{% get_article_issue_tracker_url workflow "rogne" as rogne_issue_tracker_url %}
-{% get_article_issue_tracker_url workflow "post-production" as post_production_issue_tracker_url %}
+{% get_article_buttons workflow "" as buttons %}
 <div class="card border border-1 mb-4">
-  <h5 class="card-header fw-bolder">{% translate "Actions" %}</h5>
+  <h2 class="card-header fw-bolder fs-5">{% translate "Actions" %}</h2>
   {% if actions %}
     <div class="card-body">
       <ul class="nav flex-column nav--colored-dot">
@@ -26,63 +24,8 @@
     </div>
   {% endif %}
   <div class="card-footer d-flex flex-wrap gap-2">
-    <!-- djlint:off -->
-    {% translate "Add a note <i class=\"bi bi-pencil\"></i>" as note_label %}
-    {% translate "Write a message <i class=\"bi bi-chat-square-text\"></i>" as message_label %}
-    {% translate "Check reminders plan <i class=\"bi bi-chat-square-text\"></i>" as reminders_label %}
-    {% translate "Write to author <i class=\"bi bi-chat-square-text\"></i>" as write_author_label %}
-    {% translate "Write to typesetter <i class=\"bi bi-chat-square-text\"></i>" as write_typesetter_label %}
-    {% translate "Open Issue <i class=\"bi bi-box-arrow-up-right\"></i>" as wjs_help_label %}
-    {% translate "Open Rogna <i class=\"bi bi-box-arrow-up-right\"></i>" as rogne_label %}
-    {% translate "Open PP issue <i class=\"bi bi-box-arrow-up-right\"></i>" as post_production_label %}
-
-    <!-- djlint:on -->
-    {% translate "Add a personale node" as note_title %}
-    {% translate "Send message to a user involved in the article" as message_title %}
-    {% translate "Send message to a user involved in the article" as reminders_title %}
-    {% translate "Manage" as manage_label %}
-    {% translate "Write to author" as write_author_title %}
-    {% translate "Write to typesetter" as write_typesetter_title %}
-    {% translate "Go to Janeway's Manager" as manage_title %}
-    {% translate "Admin" as admin_label %}
-    {% translate "Go to Django admin interface" as admin_title %}
-    {% translate "Open Issue" as wjs_help_title %}
-    {% translate "Open Rogna" as rogne_title %}
-    {% translate "Open PP issue" as post_production_title %}
-    {% url "wjs_message_note" pk=workflow.pk as add_note %}
-    {% url "wjs_message_write" pk=workflow.pk as add_message %}
-    {% url "wjs_message_write_to_auwm" pk=workflow.pk as write_author %}
-    {% url "wjs_message_write_to_typ" pk=workflow.pk as write_typesetter %}
-    {% url "wjs_article_reminders" pk=workflow.pk as article_reminders %}
-    {% url "manage_archive_article" article_id=article.pk as article_manage %}
-    {% url "admin:submission_article_change" article.pk as article_admin %}
-    {% bootstrap_button href=add_note title=note_title button_class="btn-outline-primary" content=note_label %}
-    {% bootstrap_button href=add_message title=message_title button_class="btn-outline-secondary" content=message_label %}
-    {% if workflow.state == workflow.ReviewStates.PROOFREADING or workflow.state == workflow.ReviewStates.TYPESETTER_SELECTED %}
-      {% if workflow|is_user_article_typesetter:request.user and actions %}
-        {% bootstrap_button href=write_author title=write_author_title button_class="btn-outline-secondary" content=write_author_label %}
-      {% endif %}
-      {% if workflow|is_user_article_author:request.user and actions %}
-        {% bootstrap_button href=write_typesetter title=write_typesetter_title button_class="btn-outline-secondary" content=write_typesetter_label %}
-      {% endif %}
-    {% endif %}
-    {% if workflow|is_user_article_supervisor:request.user and actions %}
-      {% bootstrap_button href=article_reminders title=reminders_title button_class="btn-outline-secondary" content=reminders_label %}
-    {% endif %}
-    {% if request.user|is_user_eo %}
-      {% bootstrap_button href=article_manage title=manage_title target="_blank" button_class="btn-outline-secondary" content=manage_label %}
-      {% bootstrap_button href=article_admin title=admin_title target="_blank" button_class="btn-outline-secondary" content=admin_label %}
-    {% endif %}
-    {% if request.user|is_user_eo %}
-      {% bootstrap_button href=wjs_help_issue_tracker_url title=wjs_help_title target="_blank" button_class="btn-outline-secondary" content=wjs_help_label %}
-    {% endif %}
-    {% if workflow|is_user_article_typesetter:request.user %}
-      {% if workflow.state == workflow.ReviewStates.READY_FOR_TYPESETTER or workflow.state == workflow.ReviewStates.TYPESETTER_SELECTED or workflow.state == workflow.ReviewStates.PROOFREADING %}
-        {% bootstrap_button href=rogne_issue_tracker_url title=rogne_title target="_blank" button_class="btn-outline-secondary" content=rogne_label %}
-      {% endif %}
-    {% endif %}
-    {% if request.user|is_user_eo and workflow.state == workflow.ReviewStates.PUBLISHED %}
-      {% bootstrap_button href=post_production_issue_tracker_url title=post_production_title target="_blank" button_class="btn-outline-secondary" content=post_production_label %}
-    {% endif %}
+    {% for button in buttons %}
+      {% bootstrap_button href=button.url title=button.tooltip button_class=button.button_class content=button.label|safe target=button.target %}
+    {% endfor %}
   </div>
 </div>

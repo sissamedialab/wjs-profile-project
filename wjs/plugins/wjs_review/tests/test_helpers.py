@@ -131,20 +131,21 @@ class CustomHTTPRequestHandler(SimpleHTTPRequestHandler):
     def do_POST(self):  # noqa N802 (case)
         """Return always the same valid galleys."""
         if self.path == "/good_galleys":
+            # This code is obsolete: jcomassistant now returns only zip archives
             self.send_response(200)
             self.send_header("Content-type", "application/octet-stream")
             self.send_header("Content-Disposition", 'attachment; filename="galleys.tar.gz"')
             self.end_headers()
             inmemory_targz = create_mock_tar_gz()
             self.wfile.write(inmemory_targz.read())
-        elif self.path == "/good_galleys_zip":
+        elif self.path.startswith("/galleys"):
             self.send_response(200)
             self.send_header("Content-type", "application/octet-stream")
             self.send_header("Content-Disposition", 'attachment; filename="galleys.zip"')
             self.end_headers()
             inmemory_zip = create_mock_zip()
             self.wfile.write(inmemory_zip.read())
-        elif self.path == "/server_error":
+        elif self.path.startswith("/server_error"):
             self.send_response(500)
             self.send_header("Content-type", "text/plain")
             self.end_headers()

@@ -1,0 +1,73 @@
+#!/bin/bash
+
+set -e
+
+if [[ -z "$1" ]]; then
+    echo -e "Missing journal.\nUsage: $0 <journal-name>"
+  exit 1
+fi
+
+journal=$1
+local_dir=$(cd "$(dirname "$0")" && pwd)
+
+echo "Load settings from Nextcloud to ${local_dir}\n"
+
+# This password can be reset by visiting the shares WJS-dev/JQUANT and WJS-dev/JCAP
+# and editing the share-links.
+read -r -s -p "Nextcloud share password (see WJS-dev/settings-csv-files-password.md): " nc_password
+echo
+
+case "${journal}" in
+    JQuant)
+        pushd ${local_dir}
+        echo "Downloading settings and expanding"
+        curl -sL -u "53dCwQJaKny3wig:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/53dCwQJaKny3wig/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JQuant"
+        mv ${local_dir}/configs/JQuant/Submission\ settings/*csv ${local_dir}/configs/JQuant/
+        rm -rf ${local_dir}/configs/JQuant/Submission\ settings/*
+        popd
+        echo "Importing Keywords"
+        python -W ignore manage.py import_keywords_json ../../wjs-submission-project/wjs/plugins/wjs_submission/install/jquant-kwds.json --journal=${journal} --clear
+        ;;
+    JCAP)
+        pushd ${local_dir}
+        echo "Downloading settings and expanding"
+        curl -sL -u "CZrXCtMkMBjJL5C:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/CZrXCtMkMBjJL5C/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JCAP"
+        mv ${local_dir}/configs/JCAP/Submission\ settings/*csv ${local_dir}/configs/JCAP/
+        rm -rf ${local_dir}/configs/JCAP/Submission\ settings/*
+        popd
+        ;;
+    JCOM)
+        pushd ${local_dir}
+        echo "Downloading settings and expanding"
+        curl -sL -u "AzdbefkdoqmSDJX:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/AzdbefkdoqmSDJX/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JCOM"
+        mv ${local_dir}/configs/JCOM/Submission\ settings/*csv ${local_dir}/configs/JCOM/
+        rm -rf ${local_dir}/configs/JCOM/Submission\ settings/*
+        popd
+        ;;
+    JCOMAL)
+        pushd ${local_dir}
+        echo "Downloading settings and expanding"
+        curl -sL -u "r6nLPK6SZTywmze:${nc_password}" "https://medialab.sissa.it/nextcloud/public.php/dav/files/r6nLPK6SZTywmze/?accept=zip" | bsdtar -xvf - -C "${local_dir}/configs/JCOMAL"
+        mv ${local_dir}/configs/JCOMAL/Submission\ settings/*csv ${local_dir}/configs/JCOMAL/
+        rm -rf ${local_dir}/configs/JCOMAL/Submission\ settings/*
+        popd
+        ;;
+    JHEP)
+        echo "Importing Keywords"
+        python -W ignore manage.py import_keywords_json ../../wjs-submission-project/wjs/plugins/wjs_submission/install/jhep-kwds.json --journal=${journal} --clear
+        ;;
+    *)
+        echo "$(tput setaf 3)No kwds imported for ${journal}$(tput sgr0)"
+        ;;
+esac
+
+echo "Importing settings"
+python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202603_all_settings.csv
+echo "Importing submission settings"
+python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202603_submission_settings.csv --group-name submissionconfiguration
+echo "Importing submission fields"
+python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202603_submission_fields.csv --group-name submissionfields
+echo "Importing WJS submission settings"
+python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202604_wjs_submission_settings.csv
+echo "Configure access mode"
+python -W ignore manage.py setup_access_mode --clear-all

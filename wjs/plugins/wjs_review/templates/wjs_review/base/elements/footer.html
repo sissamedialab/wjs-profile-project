@@ -1,2 +1,4 @@
-<footer class="d-flex align-items-center justify-content-center mt-5 pt-4 pb-4 border-top">© SISSA Medialab {% now "Y" %} - All rights reserved.
+{% load i18n %}
+{% now "Y" as current_year %}
+<footer class="d-flex align-items-center justify-content-center mt-5 pt-4 pb-4 border-top">{% blocktranslate with year=current_year %}© SISSA Medialab {{ year }} - All rights reserved.{% endblocktranslate %}
 </footer>

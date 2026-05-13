@@ -1,5 +1,6 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 static %}
+{% load django_bootstrap5 i18n static %}
+
 {% block bootstrap5_extra_head %}
   {{ block.super }}
   <link rel="stylesheet" type="text/css" href="{% static '/css/datatables.css' %}" />
@@ -18,9 +19,9 @@
   {% csrf_token %}
   <div class="container mb-3">
     {% if current_editor %}
-      <div class="card">
+      <div class="card mb-3">
         <div class="card-header">
-          <h5 class="card-title">{% translate "Message for current editor" %} {{ current_editor.full_name }}</h5>
+          <h2 class="card-title">{% translate "Message for current editor" %} {{ current_editor.full_name }}</h2>
         </div>
         <div class="card-body">
             <div class="mt-3">
@@ -30,9 +31,9 @@
         </div>
       </div>
     {% endif %}
-    <div class="card">
+    <div class="card mb-3">
       <div class="card-header">
-        <h5 class="card-title">{% translate "Select new editor" %}</h5>
+        <h2 class="card-title">{% translate "Select new editor" %}</h2>
       </div>
       <div class="card-body">
         {% include "wjs_review/assign_editor/elements/editor_table.html" %}
@@ -44,7 +45,8 @@
         {% include "wjs_review/base/elements/pagination.html" %}
       </div>
     </div>
-  {% bootstrap_button button_type="submit" value=1 content="Send" %}
+  {% translate "Send" as send_label %}
+  {% bootstrap_button button_type="submit" value=1 content=send_label %}
   {% include "wjs_review/base/elements/back.html" with workflow=workflow use_div=False %}
   </div>
 </form>

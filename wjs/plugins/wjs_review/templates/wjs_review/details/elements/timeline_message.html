@@ -1,6 +1,6 @@
-{% load wjs_review %}
+{% load i18n wjs_review %}
 <div class="d-flex align-items-start">
-  <div class="me-1" title="{{ message.message_type }}">
+  <div class="me-1" title="{{ message.message_type }}" aria-hidden="true">
     <i class="bi {{ message|message_type_icon }}"></i>
   </div>
   <div class="me-1 flex-grow-1 {% if message|message_unread_by_me:request.user %}fw-bold{% endif %}">
