@@ -9,7 +9,7 @@
     this toggles the value inside the checkbox before the submit is triggered
   {% endcomment %}
   <form class="d-flex align-items-center wjs-showcase__read-toggle" name="form-toggle-{{ message.pk }}" autocomplete="off" hx-target="#read-toggle-{{ message.pk }}" hx-post="{{ toggle_read_url }}" hx-trigger="change" hx-swap="outerHTML">
-    {% bootstrap_field form.read_by_eo wrapper_class="opacity-0" %}
+    {% bootstrap_field form.read_by_eo wrapper_class="d-none" %}
     <label class="btn btn-sm {% if message.read_by_eo %}btn-secondary{% else %}btn-success text-white{% endif %}" for="{{ form.read_by_eo.auto_id }}">
       {% if message.read_by_eo %}
         <i class="bi bi-envelope-fill"></i> Mark as unread by EO

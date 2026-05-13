@@ -33,9 +33,9 @@ from events import logic as events_logic
 from identifiers.models import Identifier
 from journal.models import Issue, Journal
 from PIL import Image
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from review import models as review_models
 from submission.models import Article, Section
+from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils import setting_handler
 from utils.install import update_settings
 
@@ -122,6 +122,7 @@ def review_settings(
     It must be declared as first fixture in the test function to ensure it's called before the other fixtures.
     """
     set_default_plugin_settings(force=True)
+    call_command("create_custom_settings")
     # TODO: use plugin_settings.ensure_workflow_elements ?
     workflow = Workflow.objects.get(journal=journal)
     workflow.elements.filter(element_name="review").delete()
@@ -649,7 +650,6 @@ def review_form(journal: Journal) -> review_models.ReviewForm:
             name="Review",
             kind="text",
             order=1,
-            width="full",
             required=True,
         )
         review_form.elements.add(review_form_element)

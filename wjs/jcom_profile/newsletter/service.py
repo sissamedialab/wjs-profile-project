@@ -123,7 +123,7 @@ class NewsletterMailerService:
         )
 
         content = render_to_string(
-            "newsletters/newsletter_issue.html",
+            "wjs/newsletter/email/newsletter_issue.html",
             {
                 "subscriber": subscriber.user,
                 "articles": "".join(rendered_articles),
@@ -199,7 +199,7 @@ class NewsletterMailerService:
             if article.keywords.intersection(subscriber.topics.all()):
                 if not hasattr(article, "rendered"):
                     article.rendered = render_to_string(
-                        "newsletters/newsletter_article.html",
+                        "wjs/newsletter/email/newsletter_article.html",
                         {"article": article, "request": request, **date_format(request)},
                     )
                 rendered_articles.append(article.rendered)
@@ -218,7 +218,7 @@ class NewsletterMailerService:
             for news in filtered_news:
                 if not hasattr(news, "rendered"):
                     news.rendered = render_to_string(
-                        "newsletters/newsletter_news.html",
+                        "wjs/newsletter/email/newsletter_news.html",
                         {"news": news, "request": request, **date_format(request)},
                     )
                 rendered_news.append(news.rendered)
@@ -395,7 +395,7 @@ class NewsletterMailerService:
             full_acceptance_url = f"{self.site_url(subscriber.journal).strip('/')}{acceptance_url}"
 
             content = render_to_string(
-                "newsletters/newsletter_template.html",
+                "wjs/newsletter/email/newsletter_template.html",
                 {
                     "content": email_body.value.format(
                         journal=subscriber.journal,

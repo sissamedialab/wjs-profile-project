@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_tags %}
+{% load django_bootstrap5 i18n wjs_tags %}
 <div class="mb-3">
   <div>
     <h2>{% translate "Keywords" %}</h2>
@@ -17,7 +17,7 @@
       </div>
       <div>⇨</div>
       <div>
-        <p>DB: ({{ workflow.article.language }})</p>
+        <p>{% blocktranslate with lang=workflow.article.language %}DB: ({{ lang }}){% endblocktranslate %}</p>
         {% language workflow.article.language|language_alpha2 %}
           <ol>
             {% for k in kwds_db %}<li>{{ k }}</li>{% endfor %}

@@ -5,10 +5,10 @@ from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from journal.models import Journal
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.communication_utils import role_for_article
 from review.models import EditorAssignment, ReviewAssignment, RevisionRequest
 from submission.models import Article
+from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
@@ -273,7 +273,7 @@ class DirectorPermissionChecker(BasePermissionChecker):
         unsubmitted = self.workflow.state != ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION
         if not unsubmitted and secondary_permission:
             return False
-        if self.workflow.article.authors.filter(pk=self.user.pk).exists():
+        if self.workflow.article.author_accounts.filter(pk=self.user.pk).exists():
             return False
         return base_permissions.has_director_role(self.workflow.article.journal, self.user)
 

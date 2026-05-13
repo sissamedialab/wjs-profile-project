@@ -20,9 +20,9 @@ from django.views.generic import ListView, TemplateView, View
 from django.views.generic.edit import FormView
 from identifiers.models import CrossrefStatus
 from journal.models import Issue, Journal
-from plugins.typesetting.models import TypesettingAssignment
 from requests.auth import HTTPBasicAuth
 from submission.models import Article, Section
+from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
 
 from wjs.jcom_profile import constants

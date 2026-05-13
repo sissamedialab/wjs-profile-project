@@ -22,11 +22,11 @@ from django.urls import reverse
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Journal
-from plugins.typesetting.models import GalleyProofing
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
-from submission.models import Article, Keyword, Section
+from submission.models import Article, FrozenAuthor, Keyword, Section
+from typesetting.models import GalleyProofing
 from utils import setting_handler
 
 from wjs.jcom_profile import constants
@@ -789,8 +789,6 @@ def test_publication(
     Test publication.
 
     An article in state ready-for-publication can be published by EO.
-
-    Not testing Janeway-related stuff, such as snapshotting authors.
     """
     assert rfp_article.section.name == "Article"
     workflow: ArticleWorkflow = rfp_article.articleworkflow
@@ -1415,8 +1413,6 @@ def test_identifiers_on_publication(
     """Test publication.
 
     An article in state ready-for-publication can be published by EO.
-
-    Not testing Janeway-related stuff, such as snapshotting authors.
     """
 
     # production settings and crossref_test True
@@ -1543,6 +1539,7 @@ def test_identifiers_on_eo_sends_back_to_typesetter(
     assert identifiers_models.Identifier.objects.filter(article=stage_proofing_article).count() == 2
 
 
+@pytest.mark.xfail(reason="Since Janeway 1.8 authors are frozen when added to the article")
 @pytest.mark.django_db
 def test_authors_frozen_at_acceptance(assigned_article: Article, fake_request: HttpRequest):
     """Verify that authors are frozen (snapshotted) at acceptance."""
@@ -1568,16 +1565,15 @@ def test_authors_frozen_at_acceptance(assigned_article: Article, fake_request: H
 def test_preamble_authors(accepted_article: Article, keywords: QuerySet[Keyword]):
     """Document a viable preamble template."""
     article = accepted_article
-    assert article.authors.count() == 2
     assert len(article.frozen_authors()) == 2
 
-    a1: Account = article.authors.order_by("id").first()
+    a1: FrozenAuthor = article.frozen_authors().order_by("author__pk").first()
     # Note that here we modify the account, not the froze-author object,
     # but FrozenAuthor objects have `orcid` and `biography` properties (and other)
     # that fallback to the account values if values from FA are missing.
-    a1.orcid = "1234-0000-0000-000X"
-    a1.biography = "Vita, morte e miracoli."
-    a1.save()
+    a1.author.orcid = "1234-0000-0000-000X"
+    a1.author.biography = "Vita, morte e miracoli."
+    a1.author.save()
 
     for kwd in keywords[:3]:
         article.keywords.add(kwd)

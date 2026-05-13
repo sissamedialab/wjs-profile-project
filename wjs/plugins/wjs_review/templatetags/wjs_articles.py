@@ -16,12 +16,8 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from journal.models import ArticleOrdering, Issue
-from plugins.typesetting.models import (
-    GalleyProofing,
-    TypesettingAssignment,
-    TypesettingRound,
-)
 from submission.models import Article
+from typesetting.models import GalleyProofing, TypesettingAssignment, TypesettingRound
 
 from wjs.jcom_profile.constants import EO_GROUP
 
@@ -188,7 +184,7 @@ def article_css_classes(workflow: ArticleWorkflow) -> dict[str, str]:
     """Return a string of classes for an article div."""
     state_css = f"color-state-{workflow.state_value}"
     revision_flow_type = f"color-revision-type-{workflow.revision_flow_type}"
-    section_css = f"color-section-{slugify(workflow.article.section.name)}" if workflow.article.section else ""
+    section_css = f"color-section-{slugify(workflow.article.section.name_en)}" if workflow.article.section else ""
     publishable_css = "bg-success" if workflow.production_flag_no_checks_needed else "bg-danger"
     return {
         "state_css": state_css,

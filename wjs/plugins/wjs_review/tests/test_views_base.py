@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 from core import files as core_files
 from django.core.files import File as DjangoFile
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
+from typesetting.models import GalleyProofing, TypesettingAssignment
 
 from ..communication_utils import log_operation
 from ..models import ProphyAccount, WjsEditorAssignment

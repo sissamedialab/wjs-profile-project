@@ -1,0 +1,54 @@
+{% extends "wjs/profile/base.html" %}
+{% load django_bootstrap5 i18n next_url orcid static wjs_tags %}
+
+{% block page_title %}{% translate "Personal details" %}{% endblock page_title %}
+
+{% block profile_form %}
+  <h1 class="wjs-profile-form__title">{% translate "Personal details" %}</h1>
+  <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
+    <div class="wjs-profile-form__main">
+      {{ form.errors }}
+      {% csrf_token %}
+      {% bootstrap_field form.first_name wrapper_class="mb-4" %}
+      {% bootstrap_field form.middle_name wrapper_class="mb-4" %}
+      {% bootstrap_field form.last_name wrapper_class="mb-4" %}
+      {% bootstrap_field form.year_of_birth wrapper_class="mb-4" %}
+      {% bootstrap_field form.gender wrapper_class="mb-4" %}
+      <div class="mb-4">
+        {% bootstrap_label "ORCID" label_for=id_orcid_button %}
+        <div>
+          {% if object.orcid %}
+            <a id="id_orcid_button" class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-2 mb-2">
+              <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
+              {{ object.orcid }}
+            </a>
+          {% else %}
+            {# djlint:off #}
+            <a href="{% url_with_next_and_orcid_action 'core_login_orcid' action='connect' %}&next={{ request.path }}" id="id_orcid_button"
+              {# djlint:on #}
+               class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-2 mb-2">
+              <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
+              {% translate "Connect your ORCID iD" %}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% if journal|is_field_available:"profession" %}
+      {% bootstrap_field form.profession wrapper_class="mb-4" %}
+    {% endif %}
+    {% if journal|is_field_available:"biography" %}
+      {% bootstrap_field form.biography wrapper_class="mb-4" %}
+    {% endif %}
+    {% bootstrap_field form.privacy_notice wrapper_class="mb-4" %}
+    {% bootstrap_field form.gdpr_checkbox wrapper_class="mb-4" %}
+    <div class="wjs-profile-form__footer">
+      <p class="w-50 mb-0">
+        {% blocktranslate %}If you have any questions about how your personal data is managed, please contact <a href="mailto:privacy@medialab.sissa.it">privacy@medialab.sissa.it</a>{% endblocktranslate %}
+      </p>
+      {% translate "Update" as update_label %}
+      {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
+    </div>
+  </form>
+
+{% endblock profile_form %}

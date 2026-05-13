@@ -8,7 +8,7 @@ https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 import os
 from pathlib import Path
 
-from core.janeway_global_settings import TEMPLATES
+from core.janeway_global_settings import STATIC_URL, TEMPLATES
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
@@ -65,7 +65,7 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "default@default.it"
 
 LOGIN_REDIRECT_URL = reverse_lazy("core_edit_profile")
-LOGIN_URL = reverse_lazy("core_login")
+LOGIN_URL = "/login/"
 
 # CATCHA_TYPE should be either 'simple_math', 'recaptcha' or 'hcaptcha' to enable captcha
 # fields, otherwise disabled
@@ -446,6 +446,13 @@ WJS_REVIEW_CUSTOM_REPORT_FORMS = {
 WATERMARK_X_POSITION = 10
 WATERMARK_Y_POSITION = 720
 
+CORE_THEMES = [
+    "OLH",
+    "material",
+    "clean",
+    "wjs-bootstrap",
+]
+
 WJS_ARTICLE_LANGUAGES = {
     None: [("eng", _("English"))],
     "JCOM": [
@@ -481,8 +488,8 @@ Allow EO to hijack superusers.
 
 WJS_USE_WJS_SUBMISSION = {
     None: True,
-    "JCOM": False,
-    "JCOMAL": False,
+    "JCOM": True,
+    "JCOMAL": True,
 }
 """
 Use custom submission/revision process or the standard one.
@@ -497,8 +504,84 @@ ISSUE_TRACKER_URLS = {
 URLs of the issue trackers used for the "Open Issue" button in actions section.
 """
 
-SUBMISSION_KEYWORDS_INTERVAL_PER_JOURNAL = {
-    None: (2, 4),
-    "JQuant": (1, 3),
-    "JCAP": (1, 3),
+PROFILE_FIELDS = {
+    None: (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "email",
+        "gender",
+        "profession",
+        "biography",
+        "alternative_email",
+        "personal_interest",
+        "publication_alert",
+        "records_arxiv",
+        "records_inspire",
+        "records_scix",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "records_other",
+    ),
+    "JCOM": (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "email",
+        "gender",
+        "profession",
+        "biography",
+        "alternative_email",
+        "personal_interest",
+        "publication_alert",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "records_other",
+    ),
+    "JCOMAL": (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "email",
+        "gender",
+        "profession",
+        "biography",
+        "alternative_email",
+        "personal_interest",
+        "publication_alert",
+        "facebook",
+        "twitter",
+        "linkedin",
+        "records_other",
+    ),
+    "JQuant": (
+        "first_name",
+        "middle_name",
+        "last_name",
+        "year_of_birth",
+        "email",
+        "gender",
+        "alternative_email",
+        "personal_interest",
+        "records_arxiv",
+        "records_inspire",
+        "records_other",
+    ),
 }
+
+SUBMISSION_KEYWORDS_INTERVAL_PER_JOURNAL = {
+    None: (1, 3),
+    "JQuant": (2, 4),
+    "JHEP": (1, 4),
+}
+
+TINYMCE_JS_URL = f"{STATIC_URL}/tinymce/tinymce.min.js"
+
+
+SUBMISSION_ARTICLE_LANGUAGES = WJS_ARTICLE_LANGUAGES
+SUBMISSION_ENABLE_FREE_KEYWORD = False

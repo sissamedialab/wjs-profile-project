@@ -26,7 +26,6 @@ from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_submission.models import RevisionStorage
 from review.const import EditorialDecisions
 from review.models import (
@@ -36,6 +35,7 @@ from review.models import (
     RevisionRequest,
 )
 from submission.models import Article, Section
+from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -510,7 +510,7 @@ class ArticleWorkflow(TimeStampedModel):
 
     @property
     def article_authors(self) -> QuerySet[Account]:
-        authors = self.article.authors.all()
+        authors = self.article.author_accounts.all()
         if self.article.correspondence_author:
             authors |= Account.objects.filter(pk=self.article.correspondence_author.pk)
         return authors
@@ -519,13 +519,12 @@ class ArticleWorkflow(TimeStampedModel):
     def article_authors_string(self) -> str:
         authors = []
         correspondence_author = self.article.correspondence_author
-        for aao in self.article.articleauthororder_set.all():
-            author = aao.author
+        for author in self.article.author_accounts:
             if author == correspondence_author:
                 email_address = author.email
                 authors.append(f"{author.get_full_name()} ({email_address})")
             else:
-                authors.append(f"{aao.author.get_full_name()}")
+                authors.append(f"{author.get_full_name()}")
         authors_string = ", ".join(authors)
         return authors_string
 

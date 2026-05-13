@@ -28,7 +28,6 @@ from django.utils.timezone import localtime, now
 from events import logic as events_logic
 from faker import Faker
 from journal import models as journal_models
-from plugins.typesetting.models import TypesettingAssignment, TypesettingRound
 from plugins.wjs_review.logic__production import MetadataFromTeX, reunite_divided_kwds
 from plugins.wjs_submission.models import RevisionStorage
 from plugins.wjs_submission.revision import RevisionStartConfirmView
@@ -36,6 +35,7 @@ from plugins.wjs_submission.step8.views import SubmissionStep8View
 from review import models as review_models
 from submission import models as submission_models
 from submission.models import Article, ArticleAuthorOrder, Keyword
+from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils import setting_handler
 from utils.setting_handler import get_setting
 
@@ -1012,7 +1012,7 @@ def test_assign_to_reviewer_author(
     """A reviewer cannot be assigned if the reviewer is one of the article authors."""
     fake_request.user = section_editor.janeway_account
 
-    author = assigned_article.authors.first()
+    author = assigned_article.author_accounts.first()
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
         # we must pass the Account object linked to the JCOMProfile instance, to ensure it
@@ -4696,7 +4696,7 @@ def test_metadatafromtex_get_data(
         assert set(
             data["authors_db"].values_list("id", flat=True),
         ) == set(
-            article.authors.all().values_list("id", flat=True),
+            article.author_accounts.all().values_list("id", flat=True),
         )
         assert len(data["authors_errors"]) == 0
         assert len(data["authors_map"]) == 1
@@ -4729,7 +4729,7 @@ def test_sync_texdb_keyword_order_lang(
     article = article_with_keywords
 
     # this fixture-article has a co-author...
-    assert article.authors.count() == 2
+    assert article.author_accounts.count() == 2
     # ...and three kwds
     assert article.keywords.count() == 3
 
@@ -4785,7 +4785,7 @@ def test_sync_texdb(
     article.save()
 
     # this fixture-article has a co-author...
-    assert article.authors.count() == 2
+    assert article.author_accounts.count() == 2
     # ...and three kwds
     assert article.keywords.count() == 3
 
@@ -4817,7 +4817,7 @@ def test_sync_texdb(
 
         service.update_authors()
         article.refresh_from_db()
-        assert set(article.authors.all().values_list("id", flat=True)) == {author.pk}
+        assert set(article.author_accounts.all().values_list("id", flat=True)) == {author.pk}
 
         service.update_keywords()
         article.refresh_from_db()
@@ -4832,7 +4832,7 @@ def test_sync_texdb_lang(
     article = article_with_keywords
 
     # this fixture-article has a co-author...
-    assert article.authors.count() == 2
+    assert article.author_accounts.count() == 2
     # ...and three kwds
     assert article.keywords.count() == 3
 

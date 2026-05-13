@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_review wjs_tags %}
+{% load django_bootstrap5 i18n wjs_review wjs_tags %}
 {% if version.galleyproofing.proofed_files.exists or version.galleyproofing.notes or version.galleyproofing.annotated_files.exists %}
   <h6 id="galleyproofing-{{ version.number }}" class="fw-bold text-primary">
     {% translate "Author's corrections" %}
@@ -10,7 +10,7 @@
       </h6>
       <div class="d-flex gap-2">
         {% for galley in version.galleyproofing.proofed_files.all %}
-          {% if galley.label == "PDF" %}
+          {% if galley.file.original_filename|endswith:"PDF" %}
               {# djlint:off #}
             {% include "wjs_review/elements/file_download_link.html" with file=galley.file article=article filename=galley.label filename_prefix='<i class="bi bi-filetype-pdf"></i>' as_button=True %}
               {# djlint:on #}

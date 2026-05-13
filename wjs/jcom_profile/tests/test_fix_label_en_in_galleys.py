@@ -208,6 +208,7 @@ class TestFixLabelsGalley:
         account_factory,
         article_factory,
         journal_factory,
+        roles,
     ):
         """create jcom journal with one article with two galleys not to be changed.
         Output files in tmp_path

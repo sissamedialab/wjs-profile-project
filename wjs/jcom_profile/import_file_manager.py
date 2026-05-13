@@ -126,7 +126,7 @@ class ImportFileManager:
                 [sys.executable, script_path] + script_args, capture_output=True, text=True, check=True
             )
 
-            import_logic.logger.debug(f"Script { script_path} execute succefully")
+            import_logic.logger.debug(f"Script {script_path} execute succefully")
 
             if result.stderr:
                 import_logic.logger.error(f"{result.stderr}")

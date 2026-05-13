@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 from django.contrib.auth import get_user_model
 from django.utils.timezone import now
 from journal.models import Journal
-from plugins.typesetting.models import TypesettingAssignment
 from review.models import ReviewAssignment
+from typesetting.models import TypesettingAssignment
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
@@ -552,7 +552,7 @@ def is_one_of_the_authors(instance: "ArticleWorkflow", user: Account) -> bool:
     :rtype: bool
     """
     is_correspondence_author = instance.article.correspondence_author == user
-    is_any_author = instance.article.authors.filter(pk=user.pk).exists()
+    is_any_author = instance.article.author_accounts.filter(pk=user.pk).exists()
     return is_correspondence_author | is_any_author
 
 

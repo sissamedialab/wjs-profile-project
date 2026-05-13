@@ -1705,7 +1705,7 @@ class OpenAppealForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
         super().__init__(*args, **kwargs)
-        author_ids = self.instance.article.authors.values_list("id", flat=True)
+        author_ids = self.instance.article.author_accounts.values_list("id", flat=True)
         self.fields["editor"].queryset = Account.objects.filter(
             accountrole__role__slug=SECTION_EDITOR_ROLE,
             accountrole__journal=self.instance.article.journal,
@@ -1795,7 +1795,7 @@ class BaseReportForm(forms.Form):
         required=False,
         help_text=_(
             r"Please write your comments in the text area and/or upload a file."
-            r"br><br>Please DO NOT SIGN THE REPORT."
+            r"<br><br>Please DO NOT SIGN THE REPORT."
         ),
     )
     author_review_tex = forms.CharField(

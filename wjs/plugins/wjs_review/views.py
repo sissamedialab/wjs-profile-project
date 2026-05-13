@@ -57,10 +57,10 @@ from django_filters.views import FilterMixin, FilterView
 from events import logic as event_logic
 from journal.logic import get_all_tables_from_html
 from journal.models import Issue, IssueType, Journal
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_submission.models import ArticleSubmission, SubmissionArticleFunding
 from review import logic as review_logic
-from submission.models import Article, FrozenAuthor
+from submission.models import Article
+from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -1701,9 +1701,15 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         If form is not valid or exception is raised by the logic, the form is rendered again with the error.
         """
         report_form = self._get_report_form()
+
+        reviewer_report_type = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
+        ).value
         if report_form.is_valid():
+            is_tex_report = report_form.cleaned_data["review_choice"] == "tex" or "tex" in reviewer_report_type
+            tex_report_content = str(self.request.POST.get("author_review_tex"))
             try:
-                if report_form.cleaned_data["review_choice"] == "tex":
+                if is_tex_report and tex_report_content:
                     service = LatexReportConvertService(
                         request=self.request,
                         converter_class=ConvertReviewerLatexReport,
@@ -3464,7 +3470,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
 
         The list is filtered by removing current editor, if any.
         """
-        article_authors = self.object.article.authors.all()
+        article_authors = self.object.article.author_accounts.all()
         try:
             current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
         except WjsEditorAssignment.DoesNotExist:
@@ -3975,10 +3981,6 @@ class DraftArticlePageView(AuthenticatedUserPassesTest, TemplateView):
                 "tables_in_galley": tables_in_galley,
             },
         )
-
-        # Freeze authors: the template expects to see frozen-authors
-        FrozenAuthor.objects.filter(article=self.workflow.article).delete()
-        self.workflow.article.snapshot_authors()
 
         return context
 

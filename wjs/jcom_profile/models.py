@@ -7,6 +7,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import JSONField
 from django.forms import TextInput
+from django.utils.timezone import now
 from django.utils.translation import gettext as _
 from django_bleach.forms import BleachField as BleachFormField
 from journal.models import Issue, Journal
@@ -14,20 +15,9 @@ from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article
 from tinymce.widgets import TinyMCE
 
-# TODO: use settings.AUTH_USER_MODEL
+from .constants import GENDER_CHOICES, PROFESSIONS
 
-PROFESSIONS = (
-    (
-        0,
-        "A researcher in S&T studies," " science communication or neighbouring field",
-    ),
-    (
-        1,
-        "A practitioner in S&T" " (e.g. journalist, museum staff, writer, ...)",
-    ),
-    (2, "An active scientist"),
-    (3, "Other profession"),
-)
+# TODO: use settings.AUTH_USER_MODEL
 
 
 class WjsSimpleBleach(BleachFormField):
@@ -54,13 +44,28 @@ class JCOMProfile(Account):
     # have this data for most of our existing users.
     profession = models.IntegerField(null=True, choices=PROFESSIONS)
     gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
+    gdpr_acceptance = models.DateTimeField(_("GDPR acceptance date"), null=True, blank=True)
     invitation_token = models.CharField(_("Invitation token"), max_length=500, default="", blank=True)
     keywords = models.ManyToManyField("submission.Keyword", verbose_name=_("Interests"), blank=True)
-    usernotes = models.TextField(_("User notes"), blank=True, null=True, default="")
+    usernotes = models.TextField(_("User notes"), blank=True, default="")
+    records_scix = models.CharField(_("My Records on SciX"), max_length=500, default="", blank=True)
+    records_inspire = models.CharField(_("My Records on Inspire"), max_length=500, default="", blank=True)
+    records_arxiv = models.CharField(_("My Records on ArXiv"), max_length=500, default="", blank=True)
+    records_other = models.CharField(
+        _("Others (personal website, records on Google Scholar/ResearchGate, etc)"),
+        max_length=500,
+        default="",
+        blank=True,
+    )
+    gender = models.CharField(_("Gender"), choices=GENDER_CHOICES, default="", blank=True)
+    year_of_birth = models.IntegerField(_("Year of birth"), null=True, blank=True)
+    alternative_email = models.EmailField(_("Alternative email address"), null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # is_admin is a flag of janeway which protects some manager site parts
         self.is_admin = self.is_superuser
+        if self.gdpr_checkbox and not self.gdpr_acceptance:
+            self.gdpr_acceptance = now()
         super().save(*args, **kwargs)
 
 

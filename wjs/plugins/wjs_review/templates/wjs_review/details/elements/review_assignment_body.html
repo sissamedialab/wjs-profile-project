@@ -1,5 +1,5 @@
 
-{% load django_bootstrap5 humanize static wjs_permissions wjs_review wjs_tags %}
+{% load django_bootstrap5 humanize i18n static wjs_permissions wjs_review wjs_tags %}
 {% get_review_assignment_actions assignment as actions %}
 {% url "wjs_message_write" pk=workflow.pk recipient_id=assignment.reviewer.pk as add_message %}
 {% translate "Send message" as send_message_label %}

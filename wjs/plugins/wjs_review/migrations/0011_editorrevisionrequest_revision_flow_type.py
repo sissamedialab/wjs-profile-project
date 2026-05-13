@@ -15,9 +15,9 @@ class Migration(migrations.Migration):
             name="revision_flow_type",
             field=models.CharField(
                 choices=[
-                    ("confirm", "Confirm previous version"),
+                    ("confirm", "Confirmation of previous version"),
                     ("metadata", "Metadata change"),
-                    ("full", "New version"),
+                    ("full", "Revision submission"),
                 ],
                 default="full",
                 max_length=10,

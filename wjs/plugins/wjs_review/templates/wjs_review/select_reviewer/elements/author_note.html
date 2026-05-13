@@ -1,4 +1,4 @@
-{% load django_bootstrap5 wjs_permissions %}
+{% load django_bootstrap5 i18n wjs_permissions %}
 {% translate "Display author cover letter" as review_notes %}
 {% user_has_access_to workflow=workflow user=request.user target=review_version.cover_letter.object permission_type=BinaryPermissionType.ALL review_round=review_version.number secondary_permission=True as can_see_cover_letter %}
 {% if can_see_cover_letter %}

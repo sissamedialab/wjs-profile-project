@@ -50,7 +50,6 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
-from plugins.typesetting.models import TypesettingAssignment
 from plugins.wjs_submission.conversion import (
     TASK_LOG_PREFIX,
     get_feedback_logfile,
@@ -73,10 +72,11 @@ from submission.models import (
     STAGE_ASSIGNED,
     STAGE_UNDER_REVISION,
     Article,
-    ArticleAuthorOrder,
     Field,
     FieldAnswer,
+    FrozenAuthor,
 )
+from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
@@ -1761,14 +1761,14 @@ class PopulateRevisionSteps:
                 revision_storage=self.revision_storage,
             ).run()
         self.revision.revision_flow_type = self.revision_storage.revision_flow_type
-        now = timezone.now()
+        _now = timezone.now()
         if (
             self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL
             and self.revision.editor_decision.decision == ArticleWorkflow.Decisions.MAJOR_REVISION
         ):
-            self.article.articleworkflow.last_major_revision = now
+            self.article.articleworkflow.last_major_revision = _now
             self.article.articleworkflow.save()
-        self.revision.last_major_revision = now
+        self.revision.last_major_revision = _now
 
 
 @dataclasses.dataclass()
@@ -1813,17 +1813,14 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
         if affiliation_country := self.revision_storage.data.get("affiliation_country"):
             self.article.submission_data.affiliation_country_id = affiliation_country
 
-        ArticleAuthorOrder.objects.filter(article=self.article).delete()
+        FrozenAuthor.objects.filter(article=self.article).delete()
         article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage)
         for article_author in article_authors:
-            ArticleAuthorOrder.objects.create(
+            FrozenAuthor.objects.create(
                 article=self.article,
                 author=article_author.author,
                 order=article_author.order,
             )
-        self.article.authors.set(
-            ArticleAuthorOrder.objects.filter(article=self.article).values_list("author", flat=True)
-        )
         ArticleCollaboration.objects.filter(article=self.article).delete()
         article_collaborations = RevisionArticleCollaboration.objects.filter(revision_storage=self.revision_storage)
         for article_collaboration in article_collaborations:
@@ -2633,8 +2630,6 @@ class HandleDecision:
         :rtype: Article
         """
         self.workflow.article.accept_article()
-        # FIXME: Remove after syncing with upstream to include commit fd0464d
-        self.workflow.article.snapshot_authors(self.workflow.article, force_update=False)
 
         self.workflow.editor_writes_editor_report()
         self.workflow.editor_accepts_paper()
@@ -3838,7 +3833,7 @@ class OpenAppeal:
 
     def _is_articles_author(self) -> bool:
         """Check if selected Editor is the article's author."""
-        return self.article.authors.filter(id=self.new_editor.id).exists()
+        return self.article.author_accounts.filter(id=self.new_editor.id).exists()
 
     def _has_another_past_rejection(self) -> bool:
         return (
@@ -4787,7 +4782,7 @@ class ConvertEditorLatexReport(BaseConvertLatexReport):
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
-        generated_pdf_filename = f"{self._report_filename}.pdf"
+        generated_pdf_filename = f"{self.report_filename}.pdf"
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
@@ -4832,7 +4827,7 @@ class ConvertReviewerLatexReport(BaseConvertLatexReport):
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
-        generated_pdf_filename = f"{self._report_filename}.pdf"
+        generated_pdf_filename = f"{self.report_filename}.pdf"
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)

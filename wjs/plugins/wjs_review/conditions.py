@@ -15,9 +15,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
 from journal.models import Issue, Journal
-from plugins.typesetting.models import GalleyProofing, TypesettingAssignment
 from plugins.wjs_review.models import MessageRecipients
 from submission.models import REVIEW_ACCESSIBLE_STAGES, Article
+from typesetting.models import GalleyProofing, TypesettingAssignment
 
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
@@ -326,7 +326,7 @@ def article_has_old_unread_message(
     if exclude_aus_and_revs:
         # ignore messages whose recipient is an author of the article
         messages = messages.exclude(
-            messagerecipients__recipient__in=article.authors.all().values_list("id"),
+            messagerecipients__recipient__in=article.author_accounts.all().values_list("id"),
         )
         messages = messages.exclude(
             messagerecipients__recipient__in=article.reviewassignment_set.all().values_list("reviewer__id"),

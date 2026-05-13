@@ -9,9 +9,9 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache as django_cache
 from django.db.models import Q
-from plugins.typesetting.models import TypesettingAssignment
 from review import models as review_models
 from submission.models import Article
+from typesetting.models import TypesettingAssignment
 
 from wjs.jcom_profile import constants
 
@@ -64,7 +64,7 @@ def compute_role_for_article(article: Article, user: Account) -> str:
     if user == article.correspondence_author:
         return constants.AUTHOR_ROLE
 
-    if article.authors.filter(pk=user.pk).exists():
+    if user in article.author_accounts.all():
         return constants.COAUTHOR_ROLE
 
     if TypesettingAssignment.objects.filter(round__article=article, typesetter=user).exists():

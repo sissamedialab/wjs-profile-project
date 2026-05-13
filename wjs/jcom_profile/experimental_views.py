@@ -140,7 +140,7 @@ class AuthorsForceGraph(TemplateView):
         )
         for article in articles:
             # Node - authors
-            for author in article.authors.all():
+            for author in article.author_accounts.all():
                 node = nodes.setdefault(
                     author.pk,
                     AuthorNode(
@@ -151,7 +151,7 @@ class AuthorsForceGraph(TemplateView):
                 node.num_papers += 1
 
             # Edges / links
-            for source, target in combinations(article.authors.all(), 2):
+            for source, target in combinations(article.author_accounts.all(), 2):
                 edge = edges.setdefault(
                     f"{source.id}-{target.id}",
                     Edge(source, target, weigth=0),

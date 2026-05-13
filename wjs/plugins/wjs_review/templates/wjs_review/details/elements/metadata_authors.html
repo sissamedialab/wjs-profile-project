@@ -1,3 +1,4 @@
+{% load i18n %}
 {% if has_full_access %}
   <div class="accordion-item">
     <h2 class="accordion-header" id="heading-authors">
@@ -8,16 +9,14 @@
     <div id="collapse-authors" class="accordion-collapse collapse" aria-labelledby="heading-authors" data-bs-parent="#metadata">
       <div class="accordion-body">
         <ul class="list-unstyled" id="authorsAccordion">
-          {% for order in article.articleauthororder_set.all %}
-            {% with author=order.author %}
-              <li>
-                {% if article.correspondence_author == author %}
-                  {% include "wjs_review/base/elements/author.html" with author=author corresponding=True %}
-                {% else %}
-                  {% include "wjs_review/base/elements/author.html" with author=author %}
-                {% endif %}
-              </li>
-            {% endwith %}
+          {% for author in article.author_accounts.all %}
+            <li>
+              {% if article.correspondence_author == author %}
+                {% include "wjs_review/base/elements/author.html" with author=author corresponding=True %}
+              {% else %}
+                {% include "wjs_review/base/elements/author.html" with author=author %}
+              {% endif %}
+            </li>
           {% endfor %}
           {% if review_versions.0.revision_requests.0.authors_contributions %}
             <div>

@@ -20,7 +20,6 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django_fsm import Transition
 from journal.models import ArticleOrdering, Issue, Journal
-from plugins.typesetting.models import TypesettingRound
 from review.const import EditorialDecisions
 from review.models import (
     EditorAssignment,
@@ -29,6 +28,7 @@ from review.models import (
     RevisionRequest,
 )
 from submission.models import Article, Section
+from typesetting.models import TypesettingRound
 from utils import models as janeway_utils_models
 from utils.logger import get_logger
 from utils.models import LogEntry

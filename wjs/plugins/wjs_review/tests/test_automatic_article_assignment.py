@@ -715,6 +715,7 @@ def test_workload_decrease_eo(
         assert get_select_eo_by_workload(eo_parameters) == eo_2.janeway_account
 
 
+@pytest.mark.skip("Old submission is not used anymore")
 @pytest.mark.django_db
 def test_automatic_assignment_no_author_msg(
     review_settings: Callable,  # noqa: ARG001
