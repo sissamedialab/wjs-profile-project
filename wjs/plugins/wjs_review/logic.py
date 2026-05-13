@@ -4782,7 +4782,7 @@ class ConvertEditorLatexReport(BaseConvertLatexReport):
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
-        generated_pdf_filename = f"{self._report_filename}.pdf"
+        generated_pdf_filename = f"{self.report_filename}.pdf"
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)
@@ -4827,7 +4827,7 @@ class ConvertReviewerLatexReport(BaseConvertLatexReport):
         :rtype: File
         """
         generated_pdf_path = next(unpack_dir.glob("*.pdf"), None)
-        generated_pdf_filename = f"{self._report_filename}.pdf"
+        generated_pdf_filename = f"{self.report_filename}.pdf"
         remove_existing_files_from_filesystem(self.instance.article.pk, generated_pdf_filename)
         with generated_pdf_path.open("rb") as pdf_file:
             generated_pdf = File(pdf_file, name=generated_pdf_filename)

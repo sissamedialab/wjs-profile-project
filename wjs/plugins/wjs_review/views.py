@@ -1705,10 +1705,11 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         reviewer_report_type = get_setting(
             setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
         ).value
-        forced_tex = "tex" in reviewer_report_type
         if report_form.is_valid():
+            is_tex_report = report_form.cleaned_data["review_choice"] == "tex" or "tex" in reviewer_report_type
+            tex_report_content = str(self.request.POST.get("author_review_tex"))
             try:
-                if report_form.cleaned_data["review_choice"] == "tex" or forced_tex:
+                if is_tex_report and tex_report_content:
                     service = LatexReportConvertService(
                         request=self.request,
                         converter_class=ConvertReviewerLatexReport,
