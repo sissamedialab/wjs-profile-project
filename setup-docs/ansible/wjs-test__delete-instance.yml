@@ -1,0 +1,117 @@
+# Delete an existing Janeway instance
+---
+- hosts: test
+  remote_user: root
+  become: yes
+  vars:
+    wjs_user_id: 1000
+    postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('cambiami-please', true) }}"
+    instance_name: "{{ instance | default('aaa') }}"
+    suffix: "{{ ('-') + instance_name if (instance_name)  else ('') }}"
+    full_name: "janeway{{ suffix }}"
+    workon_home: /home/wjs/.virtualenvs/
+    venv_root: "{{ workon_home }}/{{ full_name }}"
+    python: "{{ venv_root }}/bin/python"
+    pip: "{{ venv_root }}/bin/pip"
+    ansible_ssh_common_args: "-o ForwardAgent=yes"
+
+  tasks:
+    - name: Remove Janeway repo
+      file:
+        path: "/home/wjs/{{ full_name }}"
+        state: absent
+
+    - name: Remove virtual env
+      file:
+        path: "{{ venv_root }}"
+        state: absent
+
+
+
+    - name: Drop instance database if it exists
+      become_user: wjs
+      community.postgresql.postgresql_db:
+        name: "{{ full_name }}"
+        state: absent
+        login_host: localhost
+        login_port: 5432
+        login_user: janeway
+      environment:
+        PGPASSFILE: /home/wjs/.pgpass
+
+
+
+    - name: Stop and disable gunicorn and qcluster services
+      become_user: wjs
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+        scope: user
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ wjs_user_id }}/bus"
+      loop:
+        - "gunicorn-{{ instance_name }}.service"
+        - "qcluster-{{ instance_name }}.service"
+      notify: Reload user systemd
+
+    - name: Delete gunicorn and qcluster systemd service units
+      file:
+        dest: "{{ item }}"
+      loop:
+        - "/home/wjs/.config/systemd/user/gunicorn-{{ instance_name }}.service"
+        - "/home/wjs/.config/systemd/user/qcluster-{{ instance_name }}.service"
+
+
+
+
+
+    - name: Delete web directories for journals
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/var/www/hosts/{{ instance_name }}-journals"
+        - "/var/www/hosts/{{ instance_name }}-jcap"
+        - "/var/www/hosts/{{ instance_name }}-jcom"
+        - "/var/www/hosts/{{ instance_name }}-jcomal"
+        - "/var/www/hosts/{{ instance_name }}-jquant"
+        - "/var/www/hosts/{{ instance_name }}-jhep"
+        - "/var/www/hosts/{{ instance_name }}-jstat"
+        - "/var/www/hosts/{{ instance_name }}-jinst"
+
+
+
+    - name: Delete virtualhost
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/etc/apache2/sites-enabled/wjs-{{ instance_name }}.conf"
+        - "/etc/apache2/sites-available/wjs-{{ instance_name }}.conf"
+      notify: Reload Apache configuration
+
+
+
+
+    - name: Delete logrotate configuration for wjs
+      file:
+        path: "/etc/logrotate.d/wjs-{{ instance_name }}"
+        state: absent
+
+
+
+  handlers:
+    - name: Reload Apache configuration
+      service:
+        name: apache2
+        state: reloaded
+
+    - name: Reload user systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: yes
+        scope: user
+      become_user: wjs
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
