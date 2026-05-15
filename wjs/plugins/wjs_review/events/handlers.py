@@ -375,3 +375,8 @@ def send_access_mode_special_requirements_notification_(**kwargs) -> None:
 def clear_cache(**kwargs) -> None:
     """Clear Django cache."""
     django_cache.clear()
+
+
+def assign_issue_as_primary(article, issue, user):
+    article.primary_issue = issue
+    article.save()
