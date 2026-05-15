@@ -12,26 +12,28 @@
     {% endif %}
   {% endif %}
 
-  {% if workflow|is_user_article_author_or_eo:request.user and article.data_figure_files.exists %}
-    <div class="accordion-item">
-      <h2 class="accordion-header" id="admin-files">
-        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-admin-files" aria-expanded="false" aria-controls="collapse-admin-files"
-                title="{% translate "Administrative files, data/figure files that will not be published" %}">
-          {{ journal_settings.styling.submission_figures_data_title|striptags }} &nbsp;&nbsp; <i class="bi bi-journal-medical"></i>
-        </button>
-      </h2>
-      <div id="collapse-admin-files" class="accordion-collapse collapse" aria-labelledby="admin-files" data-bs-parent="#metadata">
-        <div class="accordion-body">
-          <ul class="list-group mb-1">
-            {% for file in article.data_figure_files.all %}
-              <li class="list-group-item">
-                {% include "wjs_review/elements/file_download_link.html" with file=file article=article %}
-              </li>
-            {% endfor %}
-          </ul>
+  {% if workflow|is_user_article_author_or_eo:request.user and workflow.legacy_submission %}
+    {% if article.data_figure_files.exists %}
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="admin-files">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-admin-files" aria-expanded="false" aria-controls="collapse-admin-files"
+                  title="{% translate "Administrative files, data/figure files that will not be published" %}">
+            {{ journal_settings.styling.submission_figures_data_title|striptags }} &nbsp;&nbsp; <i class="bi bi-journal-medical"></i>
+          </button>
+        </h2>
+        <div id="collapse-admin-files" class="accordion-collapse collapse" aria-labelledby="admin-files" data-bs-parent="#metadata">
+          <div class="accordion-body">
+            <ul class="list-group mb-1">
+              {% for file in article.data_figure_files.all %}
+                <li class="list-group-item">
+                  {% include "wjs_review/elements/file_download_link.html" with file=file article=article %}
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
         </div>
       </div>
-    </div>
+    {% endif %}
   {% endif %}
 
   {% if has_file_access %}
