@@ -20,7 +20,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
 from django.utils.functional import cached_property
-from django.utils.timezone import localtime, make_naive
+from django.utils.timezone import localtime, make_aware, make_naive
 from django.utils.translation import gettext_lazy as _
 from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
@@ -507,6 +507,12 @@ class ArticleWorkflow(TimeStampedModel):
     class Meta:
         verbose_name = _("Article workflow")
         verbose_name_plural = _("Article workflows")
+
+    @property
+    def legacy_submission(self):
+        # very coarse flag, but it's not much important as it's only a temporary solution
+        cutoff_date = make_aware(datetime.datetime(2026, 5, 14, 0, 0, 0))
+        return self.created < cutoff_date
 
     @property
     def article_authors(self) -> QuerySet[Account]:
