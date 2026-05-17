@@ -737,7 +737,7 @@ class EditorSelected(BaseState):
         ArticleAction(
             permission=permissions.is_article_editor,
             name="deems not suitable",
-            label="Not suitable for JCOM",
+            label="Not suitable",
             view_name="wjs_article_decision",
             querystring_params={"decision": "not_suitable"},
         ),

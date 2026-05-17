@@ -97,7 +97,7 @@
 
     - name: Copy logrotate configuration for wjs
       template:
-        src: etc/logrotate-wjs_new.conf.j2
+        src: etc/logrotate-wjs.conf.j2
         dest: /etc/logrotate.d/wjs-{{ instance_name }}
         owner: root
         group: root

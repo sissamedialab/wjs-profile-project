@@ -72,7 +72,6 @@
         dest: "/home/wjs/{{ full_name }}/src/core/settings/__init__.py"
         src: griffo-files/django_settings.py.j2
         mode: '0644'
-      # tags: todo
 
     # TODO: check me! Move to django_settings.py.j2
     - name: Add SECURE_PROXY_SSL_HEADER setting if missing
@@ -113,7 +112,6 @@
         login_host: localhost
         login_port: 5432
         login_user: janeway
-      # tags: todo
 
     - name: Create instance database
       community.postgresql.postgresql_db:
@@ -122,7 +120,6 @@
         login_host: localhost
         login_port: 5432
         login_user: janeway
-      # tags: todo
 
     - name: Restore database from dump
       community.postgresql.postgresql_db:
@@ -132,7 +129,6 @@
         login_host: localhost
         login_port: 5432
         login_user: janeway
-      # tags: todo
 
     # - name: Remove database dump file
     #   file:
@@ -152,7 +148,7 @@
         - "UPDATE press_press SET domain='wjs-test-{{ instance_name }}-journals.wjapp.it'"
         - "update journal_journal set domain='wjs-test-{{ instance_name }}-jcom.wjapp.it' where code='JCOM';"
         - "update journal_journal set domain='wjs-test-{{ instance_name }}-jcomal.wjapp.it' where code='JCOMAL';"
-        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jquant.wjapp.it' where code='JQUANT';"
+        - "update journal_journal set domain='wjs-test-{{ instance_name }}-jquant.wjapp.it' where code='JQuant';"
         - "update journal_journal set domain='wjs-test-{{ instance_name }}-jhep.wjapp.it' where code='JHEP';"
         - "update journal_journal set domain='wjs-test-{{ instance_name }}-jcap.wjapp.it' where code='JCAP';"
         - "update journal_journal set domain='wjs-test-{{ instance_name }}-jstat.wjapp.it' where code='JSTAT';"
@@ -167,23 +163,11 @@
         owner: wjs
         group: wjs
         mode: preserve
-      # tags: todo
+
 
     # For not, do _not_ copy files from pp instance
 
-
-    - name: Setup Janeway
-      command: "{{ item }}"
-      loop:
-        - "{{ python }} -mmanage migrate"
-        - "{{ python }} -mmanage sync_translation_fields --noinput"
-        - "{{ python }} -mmanage load_default_settings"
-        - "{{ python }} -mmanage collectstatic --noinput"
-        - "{{ python }} -mmanage compilemessages --settings core.settings"
-      args:
-        chdir: "/home/wjs/{{ full_name }}/src"
-      # tags: todo
-
+    # TO BE DROPPED AFTER Janeway 1.8
     - name: Link typesetting plugin
       file:
         src: "/home/wjs/typesetting"
@@ -191,18 +175,45 @@
         state: link
         owner: wjs
         group: wjs
-      # tags: todo
 
-    - name: Setup WJS
+
+      # Note: at this point, no management command can be used,
+      # because there is reference from wjs_review to plugins/wjs_submission,
+      # but the latter does not yet exist.
+      #
+      # Remove possibly existing link to wjs_submission plugin
+      # (e.g., from previous runs of this play)
+    - name: Ensure wjs-submission is not yet present
+      file:
+        path: "/home/wjs/{{ full_name }}/src/plugins/wjs_submission"
+        state: absent
+
+    - name: Manually install wjs-submission plugin
+      file:
+        src: "{{ venv_root }}/lib/python3.11/site-packages/wjs/plugins/wjs_submission"
+        dest: "/home/wjs/{{ full_name }}/src/plugins/wjs_submission"
+        state: link
+        owner: wjs
+        group: wjs
+
+
+    - name: Setup the system
       command: "{{ item }}"
       loop:
-        - "{{ python }} -mmanage install_themes"
+        # Note that "link_plugins" links all plugins it finds in wjs/plugins,
+        # which is "shared" by all wjs projects, so all plugins should be linked
         - "{{ python }} -mmanage link_plugins"
+        - "{{ python }} -mmanage install_plugins"
+        - rm -f themes/JCOM-theme
+        - "{{ python }} -mmanage install_themes"
         - "{{ python }} -mmanage migrate"
         - "{{ python }} -mmanage build_assets"
+        - "{{ python }} -mmanage run_customizations"
+        - "{{ python }} -mmanage load_default_settings"
+        - "{{ python }} -mmanage sync_translation_fields --noinput"
+        - "{{ python }} -mmanage collectstatic --noinput"
       args:
         chdir: "/home/wjs/{{ full_name }}/src"
-      # tags: todo
 
 
 
@@ -214,7 +225,6 @@
         owner: wjs
         group: wjs
         mode: '0644'
-      # tags: todo
 
 
 
@@ -226,7 +236,6 @@
         group: wjs
         mode: '0644'
       notify: reload user systemd
-      # tags: todo
 
 
 
