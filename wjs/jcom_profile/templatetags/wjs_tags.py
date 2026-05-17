@@ -178,6 +178,14 @@ def citation_id(article):
 
 
 @register.filter
+def ensure_https(url: str):
+    """Ensure the URL starts with protocol "https://"."""
+    if not url.startswith("https"):
+        return f"https://{url}"
+    return url
+
+
+@register.filter
 def description(article):
     """Given an Article, returns the meta tag "description" value"""
     # Strip HTML tags and get at most 320 characters
