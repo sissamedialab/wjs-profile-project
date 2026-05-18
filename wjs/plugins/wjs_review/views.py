@@ -947,6 +947,9 @@ class EditorAssignsThemselvesAsReviewer(HtmxMixin, ArticleAssignedEditorMixin, E
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
         kwargs["editor_assigns_themselves_as_reviewer"] = True
+        revisions = self.object.get_review_versions(self.request.user)
+        if revisions:
+            kwargs["revision"] = revisions[0]
         return kwargs
 
 
@@ -1101,6 +1104,9 @@ class SelectReviewerView(
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
+        revisions = self.object.get_review_versions(self.request.user)
+        if revisions:
+            kwargs["revision"] = revisions[0]
         return kwargs
 
     def get_initial(self):

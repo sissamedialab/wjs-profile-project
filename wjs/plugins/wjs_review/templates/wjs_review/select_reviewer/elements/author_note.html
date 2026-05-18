@@ -6,8 +6,10 @@
     {% bootstrap_button button_type="button" button_class="btn-outline-secondary" data_bs_toggle="collapse" data_bs_target="#authorNotesCollapse" aria_expanded="false" aria_controls="authorNotesCollapse" content=review_notes %}
     <div class="collapse mt-3" id="authorNotesCollapse">
       <div class="card card-body">
+        <h6>{% translate "Cover letter" %}</h6>
         {{ review_version.cover_letter.text|safe }}&nbsp;
         {% if review_version.cover_letter.file %}
+          <h6>{% translate "Cover letter file" %}</h6>
           <ul class="list-group">
             <li class="list-group-item"><a href="{% url 'download_single_file' workflow.article.pk review_version.cover_letter.file.pk %}" target="_blank">{{ review_version.cover_letter.file.label }}</a></li>
           </ul>
