@@ -814,9 +814,11 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         Deal with possible exceptions while building the context data.
 
         The process is delicate because it involves extracting data from the tex sources, which can fail in many ways.
-
         """
-        self._warn_if_not_latest_round_sources()
+        typesetting_assignment = self.verify_available_typesetting_assignment()
+        if not typesetting_assignment:
+            # if no typsetting assignment is available, we redirect to article details and show the message
+            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
         try:
             context = self.get_context_data(object=self.object)
         except FileNotFoundError as e:
@@ -833,8 +835,13 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         else:
             return self.render_to_response(context)
 
-    def _warn_if_not_latest_round_sources(self):
-        """Add a warning if the TeX sources are not taken from the latest production version."""
+    def verify_available_typesetting_assignment(self) -> bool:
+        """
+        Add a warning if the TeX sources are not taken from the latest production version.
+
+        :return: True if the latest TypesettingAssignment is available, False otherwise
+        :rtype: bool
+        """
         latest_ta = self.object.get_latest_typesetting_assignment(only_completed=False)
         latest_ta_with_sources = (
             TypesettingAssignment.objects.filter(
@@ -844,13 +851,22 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             .order_by("-round__round_number")
             .first()
         )
-        if latest_ta != latest_ta_with_sources:
+        if not latest_ta:
+            messages.add_message(self.request, messages.ERROR, "Error: not current TypesettingAssignment is available")
+            return False
+        elif not latest_ta_with_sources:
+            messages.add_message(
+                self.request, messages.ERROR, "Error: not TypesettingAssignment with sources is available"
+            )
+            return False
+        elif latest_ta != latest_ta_with_sources:
             messages.add_message(
                 self.request,
                 messages.WARNING,
                 f"Warning: you are working on sources from v.{latest_ta_with_sources.round.round_number},"
                 f" that is not the lastest version (v.{latest_ta.round.round_number})",
             )
+        return True
 
     def get_context_data(self, **kwargs):
         """Prepare forms and context for three different blocks of metadata."""
