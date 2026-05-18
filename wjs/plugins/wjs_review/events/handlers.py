@@ -380,3 +380,17 @@ def clear_cache(**kwargs) -> None:
 def assign_issue_as_primary(article, issue, user):
     article.primary_issue = issue
     article.save()
+
+
+def ensure_snapshot_authors(article, **kwargs):
+    """
+    Ensure that all author accounts associated with the given article have their frozen author data snapshotted.
+
+    Article.author_accounts returns authors in the proper order and will ensure the order is preserved.
+
+    :param article: The article instance whose authors need snapshot creation.
+    :type article: Article
+    :return: None
+    """
+    for author in article.author_accounts.all():
+        author.snapshot_as_author(article)

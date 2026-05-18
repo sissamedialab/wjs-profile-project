@@ -13,8 +13,8 @@
       {% if action.confirm %}hx-confirm="{{ action.confirm }}"{% endif %}
     {% endif %}
   {% endif %}
-   class="{% if is_button %}btn {{ action.button_class }}{% else %}nav-link{% endif %} {% if action.disabled %}disabled{% endif %} {% if action.url == '#' %}disabled{% endif %}"
-   {% if action.is_htmx %}href="#"{% elif action.is_post %}href="#" onclick="sendPost{{ action.id }}()"{% else %}href="{{ action.url }}"{% endif %}
+   class="{% if is_button %}btn {{ action.button_class }}{% elif action.is_htmx or action.is_post %}btn d-inline btn-link nav-link{% else %}nav-link{% endif %} {% if action.disabled %}disabled{% endif %} {% if action.url == '#' %}disabled{% endif %}"
+   {% if action.is_htmx %}{% elif action.is_post %}onclick="sendPost{{ action.id }}()"{% else %}href="{{ action.url }}"{% endif %}
    {% if action.tooltip %}title="{{ action.tooltip }}"{% endif %} target="{{ action.target }}" >
   {% if action.label %}
     {{ action.label|safe }}

@@ -73,6 +73,7 @@ class WjsReviewConfig(AppConfig):
             clean_prophy_candidates,
             clear_cache,
             convert_manuscript_to_pdf,
+            ensure_snapshot_authors,
             notify_author_article_submission,
             notify_coauthors_article_submission,
             on_article_submission_start,
@@ -178,6 +179,12 @@ class WjsReviewConfig(AppConfig):
             perform_checks_at_acceptance,
         )
 
+        # When an article is accepted, ensure authors are snapshotted
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_ACCEPTED,
+            ensure_snapshot_authors,
+        )
+
         # Disable these three functions
         events_logic.Events.unregister_for_event(
             events_logic.Events.ON_REVISIONS_COMPLETE,
@@ -196,6 +203,12 @@ class WjsReviewConfig(AppConfig):
             events_logic.Events.ON_ARTICLE_PUBLISHED,
             clean_prophy_candidates,
         )
+        # When an article is published, ensure authors are snapshotted
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_PUBLISHED,
+            ensure_snapshot_authors,
+        )
+
         # both editor rejects and marks not_suitable call janeway decline_article
         # and trigger ON_ARTICLE_DECLINED event
         events_logic.Events.register_for_event(
