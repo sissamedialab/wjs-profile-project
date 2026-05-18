@@ -718,6 +718,7 @@ class BeginPublicationView(AuthenticatedUserPassesTest, View):
         return base_permissions.has_eo_role(self.request.user)
 
     def post(self, request, *args, **kwargs):
+        redirect_url = reverse("wjs_article_details", kwargs={"pk": self.object.pk})
         try:
             self.object = BeginPublication(
                 workflow=self.object,
@@ -726,15 +727,15 @@ class BeginPublicationView(AuthenticatedUserPassesTest, View):
             ).run()
         except ValueError as e:
             messages.error(request=self.request, message=e)
-            return HttpResponseRedirect(
-                reverse(
-                    "wjs_article_details",
-                    kwargs={"pk": self.object.pk},
-                ),
-            )
+            return HttpResponseRedirect(redirect_url)
 
-        messages.success(request=self.request, message=_("Publication process started."))
-        return HttpResponseRedirect(self.object.article.url)
+        messages.success(
+            request=self.request,
+            message=_(
+                "Publication process started.<br>It will take some time to complete, wait for completion message."
+            ),
+        )
+        return HttpResponseRedirect(f"{redirect_url}")
 
 
 class FinishPublicationView(AuthenticatedUserPassesTest, UpdateView):
