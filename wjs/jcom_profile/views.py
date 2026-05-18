@@ -673,7 +673,7 @@ class IMUStep2(TemplateView):
         )
         article.save()  # why doesn't it get saved using `create`?!?
         FrozenAuthor.objects.filter(article=article).delete()
-        FrozenAuthor.objects.create(article=article, author=author)
+        author.snapshot_as_author(article)
         self.special_issue.articles.add(article)
         article.refresh_from_db()
         return article

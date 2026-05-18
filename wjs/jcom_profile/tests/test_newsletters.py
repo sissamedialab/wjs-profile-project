@@ -1086,26 +1086,9 @@ def test_check_authors_list_in_publication_alert(
     coauthor1 = account_factory()
     coauthor2 = account_factory()
 
-    article.authors.add(correspondence_author)
-    submission_models.ArticleAuthorOrder.objects.create(
-        article=article,
-        author=correspondence_author,
-        order=0,
-    )
-    article.authors.add(coauthor1)
-    submission_models.ArticleAuthorOrder.objects.create(
-        article=article,
-        author=coauthor1,
-        order=1,
-    )
-    article.authors.add(coauthor2)
-    submission_models.ArticleAuthorOrder.objects.create(
-        article=article,
-        author=coauthor2,
-        order=2,
-    )
-    article.snapshot_authors()
-    article.save()
+    correspondence_author.snapshot_as_author(article)
+    coauthor1.snapshot_as_author(article)
+    coauthor2.snapshot_as_author(article)
 
     recipient = recipient_factory(user=account_factory(), news=False)
     recipient.topics.add(kwd1)

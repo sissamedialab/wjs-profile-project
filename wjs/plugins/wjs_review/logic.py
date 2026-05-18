@@ -1814,13 +1814,11 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
             self.article.submission_data.affiliation_country_id = affiliation_country
 
         FrozenAuthor.objects.filter(article=self.article).delete()
-        article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage)
+        article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage).order_by(
+            "order"
+        )
         for article_author in article_authors:
-            FrozenAuthor.objects.create(
-                article=self.article,
-                author=article_author.author,
-                order=article_author.order,
-            )
+            article_author.author.snapshot_as_author(self.article)
         ArticleCollaboration.objects.filter(article=self.article).delete()
         article_collaborations = RevisionArticleCollaboration.objects.filter(revision_storage=self.revision_storage)
         for article_collaboration in article_collaborations:
