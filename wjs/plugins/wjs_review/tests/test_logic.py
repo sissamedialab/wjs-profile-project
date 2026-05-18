@@ -34,7 +34,7 @@ from plugins.wjs_submission.revision import RevisionStartConfirmView
 from plugins.wjs_submission.step8.views import SubmissionStep8View
 from review import models as review_models
 from submission import models as submission_models
-from submission.models import Article, ArticleAuthorOrder, Keyword
+from submission.models import Article, Keyword
 from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils import setting_handler
 from utils.setting_handler import get_setting
@@ -4692,7 +4692,6 @@ def test_metadatafromtex_get_data(
 
         # Interesting fact: the system does not fail even if the authors are not ordered
         #                   but, of course, the order is not guaranteed
-        assert not ArticleAuthorOrder.objects.exists()
         assert set(
             data["authors_db"].values_list("id", flat=True),
         ) == set(

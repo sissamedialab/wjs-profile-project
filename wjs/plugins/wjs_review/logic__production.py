@@ -51,7 +51,6 @@ from submission.models import (
     STAGE_READY_FOR_PUBLICATION,
     STAGE_TYPESETTING,
     Article,
-    ArticleAuthorOrder,
     FrozenAuthor,
     Keyword,
     KeywordArticle,
@@ -2096,7 +2095,7 @@ class MetadataFromTeX:
             raise ValueError(self._data["authors_errors"])
 
         FrozenAuthor.objects.filter(article=self.workflow.article).delete()
-        for order, am in enumerate(self._data["authors_map"]):
+        for am in self._data["authors_map"]:
             if am.must_be_created:
                 author = Account.objects.create(
                     first_name=am.first_name,
@@ -2115,7 +2114,7 @@ class MetadataFromTeX:
                 # - orcid
                 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1804
 
-            FrozenAuthor.objects.create(article=self.workflow.article, order=order, author=author)
+            author.snapshot_as_author(self.workflow.article)
 
     # TODO: refactor with logic__production.BeginPublication._get_source_file()
     def _get_source_file(self) -> BytesIO:
@@ -2217,7 +2216,7 @@ class MetadataFromTeX:
             raise ValueError(msg)
         return tex_kwds
 
-    def _map_authors(self) -> list["AuthorStruct"]:
+    def _map_authors(self) -> list["MetadataFromTeX.AuthorStruct"]:
         """
         Use TeX data to retrieve Accounts from DB.
 
@@ -2225,7 +2224,7 @@ class MetadataFromTeX:
         """
         article = self.workflow.article
         subq = Subquery(
-            ArticleAuthorOrder.objects.filter(
+            FrozenAuthor.objects.filter(
                 article=article,
                 author__id=OuterRef("id"),
             ).values_list("order"),

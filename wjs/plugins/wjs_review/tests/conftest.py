@@ -723,7 +723,7 @@ def create_set_of_articles_with_assignments(
     fake_request: HttpRequest,
     eo_user: Account,
     journal: journal_models.Journal,  # noqa
-    director: Account,
+    main_director: Account,
     review_settings,
     coauthors_setting,
 ):

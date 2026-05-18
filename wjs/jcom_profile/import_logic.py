@@ -1486,13 +1486,7 @@ class SYS_ASS_ED(EditorAssignmentAction):  # noqa N801
             # be added to all authors: JCOM_028A_1024
 
             if author != self.article.correspondence_author:
-                order = len(self.article.author_accounts.all()) + 1
-
-                submission_models.FrozenAuthor.objects.create(
-                    article=self.article,
-                    author=author,
-                    order=order,
-                )
+                author.snapshot_as_author(self.article)
                 if not author.check_role(self.journal, "author", staff_override=False):
                     author.add_account_role("author", self.journal)
 
@@ -3916,11 +3910,11 @@ class SwapCorrespondenceAuthor(BaseActionManager):  # noqa N801
         # If the two users are different, also the orders are swapped.
         if new_author != self.article.correspondence_author:
             self.article.owner = new_author
-            aao_new_author = submission_models.ArticleAuthorOrder.objects.get(
+            aao_new_author = submission_models.FrozenAuthor.objects.get(
                 article=self.article,
                 author=new_author,
             )
-            submission_models.ArticleAuthorOrder.objects.filter(
+            submission_models.FrozenAuthor.objects.filter(
                 article=self.article,
                 author=self.article.correspondence_author,
             ).update(order=aao_new_author.order)
