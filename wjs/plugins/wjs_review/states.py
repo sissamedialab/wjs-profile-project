@@ -622,8 +622,20 @@ class BaseState:
 
     @classmethod
     def has_unread_message(cls, article: Article, user: Account) -> str:
-        # States need to have at least a placeholder method that checks for attention conditions in order for this
-        # condition to be checked. In this way we can exclude states and/or roles.
+        """
+        Check whether there is an unread message in the given article for the specified user.
+
+        This check is automatically triggered if a article_requires_<role>_attention is defined in the state class
+        (even a noop that just return an empty string).
+        This allow to exclude states and/or roles.
+
+        :param article: The article object being checked for unread messages.
+        :type article: Article
+        :param user: The user object for whom the unread message condition is evaluated.
+        :type user: Account
+        :return: An attention flag string if unread messages are present, otherwise an empty string.
+        :rtype: str
+        """
         if attention_flag := conditions.has_unread_message(article, recipient=user):
             return attention_flag
         return ""
@@ -1120,7 +1132,7 @@ class PaperMightHaveIssues(BaseState):
     ) + BaseState.article_actions
 
     @classmethod
-    def article_requires_eo_attention(cls, article: Article) -> str:
+    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
         """Papers in this state always require attention by EO."""
         return "Submission to be checked"
 
@@ -1149,6 +1161,11 @@ class ReadyForTypesetter(BaseState):
             custom_get_url=lambda action, workflow, user: get_article_issue_tracker_url(workflow, repo="rogne"),
         ),
     ) + BaseState.article_buttons
+
+    @classmethod
+    def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
+        """Trigger automatic attention conditions (like has_unread_message)."""
+        return ""
 
 
 class TypesetterSelected(BaseState):
