@@ -65,36 +65,36 @@
           {% if author.jcomprofile.records_arxiv and journal|is_field_available:"records_arxiv" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/arxiv_logo.png" %}" alt="arxiv logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_arxiv }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s arXiv page{% endblocktranslate %}</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_arxiv|ensure_https }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s arXiv page{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.jcomprofile.records_inspire and journal|is_field_available:"records_inspire" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/inspire_logo.png" %}" alt="inspire logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_inspire }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s Inspire page{% endblocktranslate %}</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_inspire|ensure_https }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s Inspire page{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.jcomprofile.records_scix and journal|is_field_available:"records_scix" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/scix_logo.png" %}" alt="scix logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_scix }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s SciX page{% endblocktranslate %}</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_scix|ensure_https }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s SciX page{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.linkedin and journal|is_field_available:"linkedin" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/linkedin_logo.png" %}" alt="linkedin logo">
-            <a target="_blank" href="{{ author.linkedin }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s LinkedIn{% endblocktranslate %}</a>
+            <a target="_blank" href="{{ author.linkedin|ensure_https }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s LinkedIn{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.facebook and journal|is_field_available:"facebook" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/facebook_logo.png" %}" alt="facebook logo">
-            <a target="_blank" href="{{ author.facebook }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s facebook{% endblocktranslate %}</a>
+            <a target="_blank" href="{{ author.facebook|ensure_https }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s facebook{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.twitter and journal|is_field_available:"twitter" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3"><i class="bi bi-link-45deg"></i>
-            <a target="_blank" href="{{ author.twitter }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s bluesky{% endblocktranslate %}</a>
+            <a target="_blank" href="{{ author.twitter|ensure_https }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s bluesky{% endblocktranslate %}</a>
           </li>
           {% endif %}
           {% if author.email and journal|is_field_available:"email" %}

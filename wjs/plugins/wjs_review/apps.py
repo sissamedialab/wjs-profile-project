@@ -69,6 +69,7 @@ class WjsReviewConfig(AppConfig):
 
         from .events import ReviewEvent
         from .events.handlers import (
+            assign_issue_as_primary,
             clean_prophy_candidates,
             clear_cache,
             convert_manuscript_to_pdf,
@@ -216,4 +217,8 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             SubmissionEvent.ON_ACCESS_MODE_SELECTION,
             send_access_mode_special_requirements_notification_,
+        )
+        events_logic.Events.register_for_event(
+            events_logic.Events.ON_ARTICLE_ASSIGNED_TO_ISSUE,
+            assign_issue_as_primary,
         )

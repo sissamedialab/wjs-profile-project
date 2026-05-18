@@ -265,23 +265,14 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self._today = now().date()
         self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
+        self.revision = kwargs.pop("revision")
         super().__init__(*args, **kwargs)
 
         review_round = self.instance.article.current_review_round()
 
-        if review_round == 1 and not self.instance.article.comments_editor:
+        has_cover_letter = self.revision.cover_letter.text or self.revision.cover_letter.file
+        if review_round == 1 and not has_cover_letter:
             self.fields["author_note_visible"].widget = forms.HiddenInput()
-
-        if review_round > 1:
-            err = (
-                EditorRevisionRequest.objects.filter(
-                    article=self.instance.article,
-                )
-                .order_by("-date_completed")
-                .first()
-            )
-            if err and not (err.cover_letter_file or err.author_note):
-                self.fields["author_note_visible"].widget = forms.HiddenInput()
 
         if self.editor_assigns_themselves_as_reviewer:
             self.fields["acceptance_due_date"].label = _("I will send my review by")
