@@ -12,7 +12,7 @@
     {% endif %}
   {% endif %}
 
-  {% if workflow|is_user_article_author_or_eo:request.user and workflow.legacy_submission %}
+  {% if workflow|is_user_article_author_or_eo:request.user or workflow.legacy_submission %}
     {% if article.data_figure_files.exists %}
       <div class="accordion-item">
         <h2 class="accordion-header" id="admin-files">
