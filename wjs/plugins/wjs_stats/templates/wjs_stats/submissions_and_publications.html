@@ -1,0 +1,110 @@
+{% extends "admin/core/base.html" %}
+{% load django_bootstrap5 wjs_tags %}
+{% block title %}
+  WJS Stats - Submissions and Publications
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    .chart {
+        font: 12px sans-serif;
+    }
+    .chart .axis path,
+    .chart .axis line {
+        fill: none;
+        stroke: #333;
+        shape-rendering: crispEdges;
+    }
+    .chart .line {
+        fill: none;
+        stroke-width: 1.5px;
+    }
+    .chart .line.submissions {
+        stroke: #d55e00;
+    }
+    .chart .line.publications {
+        stroke: #0072b2;
+    }
+    .chart .legend {
+        font-size: 12px;
+    }
+  </style>
+{% endblock css %}
+{% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section>
+    <h2>Submissions and Publications</h2>
+    <div id="chart" class="chart"></div>
+  </section>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    (function () {
+        // d3js margin convention
+        const margin = {top: 20, right: 30, bottom: 20, left: 30};
+        const outerWidth = 600;
+        const outerHeight = 300;
+        const width = outerWidth - margin.left - margin.right;
+        const height = outerHeight - margin.top - margin.bottom;
+
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", outerWidth)
+            .attr("height", outerHeight)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const today = new Date();
+        const xMax = d3.timeDay.offset(today, 60);
+        const x = d3.scaleTime()
+            .domain([new Date(1997, 5, 1), xMax])
+            .range([0, width]);
+
+        const y = d3.scaleLinear()
+            .domain([0, 400])
+            .range([height, 0]);
+
+        const xAxis = svg.append("g")
+            .attr("class", "axis axis-x")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x));
+        xAxis.select(".domain").remove();
+        xAxis.selectAll(".tick line").attr("stroke", "none");
+
+        svg.append("g")
+            .attr("class", "axis axis-y")
+            .call(d3.axisLeft(y).tickValues(d3.range(0, 401, 100)));
+
+        const parseMonth = d3.timeParse("%Y-%m");
+
+        d3.tsv("{% url 'wjs_stats_submissions_and_publications_tsv' %}", function (d) {
+            return {
+                month: parseMonth(d.month),
+                submitted: +d.submitted,
+                published: +d.published,
+            };
+        }).then(function (data) {
+            const submissionsLine = d3.line()
+                .x(d => x(d.month))
+                .y(d => y(d.submitted));
+
+            const publicationsLine = d3.line()
+                .x(d => x(d.month))
+                .y(d => y(d.published));
+
+            svg.append("path")
+                .datum(data)
+                .attr("class", "line submissions")
+                .attr("d", submissionsLine);
+
+            svg.append("path")
+                .datum(data)
+                .attr("class", "line publications")
+                .attr("d", publicationsLine);
+        });
+    })();
+  </script>
+{% endblock body %}

@@ -1,0 +1,139 @@
+{% extends "admin/core/base.html" %}
+{% load django_bootstrap5 wjs_tags %}
+{% block title %}
+  WJS Stats - Editors and Keywords per Journal
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    .chart {
+        font: 12px sans-serif;
+    }
+    .chart .axis path,
+    .chart .axis line {
+        fill: none;
+        stroke: #333;
+        shape-rendering: crispEdges;
+    }
+  </style>
+{% endblock css %}
+{% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section>
+    <h2>Editors and Keywords per Journal</h2>
+    <div>
+      <h4>Legend</h4>
+      <p>Each circle is a journal</p>
+      <p>On the x-axis, the year of inception of the journal</p>
+      <p>On the y-axis, the number of keywords available today</p>
+      <p>The radius of the gray circle represents the number of active editors</p>
+      <p>The radius of the black circle line represents the number of total editor (past, inactive, etc.)</p>
+
+    </div>
+    <div id="chart" class="chart"></div>
+  </section>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    (function () {
+        const margin = {top: 50, right: 50, bottom: 50, left: 50};
+        const outerWidth = 1200;
+        const outerHeight = 800;
+        const width = outerWidth - margin.left - margin.right;
+        const height = outerHeight - margin.top - margin.bottom;
+
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", outerWidth)
+            .attr("height", outerHeight)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        d3.tsv("{% url 'wjs_stats_editors_and_keywords_per_journal_tsv' %}", function (d) {
+            return {
+                journal: d.journal,
+                keywords: +d.keywords,
+                editors: +d.editors,
+                all_editors: +d.all_editors,
+                year_of_inception: +d.year_of_inception,
+            };
+        }).then(function (data) {
+            data = data.filter(d => !isNaN(d.year_of_inception) && d.year_of_inception > 0);
+
+            const x = d3.scaleLinear()
+                .domain([d3.min(data, d => d.year_of_inception)-4, d3.max(data, d => d.year_of_inception)+4])
+                .range([0, width]);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.keywords)+100])
+                .range([height, 0]);
+
+            /* normalize editors wrt to keywords */
+            const eds_to_kwds = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.all_editors)])
+                .range([0, d3.max(data, d => d.keywords)/2]);
+
+            const xAxis = svg.append("g")
+                .attr("class", "axis axis-x")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+            xAxis.select(".domain").remove();
+
+            xAxis.append("text")
+                .attr("class", "axis-label")
+                .attr("x", width / 2)
+                .attr("y", 40)
+                .attr("fill", "#000")
+                .attr("text-anchor", "middle")
+                .text("Year of inception");
+
+            svg.append("g")
+                .attr("class", "axis axis-y")
+                .call(d3.axisLeft(y))
+                .append("text")
+                .attr("class", "axis-label")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -height / 2)
+                .attr("y", -40)
+                .attr("fill", "#000")
+                .attr("text-anchor", "middle")
+                .text("Keywords");
+
+            svg.selectAll("circle.all-editors")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("class", "all-editors")
+                .attr("cx", d => x(d.year_of_inception))
+                .attr("cy", d => y(d.keywords))
+                .attr("r", d => eds_to_kwds(d.all_editors))
+                .attr("fill", "none")
+                .attr("stroke", "black");
+
+            svg.selectAll("circle.editors")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("class", "editors")
+                .attr("cx", d => x(d.year_of_inception))
+                .attr("cy", d => y(d.keywords))
+                .attr("r", d => eds_to_kwds(d.editors))
+                .attr("fill", "gray");
+
+            svg.selectAll("text.label")
+                .data(data)
+                .enter()
+                .append("text")
+                .attr("class", "label")
+                .attr("x", d => x(d.year_of_inception))
+                .attr("y", d => y(d.keywords))
+                .attr("text-anchor", "middle")
+                .attr("dy", "0.35em")
+                .text(d => d.journal);
+        });
+    })();
+  </script>
+{% endblock body %}
