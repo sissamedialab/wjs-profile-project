@@ -7,12 +7,14 @@ from io import BytesIO
 
 import mariadb
 import requests
+from core.models import AccountRole
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Count, Min, Q
-from django.http import FileResponse
+from django.db.models.functions import TruncMonth
+from django.http import FileResponse, HttpResponse
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.timezone import now
@@ -21,7 +23,7 @@ from django.views.generic.edit import FormView
 from identifiers.models import CrossrefStatus
 from journal.models import Issue, Journal
 from requests.auth import HTTPBasicAuth
-from submission.models import Article, Section
+from submission.models import Article, Keyword, Section
 from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
 
@@ -29,6 +31,7 @@ from wjs.jcom_profile import constants
 
 from .forms import FilterForm
 from .plugin_settings import GROUP_ACCOUNTING
+from .wjapp_data import EDITORS_AND_KEYWORDS_BY_JOURNAL_CODE, PAPERS_BY_JOURNAL_CODE
 
 Account = get_user_model()
 
@@ -528,6 +531,127 @@ class DoubleAccountsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
         context["double_groups"] = groups
         return context
+
+
+class SubmittedPublishedPerMonthTSV(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Return submitted and published paper counts per month as TSV for d3js."""
+
+    def test_func(self):
+        """Verify that only staff can see this."""
+        return self.request.user.is_staff
+
+    def get(self, request, **kwargs):
+        """Serve a TSV with one row per month: month, submitted, published."""
+        journal = request.journal
+
+        if journal.code in PAPERS_BY_JOURNAL_CODE:
+            return HttpResponse(
+                PAPERS_BY_JOURNAL_CODE[journal.code],
+                content_type="text/tab-separated-values",
+            )
+
+        submitted = (
+            Article.objects.filter(journal=journal, date_submitted__isnull=False)
+            .order_by()
+            .annotate(month=TruncMonth("date_submitted"))
+            .values("month")
+            .annotate(count=Count("pk"))
+        )
+        published = (
+            Article.objects.filter(journal=journal, date_published__isnull=False)
+            .order_by()
+            .annotate(month=TruncMonth("date_published"))
+            .values("month")
+            .annotate(count=Count("pk"))
+        )
+
+        per_month = {}
+        for row in submitted:
+            per_month.setdefault(row["month"].date(), [0, 0])[0] = row["count"]
+        for row in published:
+            per_month.setdefault(row["month"].date(), [0, 0])[1] = row["count"]
+
+        lines = ["month\tsubmitted\tpublished"]
+        for month in sorted(per_month):
+            s, p = per_month[month]
+            lines.append(f"{month.strftime('%Y-%m')}\t{s}\t{p}")
+
+        return HttpResponse("\n".join(lines), content_type="text/tab-separated-values")
+
+
+class EditorAndKeywordsPerJournalTSV(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Return per-journal counts of keywords and active section-editors as TSV for d3js."""
+
+    YEAR_OF_INCEPTION = {
+        "JHEP": 1997,
+        "JCAP": 2002,
+        "JCOM": 2002,
+        "JSTAT": 2004,
+        "JINST": 2006,
+        "JCOMAL": 2018,
+        "JQuant": 2026,
+    }
+
+    def test_func(self):
+        """Verify that only staff can see this."""
+        return self.request.user.is_staff
+
+    def get(self, request, **kwargs):
+        """Serve a TSV with one row per journal: journal, keywords, editors, year_of_inception."""
+        keywords_per_journal = dict(Keyword.objects.order_by().values_list("journal__code").annotate(c=Count("pk")))
+        editors_per_journal = dict(
+            AccountRole.objects.filter(
+                role__slug="section-editor",
+                user__staffworkloadparameters__workload__gt=0,
+            )
+            .order_by()
+            .values_list("journal__code")
+            .annotate(c=Count("pk"))
+        )
+        all_editors_per_journal = dict(
+            AccountRole.objects.filter(role__slug="section-editor")
+            .order_by()
+            .values_list("journal__code")
+            .annotate(c=Count("pk"))
+        )
+
+        lines = ["journal\tkeywords\teditors\tall_editors\tyear_of_inception"]
+        for journal in Journal.objects.all().order_by("code"):
+            code = journal.code
+
+            if code in EDITORS_AND_KEYWORDS_BY_JOURNAL_CODE:
+                data = EDITORS_AND_KEYWORDS_BY_JOURNAL_CODE[code]
+                keywords_count = data[0]
+                editors_count = data[1]
+                all_editors_count = data[2]
+            else:
+                keywords_count = keywords_per_journal.get(code, 0)
+                editors_count = editors_per_journal.get(code, 0)
+                all_editors_count = all_editors_per_journal.get(code, 0)
+            year = self.YEAR_OF_INCEPTION.get(code, "")
+            lines.append(f"{code}\t{keywords_count}\t{editors_count}\t{all_editors_count}\t{year}")
+
+        return HttpResponse("\n".join(lines), content_type="text/tab-separated-values")
+
+
+class SubmissionsAndPublicationsChart(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Render a d3js line chart of submissions and publications per month."""
+
+    template_name = "wjs_stats/submissions_and_publications.html"
+
+    def test_func(self):
+        """Verify that only staff can see this."""
+        return self.request.user.is_staff
+
+
+class EditorsAndKeywordsChar(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Render a d3js chart of editors and keywords per journal."""
+
+    template_name = "wjs_stats/editors_and_keywords.html"
+
+    def test_func(self):
+        """Verify that only staff can see this."""
+        return self.request.user.is_staff
 
 
 class OrcidsStatsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
