@@ -262,6 +262,34 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
             return queryset.filter(**{name: value})
         return queryset
 
+    def filter_user(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
+        """
+        Filter by user's email, first name, and last name by substring.
+
+        :param queryset: the queryset to filter
+        :type queryset: QuerySet
+        :param name: target user foreign key field name
+        :type name: str
+        :param value: the value to filter
+        :type value: str
+
+        :return: the filtered queryset
+        :rtype: QuerySet
+        """
+        if value:
+            if isinstance(value, int):
+                return queryset.filter(**{f"{name}__id": value})
+            elif isinstance(value, Account):
+                return queryset.filter(**{name: value})
+            else:
+                filters = (
+                    Q(**{f"{name}__email__icontains": value})
+                    | Q(**{f"{name}__first_name__icontains": value})
+                    | Q(**{f"{name}__last_name__icontains": value})
+                )
+                return queryset.filter(filters)
+        return queryset
+
 
 class AuthorArticleWorkflowFilter(BaseArticleWorkflowFilter):
     # Empty to ease further customization
@@ -297,34 +325,6 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
         ]
         filters["status"].field.choices = full_choices
         return filters
-
-    def filter_user(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
-        """
-        Filter by user's email, first name, and last name by substring.
-
-        :param queryset: the queryset to filter
-        :type queryset: QuerySet
-        :param name: target user foreign key field name
-        :type name: str
-        :param value: the value to filter
-        :type value: str
-
-        :return: the filtered queryset
-        :rtype: QuerySet
-        """
-        if value:
-            if isinstance(value, int):
-                return queryset.filter(**{f"{name}__id": value})
-            elif isinstance(value, Account):
-                return queryset.filter(**{name: value})
-            else:
-                filters = (
-                    Q(**{f"{name}__email__icontains": value})
-                    | Q(**{f"{name}__first_name__icontains": value})
-                    | Q(**{f"{name}__last_name__icontains": value})
-                )
-                return queryset.filter(filters)
-        return queryset
 
 
 class EOArticleWorkflowFilter(StaffArticleWorkflowFilter):
