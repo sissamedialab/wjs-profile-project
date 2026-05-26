@@ -28,17 +28,17 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="jcomprofile",
             name="records_arxiv",
-            field=models.CharField(blank=True, default="", max_length=500, verbose_name="My Records on ArXiv"),
+            field=models.URLField(blank=True, default="", max_length=500, verbose_name="My Records on ArXiv"),
         ),
         migrations.AddField(
             model_name="jcomprofile",
             name="records_inspire",
-            field=models.CharField(blank=True, default="", max_length=500, verbose_name="My Records on Inspire"),
+            field=models.URLField(blank=True, default="", max_length=500, verbose_name="My Records on Inspire"),
         ),
         migrations.AddField(
             model_name="jcomprofile",
             name="records_other",
-            field=models.CharField(
+            field=models.URLField(
                 blank=True,
                 default="",
                 max_length=500,
@@ -48,7 +48,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="jcomprofile",
             name="records_scix",
-            field=models.CharField(blank=True, default="", max_length=500, verbose_name="My Records on SciX"),
+            field=models.URLField(blank=True, default="", max_length=500, verbose_name="My Records on SciX"),
         ),
         migrations.AddField(
             model_name="jcomprofile",

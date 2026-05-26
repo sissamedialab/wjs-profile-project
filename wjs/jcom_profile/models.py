@@ -48,10 +48,10 @@ class JCOMProfile(Account):
     invitation_token = models.CharField(_("Invitation token"), max_length=500, default="", blank=True)
     keywords = models.ManyToManyField("submission.Keyword", verbose_name=_("Interests"), blank=True)
     usernotes = models.TextField(_("User notes"), blank=True, default="")
-    records_scix = models.CharField(_("My Records on SciX"), max_length=500, default="", blank=True)
-    records_inspire = models.CharField(_("My Records on Inspire"), max_length=500, default="", blank=True)
-    records_arxiv = models.CharField(_("My Records on ArXiv"), max_length=500, default="", blank=True)
-    records_other = models.CharField(
+    records_scix = models.URLField(_("My Records on SciX"), max_length=500, default="", blank=True)
+    records_inspire = models.URLField(_("My Records on Inspire"), max_length=500, default="", blank=True)
+    records_arxiv = models.URLField(_("My Records on ArXiv"), max_length=500, default="", blank=True)
+    records_other = models.URLField(
         _("Others (personal website, records on Google Scholar/ResearchGate, etc)"),
         max_length=500,
         default="",
