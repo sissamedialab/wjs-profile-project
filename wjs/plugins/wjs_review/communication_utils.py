@@ -1,4 +1,5 @@
-"""Utility functions related to the communication system.
+"""
+Utility functions related to the communication system.
 
 Keeping here also anything that we might want to test easily 🙂.
 """
@@ -145,7 +146,7 @@ def get_messages_related_to_me(
 def get_system_user() -> Account:
     """Return the system user / technical account (wjs-support)."""
     account, _ = Account.objects.get_or_create(
-        email="wjs-support@medialab.sissa.it",
+        email="wjs-support@sissamedialab.it",
         defaults={
             "first_name": "WJS",
             "last_name": "Support",
