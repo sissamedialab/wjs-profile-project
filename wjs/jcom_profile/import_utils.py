@@ -169,7 +169,7 @@ def admin_fake_request():
     FakeRequest = namedtuple("FakeRequest", ["user"])
     # Use a "technical account" (that is created if not already present)
     admin, _ = Account.objects.get_or_create(
-        email="wjs-support@medialab.sissa.it",
+        email="wjs-support@sissamedialab.it",
         defaults={
             "first_name": "WJS",
             "last_name": "Support",
