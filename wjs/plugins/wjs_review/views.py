@@ -87,6 +87,7 @@ from .filters import (
 from .forms import (
     ArticleExtraInformationUpdateForm,
     AssignEoForm,
+    BaseReportForm,
     ConfirmVersionForm,
     DecisionForm,
     DeclineReviewForm,
@@ -1700,6 +1701,21 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         context["assignment"] = self.object
         return context
 
+    @staticmethod
+    def _needs_latex_compilation(report_form: BaseReportForm) -> bool:
+        """
+        Return True if the report needs to be LaTeX-compiled.
+
+        Some journal allows reviewers to POST a LaTeX fragment (report type "tex" or "tex+text"),
+        nonetheless some reviewer can submit a review that does not include a LaTeX fragment (the review_choice).
+        """
+        reviewer_report_type = get_setting(
+            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=report_form.journal
+        ).value
+        is_tex_report = report_form.cleaned_data["review_choice"] == "tex" or reviewer_report_type == "tex"
+        tex_report_content = bool(report_form.cleaned_data.get("author_review_tex", ""))
+        return is_tex_report and tex_report_content
+
     def _process_report(self) -> Union[HttpResponseRedirect, HttpResponse]:
         """
         Process ReportForm and redirect to the appropriate page.
@@ -1707,19 +1723,13 @@ class ReviewSubmit(EvaluateReviewRequest, ReviewerRequiredMixin):
         If form is not valid or exception is raised by the logic, the form is rendered again with the error.
         """
         report_form = self._get_report_form()
-
-        reviewer_report_type = get_setting(
-            setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
-        ).value
         if report_form.is_valid():
-            is_tex_report = report_form.cleaned_data["review_choice"] == "tex" or "tex" in reviewer_report_type
-            tex_report_content = str(self.request.POST.get("author_review_tex"))
             try:
-                if is_tex_report and tex_report_content:
+                if self._needs_latex_compilation(report_form):
                     service = LatexReportConvertService(
                         request=self.request,
                         converter_class=ConvertReviewerLatexReport,
-                        report_text=self.request.POST.get("author_review_tex"),
+                        report_text=report_form.cleaned_data["author_review_tex"],
                         assignment=self.object.workflowreviewassignment,
                     )
                     try:
