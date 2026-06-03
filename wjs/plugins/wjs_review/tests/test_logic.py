@@ -12,7 +12,7 @@ import html2text
 import pycountry
 import pytest
 from core.files import save_file_to_article
-from core.models import Account
+from core.models import Account, Setting, SettingGroup, SettingValue
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
@@ -56,6 +56,7 @@ from ..events.handlers import (
 )
 from ..forms import (
     AssignEoForm,
+    BaseReportForm,
     EditorRevisionRequestEditForm,
     MessageForm,
     OpenAppealForm,
@@ -99,7 +100,7 @@ from ..reminders.settings import (
 )
 from ..templatetags.wjs_articles import last_eo_note, last_user_note
 from ..utils import get_report_form
-from ..views import ArticleRevisionUpdate
+from ..views import ArticleRevisionUpdate, ReviewSubmit
 from .test_helpers import (
     _create_review_assignment,
     _submit_review,
@@ -5048,3 +5049,69 @@ def test_submission_special_request(article: Article, review_settings, special_r
         assert message.actor == article.correspondence_author.janeway_account
     else:
         assert not Message.objects.all().exists()
+
+
+@pytest.mark.parametrize(
+    (
+        "reviewer_report_type",  # what the journal allows
+        "review_choice",  # what the reviewer choose
+        "author_review_tex",  # value of the latex-review field
+        "form_has_errors",
+        "expected",
+    ),
+    [
+        ("tex", "tex", "something", False, True),
+        ("tex", "tex", "", True, False),
+        # ===
+        # The following combinations are not a real possibility
+        # because the form machinery does not allow the reviewer
+        # to choose an option that the journal does not provide
+        # (e.g. choosing "rich_text" if the journal only provides "tex");
+        # in any case, the values are good and the test would succeed if run.
+        # skip: ("tex", "rich_text", "something", False, True),
+        # skip: ("tex", "rich_text", "", True, False),
+        # skip: ("text", "tex", "something", True, True),
+        # skip: ("text", "tex", "", True, False),
+        # skip: ("text", "rich_text", "something", True, False),
+        # skip: ("text", "rich_text", "", True, False),
+        # ===
+        ("tex+text", "tex", "something", False, True),
+        ("tex+text", "tex", "", True, False),
+        ("tex+text", "rich_text", "something", False, False),
+        ("tex+text", "rich_text", "", True, False),
+    ],
+)
+@pytest.mark.django_db
+def test_review_report_needs_latex_compilation(
+    article: Article,
+    reviewer: JCOMProfile,
+    reviewer_report_type: str,
+    review_choice: str,
+    author_review_tex: str,
+    form_has_errors: bool,
+    expected: bool,
+):
+    """Test (and document) how we decide if a just-submitted review needs latex compilation."""
+
+    # TBD: manually creating the only used setting, in order to reduce setup time
+    settinggroup, _ = SettingGroup.objects.get_or_create(name="wjs_review")
+    setting, _ = Setting.objects.get_or_create(name="reviewer_report_type", group=settinggroup)
+    settingvalue, _ = SettingValue.objects.get_or_create(setting=setting, value=reviewer_report_type)
+    settingvalue.value = reviewer_report_type
+    settingvalue.save()
+
+    data = {
+        "conflict_of_interest": "no",
+        "editor_cover_letter": "anything",
+        "author_review_tex": author_review_tex,
+    }
+    if review_choice:
+        data["review_choice"] = review_choice
+
+    report_form = BaseReportForm(data=data)
+    print(report_form.errors)
+    if form_has_errors:
+        assert bool(report_form.errors)
+    else:
+        assert report_form.is_valid()
+        assert ReviewSubmit._needs_latex_compilation(report_form) is expected
