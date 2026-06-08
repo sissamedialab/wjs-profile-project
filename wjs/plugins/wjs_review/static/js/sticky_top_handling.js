@@ -10,25 +10,21 @@ document.addEventListener("DOMContentLoaded", function () {
   const endThreshold = 1; // Scroll depth (px) to reset back to the "top" state
   let isScrolled = false; // Boolean flag to track the current state and prevent redundant DOM updates
 
-  // Monitor scroll position to toggle header classes and ARIA states
-  window.addEventListener(
-    "scroll",
-    function () {
-      const scrollPos = window.scrollY;
+  function handleHeaderScroll() {
+    const scrollPos = window.scrollY;
+    if (scrollPos > startThreshold && !isScrolled) {
+      header.classList.add("is-scrolled");
+      isScrolled = true;
+    } else if (scrollPos < endThreshold && isScrolled) {
+      header.classList.remove("is-scrolled");
+      isScrolled = false;
+    }
+  }
 
-      // Triggered when scrolling down past the startThreshold
-      if (scrollPos > startThreshold && !isScrolled) {
-        header.classList.add("is-scrolled");
-        isScrolled = true;
-      }
-      // Triggered when scrolling back up near the very top
-      else if (scrollPos < endThreshold && isScrolled) {
-        header.classList.remove("is-scrolled");
-        isScrolled = false;
-      }
-    },
-    { passive: true }
-  ); // 'passive: true' improves performance by telling the browser we won't call preventDefault()
+  handleHeaderScroll();
+
+  // Monitor scroll position to toggle header classes and ARIA states
+  window.addEventListener("scroll", handleHeaderScroll);
 
   // Select elements that need to stay "stuck" right below the header
   const stickyTableHeaders = document.querySelectorAll("thead.sticky-top");
@@ -53,9 +49,22 @@ document.addEventListener("DOMContentLoaded", function () {
       if (filterContainer) {
         filterContainer.style.top = newHeight + "px";
       }
+
+      document.documentElement.style.scrollPaddingTop = newHeight + "px";
     }
   });
 
   // Start watching the header for size changes
   resizeObserver.observe(header);
+
+  document.documentElement.style.scrollPaddingTop = header.offsetHeight + "px";
+
+  if (window.location.hash) {
+    const target = document.querySelector(window.location.hash);
+    if (target) {
+      setTimeout(() => {
+        target.scrollIntoView();
+      }, 0);
+    }
+  }
 });
