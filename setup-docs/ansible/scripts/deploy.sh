@@ -156,6 +156,8 @@ function deploy_themes() {
         fi
     fi
 
+    cd "$MANAGE_DIR"
+    "$PYTHON" -mmanage install_themes
     manage_setup
 }
 
