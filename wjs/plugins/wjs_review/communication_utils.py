@@ -18,6 +18,7 @@ from review import models as review_models
 from submission.models import Article
 from utils.logger import get_logger
 from utils.management.commands.test_fire_event import create_fake_request
+from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.constants import EO_GROUP
@@ -143,16 +144,17 @@ def get_messages_related_to_me(
     return messages
 
 
-def get_system_user() -> Account:
+def get_system_user(journal: Journal | None = None) -> Account:
     """Return the system user / technical account (wjs-support)."""
-    account, _ = Account.objects.get_or_create(
-        email="wjs-support@sissamedialab.it",
-        defaults={
-            "first_name": "WJS",
-            "last_name": "Support",
-            "is_staff": True,
-        },
-    )
+    email = get_setting("general", "support_email", journal=journal).value
+    try:
+        account = Account.objects.get(email=email)
+    except Account.DoesNotExist as e:
+        logger.error(
+            "Cannot find system user wjs-suppor. Did the email change?"
+            f' Ensure that the "WJS Support" (staff) accoung has the correct email ({email})"',
+        )
+        raise e
     return account
 
 
@@ -226,7 +228,7 @@ def log_operation(
     :rtype: Message
     """
     if not actor:
-        actor = get_system_user()
+        actor = get_system_user(journal=article.journal)
         notify_actor = False
 
     content_type = ContentType.objects.get_for_model(article)

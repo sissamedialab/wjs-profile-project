@@ -8,7 +8,7 @@ from typing import Callable, List, Optional
 import factory
 import pytest
 import pytest_factoryboy
-from core.models import File, Role, Setting, SupplementaryFile
+from core.models import Account, File, Role, Setting, SupplementaryFile
 from django.conf import settings as django_settings
 from django.contrib.auth.models import Group
 from django.core import management
@@ -424,6 +424,20 @@ def set_jcom_settings(journal):
     # Languages must be enabled per journal because it's required by journal.middleware.LanguageMiddleware
     setting_handler.save_setting("general", "journal_languages", journal, '["en","es", "pt"]')
     setting_handler.save_setting("general", "privacy_policy_url", journal, "/page-privacy")
+
+    # Configure support_email and support "user";
+    # set the default setting's value for conenience, but also because it's set in production
+    support_email = "wjs-support@sissamedialab.it"
+    setting_handler.save_setting("general", "support_email", None, support_email)
+    setting_handler.save_setting("general", "support_email", journal, support_email)
+    Account.objects.get_or_create(
+        username=support_email,
+        email=support_email,
+        first_name="WJS",
+        last_name="Support",
+        is_staff=True,
+    )
+
     for lang in ["en", "es", "pt"]:
         with translation.override(lang):
             for kind in ["email", "subscription_email", "reminder_email"]:

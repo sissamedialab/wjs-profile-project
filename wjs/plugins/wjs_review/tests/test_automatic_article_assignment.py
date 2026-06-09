@@ -748,4 +748,4 @@ def test_automatic_assignment_no_author_msg(
         assert messages_to_editor.count() == 1
         actor = messages_to_editor.first().actor
         assert actor != author
-        assert actor == get_system_user()
+        assert actor == get_system_user(journal=article.journal)
