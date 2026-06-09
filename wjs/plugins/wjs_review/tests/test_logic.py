@@ -2865,7 +2865,9 @@ def test_author_handle_revision(
             assert metadata_change_open_notification.subject == technical_revision_message_subject
             # Editor notification for updated metadata
             technical_revision_submission_editor_message = messages.all()[2]
-            assert technical_revision_submission_editor_message.actor == get_system_user()
+            assert technical_revision_submission_editor_message.actor == get_system_user(
+                journal=assigned_article.journal
+            )
             assert list(technical_revision_submission_editor_message.recipients.all()) == [editor]
             assert (
                 technical_revision_submission_editor_message.subject
@@ -2926,12 +2928,12 @@ def test_author_handle_revision(
             assert request_revisions_author_message.subject == subject_request_revisions
             # Editor notification for revision submission
             revision_complete_editor_message = messages.all()[3]
-            assert revision_complete_editor_message.actor == get_system_user()
+            assert revision_complete_editor_message.actor == get_system_user(journal=assigned_article.journal)
             assert list(revision_complete_editor_message.recipients.all()) == [review_assignment.editor]
             assert revision_complete_editor_message.subject == subject_revisions_complete_receipt_subject
             # Author notification of successful revision submission
             revision_complete_author_message = messages.all()[4]
-            assert revision_complete_author_message.actor == get_system_user()
+            assert revision_complete_author_message.actor == get_system_user(journal=assigned_article.journal)
             assert list(revision_complete_author_message.recipients.all()) == [assigned_article.correspondence_author]
             assert revision_complete_author_message.subject == subject_revisions_complete_receipt_subject
         if confirm_version:
