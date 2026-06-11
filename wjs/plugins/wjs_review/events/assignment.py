@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Optional
 from core.models import AccountRole, Role
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import F, Func, OuterRef, QuerySet, Subquery
+from django.db.models import F, FloatField, Func, OuterRef, QuerySet, Subquery
+from django.db.models.functions import Cast, Coalesce, NullIf
 from django.utils.module_loading import import_string
 from journal.models import Journal
 from submission.models import Article
@@ -177,10 +178,13 @@ def get_select_eo_by_workload(users_parameters: QuerySet) -> Optional["Account"]
         .values("count")
     )
     annotated_parameters = users_parameters.annotate(
-        assignment_count=Subquery(assigned_papers),
-        available_workload=F("workload") - F("assignment_count"),
+        assignment_count=Coalesce(Subquery(assigned_papers), 0),
+        available_workload=(F("workload") - (F("assignment_count") + 1))
+        / Cast(NullIf(F("workload"), 0), FloatField()),
     )
-    parameter = annotated_parameters.order_by("-available_workload", "id").first()
+
+    parameter = annotated_parameters.order_by(F("available_workload").desc(nulls_last=True), "id").first()
+
     if parameter:
         return parameter.user
     return None

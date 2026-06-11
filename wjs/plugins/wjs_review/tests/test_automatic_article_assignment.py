@@ -656,7 +656,7 @@ def test_workload_decrease_eo(
             article.articleworkflow.eo_in_charge = eo_1
         elif x < 6:
             article.articleworkflow.eo_in_charge = eo_2
-        else:
+        elif x < 9:
             article.articleworkflow.eo_in_charge = eo_user
         article.articleworkflow.save()
 
