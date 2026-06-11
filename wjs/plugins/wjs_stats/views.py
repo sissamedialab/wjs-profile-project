@@ -5,7 +5,6 @@ from collections import namedtuple
 from datetime import timedelta
 from io import BytesIO
 
-import mariadb
 import requests
 from core.models import AccountRole
 from django import forms
@@ -52,50 +51,6 @@ class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def test_func(self):
         """Verify that only staff can see statistics."""
         return self.request.user.is_staff
-
-
-class StatsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
-    """Prova."""
-
-    template_name = "wjs_stats/wjs_stats.html"
-
-    def test_func(self):
-        """Verify that only staff can see statistics."""
-        return self.request.user.is_staff
-
-    def get_context_data(self, **kwargs):
-        """Collect things that you want to display in the template."""
-        context = super().get_context_data(**kwargs)
-
-        # NB: we now store credentials to other DBs as non-django variables, but in future we might want to add to the
-        # DATABASES dictionary.
-
-        # An entry for a journal should look like:
-        # ... WJAPP_JCOM_CONNECTION_PARAMS = {
-        # ...     "user": "ro-user",
-        # ...     "password": "***",
-        # ...     "host": "kisman",
-        # ...     "database": "wjJcomDb",
-        # ... }
-        setting = "WJAPP_JCOM_CONNECTION_PARAMS"
-        connection_parameters = getattr(settings, setting, None)
-        if connection_parameters is None:
-            logger.error(f"Missing connection parameters {setting}. Please check core.settings.")
-            return context
-        connection = mariadb.connect(**connection_parameters)
-        cursor = connection.cursor(dictionary=True)
-
-        # JCOM submitted papers this year
-        this_year = timezone.now().year
-        cursor.execute(
-            "select count(*) as count from Document where year(submissionDate) = ?",
-            (this_year,),
-        )
-        row = cursor.fetchone()
-        # NB: the keys of the "context" dictionary are directly accessible from the view template!
-        context["jcom_papers_submitted_this_year"] = row["count"]
-
-        return context
 
 
 class MuninProxy(LoginRequiredMixin, UserPassesTestMixin, View):
