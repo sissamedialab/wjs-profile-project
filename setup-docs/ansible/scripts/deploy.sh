@@ -156,6 +156,8 @@ function deploy_themes() {
         fi
     fi
 
+    cd "$MANAGE_DIR"
+    "$PYTHON" -mmanage install_themes
     manage_setup
 }
 
@@ -320,7 +322,7 @@ case "$SSH_ORIGINAL_COMMAND" in
         set_test_variables
         TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs-search://')
         echo "Installing wjs-search at ${TAGNAME}"
-        deploy_search "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-user-search@${TAGNAME}#egg=wjs-user-search"
+        deploy_search "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-search-user@${TAGNAME}#egg=wjs-user-search"
         ;;
 
     # ========================================
@@ -376,7 +378,7 @@ case "$SSH_ORIGINAL_COMMAND" in
         set_dev_variables
         TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs-search://')
         echo "Installing wjs-search at ${TAGNAME}"
-        deploy_search "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-user-search@${TAGNAME}#egg=wjs-user-search"
+        deploy_search "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-search-user@${TAGNAME}#egg=wjs-user-search"
         ;;
 
     *)

@@ -23,14 +23,28 @@ function checkDateVisibility(decision) {
  * @return {void} - Does not return a value.
  */
 function copyReviewerReport(id, reviewOrder) {
-  const text = document
-    .querySelector(`#author_review_tex_modal-${id} .modal-body, #author_review_modal-${id} .modal-body`)
-    ?.innerText.trim();
+  const src = document.querySelector(
+    `#author_review_tex_modal-${id} .modal-body, #author_review_modal-${id} .modal-body`
+  );
+  if (!src) return;
+
+  /* innerText globs away newlines (it behaves like textContent) if the element is not visible, */
+  /* because there's no rendered layout to read from. */
+  /* Clone the src element, make it visible and park it off-screen before calling innerText */
+  const clone = src.cloneNode(true);
+  clone.style.position = "absolute";
+  clone.style.left = "-9999px";
+  clone.style.top = "0";
+  clone.style.display = "block";
+  document.body.appendChild(clone);
+  const text = clone.innerText.trim();
+  clone.remove();
+
   if (!text) return;
   const editor = document.getElementById("id_decision_editor_report");
   if (!editor) return;
   let content = `Report ${reviewOrder}\n\n${text}`;
-  if (editor.value) content = `\n\n-------------------\n\n ${content}`;
+  if (editor.value) content = `\n\n-------------------\n\n${content}`;
   editor.value += content;
 }
 

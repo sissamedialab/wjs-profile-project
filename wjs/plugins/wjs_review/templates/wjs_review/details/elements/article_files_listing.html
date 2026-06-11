@@ -30,14 +30,14 @@
     </li>
   {% endif %}
 
+  {% user_has_access_to workflow=workflow user=request.user target=production_versions.0.assignment permission_type=BinaryPermissionType.ALL review_round=production_versions.0.number secondary_permission=True as typeset_files %}
   {% if production_versions and typeset_files %}
-    {% user_has_access_to workflow=workflow user=request.user target=production_versions.0.assignment permission_type=BinaryPermissionType.ALL review_round=production_versions.0.number secondary_permission=True as typeset_files %}
       <li class="list-group-item fw-bold">
         {% translate "Files to typeset" %}
         <ul class="list-group mb-1">
           <li class="list-group-item">
               {% translate "Download files to typeset" as files_to_typeset_label %}
-              {% include "wjs_review/elements/file_download_link.html" with label=files_to_typeset_label article=article revision_view=True %}
+              {% include "wjs_review/elements/file_download_link.html" with label=files_to_typeset_label article=article revision_view=True as_button=False hide_label=True filename=files_to_typeset_label %}
           </li>
         </ul>
       </li>

@@ -14,6 +14,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 from django.db.models import Q
 from django.http import HttpRequest
+from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.timezone import now, timedelta
@@ -289,7 +290,7 @@ class NewsletterMailerService:
 
     def render_sample_newsletter(self, journal_code: str, days: int = 120) -> NewsletterItem:
         """Render a sample message for one the existing subscribers for debugging."""
-        journal = Journal.objects.get(code=journal_code)
+        journal = get_object_or_404(Journal, code=journal_code)
 
         try:
             message = next(self._render_newsletters_batch(journal_code, self.send_always_timestamp(days), sample=True))

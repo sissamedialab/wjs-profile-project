@@ -18,9 +18,11 @@
           </th>
         </tr>
         {% for answer in article.fieldanswer_set.all %}
+          {% if answer.field %}
           <tr>
             <td colspan="3"><b>{{ answer.field.name }}</b>: {{ answer.answer|safe }}</td>
           </tr>
+          {% endif %}
         {% endfor %}
         {% if article.competing_interests %}
           <tr>

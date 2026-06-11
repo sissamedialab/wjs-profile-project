@@ -7,7 +7,7 @@
       <div class="row">
         <div class="col-s-12">
           <div class="wjs-header__top-header">
-            <div class="col-8 col-lg-5 align-content-center wjs-logo-container">
+            <div class="flex-fill">
               <a href="{{ request.journal.site_url }}" class="wjs-brand-logo">
                 {% if request.journal.header_image %}
                   {% svg_or_image request.journal.header_image css_class="header-override-image" %}
@@ -16,7 +16,7 @@
                 {% endif %}
               </a>
             </div>
-            <div class="col-4 col-lg-6 align-items-end flex-column d-none d-lg-flex justify-content-end">
+            <div class="align-items-end flex-column d-none d-lg-flex justify-content-end">
               {% if core_edit_profile and request.user.is_authenticated %}
                 {% include "wjs_review/base/elements/user_menu.html" with show_name=True %}
               {% endif %}
