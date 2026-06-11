@@ -255,15 +255,6 @@ WJS_NEWSLETTER_TOKEN_SALT = "CHANGEME"
 WJS_MUNIN_AUTH = ("username", "password")
 
 
-# MariaDB connection to check new user registrations in wjapp
-# (one dictionary for each journal: WJAPP_JCOM_... WJAPP_JCOMAL_... etc.)
-WJAPP_JCOM_CONNECTION_PARAMS = {
-    "user": "",
-    "password": "",
-    "host": "",
-    "database": "",
-}
-
 # MariaDB connection to import data from wjapp
 # (one dictionary for each journal: WJAPP_JCOM_... WJAPP_JCOMAL_... etc.)
 WJAPP_JCOM_IMPORT_CONNECTION_PARAMS = {

@@ -11,7 +11,6 @@ from .plugin_settings import MANAGER_URL
 
 urlpatterns = [
     path("manager/", views.Manager.as_view(), name=MANAGER_URL),
-    path("stats/", views.StatsView.as_view(), name="wjs_stats"),
     path("recipients-count/", views.RecipientsCount.as_view(), name="wjs_stats_recipients_count"),
     path("dois-count/", views.DOIsCount.as_view(), name="wjs_stats_dois_count"),
     path("munin-proxy/<str:server>/<str:image>/", views.MuninProxy.as_view(), name="wjs_stats_munin_proxy"),
