@@ -6,7 +6,7 @@
 
   # NB: Must match with test_settings.DATABASES
   variables:
-    JANEWAY_VERSION: "1.8"
+    JANEWAY_VERSION: "production"
     POSTGRES_USER: janeway
     POSTGRES_PASSWORD: janeway
     POSTGRES_DB: janeway
