@@ -333,7 +333,13 @@ def _run_conversion(
         feedback_uuid=feedback_uuid,
         is_revision=is_revision,
     )
-    conversion.run()
+    try:
+        conversion.run()
+    except submission_models.Article.DoesNotExist:
+        # The article was deleted out from under this queued task, e.g. the author re-validated the same
+        # arXiv ID on step 1 while still at current_step=0, which deletes the "phantom" article and creates
+        # a fresh one (with its own conversion task). Nothing left to convert; treat as a benign no-op.
+        logger.info(f"Skipping conversion for deleted article {article_id} (file {file_id}).")
 
 
 def convert_manuscript_to_pdf(**kwargs) -> None:
