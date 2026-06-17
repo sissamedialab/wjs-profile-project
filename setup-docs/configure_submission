@@ -35,6 +35,8 @@ case "${journal}" in
         mv ${local_dir}/configs/JCAP/Submission\ settings/*csv ${local_dir}/configs/JCAP/
         rm -rf ${local_dir}/configs/JCAP/Submission\ settings/*
         popd
+        echo "Importing Keywords"
+        python -W ignore manage.py import_keywords_json ../../wjs-submission-project/wjs/plugins/wjs_submission/install/jcap-kwds.json --journal=${journal} --clear
         ;;
     JCOM)
         pushd ${local_dir}
