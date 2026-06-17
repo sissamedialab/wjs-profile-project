@@ -801,7 +801,10 @@ class AuthorPending(ArticleWorkflowBaseMixin):
                     | Q(state__in=states_when_article_is_considered_in_production)
                     | Q(state__in=states_when_article_is_considered_author_pending)
                 )
-                & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
+                & (
+                    Q(article__correspondence_author=self.request.user)
+                    | Q(article__frozenauthor__author=self.request.user)
+                ),
             )
             .annotate(sort_date=Subquery(latest_revision_request.values("date_due")))
         )
@@ -823,7 +826,10 @@ class AuthorArchived(AuthorPending):
         """
         return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
             Q(state__in=states_when_article_is_considered_archived)
-            & (Q(article__correspondence_author=self.request.user) | Q(article__authors__in=[self.request.user])),
+            & (
+                Q(article__correspondence_author=self.request.user)
+                | Q(article__frozenauthor__author=self.request.user)
+            ),
         )
 
 

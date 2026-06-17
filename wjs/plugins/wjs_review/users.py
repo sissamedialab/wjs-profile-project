@@ -133,11 +133,11 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
 
 
 def annotate_is_author(self, article: Article):
-    """Annotate Accounts, indicating if the person athored the given Article."""
+    """Annotate Accounts, indicating if the person authored the given Article."""
     # one alternative: authors_of_art_x = Account.objects.filter(
     #   authors__in=(article.id,),  ⇦ Warning: misleading name: account.authors are Articles!
     #   id=OuterRef("id"))
-    _filter = Article.objects.filter(id=article.id, authors=OuterRef("id"))
+    _filter = Article.objects.filter(pk=article.pk, frozenauthor__author=OuterRef("id"))
 
     return self.annotate(
         wjs_is_author=Exists(_filter),
