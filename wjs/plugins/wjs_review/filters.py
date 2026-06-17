@@ -2,6 +2,7 @@ from typing import Union
 
 import django_filters
 from core.models import Account
+from dal import autocomplete
 from django import forms
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
@@ -468,6 +469,13 @@ class MessagesOverviewFilter(django_filters.FilterSet):
         method="filter_actor_recipients",
         label=_("Sender/Recipient"),
         empty_label=_("Sender/Recipient"),
+        widget=autocomplete.ModelSelect2(
+            url="user_autocomplete",
+            attrs={
+                "data-theme": "bootstrap-5",
+                "class": "form-select",
+            },
+        ),
     )
     content = django_filters.CharFilter(
         method="filter_content",

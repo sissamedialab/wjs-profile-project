@@ -2,7 +2,20 @@
 {% load django_bootstrap5 static %}
 {% block breadcrumbs %}{% endblock breadcrumbs %}
 {% block content_wrapper %}
-<main class="container mb-3">
-  {% include "wjs_review/messages_overview/elements/messages_list.html" %}
-</main>
+  <main class="container mb-3">
+    {% include "wjs_review/messages_overview/elements/messages_list.html" %}
+  </main>
 {% endblock content_wrapper %}
+
+{% block js %}
+  {{ filter.form.media.js }}
+{% endblock js %}
+
+{% block bootstrap5_extra_head %}
+  {{ block.super }}
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css"
+  />
+  {{ filter.form.media.css }}
+{% endblock bootstrap5_extra_head %}

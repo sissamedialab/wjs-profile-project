@@ -7,6 +7,7 @@ from typing import Iterable
 import pandas as pd
 from core import models as core_models
 from core.models import Account
+from dal import autocomplete
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import user_passes_test
@@ -911,3 +912,8 @@ class AuthorSearchView(HtmxMixin, LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["article_id"] = self.kwargs.get("article_id")
         return context
+
+
+class AuthorAutocompleteView(LoginRequiredMixin, autocomplete.Select2QuerySetView):
+    model = JCOMProfile
+    search_fields = ["first_name", "last_name", "email", "orcid"]
