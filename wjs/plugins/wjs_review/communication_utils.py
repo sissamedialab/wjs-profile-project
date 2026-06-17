@@ -65,7 +65,7 @@ def get_messages_related_to_me(
     # actor/sender (and in this case the read status is implied)
     _filter = MessageRecipients.objects.filter(
         Q(
-            message=OuterRef("id"),
+            message_id=OuterRef("id"),
             recipient=user,
             read=True,
         )
@@ -73,7 +73,7 @@ def get_messages_related_to_me(
         # Messages written are considered "read"
         # This is useful in the timeline sidebar to easily mute/unmute messages by their "read" status
         Q(
-            message=OuterRef("id"),
+            message_id=OuterRef("id"),
             message__actor=user,
         ),
     )

@@ -1463,6 +1463,7 @@ class Message(TimeStampedModel):
         choices=MessageTypes.choices,
         default=MessageTypes.SYSTEM,
         help_text=_("Define the message source / scope"),
+        db_index=True,
     )
     verbosity = models.TextField(
         verbose_name=_("Verbosity"),
@@ -1491,10 +1492,7 @@ class Message(TimeStampedModel):
         on_delete=models.CASCADE,
         null=False,
     )
-    object_id = models.PositiveIntegerField(
-        blank=False,
-        null=False,
-    )
+    object_id = models.PositiveIntegerField(blank=False, null=False, db_index=True)
     target = GenericForeignKey(
         "content_type",
         "object_id",
@@ -1527,6 +1525,7 @@ class Message(TimeStampedModel):
     class Meta:
         indexes = [
             models.Index(fields=["content_type", "object_id"]),
+            models.Index(fields=["created"]),
         ]
 
     def __str__(self):

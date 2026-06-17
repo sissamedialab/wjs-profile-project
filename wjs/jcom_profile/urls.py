@@ -8,7 +8,7 @@ from journal import views as journal_views
 from . import experimental_views, views
 from .newsletter import views as newsletter_views
 from .profile import views as profile_views
-from .views import AuthorSearchView, KeywordListView
+from .views import AuthorAutocompleteView, AuthorSearchView, KeywordListView
 
 urlpatterns = [
     path("profile/", profile_views.ProfilePersonalEditView.as_view(), name="core_edit_profile"),
@@ -163,6 +163,7 @@ urlpatterns = [
     ),
     path("keywords/", KeywordListView.as_view(), name="keywords_list"),
     path("search_authors/<int:article_id>/", AuthorSearchView.as_view(), name="author_search"),
+    path("search_users/", AuthorAutocompleteView.as_view(), name="user_autocomplete"),
 ]
 
 # Some experimental / Easter-egg URLs
