@@ -181,5 +181,5 @@ def unsubscribe_newsletter(request, token):
             recipient = Recipient.objects.get(user=request.user, journal=request.journal)
         recipient.delete()
     except Recipient.DoesNotExist:
-        return Http404
+        raise Http404
     return HttpResponseRedirect(reverse("unsubscribe_newsletter_confirm"))
