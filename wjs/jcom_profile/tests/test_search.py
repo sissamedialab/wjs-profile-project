@@ -16,6 +16,13 @@ from django.utils.timezone import now
         "/search/?SearchableText=zivkovic%27&page=99%27&sort=-date_published%27",
         "/search/?article_search=the&sections=hOq5Ey0K",
         "/search/?article_search=the&&sections=1*1",
+        # Search terms containing a literal "%" (cursor.mogrify inlines the term, then
+        # .raw() makes psycopg3 re-parse "%..." as a bad placeholder). The second
+        # case is a real-world double-encoded payload ("50% chance to ...").
+        "/search/?article_search=50%25",
+        "/search/?article_search=50%25%2520chance%2520to%2520double%2520or%2520half%2520amount",
+        "/search/?article_search=100% pure",
+        "/search/?article_search=%",
     ),
 )
 @pytest.mark.django_db
