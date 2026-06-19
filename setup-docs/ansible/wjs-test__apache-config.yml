@@ -1,0 +1,34 @@
+# Render and deploy the Apache virtualhost configuration for a test instance.
+#
+# Pass the instance name with `-e instance=<name>` (see wjs-test__create-instance__root.yml).
+---
+#- hosts: test:wjs-prod
+- hosts: test
+  remote_user: root
+  become: yes
+  vars:
+    instance_name: "{{ instance | default('aaa') }}"
+    suffix: "{{ ('-') + instance_name if (instance_name)  else ('') }}"
+    full_name: "janeway{{ suffix }}"
+
+  tasks:
+
+    - name: Copy Apache configuration
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - { src: "apache/apache-log-and-ssl.inc", dest: "/etc/apache2/conf-available/wjs/apache-log-and-ssl.inc" }
+        - { src: "apache/apache-proxy-and-socket.inc", dest: "/etc/apache2/conf-available/wjs/apache-proxy-and-socket.inc" }
+        - { src: "apache/apache-static-files-block.inc", dest: "/etc/apache2/conf-available/wjs/apache-static-files-block.inc" }
+
+      notify: Reload Apache
+
+  handlers:
+    - name: Reload Apache
+      service:
+        name: apache2
+        state: reloaded

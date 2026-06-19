@@ -13,3 +13,11 @@
 <Location "/robots.txt">
     ProxyPass "!"
 </Location>
+<Location "/favicon.ico">
+    ProxyPass "!"
+</Location>
+
+# Block access to the API schema endpoint - wjs/specs#2667
+<Location "/api/schema/">
+    Require all denied
+</Location>

@@ -6,7 +6,7 @@ RemoteIPHeader          X-Forwarded-For
 RemoteIPInternalProxy   192.168.10.10 192.168.10.11
 #                       stheno.ud     caxton.ud
 LogLevel warn
-LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\" \"Host:%{Host}i\" T:%{ms}Tms"  combined-proto-host-x
+LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\" \"Host:%{Host}i\" T:%{ms}Tms %{forensic-id}n"  combined-proto-host-x
 CustomLog ${APACHE_LOG_DIR}/${LOG_NAME}-access.log combined-proto-host-x
 ErrorLog  ${APACHE_LOG_DIR}/${LOG_NAME}-error.log
 ServerSignature Off
