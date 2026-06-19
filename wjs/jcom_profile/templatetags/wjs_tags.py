@@ -82,28 +82,42 @@ def has_attr(obj, attr):
 
 @register.filter
 def how_to_cite(article: Article) -> str:
-    """Return a how-to-cite string for an article.
-
+    """
+    Return a how-to-cite string
     Format depends on the journal:
-    - JCOM: APA-style
+    - JCOM/JCOMAL: APA-style
     - other journals: author list, title, journal, month (year) page. doi
     """
-    # Warning: there exist two `citation_name()`: the original from FrozenAuthor and ours from utils
     if not article.frozenauthor_set.exists():
         return ""
+    # Warning: there exist two `citation_name()`: the original from FrozenAuthor and ours from utils
     author_names = [citation_name(a) for a in article.frozenauthor_set.all()]
-    # inelegant...
-    if len(author_names) == 1:
+
+    # Applied rules for authors (APA7)
+    # - Up to 20 authors: if more than 20, list first 19, ellipsis, then last author
+    # - Use "&" before the last author instead of "and"
+
+    if len(author_names) > 20:
+        author_str = ", ".join(author_names[:19]) + ", ... " + author_names[-1]
+    elif len(author_names) == 1:
         author_str = author_names[0]
     elif len(author_names) == 2:
-        author_str = " and ".join(author_names)
+        author_str = ", & ".join(author_names)
     else:
-        author_str = ", ".join(author_names[:-1])
-        author_str += f" and {author_names[-1]}"
+        author_str = ", ".join(author_names[:-1]) + ", & " + author_names[-1]
+
+    # BEWARE: Not all rules for APA7 has been applied.(https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/155)
+    # Rules applied:
+    # - Article title is not italicized, ends with a period
+    # - Journal name is italicized and remain only the journal code not hte entire name of the journal
+    # - Volume and issue: kept as-is (https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/155)
+    # - DOI in URL format (https://doi.org/...)
+
     if article.journal.code.startswith("JCOM"):
         htc = (
             f"{author_str} ({article.date_published.year})."
-            f" {article.title} <i>{article.journal.code}</i>"
+            f" {article.title}."
+            f" <i>{article.journal.code}</i>"
             f" {article.issue.volume}({article.issue.issue}), {article.page_numbers}."
             f" https://doi.org/{article.get_doi()}"
         )
