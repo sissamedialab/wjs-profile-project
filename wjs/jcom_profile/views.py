@@ -43,7 +43,7 @@ from .drupal_redirect_views import (  # noqa F401
 from .mixins import HtmxMixin, PaginatedViewMixin
 from .models import JCOMProfile, StaffWorkloadParameters
 from .permissions import get_hijacker
-from .profile.views import ProfilePersonalEditView
+from .profile.views import KeywordsHierarchyContextMixin, ProfilePersonalEditView
 
 logger = get_logger(__name__)
 
@@ -109,7 +109,7 @@ def confirm_gdpr_acceptance(request, token):
     return render(request, template, context)
 
 
-class StaffWorkloadParametersUpdate(UserPassesTestMixin, UpdateView):
+class StaffWorkloadParametersUpdate(KeywordsHierarchyContextMixin, UserPassesTestMixin, UpdateView):
     """Change editor's own submission parameters."""
 
     model = StaffWorkloadParameters

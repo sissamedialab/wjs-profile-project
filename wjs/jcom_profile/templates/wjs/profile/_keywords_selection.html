@@ -1,0 +1,142 @@
+{% load i18n wjs_tags %}
+{% comment %}
+  Keyword selection widget shared by the interests and assignment-parameters pages.
+
+  For journals with hierarchical keywords, render the group/subgroup accordion used in
+  submission step 3 (checkboxes are rendered manually, checked state comes from
+  form.selected_keyword_ids); otherwise keep the flat accordion grouped by first letter.
+  Checkboxes must POST as "keywords" (the form field name) in both branches.
+{% endcomment %}
+<div class="js-keywords-accordion">
+  <div class="d-flex justify-content-end mb-3">
+    <button type="button"
+            id="toggleAllAccordions"
+            class="btn btn-primary"
+            aria-expanded="false"
+            data-open-label="{% translate "Open All" %}"
+            data-close-label="{% translate "Close All" %}">
+      {% translate "Open All" %}
+    </button>
+  </div>
+
+  {% if hierarchical_keywords %}
+    <div class="accordion" id="accordionKeywords">
+      {% for group in keywords_list %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-group-{{ forloop.counter }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-group-{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse-group-{{ forloop.counter }}">
+              {{ group }}
+            </button>
+          </h2>
+          <div id="collapse-group-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading-group-{{ forloop.counter }}">
+            <div class="accordion-body">
+              {% if group.keywordgroup_set.exists %}
+                <div class="accordion">
+                  {% for subgroup in group.keywordgroup_set.all %}
+                    <div class="accordion-item">
+                      <h2 class="accordion-header" id="heading-subgroup-{{ forloop.parentloop.counter }}-{{ forloop.counter }}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-subgroup-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse-subgroup-{{ forloop.parentloop.counter }}-{{ forloop.counter }}">
+                          {{ subgroup }}
+                        </button>
+                      </h2>
+                      <div id="collapse-subgroup-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading-subgroup-{{ forloop.parentloop.counter }}-{{ forloop.counter }}">
+                        <div class="accordion-body">
+                          {% for keyword in subgroup.keywords.all %}
+                            <div class="form-check d-flex flex-row">
+                              <input class="form-check-input" type="checkbox" name="keywords" value="{{ keyword.pk }}" id="{{ form.keywords.id_for_label }}-{{ keyword.pk }}" {% if keyword.pk in form.selected_keyword_ids %}checked{% endif %}>
+                              <label class="form-check-label ms-2" for="{{ form.keywords.id_for_label }}-{{ keyword.pk }}">
+                                {{ keyword }}
+                              </label>
+                            </div>
+                          {% endfor %}
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                {% for keyword in group.keywords.all %}
+                  <div class="form-check d-flex flex-row">
+                    <input class="form-check-input" type="checkbox" name="keywords" value="{{ keyword.pk }}" id="{{ form.keywords.id_for_label }}-{{ keyword.pk }}" {% if keyword.pk in form.selected_keyword_ids %}checked{% endif %}>
+                    <label class="form-check-label ms-2" for="{{ form.keywords.id_for_label }}-{{ keyword.pk }}">
+                      {{ keyword }}
+                    </label>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+
+      {% if ungrouped_keywords %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-group-other">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-group-other" aria-expanded="false" aria-controls="collapse-group-other">
+              {% translate "Other keywords" %}
+            </button>
+          </h2>
+          <div id="collapse-group-other" class="accordion-collapse collapse" aria-labelledby="heading-group-other">
+            <div class="accordion-body">
+              {% for keyword in ungrouped_keywords %}
+                <div class="form-check d-flex flex-row">
+                  <input class="form-check-input" type="checkbox" name="keywords" value="{{ keyword.pk }}" id="{{ form.keywords.id_for_label }}-{{ keyword.pk }}" {% if keyword.pk in form.selected_keyword_ids %}checked{% endif %}>
+                  <label class="form-check-label ms-2" for="{{ form.keywords.id_for_label }}-{{ keyword.pk }}">
+                    {{ keyword }}
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% else %}
+    {% regroup form.keywords|decorate_widgets_for_regroup by first_letter as keyword_list %}
+    <div class="accordion" id="accordionKeywords">
+      {% for group in keyword_list %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="heading-{{ forloop.counter }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse-{{ forloop.counter }}">
+              {{ group.grouper }}
+            </button>
+          </h2>
+          <div id="collapse-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ forloop.counter }}">
+            <div class="accordion-body">
+              {% for keyword in group.list %}
+                <div class="form-check d-flex flex-row">
+                  <input class="form-check-input" type="checkbox" name="keywords" value="{{ keyword.value }}" id="{{ form.keywords.id_for_label }}-{{ keyword.value }}" {% if keyword.selected %}checked{% endif %}>
+                  <label class="form-check-label ms-2" for="{{ form.keywords.id_for_label }}-{{ keyword.value }}">
+                    {{ keyword.choice_label }}
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    const toggle = document.getElementById("toggleAllAccordions");
+    if (!toggle) {
+      return;
+    }
+    toggle.addEventListener("click", function () {
+      const expand = this.getAttribute("aria-expanded") !== "true";
+      const root = this.closest(".js-keywords-accordion");
+      root.querySelectorAll(".accordion-collapse").forEach(function (el) {
+        el.classList.toggle("show", expand);
+      });
+      root.querySelectorAll(".accordion-button").forEach(function (btn) {
+        btn.classList.toggle("collapsed", !expand);
+        btn.setAttribute("aria-expanded", expand);
+      });
+      this.setAttribute("aria-expanded", expand);
+      this.textContent = expand ? this.dataset.closeLabel : this.dataset.openLabel;
+    });
+  })();
+</script>

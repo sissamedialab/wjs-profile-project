@@ -9,7 +9,7 @@ from submission.models import Keyword
 from utils.middleware import context_request
 
 from ..constants import GENDER_FORM_CHOICES, PROFESSIONS_FORM
-from ..forms import _get_privacy_url
+from ..forms import KeywordCheckboxesFormMixin, _get_privacy_url
 from ..models import JCOMProfile, WjsMiniHTMLFormField
 from ..templatetags.wjs_tags import is_field_available
 
@@ -187,7 +187,7 @@ class WjsAdditionalInfoForm(EditAccountForm):
         super().__init__(*args, **kwargs)
 
 
-class WjsInterestsForm(EditAccountForm):
+class WjsInterestsForm(KeywordCheckboxesFormMixin, EditAccountForm):
     """Form used to change password."""
 
     keywords = forms.ModelMultipleChoiceField(label=_("Interests"), required=False, queryset=Keyword.objects.none())

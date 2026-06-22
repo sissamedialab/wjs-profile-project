@@ -14,7 +14,6 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
-from easy_select2.widgets import Select2Multiple
 from identifiers.models import identifier_choices
 from journal.forms import SEARCH_SORT_OPTIONS
 from journal.forms import SearchForm as JanewaySearchForm
@@ -160,12 +159,25 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         return user
 
 
-class UpdateAssignmentParametersForm(forms.ModelForm):
+class KeywordCheckboxesFormMixin:
+    """Expose the selected keyword pks for templates rendering keyword checkboxes manually."""
+
+    @cached_property
+    def selected_keyword_ids(self):
+        """Return the set of selected keyword pks, from POST data or from the initial value."""
+        ids = set()
+        for value in self["keywords"].value() or []:
+            try:
+                ids.add(int(value))
+            except (TypeError, ValueError):
+                continue
+        return ids
+
+
+class UpdateAssignmentParametersForm(KeywordCheckboxesFormMixin, forms.ModelForm):
     keywords = forms.ModelMultipleChoiceField(
         label=_("Keywords"),
         queryset=Keyword.objects.none(),
-        # TODO: Ad this in app.css .select2-container {width: 100% !important;}
-        widget=Select2Multiple(),
         required=False,
     )
 
