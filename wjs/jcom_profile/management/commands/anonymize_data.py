@@ -57,15 +57,15 @@ class Command(BaseCommand):
 
         accounts = Account.objects.exclude(
             email__in=(
-                "elia@medialab.sissa.it",
-                "gamboz@medialab.sissa.it",
+                "elia.calderan@sissamedialab.it",
+                "matteo.gamboz@sissamedialab.it",
                 "i.spalletti@nephila.digital",
-                "leo@medialab.sissa.it",
+                "mariateresa.leo@sissamedialab.it",
                 "m.caglienzi@nephila.digital",
-                "mmizzaro@medialab.sissa.it",
+                "marco.mizzaro@sissamedialab.it",
                 "s.petronici@nephila.digital",
-                "wjs-support@medialab.sissa.it",
-                "fracarossi@medialab.sissa.it",
+                "wjs-support@sissamedialab.it",
+                "davide.fracarossi@sissamedialab.it",
             ),
         )
         anonymize_users(accounts)

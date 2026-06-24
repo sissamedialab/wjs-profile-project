@@ -38,7 +38,7 @@
                   </li>
                 {% endif %}
                 {% if user_is_editor or user_is_eo %}
-                  <li class="wjs-profile-nav__item{% if profile_section == "edit_newsletters" %} wjs-profile-nav__item--active{% endif %}">
+                  <li class="wjs-profile-nav__item{% if profile_section == "assignment_parameters" %} wjs-profile-nav__item--active{% endif %}">
                     <a class="wjs-profile-nav__link" href="{{ assignment_parameters }}">{% translate "Edit assignment parameters" %}</a>
                   </li>
                 {% endif %}

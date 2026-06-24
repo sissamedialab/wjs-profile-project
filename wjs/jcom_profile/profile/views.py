@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import UpdateView
+from plugins.wjs_submission.keywords import get_keywords_by_journal
 
 from ..models import JCOMProfile
 from .forms import (
@@ -139,6 +140,30 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
         return self.model.objects.get(pk=self.request.user.pk)
 
 
+class KeywordsHierarchyContextMixin:
+    """
+    Add the hierarchical keywords structure to the context for keyword-selection pages.
+
+    For journals with hierarchical keywords (e.g. JHEP, JQuant) the context gets the
+    top-level keyword groups (``keywords_list``) and the journal keywords that belong
+    to no group (``ungrouped_keywords``), so that templates can render the same
+    group/subgroup accordion used in submission step 3. For the other journals
+    (e.g. JCOM, JCOMAL) templates keep the flat first-letter accordion.
+    """
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        journal = self.request.journal
+        hierarchical = bool(journal and journal.submissionconfiguration.hierarchical_keywords)
+        context["hierarchical_keywords"] = hierarchical
+        if hierarchical:
+            context["keywords_list"] = get_keywords_by_journal(journal)
+            context["ungrouped_keywords"] = (
+                journal.keywords.filter(group__isnull=True).exclude(word="").order_by("word")
+            )
+        return context
+
+
 class ProfilePersonalEditView(BaseProfileEditView):
     form_class = WjsPersonalInfoForm
     template_name = "wjs/profile/personal_edit.html"
@@ -181,7 +206,7 @@ class ProfileAdditionalEditView(BaseProfileEditView):
     update_message = _("Information updated.")
 
 
-class ProfileInterestsEditView(BaseProfileEditView):
+class ProfileInterestsEditView(KeywordsHierarchyContextMixin, BaseProfileEditView):
     model = JCOMProfile
     form_class = WjsInterestsForm
     template_name = "wjs/profile/personal_interests_edit.html"

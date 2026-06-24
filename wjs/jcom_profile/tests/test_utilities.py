@@ -141,11 +141,11 @@ class TestHTC:
         mockarticle.issue.issue = 2
         mockarticle.page_numbers = "A03"
         mockarticle.get_doi.return_value = "10.22323/2.123456"
-        simple_piece = "(2000). TITLE <i>JCOM</i> 1(2), A03. https://doi.org/10.22323/2.123456"
+        simple_piece = "(2000). TITLE. <i>JCOM</i> 1(2), A03. https://doi.org/10.22323/2.123456"
         mockarticle.frozenauthor_set.all.return_value = [au1]
         assert how_to_cite(mockarticle) == f"Alfanda, H. M. {simple_piece}"
         mockarticle.frozenauthor_set.all.return_value = [au1, au2, au3]
-        assert how_to_cite(mockarticle) == f"Alfanda, H. M., Peresadko, N. and Sari, R. {simple_piece}"
+        assert how_to_cite(mockarticle) == f"Alfanda, H. M., Peresadko, N., & Sari, R. {simple_piece}"
         mockarticle.frozenauthor_set.exists.return_value = False
         assert how_to_cite(mockarticle) == ""
         mockarticle.frozenauthor_set = FrozenAuthor.objects.none()
