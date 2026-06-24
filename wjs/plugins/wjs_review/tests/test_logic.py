@@ -2824,8 +2824,15 @@ def test_author_handle_revision(
                     "confirm_cover": "on",
                 }
         if confirm_version:
-            form = form_class(data=confirm_form_data, instance=assigned_article, request=fake_request, step=8)
+            form = form_class(
+                data=confirm_form_data,
+                instance=assigned_article,
+                request=fake_request,
+                step=8,
+                revision=True,
+            )
         else:
+            # TBV: is this class correct?
             form = form_class(data=confirm_form_data, instance=revision, request=fake_request, user=author)
         assert form.is_valid()
         form.save()
