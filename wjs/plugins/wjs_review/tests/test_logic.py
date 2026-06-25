@@ -34,7 +34,7 @@ from plugins.wjs_submission.revision import RevisionStartConfirmView
 from plugins.wjs_submission.step8.views import SubmissionStep8View
 from review import models as review_models
 from submission import models as submission_models
-from submission.models import Article, Keyword
+from submission.models import STAGE_ARCHIVED, STAGE_REJECTED, Article, Keyword
 from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils import setting_handler
 from utils.setting_handler import get_setting
@@ -4260,6 +4260,12 @@ def test_author_or_owner_withdraws_preprint(
         # We are testing a simplified case here, as we should filter on the reminder linked to the related objects
         # of the article. but as we only have 1 article, it's redundant and simplify test code a lot
         assert not Reminder.objects.all().exists()
+
+        if under_appeal_state:
+            assert this_article.stage == STAGE_REJECTED
+        else:
+            assert this_article.stage == STAGE_ARCHIVED
+
         # Reset the state like it was before the withdrawal, to "reset" the ArticleWorkflow, ready for the second loop
         this_article.articleworkflow.state = previous_state
         this_article.articleworkflow.save()
