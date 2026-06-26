@@ -221,7 +221,8 @@ class ArticlesByKeywordForceGraph(TemplateView):
     template_name = "experimental/journal/authors_kg.html"
 
     def get_context_data(self, **kwargs):
-        """Get the journal's articles.
+        """
+        Get the journal's articles.
 
         And structure them into nodes/links (edges) suitable for D3.
         """
@@ -234,6 +235,7 @@ class ArticlesByKeywordForceGraph(TemplateView):
             journal=self.request.journal,
             date_published__lte=now(),
             date_published__gte=date(start_year, 1, 1),
+            keywords__isnull=False,
         )
         for article in articles:
             # Nodes - articles
