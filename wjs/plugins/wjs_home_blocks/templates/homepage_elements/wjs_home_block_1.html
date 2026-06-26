@@ -1,0 +1,7 @@
+{% load i18n %}
+{% if wjs_home_blocks_element.title_1 %}
+    <div class="wjs-showcase__hp-card">
+      <h2>{{ wjs_home_blocks_element.title_1 }}</h2>
+      {{ wjs_home_blocks_element.content_1|safe }}
+    </div>
+{% endif %}
