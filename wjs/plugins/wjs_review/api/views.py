@@ -10,11 +10,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .const import TYPE_TO_MIME
-from .mixins import PublishedArticleAccessMixin
+from .mixins import LoggedRequestMixin, PublishedArticleAccessMixin
 from .serializers import GalleyUploadSerializer
 
 
-class ArticleZipDownloadView(PublishedArticleAccessMixin, APIView):
+class ArticleZipDownloadView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
     def get(self, request, pk: int):
         """
         Download a zip file containing all galleys for the given article.
@@ -45,7 +45,7 @@ class ArticleZipDownloadView(PublishedArticleAccessMixin, APIView):
         return files.serve_file_to_browser(file_path=galleys_path, file_to_serve=core_file, public=True)
 
 
-class ArticleGalleyListView(PublishedArticleAccessMixin, APIView):
+class ArticleGalleyListView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
     def get(self, request, pk: int):
         """
         List all galleys for the given article.
@@ -92,7 +92,7 @@ class ArticleGalleyListView(PublishedArticleAccessMixin, APIView):
         return Response({"article_id": article.pk, "items": items}, status=status.HTTP_200_OK)
 
 
-class ArticleGalleyView(PublishedArticleAccessMixin, APIView):
+class ArticleGalleyView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
     def _validate_type(self, type_: str):
         if type_ not in [key for key, _ in core_models.galley_type_choices()]:
             return False
