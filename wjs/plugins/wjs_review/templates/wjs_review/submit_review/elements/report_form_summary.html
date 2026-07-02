@@ -82,7 +82,7 @@
     {% endif %}
     {% if latex_report and assignment.tex_report_pdf %}
       <tr>
-        <th class="ps-4">{% translate "LaTeX Report" %}</th>
+        <th class="ps-4">{% translate "Pdf" %}</th>
         <td>
           {% include "wjs_review/make_decision/elements/author_file_download.html" with review=assignment show_file="tex" %}
         </td>
