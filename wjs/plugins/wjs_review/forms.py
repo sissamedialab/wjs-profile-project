@@ -1795,7 +1795,8 @@ class BaseReportForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": 10, "placeholder": _("Review for authors (LaTeX)")}),
         help_text=_(
             r"Please write your report in an offline editor and save a copy to avoid losing the content in case of a "
-            r"system failure. In LaTex there is no need of '\begin{document}' etc.<br>Use the test pdf button below "
+            r"system failure. Please do not add the LaTeX preamble (i.e. drop from '\documentclass...' "
+            r"to '\begin{document}' included).<br>Use the test pdf button below "
             r"to preview your report before the final upload. The report will be automatically compiled and forwarded "
             r"after clicking “submit”.<br><br>Please DO NOT SIGN THE REPORT."
         ),
