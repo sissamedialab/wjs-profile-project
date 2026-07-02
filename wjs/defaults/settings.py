@@ -422,6 +422,9 @@ BOOTSTRAP5 = {
 # The list of journals that supports multiple languages and needs base english for display on the website
 WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]
 
+# The list of journals for which the "send short description and image for social media" feature is enabled
+WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES = ["JCOM", "JCOMAL"]
+
 # The list of journals for which we should show editor keywords when selecting a new editor
 WJS_SHOW_EDITOR_KEYWORDS = []
 

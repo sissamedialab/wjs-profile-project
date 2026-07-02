@@ -45,7 +45,7 @@
       {{ article.date_published|date:DATE_FORMAT }}
     </td>
     <td>
-      {% article_needs_extra_article_information article request.user as need_extra_information %}
+      {% article_needs_article_data_for_social_media_without_translation article request.user as need_extra_information %}
       {% article_has_extra_article_information article as has_extra_information %}
       {% if need_extra_information and not issue.issueparameters.batch_publish %}
         {# FIXME: Updated code to use implementation in https://gitlab.sissamedialab.it/wjs/specs/-/issues/874 #}

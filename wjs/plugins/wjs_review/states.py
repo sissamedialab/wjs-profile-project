@@ -1234,14 +1234,14 @@ class TypesetterSelected(BaseState):
             name="author_add_extra_information",
             label="Send short description and image for social media",
             view_name="wjs_article_additional_info",
-            condition=conditions.needs_extra_article_information,
+            condition=conditions.needs_article_data_for_social_media_without_translation,
         ),
         ArticleAction(
             permission=permissions.is_article_author,
             name="author_add_extra_information",
             label="Send translations and info for social media",
             view_name="wjs_article_translate_info",
-            condition=conditions.needs_extra_article_translations,
+            condition=conditions.needs_article_data_for_social_media_and_translations,
         ),
         ArticleAction(
             permission=permissions.is_article_typesetter_or_eo,
@@ -1333,14 +1333,14 @@ class Proofreading(BaseState):
             name="author_add_extra_information",
             label="Send short description and image for social media",
             view_name="wjs_article_additional_info",
-            condition=conditions.needs_extra_article_information,
+            condition=conditions.needs_article_data_for_social_media_without_translation,
         ),
         ArticleAction(
             permission=permissions.is_article_author,
             name="author_add_extra_information",
             label="Send translations and info for social media",
             view_name="wjs_article_translate_info",
-            condition=conditions.needs_extra_article_translations,
+            condition=conditions.needs_article_data_for_social_media_and_translations,
         ),
         ArticleAction(
             permission=permissions.is_article_author_and_paper_can_go_rfp,
@@ -1466,14 +1466,15 @@ class ReadyForPublication(BaseState):
             batch_publish = issue.issueparameters.batch_publish
         else:
             batch_publish = False
-        if (not article.meta_image or not article.articleworkflow.social_media_short_description) and (
-            not batch_publish
-        ):
-            return "Missing image and/or short description for social media"
+        if conditions.journal_requires_social_media_files(article.journal):
+            if (not article.meta_image or not article.articleworkflow.social_media_short_description) and (
+                not batch_publish
+            ):
+                return "Missing image and/or short description for social media"
 
-        if conditions.journal_requires_english_content(article.journal):
-            if not article.title_en or not article.abstract_en:
-                return "Missing English translation of title or abstract"
+            if conditions.journal_requires_english_content(article.journal):
+                if not article.title_en or not article.abstract_en:
+                    return "Missing English translation of title or abstract"
 
         return ""
 
