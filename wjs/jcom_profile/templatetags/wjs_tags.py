@@ -85,26 +85,37 @@ def how_to_cite(article: Article) -> str:
     """
     Return a how-to-cite string
     Format depends on the journal:
+    - JQUANT: custom format with initials before last name
+      - <10 authors: full list with "and" before last
+      - >=10 authors: first author + "et al."
     - JCOM/JCOMAL: APA-style
     - other journals: author list, title, journal, month (year) page. doi
     """
+    # Warning: there exist two `citation_name()`: the original from FrozenAuthor and ours from utils
     if not article.frozenauthor_set.exists():
         return ""
+    is_apa = article.journal.code.startswith("JCOM")
     # Warning: there exist two `citation_name()`: the original from FrozenAuthor and ours from utils
-    author_names = [citation_name(a) for a in article.frozenauthor_set.all()]
+    authors = article.frozenauthor_set.all()
+    author_names = [citation_name(a, apa=is_apa) for a in authors]
 
+    # --- JCOM/JCOMAL branch (APA7) ---
     # Applied rules for authors (APA7)
     # - Up to 20 authors: if more than 20, list first 19, ellipsis, then last author
     # - Use "&" before the last author instead of "and"
-
-    if len(author_names) > 20:
-        author_str = ", ".join(author_names[:19]) + ", ... " + author_names[-1]
+    threshold = 20 if is_apa else 10
+    and_separator = ", & " if is_apa else " and "
+    if len(author_names) > threshold:
+        if is_apa:
+            author_str = ", ".join(author_names[: threshold - 1]) + ", ... " + author_names[-1]
+        else:
+            author_str = author_names[0] + " et al."
     elif len(author_names) == 1:
         author_str = author_names[0]
     elif len(author_names) == 2:
-        author_str = ", & ".join(author_names)
+        author_str = and_separator.join(author_names)
     else:
-        author_str = ", ".join(author_names[:-1]) + ", & " + author_names[-1]
+        author_str = ", ".join(author_names[:-1]) + and_separator + author_names[-1]
 
     # BEWARE: Not all rules for APA7 has been applied.(https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/155)
     # Rules applied:
@@ -113,7 +124,7 @@ def how_to_cite(article: Article) -> str:
     # - Volume and issue: kept as-is (https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/155)
     # - DOI in URL format (https://doi.org/...)
 
-    if article.journal.code.startswith("JCOM"):
+    if is_apa:
         htc = (
             f"{author_str} ({article.date_published.year})."
             f" {article.title}."
@@ -126,9 +137,9 @@ def how_to_cite(article: Article) -> str:
         htc = (
             f"{author_str},"
             f" <i>{article.title}</i>,"
-            f" <i>{article.journal.code}</i>"
-            f" {article.issue.issue} ({article.issue.volume}) {article.page_numbers}."
-            f" https://doi.org/{article.get_doi()}"
+            f" <i>{article.journal.code.upper()}</i>"
+            f" <b>{article.issue.issue}</b> ({article.issue.volume}) {article.page_numbers}, "
+            f" doi:{article.get_doi()}"
         )
     return htc
 
