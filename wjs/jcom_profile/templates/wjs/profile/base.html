@@ -1,5 +1,10 @@
 {% extends "wjs/base/base.html" %}
-{% load roles static wjs_tags %}
+{% load roles static wjs_tags i18n %}
+
+{% block js %}
+  {{ block.super }}
+  <script type="text/javascript" src="{% static 'js/unsaved_changes_warning.js' %}"></script>
+{% endblock js %}
 
 {% block content_wrapper %}
   {% get_profile_section as profile_section %}
@@ -14,6 +19,23 @@
   {% url "assignment_parameters" as assignment_parameters %}
   {% url "edit_newsletters" as edit_newsletters %}
   <main class="container mb-3 bg-white p-4 flex-grow-1">
+    <div class="modal fade" id="unsavedChangesModal" tabindex="-1" aria-labelledby="unsavedChangesLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="unsavedChangesLabel">{% translate "Unsaved changes" %}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate "Close warning" %}"></button>
+          </div>
+          <div class="modal-body">
+            {% translate "There are unsaved changes in the form. Are you sure you want to leave the page? The entered data will be lost." %}
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{% translate "Cancel, stay here" %}</button>
+            <button type="button" class="btn btn-primary" id="confirmExitBtn">{% translate "Yes, leave without saving" %}</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="row">
       {% if request.user.is_authenticated %}
         <div class="col-sm-12 col-md-3">
