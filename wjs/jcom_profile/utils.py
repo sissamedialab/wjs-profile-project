@@ -46,6 +46,9 @@ PATH_PARTS = [
     "special_issues",
 ]
 
+APA_SEP = " "  # APA7: spaced initials -> "Rossi, M. A."
+COMPACT_SEP = ""  # Compact: no space -> "M.A. Rossi"
+
 
 # Adapted from core.files.save_file_to_article
 def save_file_to_special_issue(
@@ -180,20 +183,27 @@ def abbreviate_first_middle(author, sep=" "):
     return abbreviation
 
 
-def citation_name(author, sep=" "):
+def citation_name(author, apa: bool = True):
     """Generate the "citation name" on an author.
-
-    E.g. Mario Rossi ⇨ Rossi, M.
-
+    For apa format (spaced font)
+        Mario Rossi ⇨ Rossi, M.
+        Mario Antonio Rossi ⇨ Rossi M. A.
+    For non-apa format (compact form)
+        Mario Rossi ⇨ M. Rossi
+        Mario Antonio Rossi ⇨ M.A. Rossi
     :param author: can be an Account or a FrozenAuthor.
     :param sep: passed to abbreviate_first_middle()
     """
+
     # Author don't have `is_corporate` attribute, only FrozenAuthors do!
     if hasattr(author, "is_corporate") and author.is_corporate:
         return author.corporate_name
-
-    abbreviated_given_names = abbreviate_first_middle(author, sep)
-    return f"{author.last_name}, {abbreviated_given_names}"
+    # Set the separator basing on apa or compact format for non apa
+    effective_sep = APA_SEP if apa else COMPACT_SEP
+    abbreviated_given_names = abbreviate_first_middle(author, effective_sep)
+    if apa:
+        return f"{author.last_name}, {abbreviated_given_names}"
+    return f"{abbreviated_given_names} {author.last_name}"
 
 
 def generate_doi(article: Article) -> Optional[str]:
