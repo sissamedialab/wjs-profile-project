@@ -40,7 +40,7 @@ from wjs.jcom_profile.utils import get_eo_user
 
 from .. import communication_utils, permissions, states
 from ..communication_utils import MESSAGE_TYPE_ICONS
-from ..conditions import needs_extra_article_information
+from ..conditions import needs_article_data_for_social_media_without_translation
 from ..custom_types import BootstrapButtonProps, ReviewAssignmentActionConfiguration
 from ..logic import (
     states_when_article_is_considered_in_production,
@@ -612,18 +612,18 @@ def journal_with_language_content(journal: Journal) -> bool:
 
 
 @register.simple_tag()
-def article_needs_extra_article_information(article: Article, user: Account) -> bool:
+def article_needs_article_data_for_social_media_without_translation(article: Article, user: Account) -> bool:
     """
-    Check if article needs extra information.
+    Check if article needs social media data (short description and image) but no translations.
 
     :param article: The article to check presence of extra information to.
     :type article: Article
     :param user: Unused.
     :type user: Account
-    :return True if the article needs extra information, False otherwise.
+    :return True if the article needs social media data without translations, False otherwise.
     :rtype: bool
     """
-    return needs_extra_article_information(article.articleworkflow, user)
+    return needs_article_data_for_social_media_without_translation(article.articleworkflow, user)
 
 
 @register.simple_tag()

@@ -122,3 +122,20 @@ def test_article_requires_eo_attention_for_missing_title_or_abstract(
 
     if expected_attention_condition:
         assert attention_condition == "Missing English translation of title or abstract"
+
+
+@pytest.mark.django_db
+def test_article_requires_eo_attention_journal_without_social_media_files(rfp_article: Article, eo_user, settings):
+    settings.WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES = []
+
+    assert not rfp_article.meta_image
+    assert not rfp_article.articleworkflow.social_media_short_description
+
+    params = rfp_article.issue.issueparameters
+    params.batch_publish = False
+    params.save()
+
+    rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
+    attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
+
+    assert attention_condition == ""

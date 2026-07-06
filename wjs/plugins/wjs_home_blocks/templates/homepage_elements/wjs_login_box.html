@@ -1,0 +1,17 @@
+{% load django_bootstrap5 roles wjs_tags %}
+
+{% if wjs_home_blocks_element %}
+  <div class="wjs-showcase__hp-card">
+    {% if request.user.is_authenticated %}
+      <h2>{{ wjs_home_blocks_element.title_login_box_auth }}</h2>
+      {{ wjs_home_blocks_element.content_login_box_auth|safe }}
+    {% else %}
+      <h2>{{ wjs_home_blocks_element.title_login_box_unauth }}</h2>
+      {{ wjs_home_blocks_element.content_login_box_unauth|safe }}
+      <a class="btn btn-outline-primary" href="{% url "core_login" %}">
+        {% translate "Login" %}
+        <span class="fs-4"><i class="bi bi-person-circle"></i></span>
+      </a>
+    {% endif %}
+  </div>
+{% endif %}

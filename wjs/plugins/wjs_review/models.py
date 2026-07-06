@@ -34,7 +34,7 @@ from review.models import (
     ReviewRound,
     RevisionRequest,
 )
-from submission.models import Article, Section
+from submission.models import STAGE_ARCHIVED, STAGE_REJECTED, Article, Section
 from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
@@ -1150,7 +1150,8 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: conditions=[],
     )
     def author_or_owner_withdraws_preprint(self):
-        pass
+        self.article.stage = STAGE_ARCHIVED
+        self.article.save()
 
     @transition(
         field=state,
@@ -1168,7 +1169,8 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: conditions=[],
     )
     def author_or_owner_withdraws_preprint_after_a_rejection(self):
-        pass
+        self.article.stage = STAGE_REJECTED
+        self.article.save()
 
     # EO initiates publication
     @transition(

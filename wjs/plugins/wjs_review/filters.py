@@ -1,15 +1,16 @@
 from typing import Union
 
 import django_filters
-from core.models import Account
+from core.models import Account, ControlledAffiliation, Country
 from dal import autocomplete
 from django import forms
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.fields import ModelChoiceField
 from journal.models import Issue
-from plugins.wjs_submission.models import ArticleSubmission, Collaboration
+from plugins.wjs_submission.models import AccessMode, ArticleSubmission, Collaboration
 from submission.models import Article, Keyword, Section
 from utils.setting_handler import get_setting
 
@@ -141,6 +142,20 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         empty_label=_("All"),
     )
 
+    affiliation = django_filters.ModelChoiceFilter(
+        queryset=ControlledAffiliation.objects.none(),
+        label=_("Author affiliation"),
+        field_name="article__correspondence_author__controlledaffiliation",
+        empty_label=_("All"),
+    )
+
+    country = django_filters.ModelChoiceFilter(
+        queryset=Country.objects.none(),
+        field_name="article__correspondence_author__controlledaffiliation__organization__locations__country",
+        label=_("Author country"),
+        empty_label=_("All"),
+    )
+
     class Meta:
         model = ArticleWorkflow
         fields = ["article", "language", "keywords", "section"]
@@ -163,6 +178,22 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         )
 
         self.filters["arxiv_category"].extra["choices"] = [(v, v) for v in arxiv_category_values]
+
+        now = timezone.now()
+        controlled_affiliations = (
+            ControlledAffiliation.objects.filter(
+                Q(account__article__articleworkflow__in=self.queryset),
+                Q(start__isnull=True) | Q(start__lte=now),
+                Q(end__isnull=True) | Q(end__gte=now),
+            )
+            .distinct()
+            .order_by("title")
+        )
+        self.filters["affiliation"].queryset = controlled_affiliations
+
+        self.filters["country"].queryset = Country.objects.filter(
+            location__organization__controlledaffiliation__in=controlled_affiliations
+        ).distinct()
 
     def select_filters(self):
         """Customize filters by journal."""
@@ -315,6 +346,12 @@ class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
         field_name="article__typesettinground__typesettingassignment__typesetter",
         method="filter_user",
         label=_("Typesetter"),
+    )
+    access_mode = django_filters.ModelChoiceFilter(
+        queryset=AccessMode.objects.all(),
+        field_name="article__submission_data__access_mode",
+        label=_("Access mode"),
+        empty_label=_("All"),
     )
 
     def select_filters(self):
