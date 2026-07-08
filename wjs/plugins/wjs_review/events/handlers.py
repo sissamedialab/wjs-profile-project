@@ -21,6 +21,7 @@ from wjs.jcom_profile.utils import render_template_from_setting
 from .. import communication_utils
 from ..logic import (
     AccessModeSpecialRequestNotification,
+    AuthorHandleCorrection,
     AuthorHandleRevision,
     ConvertManuscriptToPdf,
     CreateReviewRound,
@@ -130,6 +131,22 @@ def process_submitted_revision(**kwargs) -> None:
     This function is intended as handler of the WJSSubmissionEvent.ON_REVISION_SUBMISSION_COMPLETED event.
     """
     AuthorHandleRevision(
+        request=kwargs["request"],
+        article=kwargs["article"],
+    ).run()
+
+
+def process_submitted_correction(**kwargs) -> None:
+    """
+    When a new erratum/addendum is submitted, run the relative business logic.
+
+    This function is intended as handler of the SubmissionEvent.ON_CORRECTION_SUBMISSION_COMPLETED event.
+
+    It logs the operation (notifications to corresponding author and co-authors) and
+    creates an action card for the Editorial Office to assign the correction to an
+    editor or director.
+    """
+    AuthorHandleCorrection(
         request=kwargs["request"],
         article=kwargs["article"],
     ).run()

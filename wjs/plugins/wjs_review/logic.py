@@ -107,7 +107,7 @@ from wjs.jcom_profile.utils import (
 )
 
 from . import communication_utils, permissions
-from .events.assignment import dispatch_assignment
+from .events.assignment import dispatch_assignment, dispatch_eo_assignment
 from .logic__production import (  # noqa: F401
     AssignTypesetter,
     AuthorSendsCorrections,
@@ -5233,3 +5233,105 @@ class AccessModeSpecialRequestNotification:
         with transaction.atomic():
             if self._check_conditions(modified):
                 self._send_notification()
+
+
+@dataclasses.dataclass
+class AuthorHandleCorrection:
+    """
+    Logic related to the submission of a correction (erratum/addendum).
+
+    Similar to :class:`AuthorHandleRevision`, but simpler:
+    - logs the operation (notifies corresponding author and co-authors)
+    - creates an action card for the Editorial Office to assign the correction
+      to an editor or director.
+    """
+
+    request: HttpRequest
+    article: Article  # the correction article
+
+    def _get_correction_message_context(self) -> dict[str, Any]:
+        """Build the context for notification templates."""
+        return {
+            "article": self.article,
+            "request": self.request,
+            "skip": False,
+        }
+
+    def _log_operation(self):
+        """Send a confirmation notification to the corresponding author."""
+        context = self._get_correction_message_context()
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="subject_submission_acknowledgement",
+            journal=self.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="email",
+            setting_name="submission_acknowledgement",
+            journal=self.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[self.article.correspondence_author],
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
+    def _notify_coauthors(self):
+        """Send notifications to co-authors (if any)."""
+        if self.article.author_accounts.count() <= 1:
+            return
+        context = self._get_correction_message_context()
+        message_subject = render_template_from_setting(
+            setting_group_name="email_subject",
+            setting_name="submission_coauthors_acknowledgement_subject",
+            journal=self.article.journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        coauthors = [c for c in self.article.author_accounts if c != self.article.correspondence_author]
+        for coauthor in coauthors:
+            context["author"] = coauthor
+            message_body = render_template_from_setting(
+                setting_group_name="email",
+                setting_name="submission_coauthors_acknowledgement_body",
+                journal=self.article.journal,
+                request=self.request,
+                context=context,
+                template_is_setting=True,
+            )
+            communication_utils.log_operation(
+                article=self.article,
+                message_subject=message_subject,
+                message_body=message_body,
+                recipients=[coauthor],
+                flag_as_read=True,
+                flag_as_read_by_eo=True,
+                verbosity=Message.MessageVerbosity.EMAIL,
+            )
+
+    def _create_eo_assignment(self):
+        """Create an action card for the Editorial Office to assign the correction.
+
+        Optionally, if a journal setting ``corrections_to_director`` is True,
+        automatically assign the correction to the journal director.
+        """
+        # Delegate to the existing dispatch_eo_assignment, which creates
+        # an action card for the EO to assign an editor.
+        dispatch_eo_assignment(article=self.article)
+
+    def run(self):
+        """Run the correction submission handling logic."""
+        with transaction.atomic():
+            self._log_operation()
+            self._notify_coauthors()
+            self._create_eo_assignment()

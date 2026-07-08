@@ -1303,6 +1303,26 @@ class Published(BaseState):
             view_name="article_view",
             custom_get_url=get_identifier_id_url,
         ),
+        ArticleAction(
+            permission=permissions.is_one_of_the_authors,
+            name="submit erratum",
+            label="Submit erratum",
+            view_name="wjs_correction_start",
+            custom_get_url=lambda action, workflow, user: reverse(
+                "wjs_correction_start",
+                kwargs={"article_id": workflow.article.id, "relationship": "erratum"},
+            ),
+        ),
+        ArticleAction(
+            permission=permissions.is_one_of_the_authors,
+            name="submit addendum",
+            label="Submit addendum",
+            view_name="wjs_correction_start",
+            custom_get_url=lambda action, workflow, user: reverse(
+                "wjs_correction_start",
+                kwargs={"article_id": workflow.article.id, "relationship": "addendum"},
+            ),
+        ),
     )
     article_buttons = (
         ArticleButton(
