@@ -875,7 +875,7 @@ def set_notify_hijack(request):
     return redirect(request.GET.get("next", "/"))
 
 
-class KeywordListView(ListView):
+class KeywordListView(KeywordsHierarchyContextMixin, ListView):
     model = Keyword
     template_name = "journal/keywords.html"
     context_object_name = "keywords"
