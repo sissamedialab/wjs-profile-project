@@ -885,7 +885,8 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
     {% endwith %}
 
     %% Filled-in during publication:
-    \\published{???}
+    \\published{???} %% (jcom2, v.2.7-)
+    \\history{pub}{???} %% (jsty3, v.3.0 and jcom2, v.2.8+ )
     \\publicationyear{xxxx}
     \\publicationvolume{xx}
     \\publicationissue{xx}

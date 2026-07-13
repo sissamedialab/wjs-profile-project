@@ -6,6 +6,7 @@ This module should be *-imported into logic.py
 
 import dataclasses
 import datetime
+import json
 import os
 import re
 import shutil
@@ -1342,7 +1343,8 @@ class JcomAssistantClient:
 
         galley_list: list[tuple[str, str]] = [("generate", galley) for galley in self.galleys_to_request]
         url = f"{settings.JCOMASSISTANT_URL}galleys?{urlencode(galley_list)}"
-        files = {"file": Path(file_path).open("rb")}
+        file_path = Path(file_path)
+        files = {"file": (file_path.name, file_path.open("rb"), "application/zip")}
         logger.debug(f"Contacting jcomassistant service at {url}...")
         response = requests.post(url=url, files=files)  # noqa: S113 (consciuosly disabling timeout)
         if response.status_code != 200:
@@ -1660,28 +1662,42 @@ class BeginPublication:
         doi = article.get_doi()
         if not doi:
             raise ValueError(f"DOI for {article.id} shold already exist at begin-publication!")
-        # Please keep coherent with conftest.jcom_automatic_preamble for documentation.
-        replacements = (
-            # f-strings and latex macros don't dance well together...
-            (r"\published{???}", rf"\published{{{publication_date}}}"),
-            (
-                rf"\publicationData{{00}}{{00}}{{{type_code}}}{{00}}",
-                rf"\publicationData{{{volume}}}{{{issue}}}{{{type_code}}}{{{counter}}}",
-            ),
-            (r"\publicationDoi{10.22323/0.00000000}", rf"\publicationDoi{{{doi}}}"),
+
+        injection_data = json.dumps(
+            {
+                "publication_data": {
+                    "date_published": publication_date,
+                    "year": publication_date.split("-")[0],
+                    "volume": volume,
+                    "issue": issue,
+                    "eid": counter,
+                    "section": type_code,
+                    "doi": doi,
+                },
+            }
         )
 
-        source_file.seek(0)
-        # we can safely assume that we are dealing with a utf8-encoded text file
-        content = source_file.read().decode("utf-8")
+        file_with_data = self._jcom_assistant_injection(source_file=source_file, data=injection_data)
+        return BytesIO(file_with_data.encode("utf-8"))
 
-        # I expect to always find all the place-holders
-        for old_string, new_string in replacements:
-            if old_string in content:
-                content = content.replace(old_string, new_string, 1)
-            else:
-                raise ValueError(f"""Missing macro "{old_string}" in Automatic Preamble of {article.id}""")
-        return BytesIO(content.encode("utf-8"))
+    def _jcom_assistant_injection(self, source_file: BytesIO, data: str) -> str:
+        """
+        Call the injection service for putting the publication data in TeX file.
+
+        Raises:
+            HTTPError: if a not 200 has been returned by the service.
+
+        """
+        url = f"{settings.JCOMASSISTANT_URL}pubdata"
+        file_name = f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex"
+        files = {"file": (file_name, source_file, "text/plain")}
+        data_payload = {"data": data}
+        logger.debug(f"Contacting jcomassistant service at {url}...")
+        response = requests.post(url=url, files=files, data=data_payload, timeout=15)
+        if response.status_code != 200:
+            msg = f"Unexpected status code {response.status_code} from jcomassistant for {url}."
+            raise requests.exceptions.HTTPError(msg)
+        return response.text
 
     def _get_source_file(self) -> BytesIO:
         """
@@ -1694,16 +1710,14 @@ class BeginPublication:
         tex_source_name = f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex"
         # TODO: ask Elia: is zip-file correct? should it be tar.gz? maybe both?
         with zipfile.ZipFile(self.source_files) as zip_file:
-            if tex_source_name in zip_file.namelist():
-                main_tex = zip_file.open(tex_source_name)
-            else:
+            if tex_source_name not in zip_file.namelist():
                 raise FileNotFoundError(
                     f"Cannot read {tex_source_name} from archive {self.source_files} for article {self.workflow}",
                 )
-        return main_tex
+            return BytesIO(zip_file.read(tex_source_name))
 
     def update_state(self):
-        """Bumb the state (but not the stage)."""
+        """Bump the state (but not the stage)."""
         self.workflow.begin_publication()
 
     def trigger_galley_generation(self):
@@ -2014,7 +2028,8 @@ class MetadataFromTeX:
         # publication (when the source file is AW.publication_galleys_source_file), but even if we do, title and
         # abstract should be the same in the two source files.
         tex_source_file = self._get_source_file()
-        files = {"file": tex_source_file}
+        file_name = f"{self.workflow.article.journal.code}_{self.workflow.article.id}.tex"
+        files = {"file": (file_name, tex_source_file, "text/plain")}
         url = f"{settings.JCOMASSISTANT_URL}texdata"
         response = requests.post(url=url, files=files, timeout=10)
         if response.status_code != 200:

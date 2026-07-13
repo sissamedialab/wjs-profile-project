@@ -145,6 +145,15 @@ class CustomHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             inmemory_zip = create_mock_zip()
             self.wfile.write(inmemory_zip.read())
+        elif self.path == "/pubdata":
+            content_length = int(self.headers.get("Content-Length", 0))
+            self.rfile.read(content_length)
+            tex_response = b"\\published{2025-01-01}\n"
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(tex_response)))
+            self.end_headers()
+            self.wfile.write(tex_response)
         elif self.path.startswith("/server_error"):
             self.send_response(500)
             self.send_header("Content-type", "text/plain")
