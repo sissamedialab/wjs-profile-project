@@ -77,12 +77,14 @@ def guess_typesetted_texfile_name(article: Article) -> str:
 
 
 def tex_file_has_queries(tex_file: IO) -> bool:
-    """Check if the TeX file contains queries."""
+    """Check if the TeX file contains queries, can has proofs or queries not removed."""
     with open(tex_file, encoding="utf-8") as source:
-        if re.search(r"^\s*\\proofs\W", source.read(), re.MULTILINE):
+        tex = source.read()
+        if re.search(r"^\s*\\proofs\W", tex, re.MULTILINE):
             return True
-        else:
-            return False
+        if re.search(r"^\s*\\queryOptions\{(?!.*remove).*\}", tex, re.MULTILINE):
+            return True
+        return False
 
 
 def get_report_form(journal_code: str):

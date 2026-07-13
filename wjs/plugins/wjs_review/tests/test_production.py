@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import tarfile
 import tempfile
@@ -759,6 +760,10 @@ pesky_lines = (
     (rb"%% \proofs", False),
     (b"\\proofs\n%\\proofs", True),
     (rb"\proofsomething", False),
+    (rb"\queryOptions{showall}", True),
+    (rb" \queryOptions{remove}", False),
+    (rb"\queryOptions{remove,showall}", False),
+    (rb"\queryOptionssomething", False),
 )
 
 
@@ -815,7 +820,10 @@ def test_publication(
     message_body_text = html2text.html2text(message_body)
     # Save the current email messages to exclude them below
     mails_before = list(mail.outbox)
-    with mock.patch("plugins.wjs_review.logic__production.FinishPublication.generate_final_galleys"):
+    with (
+        mock.patch("plugins.wjs_review.logic__production.FinishPublication.generate_final_galleys"),
+        mock.patch("plugins.wjs_review.logic__production.BeginPublication.prepare_source_files"),
+    ):
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
@@ -930,10 +938,18 @@ def test_publication_multiple_articles(
         correspondence_author=author,
     )
     _jump_article_to_rfp(a2, typ, fake_request)
-    with override_settings(
-        JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/server_error",
+    # _jcom_assistant_injection is mocked so source-prep succeeds (and publication_galleys_source_file
+    # is saved), the transaction commits, and only then galley generation fails via /server_error.
+    with (
+        mock.patch(
+            "plugins.wjs_review.logic__production.BeginPublication._jcom_assistant_injection",
+            return_value="modified tex",
+        ),
+        override_settings(
+            JCOMASSISTANT_URL=f"http://{http_server.server.server_name}:{http_server.server.server_port}/server_error",
+        ),
     ):
-        #                                                                                           ⮴ 💩 ⮵
+        #                                                                                                    ⮴ 💩 ⮵
         service = BeginPublication(workflow=a2.articleworkflow, user=typ, request=fake_request)
         with pytest.raises(ValueError):
             service.run()
@@ -1458,7 +1474,10 @@ def test_identifiers_on_publication(
     workflow: ArticleWorkflow = rfp_article.articleworkflow
     assert workflow.compute_eid() == "A01"
 
-    with mock.patch("plugins.wjs_review.logic__production.FinishPublication.generate_final_galleys"):
+    with (
+        mock.patch("plugins.wjs_review.logic__production.FinishPublication.generate_final_galleys"),
+        mock.patch("plugins.wjs_review.logic__production.BeginPublication.prepare_source_files"),
+    ):
         BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
     workflow.refresh_from_db()
     assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
@@ -1643,3 +1662,112 @@ def test_set_label_of_esm_file(
     s_files = assigned_to_typesetter_article.supplementary_files.all().exclude(id__in=existing_supplementary_files_ids)
     assert s_files.count() == 1 and s_files[0].label == new_supplementary_file_label
     assert s_files.count() == 1 and s_files[0].label == new_supplementary_file_label
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for BeginPublication._jcom_assistant_injection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_jcom_assistant_injection_happy_path(rfp_article: Article, eo_user: Account, fake_request: HttpRequest):
+    """Successful POST returns the response text."""
+    service = BeginPublication(workflow=rfp_article.articleworkflow, user=eo_user, request=fake_request)
+    source_file = io.BytesIO(b"some tex content")
+    data = json.dumps({"publication_data": {"doi": "10.22323/1.001001.0001"}})
+    modified_tex = r"\published{2025-01-01}" + "\n"
+
+    mock_response = mock.Mock()
+    mock_response.status_code = 200
+    mock_response.text = modified_tex
+
+    # TODO: check if overriding JCOMASSISTANT_URL is necessary
+    with override_settings(JCOMASSISTANT_URL="http://test-jcomassistant/"):
+        with mock.patch("requests.post", return_value=mock_response) as mock_post:
+            result = service._jcom_assistant_injection(source_file=source_file, data=data)
+
+    assert result == modified_tex
+    mock_post.assert_called_once()
+    call_kwargs = mock_post.call_args.kwargs
+    assert call_kwargs["url"] == "http://test-jcomassistant/pubdata"
+    # The file must be sent as a (filename, fileobj) tuple: BytesIO has no `.name`
+    file_field = call_kwargs["files"]["file"]
+    assert file_field[0] == f"{rfp_article.journal.code}_{rfp_article.id}.tex"
+    assert file_field[1] is source_file
+    assert file_field[2] == "text/plain"
+    # `data` is a form field (FastAPI `Form()`), so it must be sent via `data=`
+    assert "data" not in call_kwargs["files"]
+    assert call_kwargs["data"]["data"] == data
+
+
+@pytest.mark.django_db
+def test_jcom_assistant_injection_non_200_raises(rfp_article: Article, eo_user: Account, fake_request: HttpRequest):
+    """Non-200 response raises HTTPError containing the status code."""
+    service = BeginPublication(workflow=rfp_article.articleworkflow, user=eo_user, request=fake_request)
+
+    mock_response = mock.Mock()
+    mock_response.status_code = 500
+
+    with override_settings(JCOMASSISTANT_URL="http://test-jcomassistant/"):
+        with mock.patch("requests.post", return_value=mock_response):
+            with pytest.raises(requests.exceptions.HTTPError, match="500"):
+                service._jcom_assistant_injection(source_file=io.BytesIO(b"tex"), data="{}")
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for BeginPublication._prepare_source
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_prepare_source_injection_data_structure(rfp_article: Article, eo_user: Account, fake_request: HttpRequest):
+    """_prepare_source passes a correctly structured JSON payload to the injection service."""
+    workflow = rfp_article.articleworkflow
+    article = workflow.article
+
+    # Ensure the fields _prepare_source reads are populated.
+    article.date_published = article.date_published or timezone.now()
+    article.page_numbers = "A01"
+    article.save()
+
+    service = BeginPublication(workflow=workflow, user=eo_user, request=fake_request)
+
+    captured = {}
+
+    def fake_injection(source_file, data):
+        captured["data"] = json.loads(data)
+        return "modified tex"
+
+    with mock.patch.object(service, "_jcom_assistant_injection", side_effect=fake_injection):
+        result = service._prepare_source(io.BytesIO(b"source tex"))
+
+    pub = captured["data"]["publication_data"]
+    expected_date = article.date_published.strftime("%Y-%m-%d")
+    assert pub["date_published"] == expected_date
+    assert pub["year"] == expected_date.split("-")[0]
+    assert pub["volume"] == f"{article.primary_issue.volume:02d}"
+    assert pub["issue"] == f"{int(article.primary_issue.issue):02d}"
+    assert pub["eid"] == "01"
+    assert pub["section"] == "A"
+    assert pub["doi"] == article.get_doi()
+
+    assert isinstance(result, io.BytesIO)
+    assert result.read() == b"modified tex"
+
+
+@pytest.mark.django_db
+def test_prepare_source_missing_doi_raises(rfp_article: Article, eo_user: Account, fake_request: HttpRequest):
+    """_prepare_source raises ValueError when the article has no enabled DOI."""
+    from identifiers.models import Identifier
+
+    workflow = rfp_article.articleworkflow
+    article = workflow.article
+    article.date_published = article.date_published or timezone.now()
+    article.page_numbers = "A01"
+    article.save()
+    Identifier.objects.filter(article=article, id_type="doi").delete()
+
+    service = BeginPublication(workflow=workflow, user=eo_user, request=fake_request)
+
+    with pytest.raises(ValueError, match="DOI"):
+        service._prepare_source(io.BytesIO(b"source tex"))
