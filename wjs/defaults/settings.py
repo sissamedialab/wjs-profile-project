@@ -208,6 +208,7 @@ WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_ENABLED = {
 }
 
 TEMPLATES[0]["OPTIONS"]["context_processors"].append("wjs.jcom_profile.context_processors.date_format")
+TEMPLATES[0]["OPTIONS"]["context_processors"].append("wjs.themes.context_processors.wjs_themes_version")
 # TODO: drop this when going to production
 # (ATM wjs_review plugin is installed only in development instances; see specs#1132)
 try:
