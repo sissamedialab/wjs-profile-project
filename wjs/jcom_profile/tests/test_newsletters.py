@@ -767,7 +767,7 @@ def test_update_newsletter_subscription_get_single_language(jcom_user, keywords,
     assert response.status_code == 200
     html = lxml.html.fromstring(response.content.decode())
     for keyword in keywords:
-        assert html.findall(f".//input[@type='checkbox'][@name='topics'][@value='{keyword.pk}']")
+        assert html.findall(f".//input[@type='checkbox'][@name='keywords'][@value='{keyword.pk}']")
     assert len(html.findall(".//option")) == 0
 
 
@@ -793,7 +793,7 @@ def test_update_newsletter_subscription_show_language_select(jcom_user, keywords
     assert response.status_code == 200
     html = lxml.html.fromstring(response.content.decode())
     for keyword in keywords:
-        assert html.findall(f".//input[@type='checkbox'][@name='topics'][@value='{keyword.pk}']")
+        assert html.findall(f".//input[@type='checkbox'][@name='keywords'][@value='{keyword.pk}']")
     assert len(html.findall(".//option")) == 2
     assert html.findall(".//option[@value='es']")
     assert html.findall(".//option[@value='en'][@selected]")
@@ -821,7 +821,7 @@ def test_update_newsletter_subscription_show_dynamic_language_select(jcom_user, 
     assert response.status_code == 200
     html = lxml.html.fromstring(response.content.decode())
     for keyword in keywords:
-        assert html.findall(f".//input[@type='checkbox'][@name='topics'][@value='{keyword.pk}']")
+        assert html.findall(f".//input[@type='checkbox'][@name='keywords'][@value='{keyword.pk}']")
     assert len(html.findall(".//option")) == 0
 
     # Second run with two languages configured ("it" is not in LANGUAGES, and it is ignored) -> language field is shown
@@ -832,7 +832,7 @@ def test_update_newsletter_subscription_show_dynamic_language_select(jcom_user, 
     assert response.status_code == 200
     html = lxml.html.fromstring(response.content.decode())
     for keyword in keywords:
-        assert html.findall(f".//input[@type='checkbox'][@name='topics'][@value='{keyword.pk}']")
+        assert html.findall(f".//input[@type='checkbox'][@name='keywords'][@value='{keyword.pk}']")
     assert len(html.findall(".//option")) == 2
     assert html.findall(".//option[@value='es']")
     assert html.findall(".//option[@value='en'][@selected]")
@@ -853,7 +853,7 @@ def test_update_newsletter_subscription(jcom_user, keywords, journal_factory, is
     client.force_login(jcom_user)
     url = f"/{journal.code}/update/newsletters/"
     # Pass a language in the POST data
-    data = {"topics": [k[0] for k in keywords], "news": is_news, "language": "es"}
+    data = {"keywords": [k[0] for k in keywords], "news": is_news, "language": "es"}
     response = client.post(url, data, follow=True)
     assert response.status_code == 200
 
