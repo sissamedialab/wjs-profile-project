@@ -268,28 +268,32 @@ case "$SSH_ORIGINAL_COMMAND" in
         ;;
 
     # ========================================
-    # TEST INSTANCE
+    # DEVELOPMENT INSTANCE
     # ========================================
-    "deploy-test-janeway")
-        set_test_variables
+    "deploy-dev-janeway")
+        set_dev_variables
         deploy_janeway
         ;;
-    "deploy-test-wjs")
-        set_test_variables
+    "deploy-dev-wjs")
+        set_dev_variables
         deploy_wjs
         ;;
-    "deploy-test-wjs-submission")
-        set_test_variables
+    "deploy-dev-wjs-submission")
+        set_dev_variables
         deploy_submission
         ;;
-    "deploy-test-wjs-themes")
-        set_test_variables
+    "deploy-dev-wjs-themes")
+        set_dev_variables
         deploy_themes
         ;;
-    "deploy-test-wjs-search")
-        set_test_variables
+    "deploy-dev-wjs-search")
+        set_dev_variables
         deploy_search
         ;;
+
+    # ========================================
+    # TEST INSTANCES
+    # ========================================
     # Test instance with specific tag/commit
     # Don't be too generous with the pattern here: watch out for sh injections!
     # Remember Bobby Tables https://xkcd.com/327/
@@ -321,62 +325,6 @@ case "$SSH_ORIGINAL_COMMAND" in
     "deploy-test-wjs-search:"+([[:word:]]))
         set_test_variables
         TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs-search://')
-        echo "Installing wjs-search at ${TAGNAME}"
-        deploy_search "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-search-user@${TAGNAME}#egg=wjs-user-search"
-        ;;
-
-    # ========================================
-    # DEVELOPMENT INSTANCE
-    # ========================================
-    "deploy-dev-janeway")
-        set_dev_variables
-        deploy_janeway
-        ;;
-    "deploy-dev-wjs")
-        set_dev_variables
-        deploy_wjs
-        ;;
-    "deploy-dev-wjs-submission")
-        set_dev_variables
-        deploy_submission
-        ;;
-    "deploy-dev-wjs-themes")
-        set_dev_variables
-        deploy_themes
-        ;;
-    "deploy-dev-wjs-search")
-        set_dev_variables
-        deploy_search
-        ;;
-    # Development instance with specific tag/commit
-    "deploy-dev-janeway:"+([[:word:]]))
-        set_dev_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-janeway://')
-        echo "Installing janeway at ${TAGNAME}"
-        JANEWAY_BRANCH="${TAGNAME}"
-        deploy_janeway
-        ;;
-    "deploy-dev-wjs:"+([[:word:]]))
-        set_dev_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs://')
-        echo "Installing wjs.jcom_profile at ${TAGNAME}"
-        deploy_wjs "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
-        ;;
-    "deploy-dev-wjs-submission:"+([[:word:]]))
-        set_dev_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs-submission://')
-        echo "Installing wjs-submission at ${TAGNAME}"
-        deploy_submission "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-submission-project@${TAGNAME}#egg=wjs-submission"
-        ;;
-    "deploy-dev-wjs-themes:"+([[:word:]]))
-        set_dev_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs-themes://')
-        echo "Installing wjs-themes at ${TAGNAME}"
-        deploy_themes "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-themes@${TAGNAME}#egg=wjs-themes"
-        ;;
-    "deploy-dev-wjs-search:"+([[:word:]]))
-        set_dev_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-dev-wjs-search://')
         echo "Installing wjs-search at ${TAGNAME}"
         deploy_search "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-search-user@${TAGNAME}#egg=wjs-user-search"
         ;;
