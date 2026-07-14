@@ -59,9 +59,19 @@
     - name: Delete gunicorn and qcluster systemd service units
       file:
         dest: "{{ item }}"
+        state: absent
       loop:
         - "/home/wjs/.config/systemd/user/gunicorn-{{ instance_name }}.service"
         - "/home/wjs/.config/systemd/user/qcluster-{{ instance_name }}.service"
+
+    - name: Remove start/stop aliases for the instance's services from .bashrc
+      ansible.builtin.lineinfile:
+        path: /home/wjs/.bashrc
+        regexp: "^alias {{ item }}-{{ instance_name }}="
+        state: absent
+      loop:
+        - start
+        - stop
 
 
 

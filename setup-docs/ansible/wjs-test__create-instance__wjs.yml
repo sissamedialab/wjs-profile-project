@@ -73,13 +73,6 @@
         src: griffo-files/django_settings.py.j2
         mode: '0644'
 
-    # TODO: check me! Move to django_settings.py.j2
-    - name: Add SECURE_PROXY_SSL_HEADER setting if missing
-      lineinfile:
-        path: /home/wjs/{{ full_name }}/src/core/settings/__init__.py
-        line: "SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')"
-        state: present
-
 
 
 
@@ -165,24 +158,15 @@
         mode: preserve
 
 
-    # For not, do _not_ copy files from pp instance
-
-    # TO BE DROPPED AFTER Janeway 1.8
-    - name: Link typesetting plugin
-      file:
-        src: "/home/wjs/typesetting"
-        dest: "/home/wjs/{{ full_name }}/src/plugins/typesetting"
-        state: link
-        owner: wjs
-        group: wjs
+    # For now, do _not_ copy files from pp instance
 
 
-      # Note: at this point, no management command can be used,
-      # because there is reference from wjs_review to plugins/wjs_submission,
-      # but the latter does not yet exist.
-      #
-      # Remove possibly existing link to wjs_submission plugin
-      # (e.g., from previous runs of this play)
+    # Note: at this point, no management command can be used,
+    # because there is reference from wjs_review to plugins/wjs_submission,
+    # but the latter does not yet exist.
+    #
+    # Remove possibly existing link to wjs_submission plugin
+    # (e.g., from previous runs of this play)
     - name: Ensure wjs-submission is not yet present
       file:
         path: "/home/wjs/{{ full_name }}/src/plugins/wjs_submission"
@@ -215,6 +199,11 @@
       args:
         chdir: "/home/wjs/{{ full_name }}/src"
 
+    - name: Anonymize the DB
+      command: "{{ python }} -mmanage anoymize"
+      args:
+        chdir: "/home/wjs/{{ full_name }}/src"
+
 
 
 
@@ -237,6 +226,16 @@
         mode: '0644'
       notify: reload user systemd
 
+
+
+    - name: Add aliases to start/stop the instance's services to .bashrc
+      ansible.builtin.lineinfile:
+        path: /home/wjs/.bashrc
+        regexp: "^alias {{ item }}-{{ instance_name }}="
+        line: "alias {{ item }}-{{ instance_name }}='systemctl --user {{ item }} gunicorn-{{ instance_name }} && systemctl --user {{ item }} qcluster-{{ instance_name }}'"
+      loop:
+        - start
+        - stop
 
 
     # TODO start instance?
