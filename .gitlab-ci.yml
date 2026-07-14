@@ -75,7 +75,7 @@ deploy-to-pre-production:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-pp-wjs"
+    DEPLOY_CMD: "deploy-pp-profile"
 
 
 deploy-to-production:
@@ -86,11 +86,12 @@ deploy-to-production:
   variables:
     SERVER_IP: "$PROD_SERVER_IP"
     SERVER_USER: "$PROD_SERVER_USER"
-    DEPLOY_CMD: "deploy-prod-wjs"
+    DEPLOY_CMD: "deploy-prod-profile"
 
 
 deploy-to-test:
-  # Deploy the current commit to test instance
+  # Deploy the current commit to one of the test instances (t1-t5).
+  # Override TEST_INSTANCE when launching this manual job to pick the instance.
   # Warning! Be sure not to disrupt other peoples work 🙂
   extends:
     - .deploy
@@ -98,7 +99,8 @@ deploy-to-test:
   variables:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-test-wjs:${CI_COMMIT_SHA}"
+    TEST_INSTANCE: "t1"
+    DEPLOY_CMD: "deploy-${TEST_INSTANCE}-profile:${CI_COMMIT_SHA}"
 
 
 deploy-to-dev:
@@ -109,4 +111,5 @@ deploy-to-dev:
   variables:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-dev-wjs:${CI_COMMIT_SHA}"
+    # The dev instance always deploys the wjs-develop branch (no ref accepted)
+    DEPLOY_CMD: "deploy-dev-profile"

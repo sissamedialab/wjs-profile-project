@@ -16,61 +16,154 @@
 #
 # This file cannot be part of the deploy procedure for security reasons :)
 #
-# One of the most delicate parts of this script is the main "case" (switch) statement.
-# It decides what to do by matching the SSH_ORIGINAL_COMMAND against its patterns.
+# The script decides what to do by matching the SSH_ORIGINAL_COMMAND
+# against the following grammar:
 #
-# Note that we could want to deploy Janeway or one of the other 4
-# projects (wjs-profile, wjs-submission, wjs-themes and wjs-search) onto 4
-# "standard" instances (prod, pre-prod, test, dev). We thus have 5x4 = 20
-# patterns.
+#     deploy-<INSTANCE>-<PACKAGE>[:<SHA>]
 #
-# Also note that for test and dev instances, we want to allow for the deployment
-# of arbitrary branches.
+# where
+# - <INSTANCE> is one of: prod pp dev t1 t2 t3 t4 t5
+# - <PACKAGE>  is one of: janeway profile submission themes search
+# - <SHA> is a commit SHA (or tag), required for t1-t5, forbidden elsewhere
 #
-# The patterns of the case statement are thus in this form:
-# - deploy-<INSTANCE>-<PROJECT>[<OPTIONAL COMMIT SHA>]
+# The deploy matrix is:
+# - prod / pp: janeway is `git pull`ed from the wjs-production branch (only);
+#   the other packages are `pip install -U`ed from the package registry
+#   (pre-releases allowed only in pp, not in prod)
+# - dev: janeway is `git pull`ed from the wjs-develop branch (only);
+#   the other packages are pip-installed from git at wjs-develop
+# - t1-t5: like dev, but the caller must provide the commit SHA to deploy
 #
-#
-# We have a `switch` statement that knows how to deploy either Janeway
-# or WJS in every instance.
-#
-# The SSH_ORIGINAL_COMMANDs have the form
-# - deploy-pp-janeway --> to deploy Janeway on the pre-production instance
-# - deploy-pp-wjs -->  to deploy WJS on the pre-production instance
-# - deploy-dev-janeway ...
+# Examples:
+# - deploy-pp-janeway --> deploy Janeway on the pre-production instance
+# - deploy-prod-profile --> deploy wjs.jcom_profile on production
+# - deploy-t3-themes:0123abc --> deploy wjs-themes at commit 0123abc on t3
 
 set -e
 
 # -- CONFIGURATION DEFAULTS START --
-# The path to the clone of the Janeway repos. This contains the `src` folder.
-JANEWAY_ROOT=/home/wjs/janeway
-
-# The path to the `bin` folder of the virtual env. This contains `python` and `pip`
-VENV_BIN=/home/wjs/.virtualenvs/janeway/bin
-
-# The WJS systemd unit to restart
-WJS_SERVICE=gunicorn.service
-
-# The git branches where the code lives
-JANEWAY_BRANCH=wjs-develop
-
-# The name of the qcluster systemd unit
-QCLUSTER_SERVICE="qcluster.service"
-
 # The token name and value used to "pull" git repos.
 # When it expires, create a new token at the WJS group level, with scope "read-repo"
 # (and role "Reporter", probably useless...)
 DEPLOY_TOKEN_USER=***
 DEPLOY_TOKEN_PASSWORD=***
 
-# When this is set (to any non-zero-lenght string), add `--pre` to `pip install wjs`
-PIP_PRE=""
+# The gitlab host serving the wjs group's repos and package registry
+GITLAB_HOST=gitlab.sissamedialab.it
 # -- CONFIGURATION DEFAULTS END --
 
-function set_derivable_variables() {
+function parse_command() {
+    # Match the given command against the deploy grammar
+    # and set INSTANCE, PACKAGE and REF (possibly empty).
+    #
+    # Don't be too generous with the pattern here: watch out for sh injections!
+    # Remember Bobby Tables https://xkcd.com/327/
+    # ([[:alnum:]_] is enough for a SHA or a tag, and REF is only ever used quoted)
+    if [[ "$1" =~ ^deploy-(prod|pp|dev|t[1-5])-(janeway|profile|submission|themes|search)(:([[:alnum:]_]+))?$ ]]; then
+        INSTANCE="${BASH_REMATCH[1]}"
+        PACKAGE="${BASH_REMATCH[2]}"
+        REF="${BASH_REMATCH[4]}"
+    else
+        echo "Unknown command $1"
+        exit 1
+    fi
+}
+
+function set_instance_variables() {
+    # Derive all instance-specific variables from $INSTANCE
+    # and validate the presence/absence of $REF.
+    case "$INSTANCE" in
+        t[1-5])
+            if [[ -z "$REF" ]]; then
+                echo "Instance $INSTANCE requires a commit SHA: deploy-${INSTANCE}-${PACKAGE}:<SHA>"
+                exit 1
+            fi
+            ;;
+        *)
+            if [[ -n "$REF" ]]; then
+                echo "Instance $INSTANCE does not accept a ref (got \"$REF\")"
+                exit 1
+            fi
+            ;;
+    esac
+
+    # MODE says how the non-janeway packages are installed:
+    # - "release": pip install from the package registry
+    #   (with pre-releases allowed when PIP_PRE is non-empty)
+    # - "git": pip install from a git checkout at GIT_REF
+    # GIT_REF is also the ref used to `git pull` janeway.
+    case "$INSTANCE" in
+        prod)
+            SUFFIX=""
+            MODE=release
+            PIP_PRE=""
+            GIT_REF=wjs-production
+            ;;
+        pp)
+            SUFFIX="-pp"
+            MODE=release
+            # Permit install pre-release pkgs in pre-prod
+            # this allows us to test pkg install when needed.
+            PIP_PRE="yes please"
+            GIT_REF=wjs-production
+            ;;
+        dev)
+            SUFFIX="-dev"
+            MODE=git
+            GIT_REF=wjs-develop
+            ;;
+        t[1-5])
+            SUFFIX="-${INSTANCE}"
+            MODE=git
+            GIT_REF="$REF"
+            ;;
+    esac
+
+    # The path to the clone of the Janeway repo. This contains the `src` folder.
+    JANEWAY_ROOT="/home/wjs/janeway${SUFFIX}"
+    # The path to the `bin` folder of the virtual env. This contains `python` and `pip`
+    VENV_BIN="/home/wjs/.virtualenvs/janeway${SUFFIX}/bin"
+    # The systemd units to restart
+    WJS_SERVICE="gunicorn${SUFFIX}.service"
+    QCLUSTER_SERVICE="qcluster${SUFFIX}.service"
+
     PIP="${VENV_BIN}/pip"
     PYTHON="${VENV_BIN}/python"
     MANAGE_DIR="${JANEWAY_ROOT}/src"
+}
+
+function set_package_variables() {
+    # Per-package data (janeway is special, see deploy_janeway):
+    # - PIP_NAME: the name used to pip install/uninstall the package
+    # - REPO: the repo under ${GITLAB_HOST}/wjs/
+    # - EGG: the egg name used when pip-installing from git
+    # - POST_MANAGE: package-specific manage command, run before manage_setup
+    case "$PACKAGE" in
+        profile)
+            PIP_NAME=wjs.jcom_profile
+            REPO=wjs-profile-project
+            EGG=wjs.jcom_profile
+            POST_MANAGE=run_customizations
+            ;;
+        submission)
+            PIP_NAME=wjs_submission
+            REPO=wjs-submission-project
+            EGG=wjs-submission
+            POST_MANAGE=""
+            ;;
+        themes)
+            PIP_NAME=wjs-themes
+            REPO=wjs-themes
+            EGG=wjs-themes
+            POST_MANAGE=install_themes
+            ;;
+        search)
+            PIP_NAME=wjs-user-search
+            REPO=wjs-search-user
+            EGG=wjs-user-search
+            POST_MANAGE=""
+            ;;
+    esac
 }
 
 function manage_setup() {
@@ -87,10 +180,9 @@ function manage_setup() {
 }
 
 function deploy_janeway() {
-    set_derivable_variables
-    echo "Deploying branch $JANEWAY_BRANCH into $JANEWAY_ROOT"
+    echo "Deploying janeway at ${GIT_REF} into ${JANEWAY_ROOT}"
     cd "$JANEWAY_ROOT"
-    git pull --ff-only https://"${DEPLOY_TOKEN_USER}":"${DEPLOY_TOKEN_PASSWORD}"@gitlab.sissamedialab.it/wjs/janeway.git $JANEWAY_BRANCH
+    git pull --ff-only "https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@${GITLAB_HOST}/wjs/janeway.git" "$GIT_REF"
     "$PIP" install -r requirements.txt -c constraints.txt
 
     cd "$MANAGE_DIR"
@@ -98,239 +190,40 @@ function deploy_janeway() {
     manage_setup
 }
 
-function deploy_wjs() {
-    set_derivable_variables
-
-    # If given, the first argument to this function will be used to pip install the pacakge.
-    # It should be in the form such as
-    # "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
-    if [[ -n "$1" ]]; then
-        "$PIP" uninstall --yes wjs.jcom_profile
-        "$PIP" install --no-cache-dir "$1"
+function deploy_package() {
+    if [[ "$MODE" == "git" ]]; then
+        echo "Installing ${PIP_NAME} from ${REPO} at ${GIT_REF}"
+        "$PIP" uninstall --yes "$PIP_NAME"
+        "$PIP" install --no-cache-dir "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@${GITLAB_HOST}/wjs/${REPO}@${GIT_REF}#egg=${EGG}"
     else
-        if [[ -z "$PIP_PRE" ]]
-        then
-            "$PIP" install -U wjs.jcom_profile
+        echo "Installing latest release of ${PIP_NAME}"
+        if [[ -z "$PIP_PRE" ]]; then
+            "$PIP" install -U "$PIP_NAME"
         else
-            "$PIP" install --pre -U wjs.jcom_profile
+            "$PIP" install --pre -U "$PIP_NAME"
         fi
     fi
 
-    cd "$MANAGE_DIR"
-    "$PYTHON" -mmanage run_customizations
-    manage_setup
-}
-
-function deploy_submission() {
-    set_derivable_variables
-
-    # If given, the first argument to this function will be used to pip install the pacakge.
-    if [[ -n "$1" ]]; then
-        "$PIP" uninstall --yes wjs_submission
-        "$PIP" install --no-cache-dir "$1"
-    else
-        if [[ -z "$PIP_PRE" ]]
-        then
-            "$PIP" install -U wjs_submission
-        else
-            "$PIP" install --pre -U wjs_submission
-        fi
+    if [[ -n "$POST_MANAGE" ]]; then
+        cd "$MANAGE_DIR"
+        "$PYTHON" -mmanage "$POST_MANAGE"
     fi
-
     manage_setup
 }
 
-function deploy_themes() {
-    set_derivable_variables
-
-    # If given, the first argument to this function will be used to pip install the pacakge.
-    if [[ -n "$1" ]]; then
-        "$PIP" uninstall --yes wjs-themes
-        "$PIP" install --no-cache-dir "$1"
+function main() {
+    parse_command "$SSH_ORIGINAL_COMMAND"
+    set_instance_variables
+    if [[ "$PACKAGE" == "janeway" ]]; then
+        deploy_janeway
     else
-        if [[ -z "$PIP_PRE" ]]
-        then
-            "$PIP" install -U wjs-themes
-        else
-            "$PIP" install --pre -U wjs-themes
-        fi
+        set_package_variables
+        deploy_package
     fi
-
-    cd "$MANAGE_DIR"
-    "$PYTHON" -mmanage install_themes
-    manage_setup
 }
 
-function deploy_search() {
-    set_derivable_variables
-
-    # If given, the first argument to this function will be used to pip install the pacakge.
-    if [[ -n "$1" ]]; then
-        "$PIP" uninstall --yes wjs-user-search
-        "$PIP" install --no-cache-dir "$1"
-    else
-        if [[ -z "$PIP_PRE" ]]
-        then
-            "$PIP" install -U wjs-user-search
-        else
-            "$PIP" install --pre -U wjs-user-search
-        fi
-    fi
-
-    manage_setup
-}
-
-function set_prod_variables() {
-    JANEWAY_ROOT=/home/wjs/janeway
-    VENV_BIN=/home/wjs/.virtualenvs/janeway/bin
-    WJS_SERVICE="gunicorn.service"
-    JANEWAY_BRANCH=wjs-production
-    QCLUSTER_SERVICE="qcluster.service"
-}
-
-function set_pp_variables() {
-    JANEWAY_ROOT=/home/wjs/janeway-pp
-    VENV_BIN=/home/wjs/.virtualenvs/janeway-pp/bin
-    WJS_SERVICE="gunicorn-pp.service"
-    JANEWAY_BRANCH=wjs-production
-    # Permit install pre-release pkgs in pre-prod
-    # this allows us to test pkg install when needed.
-    PIP_PRE="yes please"
-    QCLUSTER_SERVICE="qcluster-pp.service"
-}
-
-function set_dev_variables() {
-    JANEWAY_ROOT=/home/wjs/janeway-dev
-    VENV_BIN=/home/wjs/.virtualenvs/janeway-dev/bin
-    WJS_SERVICE="gunicorn-dev.service"
-    JANEWAY_BRANCH=wjs-develop
-    PIP_PRE="yes please"
-    QCLUSTER_SERVICE="qcluster-dev.service"
-}
-
-function set_test_variables() {
-    JANEWAY_ROOT=/home/wjs/janeway-test
-    VENV_BIN=/home/wjs/.virtualenvs/janeway-test/bin
-    WJS_SERVICE="gunicorn-test.service"
-    JANEWAY_BRANCH=wjs-production
-    PIP_PRE="yes please"
-    QCLUSTER_SERVICE="qcluster-test.service"
-}
-
-shopt -s extglob
-case "$SSH_ORIGINAL_COMMAND" in
-    # ========================================
-    # PRODUCTION INSTANCE
-    # ========================================
-    "deploy-prod-janeway")
-        set_prod_variables
-        deploy_janeway
-        ;;
-    "deploy-prod-wjs")
-        set_prod_variables
-        deploy_wjs
-        ;;
-    "deploy-prod-wjs-submission")
-        set_prod_variables
-        deploy_submission
-        ;;
-    "deploy-prod-wjs-themes")
-        set_prod_variables
-        deploy_themes
-        ;;
-    "deploy-prod-wjs-search")
-        set_prod_variables
-        deploy_search
-        ;;
-
-    # ========================================
-    # PRE-PRODUCTION INSTANCE
-    # ========================================
-    "deploy-pp-janeway")
-        set_pp_variables
-        deploy_janeway
-        ;;
-    "deploy-pp-wjs")
-        set_pp_variables
-        deploy_wjs
-        ;;
-    "deploy-pp-wjs-submission")
-        set_pp_variables
-        deploy_submission
-        ;;
-    "deploy-pp-wjs-themes")
-        set_pp_variables
-        deploy_themes
-        ;;
-    "deploy-pp-wjs-search")
-        set_pp_variables
-        deploy_search
-        ;;
-
-    # ========================================
-    # DEVELOPMENT INSTANCE
-    # ========================================
-    "deploy-dev-janeway")
-        set_dev_variables
-        deploy_janeway
-        ;;
-    "deploy-dev-wjs")
-        set_dev_variables
-        deploy_wjs
-        ;;
-    "deploy-dev-wjs-submission")
-        set_dev_variables
-        deploy_submission
-        ;;
-    "deploy-dev-wjs-themes")
-        set_dev_variables
-        deploy_themes
-        ;;
-    "deploy-dev-wjs-search")
-        set_dev_variables
-        deploy_search
-        ;;
-
-    # ========================================
-    # TEST INSTANCES
-    # ========================================
-    # Test instance with specific tag/commit
-    # Don't be too generous with the pattern here: watch out for sh injections!
-    # Remember Bobby Tables https://xkcd.com/327/
-    "deploy-test-janeway:"+([[:word:]]))
-        set_test_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-janeway://')
-        echo "Installing janeway at ${TAGNAME}"
-        JANEWAY_BRANCH="${TAGNAME}"
-        deploy_janeway
-        ;;
-    "deploy-test-wjs:"+([[:word:]]))
-        set_test_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs://')
-        echo "Installing wjs.jcom_profile at ${TAGNAME}"
-        deploy_wjs "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-profile-project@${TAGNAME}#egg=wjs.jcom_profile"
-        ;;
-    "deploy-test-wjs-submission:"+([[:word:]]))
-        set_test_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs-submission://')
-        echo "Installing wjs-submission at ${TAGNAME}"
-        deploy_submission "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-submission-project@${TAGNAME}#egg=wjs-submission"
-        ;;
-    "deploy-test-wjs-themes:"+([[:word:]]))
-        set_test_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs-themes://')
-        echo "Installing wjs-themes at ${TAGNAME}"
-        deploy_themes "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-themes@${TAGNAME}#egg=wjs-themes"
-        ;;
-    "deploy-test-wjs-search:"+([[:word:]]))
-        set_test_variables
-        TAGNAME=$(echo "$SSH_ORIGINAL_COMMAND"|sed 's/deploy-test-wjs-search://')
-        echo "Installing wjs-search at ${TAGNAME}"
-        deploy_search "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@gitlab.sissamedialab.it/wjs/wjs-search-user@${TAGNAME}#egg=wjs-user-search"
-        ;;
-
-    *)
-        echo "Unknown command $SSH_ORIGINAL_COMMAND"
-        exit 1
-        ;;
-esac
+# Run main only when executed, not when sourced
+# (sourcing allows testing the parse/validate logic without deploying anything)
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main
+fi
