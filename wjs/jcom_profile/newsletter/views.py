@@ -12,6 +12,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView, TemplateView, UpdateView
 
 from ..models import Recipient
+from ..profile.views import KeywordsHierarchyContextMixin
 from ..utils import generate_token
 from ..views import logger
 from . import forms
@@ -23,7 +24,7 @@ def newsletter(request, journal, days="120"):
     return HttpResponse(content["content"])
 
 
-class NewsletterParametersUpdate(UserPassesTestMixin, UpdateView):
+class NewsletterParametersUpdate(UserPassesTestMixin, KeywordsHierarchyContextMixin, UpdateView):
     model = Recipient
     template_name = "wjs/newsletter/edit_newsletters_subscription.html"
     form_class = forms.NewsletterTopicForm
