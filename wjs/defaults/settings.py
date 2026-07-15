@@ -580,3 +580,7 @@ TINYMCE_JS_URL = f"{STATIC_URL}/tinymce/tinymce.min.js"
 
 SUBMISSION_ARTICLE_LANGUAGES = WJS_ARTICLE_LANGUAGES
 SUBMISSION_ENABLE_FREE_KEYWORD = False
+
+SUBMISSION_UNIQUENESS_CHECK = {
+    None: "plugins.wjs_review.unique_check.check_article_uniqueness_by_submission_status_and_section_in_all_journals_combined",  # noqa: ERA001, E501
+}
