@@ -158,6 +158,7 @@ function set_package_variables() {
             POST_MANAGE=install_themes
             ;;
         search)
+            # 😢 why?! why did I set the package name different from the repo name???
             PIP_NAME=wjs-user-search
             REPO=wjs-search-user
             EGG=wjs-user-search

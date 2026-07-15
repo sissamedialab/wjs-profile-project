@@ -89,6 +89,22 @@ deploy-to-production:
     DEPLOY_CMD: "deploy-prod-profile"
 
 
+deploy-to-dev:
+  extends:
+    - .deploy
+  when: manual
+  environment: dev
+  variables:
+    SERVER_IP: "$TEST_SERVER_IP"
+    SERVER_USER: "$TEST_SERVER_USER"
+    # The dev instance always deploys the wjs-develop branch (no ref accepted)
+    DEPLOY_CMD: "deploy-dev-profile"
+
+# ======================
+# how to deploy to T1-T5
+# ======================
+# Option 1: set a CI variable
+# ===========================
 deploy-to-test:
   # Deploy the current commit to one of the test instances (t1-t5).
   # Override TEST_INSTANCE when launching this manual job to pick the instance.
@@ -102,14 +118,44 @@ deploy-to-test:
     TEST_INSTANCE: "t1"
     DEPLOY_CMD: "deploy-${TEST_INSTANCE}-profile:${CI_COMMIT_SHA}"
 
-
-deploy-to-dev:
+# Option 2: 5 jobs
+# ================
+.deploy-to-test-template:
   extends:
     - .deploy
   when: manual
-  environment: dev
   variables:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    # The dev instance always deploys the wjs-develop branch (no ref accepted)
-    DEPLOY_CMD: "deploy-dev-profile"
+    TEST_INSTANCE: "t1"
+    DEPLOY_CMD: "deploy-${TEST_INSTANCE}-profile:${CI_COMMIT_SHA}"
+
+Deploy to T1:
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t1"
+
+Deploy to T2:
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t2"
+
+Deploy to T3:
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t3"
+
+Deploy to T4:
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t4"
+
+Deploy to T5:
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t5"
