@@ -6,7 +6,8 @@
 # from those that are to be done as root (e.g. apache config).
 #
 # Call as
-# ansible-playbook wjs-test__create-instance__wjs.yml wjs-test__create-instance__root.yml  -e instance="aaa" postgres_password="***"
+#  export POSTGRES_PASSWORD="***"
+# ansible-playbook wjs-test__create-instance__wjs.yml wjs-test__create-instance__root.yml  -e instance="aaa"
 #
 # NB: check the postgres password on the remote .pgpass!
 #
@@ -214,6 +215,7 @@
         owner: wjs
         group: wjs
         mode: '0644'
+      notify: restart instance services
 
 
 
@@ -224,7 +226,7 @@
         owner: wjs
         group: wjs
         mode: '0644'
-      notify: reload user systemd
+      notify: restart instance services
 
 
 
@@ -238,15 +240,33 @@
         - stop
 
 
-    # TODO start instance?
+    - name: Enable and start gunicorn and qcluster services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        # daemon_reload runs before enable/start, so freshly copied units are picked up
+        daemon_reload: yes
+        enabled: yes
+        state: started
+        scope: user
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      loop:
+        - "gunicorn-{{ instance_name }}.service"
+        - "qcluster-{{ instance_name }}.service"
 
 
 
   handlers:
-    - name: reload user systemd
+    # Restart (and daemon-reload) so that changed unit files take effect
+    # also on already-running instances.
+    - name: restart instance services
       ansible.builtin.systemd_service:
+        name: "{{ item }}"
         daemon_reload: yes
+        state: restarted
         scope: user
-      become_user: wjs
       environment:
         XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      loop:
+        - "gunicorn-{{ instance_name }}.service"
+        - "qcluster-{{ instance_name }}.service"
