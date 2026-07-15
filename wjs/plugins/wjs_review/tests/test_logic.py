@@ -4073,7 +4073,7 @@ def test_assign_different_editor(
     ).exists()
     assert Message.objects.count() == 6
     # messages 1-4 are generated from the data setup part of the test
-    removed_editor_msg = Message.objects.all()[4]
+    removed_editor_msg = Message.objects.order_by("pk")[4]
     assert list(removed_editor_msg.recipients.all()) == [current_editor]
     editor_unassignment_subject = render_template_from_setting(
         setting_group_name="email_subject",
@@ -4090,7 +4090,7 @@ def test_assign_different_editor(
     assert removed_editor_msg.recipients.all().count() == 1
     assert MessageRecipients.objects.get(message=removed_editor_msg, recipient=current_editor).read
 
-    assigned_editor_msg = Message.objects.all()[5]
+    assigned_editor_msg = Message.objects.order_by("pk")[5]
     assert list(assigned_editor_msg.recipients.all()) == [normal_user.janeway_account]
     editor_assignment_subject = render_template_from_setting(
         setting_group_name="wjs_review",
