@@ -32,7 +32,7 @@ include:
     file: '.gitlab-ci-pre-commit.yml'
 
 
-run-tests:
+Run tests:
   # Always run tests, except for tags, which have tests already run on
   # them when the commit is made.
   except:
@@ -41,7 +41,7 @@ run-tests:
     - .run-tests
 
 
-pre-commit:
+Pre-commit:
   # Always run linting, except for tags
   except:
     - tags
@@ -49,21 +49,21 @@ pre-commit:
     - .run-pre-commit
 
 
-upload-package:
+Upload package:
   only:
     - tags
   extends:
     - .upload-package
 
 
-deploy-to-pre-production:
-  # We don't want to risk resetting some on-going translation:
+Deploy to pre-production:
   environment: pre-production
+  # We don't want to risk resetting some on-going translation:
   when: manual
   extends:
     - .deploy
 
-  # This is sort of implicit, because the deployment process is basically `pip install -U wjs`
+  # The following is sort of implicit, because the deployment process is basically `pip install -U wjs`
   # needs:
   #   - upload-package
   # Also, if `only: - tags` is omitted, gitlab complains that
@@ -78,10 +78,14 @@ deploy-to-pre-production:
     DEPLOY_CMD: "deploy-pp-profile"
 
 
-deploy-to-production:
+Deploy to production:
   extends:
     - .deploy
-  when: manual
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: manual
+  allow_failure: true
   environment: production
   variables:
     SERVER_IP: "$PROD_SERVER_IP"
@@ -89,11 +93,18 @@ deploy-to-production:
     DEPLOY_CMD: "deploy-prod-profile"
 
 
-deploy-to-dev:
+Deploy to dev:
   extends:
     - .deploy
-  when: manual
   environment: dev
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    # The dev instance only deploys wjs-develop, so the job exists
+    # only in pipelines for that branch (no rule matches elsewhere).
+    - if: $CI_COMMIT_REF_NAME == "wjs-develop"
+      when: on_success
+  allow_failure: true
   variables:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
