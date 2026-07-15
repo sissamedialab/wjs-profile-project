@@ -58,19 +58,19 @@ Upload package:
 
 Deploy to pre-production:
   environment: pre-production
-  # We don't want to risk resetting some on-going translation:
-  when: manual
   extends:
     - .deploy
-
-  # The following is sort of implicit, because the deployment process is basically `pip install -U wjs`
-  # needs:
-  #   - upload-package
-  # Also, if `only: - tags` is omitted, gitlab complains that
-  # 'deploy-to-pre-production' job needs 'upload-package' job, but 'upload-package' is not in any previous stage
-  # only:
-  #   - tags
-
+  # Deploying to pp means installing the last released (uploaded) package,
+  # so the job only makes sense in tag pipelines, after "Upload package".
+  needs:
+    - Upload package
+  rules:
+    # Manual because we don't want to risk resetting some on-going translation:
+    - if: $CI_COMMIT_TAG
+      when: manual
+  # Do not block the pipeline waiting for the manual job
+  # (with `rules`, manual jobs default to allow_failure: false)
+  allow_failure: true
   variables:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
@@ -81,10 +81,13 @@ Deploy to pre-production:
 Deploy to production:
   extends:
     - .deploy
+  # Deploying to prod means installing the last released (uploaded) package,
+  # so the job only makes sense in tag pipelines, after "Upload package".
+  needs:
+    - Upload package
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: never
-    - when: manual
+    - if: $CI_COMMIT_TAG
+      when: manual
   allow_failure: true
   environment: production
   variables:
