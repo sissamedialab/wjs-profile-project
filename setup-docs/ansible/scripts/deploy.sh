@@ -29,7 +29,6 @@
 # The deploy matrix is:
 # - prod / pp: janeway is `git pull`ed from the wjs-production branch (only);
 #   the other packages are `pip install -U`ed from the package registry
-#   (pre-releases allowed only in pp, not in prod)
 # - dev: janeway is `git pull`ed from the wjs-develop branch (only);
 #   the other packages are pip-installed from git at wjs-develop
 # - t1-t5: like dev, but the caller must provide the commit SHA to deploy
@@ -89,22 +88,17 @@ function set_instance_variables() {
 
     # MODE says how the non-janeway packages are installed:
     # - "release": pip install from the package registry
-    #   (with pre-releases allowed when PIP_PRE is non-empty)
     # - "git": pip install from a git checkout at GIT_REF
     # GIT_REF is also the ref used to `git pull` janeway.
     case "$INSTANCE" in
         prod)
             SUFFIX=""
             MODE=release
-            PIP_PRE=""
             GIT_REF=wjs-production
             ;;
         pp)
             SUFFIX="-pp"
             MODE=release
-            # Permit install pre-release pkgs in pre-prod
-            # this allows us to test pkg install when needed.
-            PIP_PRE="yes please"
             GIT_REF=wjs-production
             ;;
         dev)
@@ -198,11 +192,7 @@ function deploy_package() {
         "$PIP" install --no-cache-dir "git+https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@${GITLAB_HOST}/wjs/${REPO}@${GIT_REF}#egg=${EGG}"
     else
         echo "Installing latest release of ${PIP_NAME}"
-        if [[ -z "$PIP_PRE" ]]; then
-            "$PIP" install -U "$PIP_NAME"
-        else
-            "$PIP" install --pre -U "$PIP_NAME"
-        fi
+        "$PIP" install -U "$PIP_NAME"
     fi
 
     if [[ -n "$POST_MANAGE" ]]; then
