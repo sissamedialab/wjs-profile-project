@@ -114,26 +114,10 @@ Deploy to dev:
     # The dev instance always deploys the wjs-develop branch (no ref accepted)
     DEPLOY_CMD: "deploy-dev-profile"
 
-# ======================
-# how to deploy to T1-T5
-# ======================
-# Option 1: set a CI variable
-# ===========================
-deploy-to-test:
-  # Deploy the current commit to one of the test instances (t1-t5).
-  # Override TEST_INSTANCE when launching this manual job to pick the instance.
-  # Warning! Be sure not to disrupt other peoples work 🙂
-  extends:
-    - .deploy
-  when: manual
-  variables:
-    SERVER_IP: "$TEST_SERVER_IP"
-    SERVER_USER: "$TEST_SERVER_USER"
-    TEST_INSTANCE: "t1"
-    DEPLOY_CMD: "deploy-${TEST_INSTANCE}-profile:${CI_COMMIT_SHA}"
 
-# Option 2: 5 jobs
-# ================
+# ======================
+# Deploy to T1-T5
+# ======================
 .deploy-to-test-template:
   extends:
     - .deploy
