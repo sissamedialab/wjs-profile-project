@@ -5055,17 +5055,22 @@ def test_rich_text_or_tex_validation(
     assert form.is_valid() == should_be_valid
 
 
-@pytest.mark.parametrize("special_request", ("some message", ""))
+@pytest.mark.parametrize(
+    "special_request,special_request_updated", (("some message", True), ("some message", False), ("", False))
+)
 @pytest.mark.django_db
-def test_submission_special_request(article: Article, review_settings, special_request: str):
+def test_submission_special_request(
+    article: Article, review_settings, special_request: str, special_request_updated: bool
+):
     """If ArticleSubmission.special_request is set, a notification is sent to EO."""
     article.submission_data.special_request = special_request
+    article.submission_data.special_request_updated = special_request_updated
     article.submission_data.save()
     Message.objects.all().delete()
     events_logic.Events.raise_event(
         SubmissionEvent.ON_ACCESS_MODE_SELECTION, article=article, submission_data=article.submission_data
     )
-    if special_request:
+    if special_request and special_request_updated:
         assert Message.objects.all().count() == 1
         message = Message.objects.all().get()
         assert "Access mode" in message.subject
