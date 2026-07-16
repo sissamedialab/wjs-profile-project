@@ -4846,7 +4846,7 @@ class AccessModeSpecialRequestNotification:
     submission_data: ArticleSubmission
 
     def _check_conditions(self):
-        return self.submission_data.special_request
+        return self.submission_data.special_request and self.submission_data.special_request_updated
 
     def _send_notification(self):
         """Log a message to the EO containing information about a special request related to access-mode."""
