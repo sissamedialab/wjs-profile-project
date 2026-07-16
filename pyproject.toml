@@ -40,6 +40,7 @@ ignore = [
   "TRY003",  # long message outside the exception class
   "EM102",  # Exception must not use an f-string literal, assign to variable first
   "TID252",  # Relative imports
+  "PLC1901",
 ]
 
 fixable = ["ALL"]

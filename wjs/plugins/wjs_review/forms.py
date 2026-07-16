@@ -807,18 +807,16 @@ class DecisionForm(forms.ModelForm):
         )
         return service
 
-    def save(self, commit: bool = True) -> ReviewAssignment:
+    def save(self, commit: bool = True) -> ArticleWorkflow:
         """
-        Change the state of the review using :py:class:`EvaluateReview`.
+        Apply the editor decision using :py:class:`logic.HandleDecision`.
 
-        Errors are added to the form if the logic fails.
+        Any ValueError/ValidationError raised by the logic is left to propagate: the calling
+        view's form_valid() catches it and adds it to the form as a non-field error (rendered
+        on the decision template). Handling it here as well would duplicate the message.
         """
-        try:
-            service = self.get_logic_instance()
-            service.run()
-        except ValidationError as e:
-            self.add_error(None, e)
-            raise
+        service = self.get_logic_instance()
+        service.run()
         self.instance.refresh_from_db()
         return self.instance
 

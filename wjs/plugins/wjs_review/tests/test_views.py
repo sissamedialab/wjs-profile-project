@@ -7,6 +7,7 @@ from core.models import Account
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core import mail
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponseRedirect, QueryDict
 from django.test.client import Client
 from django.urls import reverse
@@ -24,6 +25,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
+from ..forms import DecisionForm
 from ..logic import AssignToEditor, HandleDecision, HandleEditorDeclinesAssignment
 from ..models import (
     ArticleWorkflow,
@@ -1533,3 +1535,64 @@ def test_article_details_no_redirect(
     response = view.get(fake_request, pk=article.articleworkflow.pk)
     assert not isinstance(response, HttpResponseRedirect)
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_article_decision_triggered_twice_is_serialized(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+):
+    """HandleDecision serializes concurrent decisions via a row lock instead of storing a duplicate.
+
+    When two requests reach ArticleDecision before the first one commits (e.g. a double click,
+    or two concurrent/manual requests), both load the workflow while it is still in
+    EDITOR_SELECTED (the state ArticleDecision.get_queryset() filters on) and both build a valid
+    DecisionForm. The first form.save() runs HandleDecision and stores the decision, moving the
+    article out of EDITOR_SELECTED. The second form still holds a stale workflow (EDITOR_SELECTED
+    in memory), so it is valid; but HandleDecision.run() locks the workflow row with
+    select_for_update() and re-reads the current state, so check_conditions() now fails and a
+    ValidationError is raised instead of a duplicate EditorDecision violating the unique
+    constraint on (workflow, review_round, decision).
+    """
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    fake_request.user = editor
+
+    workflow_pk = assigned_article.articleworkflow.pk
+    # Two requests arriving in rapid succession both load the workflow while it is still
+    # EDITOR_SELECTED, before either decision is committed.
+    workflow_first = ArticleWorkflow.objects.get(pk=workflow_pk)
+    workflow_second = ArticleWorkflow.objects.get(pk=workflow_pk)
+
+    def build_decision_form(workflow: ArticleWorkflow) -> DecisionForm:
+        # Build the form the same way ArticleDecision.get_form_kwargs() does.
+        return DecisionForm(
+            data={
+                "decision": ArticleWorkflow.Decisions.ACCEPT,
+                "decision_editor_report": "Accepting the paper",
+            },
+            instance=workflow,
+            user=editor,
+            request=fake_request,
+            initial={"decision": ArticleWorkflow.Decisions.ACCEPT},
+            has_pending_reviews=False,
+        )
+
+    # First request: the decision is stored and the article leaves EDITOR_SELECTED.
+    form_first = build_decision_form(workflow_first)
+    assert form_first.is_valid(), form_first.errors
+    form_first.save()
+    workflow_first.refresh_from_db()
+    # Remember the automatic jump from ACCEPTED to READY_FOR_TYPESETTER
+    assert workflow_first.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
+    assert EditorDecision.objects.filter(workflow=assigned_article.articleworkflow).count() == 1
+
+    # Second request: the form is still valid because its workflow is stale (EDITOR_SELECTED
+    # in memory), so the form-level guards don't catch it.
+    form_second = build_decision_form(workflow_second)
+    assert form_second.is_valid(), form_second.errors
+
+    # But HandleDecision.run() locks the row and re-reads the fresh state, so check_conditions()
+    # fails: a ValidationError is raised and no duplicate EditorDecision is stored.
+    with pytest.raises(ValidationError):
+        form_second.save()
+    assert EditorDecision.objects.filter(workflow=assigned_article.articleworkflow).count() == 1
