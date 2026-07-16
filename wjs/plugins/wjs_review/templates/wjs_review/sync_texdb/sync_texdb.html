@@ -1,23 +1,102 @@
 {% extends "wjs_review/base/base.html" %}
 {% load django_bootstrap5 i18n %}
-{% block bootstrap5_extra_head %}
-  {{ block.super }}
-  <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
-{% endblock bootstrap5_extra_head %}
 {% block content_wrapper %}
   {% translate "Update" as update_label %}
   <div class="container mb-3">
     <h1 class="page-title">{{ view.title }}</h1>
+    <hr>
+    <!-- LANGUAGE -->
     <div>
-      <p>
-        {% translate "Ensure metadata coherence between TeX and DB: if the metadata differ, you can update the DB values with value taken from the TeX source." %}
-      </p>
+      <div>
+        <p>
+          {% translate "Language extracted from the TeX source. The submit button is enabled only when the TeX language is known to Janeway and different from the DB one." %}
+        </p>
+      </div>
+      <div class="d-flex flex-column justify-content-between">
+        <form name="sync_language" method="post">
+          {% csrf_token %}
+          {% bootstrap_form form_language %}
+          <button type="submit"
+                  class="btn btn-primary"
+                  value="1"
+                  {% if form_language.errors or not form_language.should_sync %}disabled{% endif %}>
+            {{ update_label }}
+          </button>
+        </form>
+      </div>
     </div>
-    <div class="d-flex flex-column justify-content-between">
-      {% include "wjs_review/sync_texdb/titleabstract.html" %}
-      {% include "wjs_review/sync_texdb/keywords.html" %}
-      {% include "wjs_review/sync_texdb/authors.html" %}
+    <hr>
+    <!-- TITLE AND ABSTRACT -->
+    <div>
+      <div>
+        <p>
+          {% translate "Title and abstract extracted from the TeX source. The submit button is enabled only when the values are different from the DB ones." %}
+        </p>
+      </div>
+      <div class="d-flex flex-column justify-content-between">
+        <form name="sync_titleabstract" method="post">
+          {% csrf_token %}
+          {% bootstrap_form form_titleabstract %}
+          <button type="submit"
+                  class="btn btn-primary"
+                  value="1"
+                  {% if form_titleabstract.errors or not form_titleabstract.should_sync %}disabled{% endif %}>
+            {{ update_label }}
+          </button>
+        </form>
+      </div>
+      {% if abstract_diff_html %}
+        <style>
+          .abstract-diff ins { background-color: #d1e7dd; text-decoration: none; }
+          .abstract-diff del { background-color: #f8d7da; }
+        </style>
+        <div class="mt-3">
+          <p>{% translate "Differences between the DB abstract (strikethrough) and the TeX one (highlighted):" %}</p>
+          <div class="abstract-diff border rounded p-2">{{ abstract_diff_html|safe }}</div>
+        </div>
+      {% endif %}
+    </div>
+    <hr>
+    <!-- LICENSE -->
+    <div>
+      <div>
+        <p>
+          {% translate "License extracted from the TeX source. The submit button is enabled only when the TeX license matches the DB one." %}
+        </p>
+      </div>
+      <div class="d-flex flex-column justify-content-between">
+        <form name="sync_license" method="post">
+          {% csrf_token %}
+          {% bootstrap_form form_license %}
+          <button type="submit"
+                  class="btn btn-primary"
+                  value="1"
+                  {% if form_license.errors or not form_license.should_sync %}disabled{% endif %}>
+            {{ update_label }}
+          </button>
+        </form>
+      </div>
+    </div>
+    <hr>
+    <div>TODO: RIGHTS</div>
+    <hr>
+    <div>TODO: ARXIV</div>
+    <hr>
+    <div>TODO: FUNDERS</div>
+    <hr>
+    <div>TODO: CAS/DAS</div>
+    <hr>
+    <!-- KEYWORDS -->
+    <div>
+      <div>
+        <p>{% translate "Keywords" %}</p>
+      </div>
+      <div>{% include "wjs_review/sync_texdb/keywords.html" %}</div>
+    </div>
+    <hr>
+    <!-- AUTHORS -->
+    <div>
+      <div>{% include "wjs_review/sync_texdb/authors.html" %}</div>
     </div>
   </div>
   <div class="container mb-3">{% include "wjs_review/base/elements/back.html" with workflow=workflow %}</div>

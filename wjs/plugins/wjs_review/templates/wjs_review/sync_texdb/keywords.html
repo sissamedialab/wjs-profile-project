@@ -31,14 +31,15 @@
         {% endif %}
       </div>
     </div>
-    {% if form_kwds %}
-      <form name="sync_keywords" method="post">
-        {% csrf_token %}
-        {% bootstrap_form form_kwds %}
-        {% bootstrap_button button_type="submit" value=1 content=update_label %}
-      </form>
-    {% else %}
-      <p>{% translate "Keywords are identical. Nothing to do." %}</p>
-    {% endif %}
+    <form name="sync_keywords" method="post">
+      {% csrf_token %}
+      {% bootstrap_form form_keywords %}
+      <button type="submit"
+              class="btn btn-primary"
+              value="1"
+              {% if form_keywords.errors or not form_keywords.should_sync %}disabled{% endif %}>
+        {{ update_label }}
+      </button>
+    </form>
   </div>
 </div>

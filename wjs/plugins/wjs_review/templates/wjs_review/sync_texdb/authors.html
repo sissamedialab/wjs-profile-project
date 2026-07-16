@@ -89,18 +89,17 @@
       </div>
     </div>
     <div>
-      {% if form_authors and not authors_errors %}
-        <form name="sync_keywords" method="post">
-          {% csrf_token %}
-          {% bootstrap_form form_authors %}
-          {% bootstrap_button button_type="submit" value=1 content=update_label %}
-        </form>
-      {% elif authors_errors %}
-        {% for error in authors_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
-        <p>{% translate "Update not possible." %}</p>
-      {% else %}
-        <p>{% translate "Authors are identical. Nothing to do." %}</p>
-      {% endif %}
+      {# NB: the authors-errors are registered as non-field form errors, so bootstrap_form shows them #}
+      <form name="sync_authors" method="post">
+        {% csrf_token %}
+        {% bootstrap_form form_authors %}
+        <button type="submit"
+                class="btn btn-primary"
+                value="1"
+                {% if form_authors.errors or not form_authors.should_sync %}disabled{% endif %}>
+          {{ update_label }}
+        </button>
+      </form>
     </div>
   </div>
 </div>
