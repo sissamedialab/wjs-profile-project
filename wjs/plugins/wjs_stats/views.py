@@ -1,9 +1,14 @@
 """Views."""
 
 import calendar
+import json
+import subprocess
 from collections import namedtuple
 from datetime import timedelta
+from importlib import metadata as importlib_metadata
 from io import BytesIO
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 import requests
 from core.models import AccountRole
@@ -41,6 +46,131 @@ try:
     from plugins.wjs_review.models import ArticleWorkflow
 except ImportError:
     logger.warning("Plugin wjs-review not installed. Some stats not available; some links might break!")
+
+# All "wjs" projects live in a single group in our forge.
+WJS_FORGE_BASE_URL = "https://gitlab.sissamedialab.it/wjs"
+
+
+def _run_git(directory, *args):
+    """Run a git command inside ``directory`` and return its stripped stdout (or None on failure)."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(directory), *args],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def _find_git_root(path):
+    """Walk up from ``path`` until a directory containing a ``.git`` is found."""
+    if path is None:
+        return None
+    path = Path(path)
+    if path.is_file():
+        path = path.parent
+    for candidate in (path, *path.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _forge_project_from_url(url):
+    """Extract the forge project name (last path component) from a git/forge URL on our forge."""
+    if not url or "gitlab.sissamedialab.it" not in url:
+        return None
+    url = url.strip()
+    if url.endswith(".git"):
+        url = url[: -len(".git")]
+    return url.rstrip("/").split("/")[-1] or None
+
+
+def _wjs_package_info(dist):
+    """Collect version and (git) commit information for a single installed distribution.
+
+    We rely on PEP 610 ``direct_url.json`` metadata (written by pip):
+    - packages installed from a VCS ref carry the ``commit_id`` directly;
+    - editable installs (``pip install -e``) only record the source directory, so we ask
+      git for the currently checked-out commit (this reflects the code actually running).
+    """
+    name = dist.metadata["Name"]
+    info = {
+        "name": name,
+        "version": dist.version,
+        "editable": False,
+        "sha": None,
+        "short_sha": None,
+        "dirty": False,
+        "project": None,
+        "commit_url": None,
+        "source": None,
+    }
+
+    vcs_info = None
+    dir_url = None
+    raw = dist.read_text("direct_url.json")
+    if raw:
+        data = json.loads(raw)
+        vcs_info = data.get("vcs_info")
+        info["editable"] = bool(data.get("dir_info", {}).get("editable"))
+        url = data.get("url", "") or ""
+        if url.startswith("file://"):
+            dir_url = Path(unquote(urlparse(url).path))
+
+    if vcs_info and vcs_info.get("commit_id"):
+        # Non-editable install pinned to a VCS commit: pip recorded the sha for us.
+        info["sha"] = vcs_info["commit_id"]
+        info["project"] = _forge_project_from_url(data.get("url"))
+    else:
+        # Editable (or otherwise local) install: query the working copy directly.
+        candidate = dir_url
+        if candidate is None:
+            try:
+                candidate = Path(dist.locate_file("")).resolve()
+            except Exception:  # noqa: BLE001 - metadata layout is not guaranteed
+                candidate = None
+        git_root = _find_git_root(candidate)
+        if git_root:
+            info["source"] = str(git_root)
+            info["sha"] = _run_git(git_root, "rev-parse", "HEAD")
+            info["dirty"] = bool(_run_git(git_root, "status", "--porcelain"))
+            info["project"] = _forge_project_from_url(_run_git(git_root, "remote", "get-url", "origin"))
+
+    if info["sha"]:
+        info["short_sha"] = info["sha"][:12]
+        if info["project"]:
+            info["commit_url"] = f"{WJS_FORGE_BASE_URL}/{info['project']}/-/commit/{info['sha']}"
+
+    return info
+
+
+def get_wjs_packages():
+    """Return info about every installed distribution whose name starts with "wjs".
+
+    Similar to ``pip freeze | grep wjs``, but resolving the actual commit sha of the
+    installed (possibly editable) code and a link to the commit page on the forge.
+    """
+    seen = set()
+    packages = []
+    for dist in importlib_metadata.distributions():
+        name = dist.metadata["Name"] or ""
+        if not name.lower().startswith("wjs"):
+            continue
+        info = _wjs_package_info(dist)
+        # The same distribution can be discovered more than once (e.g. a stale egg-info
+        # alongside a site-packages entry); collapse identical rows.
+        key = (info["name"], info["sha"], info["source"])
+        if key in seen:
+            continue
+        seen.add(key)
+        packages.append(info)
+    return sorted(packages, key=lambda p: p["name"].lower())
 
 
 class Manager(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -640,4 +770,21 @@ class OrcidsStatsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             },
         )
 
+        return context
+
+
+class PackageVersionsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Show the installed versions and commit shas of all "wjs" packages (à la ``pip freeze | grep wjs``)."""
+
+    template_name = "wjs_stats/package_versions.html"
+
+    def test_func(self):
+        """Verify that only staff can see installed package versions."""
+        return self.request.user.is_staff
+
+    def get_context_data(self, **kwargs):
+        """Add the list of installed "wjs" packages."""
+        context = super().get_context_data(**kwargs)
+        context["packages"] = get_wjs_packages()
+        context["forge_base_url"] = WJS_FORGE_BASE_URL
         return context
