@@ -10,7 +10,6 @@ import datetime
 import shutil
 import tarfile
 import tempfile
-import time
 import uuid
 import xml.etree.ElementTree as ET  # noqa
 from copy import copy
@@ -2397,11 +2396,20 @@ class HandleDecision:
             return workflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
 
     def check_conditions(self) -> bool:
-        """Check if the conditions for the decision are met."""
-        editor_has_permissions = self.check_editor_conditions(self.workflow, self.user, self.admin_form)
-        article_state = self.check_article_conditions(self.workflow, self.admin_form)
-        handler_exists = self.form_data["decision"] in self._decision_handlers
-        return editor_has_permissions and article_state and handler_exists
+        """
+        Check if the conditions for the decision are met.
+
+        Raise:
+        - ValidationError on the first unmet condition.
+
+        """
+        if not self.check_editor_conditions(self.workflow, self.user, self.admin_form):
+            raise ValidationError(_("You cannot perform this action on this paper"))
+        if not self.check_article_conditions(self.workflow, self.admin_form):
+            raise ValidationError(_("Article not in the correct state. Please reload the status page."))
+        if not self.form_data["decision"] in self._decision_handlers:
+            raise ValidationError(_("Invalid action. Please reload the status page."))
+        return True
 
     def _trigger_article_event(self, event: str, context: dict[str, Any]):
         """Trigger the given event."""
@@ -2788,7 +2796,6 @@ class HandleDecision:
         context = self._get_message_context(revision)
         self._withdraw_unfinished_review_requests(email_context=context)
         self._trigger_article_event(events_logic.Events.ON_REVISIONS_REQUESTED_NOTIFY, context)
-        time.sleep(0.2)
         if self.form_data["decision"] in [
             ArticleWorkflow.Decisions.MINOR_REVISION,
             ArticleWorkflow.Decisions.MAJOR_REVISION,
@@ -2922,9 +2929,13 @@ class HandleDecision:
 
     def run(self) -> EditorDecision:
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
-                raise ValidationError(_("Decision conditions not met"))
+            # Lock the workflow row and re-read its current state, to serialize concurrent decisions
+            # (e.g. double-clicks or two requests in rapid succession). Without this, both requests
+            # can load the workflow while it is still EDITOR_SELECTED, both pass check_conditions()
+            # on their stale in-memory state, and the second one stores a duplicate EditorDecision,
+            # violating the unique constraint on (workflow, review_round, decision).
+            self.workflow = ArticleWorkflow.objects.select_for_update().get(pk=self.workflow.pk)
+            self.check_conditions()
             decision = self._store_decision()
             self._handle_latex_pdf(decision)
             self._mark_send_review_file()

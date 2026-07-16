@@ -20,6 +20,7 @@
           <h4 class="ms-2">{{ workflow.article.pk }}</h4>
         </div>
         <div class="card-body">
+          {% bootstrap_form_errors form type="non_fields" %}
           <div class="title-area mb-3">
             <h5>{% translate "Title" %}</h5>
             {{ workflow.article.title }}
