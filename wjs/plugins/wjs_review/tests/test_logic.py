@@ -72,6 +72,7 @@ from ..logic import (  # WithdrawPreprint,
     AdminActions,
     AssignToEditor,
     AssignToReviewer,
+    AuthorHandleRevision,
     AuthorHandleRevisionObsolete,
     CreateReviewRound,
     DeselectReviewer,
@@ -3312,7 +3313,7 @@ def test_handle_editor_decision_check_conditions(
         user=jcom_user,
         request=fake_request,
     )
-    with pytest.raises(ValidationError, match="Decision conditions not met"):
+    with pytest.raises(ValidationError, match="You cannot perform this action on this paper"):
         handle.run()
     assigned_article.refresh_from_db()
     assert assigned_article.stage == submission_models.STAGE_UNDER_REVIEW
@@ -4366,21 +4367,25 @@ def test_author_submits_after_appeal(under_appeal_article: Article, fake_request
     """An author can submit a new version after an appeal."""
     fake_request.user = under_appeal_article.correspondence_author
 
-    revision_request = EditorRevisionRequest.objects.get(article=under_appeal_article)
     assignment = WjsEditorAssignment.objects.get_current(article=under_appeal_article)
-    form_data = {
-        "author_note": "author_note",
-        "confirm_title": "on",
-        "confirm_styles": "on",
-        "confirm_blind": "on",
-        "confirm_cover": "on",
-    }
 
-    service = AuthorHandleRevisionObsolete(
-        revision=revision_request,
-        form_data=form_data,
-        user=fake_request.user,
+    # Setup the RevisionStorage (mimics the wjs_submission revision flow); the author's
+    # data is collected in the step-forms before AuthorHandleRevision is run.
+    revision_start_view = RevisionStartConfirmView()
+    revision_start_view._init_revision_flow(article_id=under_appeal_article.pk)
+
+    rs = RevisionStorage.objects.get(article=under_appeal_article)
+    rs.data.update(
+        {
+            "comments_editor": "author_note",
+            "submission_requirements": True,
+        },
+    )
+    rs.save()
+
+    service = AuthorHandleRevision(
         request=fake_request,
+        article=under_appeal_article,
     )
     service.run()
     under_appeal_article.refresh_from_db()

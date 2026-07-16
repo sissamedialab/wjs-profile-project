@@ -276,6 +276,7 @@ def _under_appeal_article(
     fake_request.user = eo_user.janeway_account
 
     OpenAppeal(section_editor, article, fake_request).run()
+    article.articleworkflow.refresh_from_db()
     assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.UNDER_APPEAL
     if cleanup_side_effects:
         cleanup_notifications_side_effects()
