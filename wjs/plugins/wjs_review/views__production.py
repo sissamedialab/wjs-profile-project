@@ -1,11 +1,7 @@
 """Views related to typesetting/production."""
 
-import difflib
-import re
 from typing import TYPE_CHECKING, List
 
-import pycountry
-import requests
 from core.models import File, SupplementaryFile
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -15,7 +11,6 @@ from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.template import RequestContext
 from django.urls import reverse, reverse_lazy
-from django.utils import translation
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, FormView, TemplateView, UpdateView, View
 from django_fsm import has_transition_perm
@@ -31,9 +26,6 @@ from .forms__production import (
     EOSendBackToTypesetterForm,
     EsmFileForm,
     SectionOrderForm,
-    SyncAuthorsForm,
-    SyncKwdsForm,
-    SyncTitleForm,
     TypesetterUploadFilesForm,
     UploadAnnotatedFilesForm,
 )
@@ -48,7 +40,6 @@ from .logic__production import (
     AuthorSendsCorrections,
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
-    MetadataFromTeX,
     ReadyForPublication,
     RequestProofs,
     TogglePublishableFlag,
@@ -61,7 +52,6 @@ from .permissions import (
     is_article_author,
     is_article_supervisor,
     is_article_typesetter,
-    is_article_typesetter_or_eo,
 )
 from .states import BaseState
 from .views import ArticleWorkflowBaseMixin, BaseRelatedViewsMixin
@@ -781,218 +771,3 @@ class FinishPublicationView(AuthenticatedUserPassesTest, UpdateView):
             message=_("Galley generation started - You will receive an email after it is completed."),
         )
         return HttpResponseRedirect(self.object.article.url)
-
-
-class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
-    """View allowing sync of paper metadata between TeX and DB."""
-
-    model = ArticleWorkflow
-    title = _("Sync TeX and DB")
-    template_name = "wjs_review/sync_texdb/sync_texdb.html"
-    context_object_name = "workflow"
-
-    def test_func(self):
-        """Only typs can do."""
-        self.object = self.get_object()
-        return is_article_typesetter_or_eo(self.object, self.request.user)
-
-    @property
-    def breadcrumbs(self) -> list["BreadcrumbItem"]:
-        from .custom_types import BreadcrumbItem
-
-        return [
-            BreadcrumbItem(url=reverse("wjs_article_details", kwargs={"pk": self.object.pk}), title=self.object),
-            BreadcrumbItem(url=self.request.path, title=self.title, current=True),
-        ]
-
-    def get_success_url(self):
-        """Point back here."""
-        return self.request.path
-
-    def get(self, request, *args, **kwargs):
-        """
-        Deal with possible exceptions while building the context data.
-
-        The process is delicate because it involves extracting data from the tex sources, which can fail in many ways.
-        """
-        typesetting_assignment = self.verify_available_typesetting_assignment()
-        if not typesetting_assignment:
-            # if no typsetting assignment is available, we redirect to article details and show the message
-            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
-        try:
-            context = self.get_context_data(object=self.object)
-        except FileNotFoundError as e:
-            messages.add_message(self.request, messages.ERROR, e)
-            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
-        except requests.exceptions.HTTPError as e:
-            messages.add_message(self.request, messages.ERROR, e)
-            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
-        except ValueError as e:
-            # Raised when, for instance, a kwd from the TeX does not exist in the DB
-            # or TeX and DB have different language
-            messages.add_message(self.request, messages.ERROR, e)
-            return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
-        else:
-            return self.render_to_response(context)
-
-    def verify_available_typesetting_assignment(self) -> bool:
-        """
-        Add a warning if the TeX sources are not taken from the latest production version.
-
-        :return: True if the latest TypesettingAssignment is available, False otherwise
-        :rtype: bool
-        """
-        latest_ta = self.object.get_latest_typesetting_assignment(only_completed=False)
-        latest_ta_with_sources = (
-            TypesettingAssignment.objects.filter(
-                round__article=self.object.article,
-                files_to_typeset__isnull=False,
-            )
-            .order_by("-round__round_number")
-            .first()
-        )
-        if not latest_ta:
-            messages.add_message(self.request, messages.ERROR, "Error: not current TypesettingAssignment is available")
-            return False
-        elif not latest_ta_with_sources:
-            messages.add_message(
-                self.request, messages.ERROR, "Error: not TypesettingAssignment with sources is available"
-            )
-            return False
-        elif latest_ta != latest_ta_with_sources:
-            messages.add_message(
-                self.request,
-                messages.WARNING,
-                f"Warning: you are working on sources from v.{latest_ta_with_sources.round.round_number},"
-                f" that is not the lastest version (v.{latest_ta.round.round_number})",
-            )
-        return True
-
-    def get_context_data(self, **kwargs):
-        """Prepare forms and context for three different blocks of metadata."""
-        context = super().get_context_data(**kwargs)
-        tex_data = MetadataFromTeX(self.object).get_data()
-        context.update(self._get_titleabstract_context(tex_data))
-        context.update(self._get_keywords_context(tex_data))
-        context.update(self._get_authors_context(tex_data))
-        return context
-
-    def post(self, request, *args, **kwargs):
-        """
-        Perform the appropriate metadata update, given the submitted form.
-
-        All forms will post here:
-        - title and abstract
-        - keywords
-        - authors
-        """
-        self.object = self.get_object()
-        # TODO: refactor out of this view; see also wjs/specs#1885
-        actions = {
-            "sync_title": {
-                "callable": MetadataFromTeX(self.object).update_titleabstract,
-                "message": _("Title and abstract synchronized."),
-            },
-            "sync_keywords": {
-                "callable": MetadataFromTeX(self.object).update_keywords,
-                "message": _("Keywords synchronized."),
-            },
-            "sync_authors": {
-                "callable": MetadataFromTeX(self.object).update_authors,
-                "message": _("Authors synchronized."),
-            },
-            None: {
-                "message": _("No se pol! Come te son rivà qua?!?"),
-                "message_type": messages.ERROR,
-            },
-        }
-        action = actions.get(request.POST.get("action")) or actions[None]
-        if "callable" in action:
-            action["callable"]()
-        if "message" in action:
-            messages.add_message(
-                request,
-                action.get("message_type", messages.SUCCESS),
-                action["message"],
-            )
-        return HttpResponseRedirect(self.get_success_url())
-
-    def _get_titleabstract_context(self, tex_data: dict) -> dict:
-        """Return context info related to title and abstract."""
-        # Note that db abstract is wrapped with <p> by the TinyMCE widget...
-
-        lang = pycountry.languages.get(alpha_3=self.object.article.language).alpha_2
-        with translation.override(lang):
-            title_db = self.object.article.title
-            abstract_db = re.sub(
-                r"^<p>",
-                "",
-                # note that errata and such might not have an abstract
-                self.object.article.abstract or "",
-            )
-        abstract_db = re.sub(r"</p>$", "", abstract_db)
-        # ...and tex abstract can have newlines here and there
-        # se we used the adapted version:
-        abstract_tex = tex_data.get("abstract_adapted")
-
-        context = {
-            "title_db": title_db,
-            "title_tex": tex_data.get("title"),
-            "abstract_db": abstract_db,
-            "abstract_tex": abstract_tex,
-        }
-
-        # Include diff-like display of the abstract
-        # see also https://github.com/rtfpessoa/diff2html
-        if abstract_tex != abstract_db:
-            diff = difflib.unified_diff(
-                abstract_tex.splitlines(),
-                abstract_db.splitlines(),
-                fromfile="TeX",
-                tofile="DB",
-                lineterm="",
-            )
-            context["diff_abstract"] = "\n".join(diff)
-
-        # Add the form only if necessary
-        if context["title_tex"] != context["title_db"] or context["abstract_tex"] != context["abstract_db"]:
-            context["form_title"] = SyncTitleForm()
-
-        return context
-
-    def _get_keywords_context(self, tex_data: dict) -> dict:
-        """Return context info related to kwds."""
-        # Remember that tex_data holds kwds as QuerySets!
-        context = {
-            "kwds_tex": tex_data["kwds_tex"],
-            "kwds_db": tex_data["kwds_db"],
-        }
-        if tex_data["kwds_db_raw"].count() != tex_data["kwds_tex"].count():
-            context["kwds_db_raw"] = tex_data["kwds_db_raw"]
-
-        # Add the form only if necessary
-        if (
-            list(tex_data["kwds_db"].values_list("id", flat=True))
-            != list(tex_data["kwds_tex"].values_list("id", flat=True))
-            or "kwds_db_raw" in context
-        ):
-            context["form_kwds"] = SyncKwdsForm()
-
-        return context
-
-    def _get_authors_context(self, tex_data: dict) -> dict:
-        context = {
-            "authors_tex": tex_data.get("authors_data"),
-            # Do not just use article.authors.all() because the order is not guaranteed:
-            "authors_db": tex_data.get("authors_db"),
-            "authors_map": tex_data.get("authors_map"),
-            "authors_errors": tex_data.get("authors_errors"),
-        }
-
-        # Add the form only if  possible and necessary
-        if not tex_data.get("authors_errors") and list(tex_data.get("authors_db").values_list("id", flat=True)) != [
-            a.account_id for a in tex_data.get("authors_map")
-        ]:
-            context["form_authors"] = SyncAuthorsForm()
-
-        return context

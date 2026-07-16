@@ -332,21 +332,3 @@ class SectionOrderForm(forms.Form):
             return self.move_up(self.cleaned_data.get("up"))
         elif self.cleaned_data.get("down"):
             return self.move_down(self.cleaned_data.get("down"))
-
-
-class SyncTitleForm(forms.Form):
-    """Form used to receive the green-light to synchronize the title between TeX and DB."""
-
-    action = forms.CharField(widget=forms.HiddenInput(), initial="sync_title")
-
-
-class SyncKwdsForm(forms.Form):
-    """Form used to receive the green-light to synchronize the kwds between TeX and DB."""
-
-    action = forms.CharField(widget=forms.HiddenInput(), initial="sync_keywords")
-
-
-class SyncAuthorsForm(forms.Form):
-    """Form used to receive the green-light to synchronize the authors between TeX and DB."""
-
-    action = forms.CharField(widget=forms.HiddenInput(), initial="sync_authors")

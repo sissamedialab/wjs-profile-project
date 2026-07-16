@@ -4,7 +4,6 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 from typing import Callable, List, Optional
-from unittest import mock
 from unittest.mock import patch
 
 import freezegun
@@ -28,7 +27,13 @@ from django.utils.timezone import localtime, now
 from events import logic as events_logic
 from faker import Faker
 from journal import models as journal_models
-from plugins.wjs_review.logic__production import MetadataFromTeX, reunite_divided_kwds
+from plugins.wjs_review.logic__production import reunite_divided_kwds
+from plugins.wjs_review.synctex.forms import (
+    SyncAuthorsForm,
+    SyncKeywordsForm,
+    SyncTitleAbstractForm,
+)
+from plugins.wjs_review.synctex.logic import MetadataFromTeX
 from plugins.wjs_submission.models import RevisionStorage
 from plugins.wjs_submission.revision import RevisionStartConfirmView
 from plugins.wjs_submission.step8.views import SubmissionStep8View
@@ -4673,13 +4678,14 @@ def test_reunite_divided_kwds(
 
 
 @pytest.mark.django_db
-def test_metadatafromtex_get_data(
+def test_sync_forms_enrichment(
     article_with_keywords: Article,
 ):
     """
-    Document assumptions and basic working of MetadataFromTeX service.
+    Document assumptions and basic working of the sync forms.
 
-    MetadataFromTeX pre-processe data received from JA, and expects an article to have at least
+    The sync forms pre-process the data received from JA (via MetadataFromTeX), and expect an
+    article to have at least
     - some authors
     - some kwds
     - an abstract
@@ -4687,8 +4693,8 @@ def test_metadatafromtex_get_data(
     """
     article = article_with_keywords
     author = article.owner
-    service = MetadataFromTeX(workflow=article.articleworkflow)
-    mock_data = {
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
         "language": "eng",
         "abstract": "a\nb",
         "keywords": list(article.keywords.all().values_list("word", flat=True)),
@@ -4702,38 +4708,40 @@ def test_metadatafromtex_get_data(
             },
         ],
     }
-    with mock.patch.object(service, "get_raw_data", return_value=mock_data):
-        data = service.get_data()
-        assert data["abstract_adapted"] == "a b"
 
-        # Interesting fact: the system does not fail even if the authors are not ordered
-        #                   but, of course, the order is not guaranteed
-        assert set(
-            data["authors_db"].values_list("id", flat=True),
-        ) == set(
-            article.author_accounts.all().values_list("id", flat=True),
-        )
-        assert len(data["authors_errors"]) == 0
-        assert len(data["authors_map"]) == 1
-        assert data["authors_map"][0].account_id == author.pk
-        assert not data["authors_map"][0].similar_accounts
-        assert not data["authors_map"][0].must_be_created
+    form_titleabstract = SyncTitleAbstractForm(texdata, data={"action": "sync_titleabstract"})
+    assert form_titleabstract.tex_abstract == "a b"
 
-        assert list(
-            data["kwds_db"].values_list("id", flat=True),
-        ) == list(
-            data["kwds_db_raw"].values_list("id", flat=True),
-        )
-        assert list(
-            data["kwds_db"].values_list("id", flat=True),
-        ) == list(
-            data["kwds_tex"].values_list("id", flat=True),
-        )
-        assert list(
-            data["kwds_db"].values_list("id", flat=True),
-        ) == list(
-            article.keywords.all().values_list("id", flat=True),
-        )
+    form_authors = SyncAuthorsForm(texdata, data={"action": "sync_authors"})
+    # Interesting fact: the system does not fail even if the authors are not ordered
+    #                   but, of course, the order is not guaranteed
+    assert set(
+        form_authors.authors_db.values_list("id", flat=True),
+    ) == set(
+        article.author_accounts.all().values_list("id", flat=True),
+    )
+    assert len(form_authors.authors_errors) == 0
+    assert len(form_authors.authors_map) == 1
+    assert form_authors.authors_map[0].account_id == author.pk
+    assert not form_authors.authors_map[0].similar_accounts
+    assert not form_authors.authors_map[0].must_be_created
+
+    form_keywords = SyncKeywordsForm(texdata, data={"action": "sync_keywords"})
+    assert list(
+        form_keywords.kwds_db.values_list("id", flat=True),
+    ) == list(
+        form_keywords.kwds_db_raw.values_list("id", flat=True),
+    )
+    assert list(
+        form_keywords.kwds_db.values_list("id", flat=True),
+    ) == list(
+        form_keywords.kwds_tex.values_list("id", flat=True),
+    )
+    assert list(
+        form_keywords.kwds_db.values_list("id", flat=True),
+    ) == list(
+        article.keywords.all().values_list("id", flat=True),
+    )
 
 
 @pytest.mark.django_db
@@ -4760,9 +4768,9 @@ def test_sync_texdb_keyword_order_lang(
 
     # list with keywords in mixed order
     new_kwds_mixed_order = [kwds[2].word_es, kwds[0].word_es, kwds[1].word_es]
-    service = MetadataFromTeX(workflow=article.articleworkflow)
     author = article.owner
-    mock_data = {
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
         "language": "spa",
         "title": article.title,
         "abstract": article.abstract,
@@ -4780,13 +4788,13 @@ def test_sync_texdb_keyword_order_lang(
             },
         ],
     }
-    with mock.patch.object(service, "get_raw_data", return_value=mock_data):
-        service.update_keywords()
-        article.refresh_from_db()
-        assert article.keywords.all().count() == 3
-        # verify that the update has kept the tex keywords order
-        for i, key in enumerate(article.keywords.all()):
-            assert key.word_es == new_kwds_mixed_order[i]
+    form = SyncKeywordsForm(texdata, data={"action": "sync_keywords"})
+    form.sync()
+    article.refresh_from_db()
+    assert article.keywords.all().count() == 3
+    # verify that the update has kept the tex keywords order
+    for i, key in enumerate(article.keywords.all()):
+        assert key.word_es == new_kwds_mixed_order[i]
 
 
 @pytest.mark.django_db
@@ -4806,8 +4814,8 @@ def test_sync_texdb(
 
     author = article.owner
     new_keyword = article.journal.keywords.first()
-    service = MetadataFromTeX(workflow=article.articleworkflow)
-    mock_data = {
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
         "language": "eng",
         "title": "new title",
         "abstract": "new abstract",
@@ -4824,19 +4832,21 @@ def test_sync_texdb(
             },
         ],
     }
-    with mock.patch.object(service, "get_raw_data", return_value=mock_data):
-        service.update_titleabstract()
-        article.refresh_from_db()
-        assert article.title == "new title"
-        assert article.abstract == "new abstract"
+    form = SyncTitleAbstractForm(texdata, data={"action": "sync_titleabstract"})
+    form.sync()
+    article.refresh_from_db()
+    assert article.title == "new title"
+    assert article.abstract == "new abstract"
 
-        service.update_authors()
-        article.refresh_from_db()
-        assert set(article.author_accounts.all().values_list("id", flat=True)) == {author.pk}
+    form = SyncAuthorsForm(texdata, data={"action": "sync_authors"})
+    form.sync()
+    article.refresh_from_db()
+    assert set(article.author_accounts.all().values_list("id", flat=True)) == {author.pk}
 
-        service.update_keywords()
-        article.refresh_from_db()
-        assert set(article.keywords.all().values_list("id", flat=True)) == {new_keyword.pk}
+    form = SyncKeywordsForm(texdata, data={"action": "sync_keywords"})
+    form.sync()
+    article.refresh_from_db()
+    assert set(article.keywords.all().values_list("id", flat=True)) == {new_keyword.pk}
 
 
 @pytest.mark.django_db
@@ -4885,8 +4895,8 @@ def test_sync_texdb_lang(
 
     author = article.owner
     new_keyword = article.journal.keywords.first()
-    service = MetadataFromTeX(workflow=article.articleworkflow)
-    mock_data = {
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
         "language": "spa",
         "title": new_title_es,
         "abstract": new_abstract_es,
@@ -4901,17 +4911,17 @@ def test_sync_texdb_lang(
             },
         ],
     }
-    with mock.patch.object(service, "get_raw_data", return_value=mock_data):
-        lang = pycountry.languages.get(alpha_3=article.language.upper()).alpha_2
-        with translation.override(lang):
-            service.update_titleabstract()
-            article.refresh_from_db()
-            # not changed
-            assert article.title_en == title_en
-            assert article.abstract_en == abstract_en
-            # changed
-            assert article.title == article.title_es == new_title_es
-            assert article.abstract == article.abstract_es == new_abstract_es
+    form = SyncTitleAbstractForm(texdata, data={"action": "sync_titleabstract"})
+    form.sync()
+    article.refresh_from_db()
+    lang = pycountry.languages.get(alpha_3=article.language).alpha_2
+    with translation.override(lang):
+        # not changed
+        assert article.title_en == title_en
+        assert article.abstract_en == abstract_en
+        # changed
+        assert article.title == article.title_es == new_title_es
+        assert article.abstract == article.abstract_es == new_abstract_es
 
 
 @pytest.mark.django_db
