@@ -22,6 +22,7 @@ urlpatterns = [
         name="wjs_stats_double_accounts",
     ),
     path("orcids/", views.OrcidsStatsView.as_view(), name="wjs_stats_orcids"),
+    path("package-versions/", views.PackageVersionsView.as_view(), name="wjs_stats_package_versions"),
     path(
         "submissions-and-publications.tsv",
         views.SubmittedPublishedPerMonthTSV.as_view(),

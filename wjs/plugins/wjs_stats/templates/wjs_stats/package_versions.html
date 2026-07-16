@@ -1,0 +1,83 @@
+{% extends "admin/core/base.html" %}
+{% load django_bootstrap5 wjs_tags %}
+{% block title %}
+  WJS Stats - Installed package versions
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    table {
+        width: auto;
+    }
+    td.sha, td.version {
+        font-family: monospace;
+    }
+    .dirty {
+        color: #b00;
+        font-weight: bold;
+    }
+  </style>
+{% endblock css %}
+{% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section>
+    <h2>Installed "wjs" packages</h2>
+    <p>
+      Installed versions of all packages whose name starts with <code>wjs</code>
+      (similar to <code>pip freeze | grep wjs</code>). For editable installs
+      (<code>pip install -e</code>) the commit sha is the one currently checked out
+      in the working copy, so it reflects the code that is actually running.
+    </p>
+    <div class="row expanded">
+      <div class="large-8 columns end">
+        <table border="1">
+          <thead>
+            <tr>
+              <th>Package</th>
+              <th>Version</th>
+              <th>Editable</th>
+              <th>Commit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for package in packages %}
+              <tr>
+                <td>
+                  {% if package.project %}
+                    <a href="{{ forge_base_url }}/{{ package.project }}">{{ package.name }}</a>
+                  {% else %}
+                    {{ package.name }}
+                  {% endif %}
+                </td>
+                <td class="version">{{ package.version }}</td>
+                <td>{% if package.editable %}yes{% else %}no{% endif %}</td>
+                <td class="sha">
+                  {% if package.sha %}
+                    {% if package.commit_url %}
+                      <a href="{{ package.commit_url }}"
+                         title="{{ package.sha }}">{{ package.short_sha }}</a>
+                    {% else %}
+                      <span title="{{ package.sha }}">{{ package.short_sha }}</span>
+                    {% endif %}
+                    {% if package.dirty %}<span class="dirty" title="working copy has uncommitted changes">(dirty)</span>{% endif %}
+                  {% else %}
+                      —
+                      <!-- mdash char, because "prettier" does not like entity references -->
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4">No "wjs" packages found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+{% endblock body %}
