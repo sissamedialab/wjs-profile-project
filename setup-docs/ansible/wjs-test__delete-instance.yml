@@ -28,19 +28,6 @@
 
 
 
-    - name: Drop instance database if it exists
-      become_user: wjs
-      community.postgresql.postgresql_db:
-        name: "{{ full_name }}"
-        state: absent
-        login_host: localhost
-        login_port: 5432
-        login_user: janeway
-      environment:
-        PGPASSFILE: /home/wjs/.pgpass
-
-
-
     - name: Stop and disable gunicorn and qcluster services
       become_user: wjs
       ansible.builtin.systemd_service:
@@ -55,6 +42,21 @@
         - "gunicorn-{{ instance_name }}.service"
         - "qcluster-{{ instance_name }}.service"
       notify: Reload user systemd
+
+
+
+    - name: Drop instance database if it exists
+      become_user: wjs
+      community.postgresql.postgresql_db:
+        name: "{{ full_name }}"
+        state: absent
+        login_host: localhost
+        login_port: 5432
+        login_user: janeway
+      environment:
+        PGPASSFILE: /home/wjs/.pgpass
+
+
 
     - name: Delete gunicorn and qcluster systemd service units
       file:

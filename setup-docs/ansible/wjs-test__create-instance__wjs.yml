@@ -159,7 +159,13 @@
         mode: preserve
 
 
-    # For now, do _not_ copy files from pp instance
+    # Do _not_ copy files from pp instance
+    # In order to copy some article's files to, for instance t1:
+    # for i in 3677 3647 3634 3646 3645 3655 3615 3679
+    # do
+    #   rsync -va /home/wjs/janeway-pp/src/files/articles/$i \
+    #       /home/wjs/janeway-t1/src/files/articles/
+    # done
 
 
     # Note: at this point, no management command can be used,
@@ -200,10 +206,7 @@
       args:
         chdir: "/home/wjs/{{ full_name }}/src"
 
-    - name: Anonymize the DB
-      command: "{{ python }} -mmanage anoymize"
-      args:
-        chdir: "/home/wjs/{{ full_name }}/src"
+    # Manually anonymize the DB only when requested
 
 
 
