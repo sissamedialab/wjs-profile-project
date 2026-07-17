@@ -354,7 +354,7 @@ def test_editor_can_change_his_parameters(journal, roles, user_role, user):
 
 
 @pytest.mark.django_db
-def test_update_editor_assignment_parameters(section_editor, roles, keywords, journal):
+def test_update_editor_assignment_parameters(section_editor, roles, keywords, journal, eo_group):
     keywords_id = Keyword.objects.all().values_list("id", flat=True)
     workload = 10
 

@@ -3,6 +3,7 @@
 from core.model_utils import MiniHTMLFormField
 from core.models import Account, AccountManager
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import JSONField
@@ -109,12 +110,23 @@ class StaffWorkloadParameters(models.Model):
     journal = models.ForeignKey("journal.Journal", on_delete=models.CASCADE)
     workload = models.PositiveSmallIntegerField(default=0)
     brake_on = models.PositiveSmallIntegerField(default=0)
+    vacancy_start = models.DateField(_("Vacancy start"), null=True, blank=True)
+    vacancy_end = models.DateField(_("Vacancy end"), null=True, blank=True)
+    enabled = models.BooleanField(_("Available to be assigned new submissions?"), default=True)
 
     class Meta:
         unique_together = ("user", "journal")
 
     def __str__(self):  # NOQA: D105
         return f"{self.user} - Assignment parameters"
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def clean(self, exclude=None):
+        if self.vacancy_end and self.vacancy_start and self.vacancy_end < self.vacancy_start:
+            raise ValidationError({"vacancy_end": _("Vacancy end date must be after vacancy start date.")})
 
 
 class StaffKeyword(models.Model):

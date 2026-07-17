@@ -24,6 +24,7 @@ class WjsReviewConfig(AppConfig):
         AccountManager.annotate_is_author = users.annotate_is_author
         AccountManager.annotate_is_active_reviewer = users.annotate_is_active_reviewer
         AccountManager.annotate_is_last_round_reviewer = users.annotate_is_last_round_reviewer
+        AccountManager.annotate_is_reviewer_available = users.annotate_is_reviewer_available
         AccountManager.annotate_count_reviewer_pending_reviews = users.annotate_count_reviewer_pending_reviews
         AccountManager.annotate_count_reviewed_papers_in_timeframe = users.annotate_count_reviewed_papers_in_timeframe
 
@@ -34,6 +35,7 @@ class WjsReviewConfig(AppConfig):
         AccountQuerySet.annotate_is_author = users.annotate_is_author
         AccountQuerySet.annotate_is_active_reviewer = users.annotate_is_active_reviewer
         AccountQuerySet.annotate_is_last_round_reviewer = users.annotate_is_last_round_reviewer
+        AccountQuerySet.annotate_is_reviewer_available = users.annotate_is_reviewer_available
         AccountQuerySet.annotate_count_reviewer_pending_reviews = users.annotate_count_reviewer_pending_reviews
         AccountQuerySet.annotate_count_reviewed_papers_in_timeframe = users.annotate_count_reviewed_papers_in_timeframe
 

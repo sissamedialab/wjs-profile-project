@@ -33,6 +33,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile.models import WjsSimpleBleach
 
 from .constants import ORCID_VALIDATION_REGEXP
+from .logic import send_staff_assignment_change
 from .models import (
     JCOMProfile,
     StaffKeyword,
@@ -183,7 +184,16 @@ class UpdateAssignmentParametersForm(KeywordCheckboxesFormMixin, forms.ModelForm
 
     class Meta:
         model = StaffWorkloadParameters
-        fields = ("workload",)
+        fields = (
+            "workload",
+            "vacancy_start",
+            "vacancy_end",
+            "enabled",
+        )
+        widgets = {
+            "vacancy_start": forms.DateInput(attrs={"type": "date"}),
+            "vacancy_end": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def __init__(self, *args, **kwargs):
         """Setup initial keywords and filter keywords queryset by journal."""
@@ -192,11 +202,12 @@ class UpdateAssignmentParametersForm(KeywordCheckboxesFormMixin, forms.ModelForm
         kwargs["initial"]["keywords"] = kwargs["instance"].keywords.all()
         super().__init__(*args, **kwargs)
         self.fields["keywords"].queryset = self.instance.journal.keywords.all().order_by("word")
+        self.initial_enabled = self.instance.enabled
 
     def save(self, commit=True):
         """Save m2m with through and with not _meta.auto_created."""
         # salviamo il form senza il m2m per le kwds: solo worload
-        instance = super().save(commit=commit)
+        instance: StaffWorkloadParameters = super().save(commit=commit)
 
         kwds = self.cleaned_data["keywords"]
         for kwd in kwds:
@@ -206,6 +217,10 @@ class UpdateAssignmentParametersForm(KeywordCheckboxesFormMixin, forms.ModelForm
             # ... through.weight = ...
 
         StaffKeyword.objects.filter(parameters=instance).exclude(keyword__in=kwds).delete()
+
+        # Send email if enabled field has changed
+        if self.initial_enabled != instance.enabled:
+            send_staff_assignment_change(instance)
         return instance
 
 
@@ -215,9 +230,15 @@ class DirectorStaffWorkloadParametersForm(forms.ModelForm):
         fields = [
             "brake_on",
             "workload",
+            "vacancy_start",
+            "vacancy_end",
+            "enabled",
         ]
         widgets = {
             "workload": forms.TextInput(attrs={"readonly": True}),
+            "vacancy_start": forms.DateInput(attrs={"readonly": True, "type": "date"}),
+            "vacancy_end": forms.DateInput(attrs={"readonly": True, "type": "date"}),
+            "enabled": forms.CheckboxInput(attrs={"disabled": True}),
         }
 
 
