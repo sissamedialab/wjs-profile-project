@@ -34,7 +34,7 @@ from utils.logger import get_logger
 from utils.models import LogEntry
 
 from wjs.jcom_profile.constants import role_label
-from wjs.jcom_profile.models import StaffWorkloadParameters
+from wjs.jcom_profile.models import StaffKeyword, StaffWorkloadParameters
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import get_eo_user
 
@@ -203,7 +203,7 @@ def reviewer_btn_props(
     if other_reviewer:
         disabled = True
         disabled_cause = "Another reviewer is being selected"
-    elif not reviewer.is_active:
+    elif not reviewer.is_active or not reviewer.wjs_is_available_reviewer:
         disabled = True
         disabled_cause = "User is not available to review temporarily or permanently"
     elif reviewer.wjs_is_author:
@@ -575,18 +575,18 @@ def get_current_workload(editor: Account, journal: Journal) -> int:
 
 
 @register.simple_tag()
-def get_editor_keywords(editor: Account, journal: Journal) -> List[str]:
+def get_editor_keywords(editor: Account, journal: Journal) -> QuerySet[StaffKeyword]:
     """Get the keywords for the given editor and journal."""
     # We don't expect a DoesNotExist, and even less MultipleObjectsReturned, but just in case...
     try:
         eap = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
     except StaffWorkloadParameters.DoesNotExist:
         logger.error(f"Editor {editor} is not correctly setup on {journal.code}")
-        return []
+        return StaffKeyword.objects.none()
     except StaffWorkloadParameters.MultipleObjectsReturned:
         logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
         eap = StaffWorkloadParameters.objects.filter(user=editor, journal=journal).first()
-    return [k.word for k in eap.keywords.all()]
+    return StaffKeyword.objects.filter(parameters=eap)
 
 
 @register.simple_tag()

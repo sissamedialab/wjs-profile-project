@@ -9,7 +9,21 @@
   <form class="wjs-profile-form" method="post">
     {% csrf_token %}
     <div class="wjs-profile-form__main">
-      {% bootstrap_field form.workload wrapper_class="mb-4" %}
+      <div class="mb-4">
+        <p>{% translate "Please provide your availability for assignment." %}</p>
+            {% bootstrap_field form.enabled %}
+        <div class="row g-6">
+          <div class="col-6">
+            {% bootstrap_field form.vacancy_start layout="horizontal" horizontal_label_class="col-sm-4" horizontal_field_class="col-sm-6" %}
+          </div>
+          <div class="col-6">
+            {% bootstrap_field form.vacancy_end layout="horizontal" horizontal_label_class="col-sm-4" horizontal_field_class="col-sm-6" %}
+          </div>
+          <div class="col-6">
+            {% bootstrap_field form.workload layout="horizontal" horizontal_label_class="col-4" horizontal_field_class="col-sm-8" %}
+          </div>
+        </div>
+      </div>
       <div class="mb-4">
         <p>{% translate "Please select the keywords that best describe your areas of expertise." %}</p>
         <label class="form-label" for="{{ form.keywords.id_for_label }}">{{ form.keywords.label }}</label>

@@ -43,7 +43,7 @@ from .drupal_redirect_views import (  # noqa F401
 )
 from .mixins import HtmxMixin, PaginatedViewMixin
 from .models import JCOMProfile, StaffWorkloadParameters
-from .permissions import get_hijacker
+from .permissions import get_hijacker, has_reviewer_role, has_section_editor_role
 from .profile.views import KeywordsHierarchyContextMixin, ProfilePersonalEditView
 
 logger = get_logger(__name__)
@@ -121,9 +121,7 @@ class StaffWorkloadParametersUpdate(KeywordsHierarchyContextMixin, UserPassesTes
     def test_func(self):
         user, journal = self.request.user, self.request.journal
         return (
-            # Not adding user.is_staff, because assignment parameters have meaning only for EO or editor
-            user.check_role(journal, "section-editor", staff_override=False)
-            or permissions.has_eo_role(user)
+            has_section_editor_role(journal, user) or has_reviewer_role(journal, user) or permissions.has_eo_role(user)
         )
 
     def get_object(self, queryset=None):
@@ -135,7 +133,7 @@ class StaffWorkloadParametersUpdate(KeywordsHierarchyContextMixin, UserPassesTes
         messages.add_message(
             self.request,
             messages.SUCCESS,
-            "Parameters updated successfully",
+            _("Parameters updated successfully"),
         )
         return reverse("assignment_parameters")
 

@@ -1,6 +1,7 @@
 """Tests related to the automatic assignment of articles after submission."""
 
 import random
+from datetime import timedelta
 from typing import Callable
 
 import pytest
@@ -9,6 +10,7 @@ from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.test import Client, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from plugins.wjs_review.models import Message
 from submission.models import Article
 
@@ -18,6 +20,7 @@ from wjs.jcom_profile.models import JCOMProfile, StaffWorkloadParameters
 
 from ..communication_utils import get_system_user
 from ..events.assignment import (
+    get_available_editor_parameters,
     get_select_eo_by_workload,
     get_selected_editor_by_workload,
 )
@@ -91,6 +94,120 @@ def test_default_normal_issue_articles_automatic_assignment(
         if has_editors:
             editor_assignment = WjsEditorAssignment.objects.get(article=article)
             assert editor_assignment.editor == expected_editor
+
+
+@pytest.mark.django_db
+def test_editor_assignment_disabled(
+    review_settings,
+    admin,
+    article,
+    directors,
+    editors,
+    coauthors_setting,
+):
+    expected_editor = editors[0]
+    for editor in editors[1:]:
+        StaffWorkloadParameters.objects.filter(user=editor, journal=article.journal).update(enabled=False)
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+        article.refresh_from_db()
+        editor_assignment = WjsEditorAssignment.objects.get(article=article)
+        assert editor_assignment.editor == expected_editor
+
+
+@pytest.mark.parametrize(
+    "vacancy_start, vacancy_end",
+    (
+        (
+            False,
+            True,
+        ),
+        (
+            True,
+            True,
+        ),
+        (
+            True,
+            False,
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_editor_assignment_vacancy(
+    review_settings, admin, article, directors, editors, coauthors_setting, vacancy_start, vacancy_end
+):
+    expected_editor = editors[0]
+    for editor in editors[1:]:
+        if vacancy_start:
+            StaffWorkloadParameters.objects.filter(user=editor, journal=article.journal).update(
+                vacancy_start=timezone.now() - timedelta(days=1)
+            )
+        if vacancy_end:
+            StaffWorkloadParameters.objects.filter(user=editor, journal=article.journal).update(
+                vacancy_end=timezone.now() + timedelta(days=1)
+            )
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+        article.refresh_from_db()
+        editor_assignment = WjsEditorAssignment.objects.get(article=article)
+        assert editor_assignment.editor == expected_editor
+
+
+@pytest.mark.parametrize(
+    "start_offset, end_offset, expected_available",
+    (
+        (None, None, True),  # no window set -> available
+        (-10, -5, True),  # window entirely in the past -> available
+        (5, 10, True),  # window entirely in the future -> available
+        (-5, 5, False),  # window active now -> on vacation
+        (0, 0, False),  # window is exactly today (inclusive bounds) -> on vacation
+        (-1, None, False),  # open-ended from a past start -> on vacation
+        (5, None, True),  # open-ended from a future start -> available
+        (None, 5, False),  # open-ended until a future end -> on vacation
+        (None, -1, True),  # open-ended until a past end -> available
+    ),
+)
+@pytest.mark.django_db
+def test_get_available_editor_parameters_vacancy_window(
+    journal,
+    editors,
+    start_offset,
+    end_offset,
+    expected_available,
+):
+    """
+    get_available_editor_parameters excludes a record only when a vacancy window is set and today is in it.
+
+    Windows may be open-ended: only a start means "on leave from that date on", only an end means "on leave until
+    that date". A record with both bounds null has no window set and must never be excluded.
+    """
+    today = timezone.localdate()
+    target = editors[0]
+    params = StaffWorkloadParameters.objects.get(user=target, journal=journal)
+    params.vacancy_start = today + timedelta(days=start_offset) if start_offset is not None else None
+    params.vacancy_end = today + timedelta(days=end_offset) if end_offset is not None else None
+    params.save()
+
+    available = get_available_editor_parameters(editors, journal)
+
+    assert available.filter(user=target).exists() is expected_available
+    # The other editors have no vacancy set and must always remain available.
+    assert available.filter(user=editors[1]).exists()
+    assert available.filter(user=editors[2]).exists()
 
 
 @pytest.mark.parametrize(

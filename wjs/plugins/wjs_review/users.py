@@ -15,13 +15,16 @@ from django.db.models import (
     Value,
     When,
 )
+from django.db.models.expressions import NegatedExpression
 from django.http import QueryDict
+from django.utils import timezone
 from django.utils.timezone import now
 from journal.models import Journal
 from submission.models import Article, Keyword
 from utils.logger import get_logger
 
 from wjs.jcom_profile import constants
+from wjs.jcom_profile.models import StaffWorkloadParameters
 
 from .models import (
     ArticleWorkflow,
@@ -89,6 +92,7 @@ def filter_reviewers(self, workflow: ArticleWorkflow, search_data: QueryDict) ->
 
     qs = qs.annotate_is_active_reviewer(workflow.article)
     qs = qs.annotate_is_last_round_reviewer(workflow.article)
+    qs = qs.annotate_is_reviewer_available(workflow.article)
 
     qs = qs.annotate_has_currently_completed_review(workflow.article)
     qs = qs.annotate_has_completed_review_in_the_previous_round(workflow.article)
@@ -163,6 +167,23 @@ def annotate_is_active_reviewer(self, article: Article):
 
     return self.annotate(
         wjs_is_active_reviewer=Exists(_filter),
+    )
+
+
+def annotate_is_reviewer_available(self, article: Article):
+    """Annotate Accounts, indicating if the person has disabled themselves from reviewer."""
+    _base = StaffWorkloadParameters.objects.filter(
+        journal=article.journal,
+        user=OuterRef("id"),
+    )
+    vacancy = Q(
+        Q(vacancy_start__isnull=False)
+        | Q(vacancy_start__lte=timezone.now()) & Q(vacancy_end__isnull=False)
+        | Q(vacancy_end__gte=timezone.now())
+    )
+    _filter = _base.filter(vacancy, enabled=True)
+    return self.annotate(
+        wjs_is_available_reviewer=Exists(_filter) | NegatedExpression(Exists(_base)),
     )
 
 

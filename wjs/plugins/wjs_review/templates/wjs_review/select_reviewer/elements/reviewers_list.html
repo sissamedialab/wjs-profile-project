@@ -15,7 +15,7 @@
     <td>{{ user.email }}</td>
     <td>
       {% if user.wjs_is_author %}{% translate "Author of this preprint" %}{% endif %}
-      {# TODO: user.is_active to be replaced by user.does_not_want_to_review_anything #}
+      {% if not user.wjs_is_available_reviewer %}{% translate "Unavailable as reviewer" %}{% endif %}
       {% if not user.is_active %}{% translate "Unavailable as reviewer" %}{% endif %}
       {% if user.wjs_is_active_reviewer %}
         {% if user.wjs_has_declined_current_review_round %}

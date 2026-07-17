@@ -3,17 +3,18 @@
   {% translate "Update" as manage_label %}
   {% url "assignment_parameters" editor_pk=editor.pk as manage_url %}
   <tr>
-    <td>{{ editor.full_name }}</td>
-    <td>{{ editor.affiliation }}</td>
+    <td>
+      <strong>{{ editor.full_name }}</strong><br>{{ editor.affiliation }}
+    </td>
     <td>{% get_max_workload editor=editor journal=journal as max_workload %}{% if max_workload < 0 %}<span class="bg-warning">{% translate "Parameters not correctly set up! Click \"Update\" and then \"Submit\"." %}</span> {% endif %}{{ max_workload }}
 </td>
     <td>{% get_current_workload editor=editor journal=journal %}</td>
     <td>
-      {% get_editor_keywords editor=editor journal=journal as keywords %}
-      {% if keywords %}
-        <ul>
-          {% for keyword in keywords %}
-            <li>{{ keyword }}</li>{% endfor %}
+      {% get_editor_keywords editor=editor journal=journal as editor_keywords %}
+      {% if editor_keywords %}
+        <ul class="ps-3">
+          {% for editor_keyword in editor_keywords %}
+            <li class="border-bottom py-2">{{ editor_keyword.keyword.word }} [{% translate "weight" %}: {{ editor_keyword.weight }}]</li>{% endfor %}
         </ul>
       {% else %}
         -

@@ -1,0 +1,5 @@
+The assignment parameters for {{ user }} have been {{ status }}.
+
+Journal: {{ journal }}
+Workload: {{ workload }}
+Status: {{ status }}

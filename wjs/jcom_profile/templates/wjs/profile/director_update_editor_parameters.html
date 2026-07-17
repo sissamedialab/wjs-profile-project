@@ -6,21 +6,48 @@
 {% endblock title %}
 
 {% block content %}
+  {% url 'wjs_journal_editors' as wjs_journal_editors %}
   <div class="col-sm-12">
     <div class="card p-4">
       <form method="post" class="wjs-showcase__update-parameters-form">
         {% csrf_token %}
 
         {{ formset.management_form }}
+        <div class="row g-6">
+          <div class="col-auto">
+            {% bootstrap_field form.enabled %}
+          </div>
+        </div>
+        <div class="row g-6">
+          <div class="col-auto">
+            {% bootstrap_field form.workload %}
+          </div>
+          <div class="col-auto">
+            {% bootstrap_field form.brake_on %}
+          </div>
+          <div class="col-auto">
+            {% bootstrap_field form.vacancy_start %}
+          </div>
+          <div class="col-auto">
+            {% bootstrap_field form.vacancy_end %}
+          </div>
+        </div>
+        <div class="row g-6">
+          {% for subform in formset.forms %}
+            <div class="col-6">
+              {% bootstrap_field subform.keyword_str layout="horizontal" horizontal_label_class="col-sm-3" horizontal_field_class="col-sm-9" %}
+            </div>
+            <div class="col-6">
+              {% bootstrap_field subform.weight layout="horizontal" horizontal_label_class="col-sm-3" horizontal_field_class="col-sm-9" %}
+            </div>
+          {% endfor %}
+        </div>
 
-        {% bootstrap_formset formset %}
-
-        {% bootstrap_field form.workload %}
-
-        {% bootstrap_field form.brake_on %}
-
-        {% translate "Submit" as submit_label %}
-        {% bootstrap_button button_type="submit" content=submit_label button_class="btn-primary" %}
+        <div class="d-flex justify-content-between">
+          <a href="{{ wjs_journal_editors }}">{% translate "Editors' parameters" %}</a>
+          {% translate "Submit" as submit_label %}
+          {% bootstrap_button button_type="submit" content=submit_label button_class="btn-primary" %}
+        </div>
       </form>
     </div>
   </div>
