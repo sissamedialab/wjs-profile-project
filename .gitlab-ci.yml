@@ -22,7 +22,7 @@ include:
     ref: wjs-production
     file: '.gitlab-ci-pkg-build-and-upload.yml'
   - project: 'wjs/wjs-profile-project'
-    ref: wjs-production
+    ref: ${CI_COMMIT_REF_NAME}
     file: '.gitlab-ci-pkg-deploy.yml'
   - project: 'wjs/wjs-profile-project'
     ref: ${CI_COMMIT_REF_NAME}
