@@ -32,21 +32,21 @@ include:
     file: '.gitlab-ci-pre-commit.yml'
 
 
-Run tests:
-  # Always run tests, except for tags, which have tests already run on
-  # them when the commit is made.
-  except:
-    - tags
-  extends:
-    - .run-tests
+# Run tests:
+#   # Always run tests, except for tags, which have tests already run on
+#   # them when the commit is made.
+#   except:
+#     - tags
+#   extends:
+#     - .run-tests
 
 
-Pre-commit:
-  # Always run linting, except for tags
-  except:
-    - tags
-  extends:
-    - .run-pre-commit
+# Pre-commit:
+#   # Always run linting, except for tags
+#   except:
+#     - tags
+#   extends:
+#     - .run-pre-commit
 
 
 Upload package:
@@ -168,7 +168,7 @@ TMP Deploy to t4 as if dev:
       when: never
     # The dev instance only deploys wjs-develop, so the job exists
     # only in pipelines for that branch (no rule matches elsewhere).
-    - if: $CI_COMMIT_REF_NAME == "feature/issue-2907__test-envs"
+    - if: $CI_COMMIT_REF_NAME == $CI_COMMIT_REF_NAME
       when: on_success
   allow_failure: true
   variables:
