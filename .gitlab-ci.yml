@@ -159,20 +159,41 @@ Deploy to T5:
     TEST_INSTANCE: "t5"
 
 
-TMP Deploy to t4 as if dev:
+# TMP Deploy to t4 as if dev:
+#   extends:
+#     - .deploy
+#   environment: dev
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+#       when: never
+#     # The dev instance only deploys wjs-develop, so the job exists
+#     # only in pipelines for that branch (no rule matches elsewhere).
+#     - if: $CI_COMMIT_REF_NAME == $CI_COMMIT_REF_NAME
+#       when: on_success
+#   allow_failure: true
+#   variables:
+#     SERVER_IP: "$TEST_SERVER_IP"
+#     SERVER_USER: "$TEST_SERVER_USER"
+#     # The dev instance always deploys the wjs-develop branch (no ref accepted)
+#     DEPLOY_CMD: "deploy-t4dev-profile"
+
+TMP Deploy to t5 as if pp:
+  environment: dev
   extends:
     - .deploy
-  environment: dev
+  # Deploying to pp means installing the last released (uploaded) package,
+  # so the job only makes sense in tag pipelines, after "Upload package".
+  needs:
+    - Upload package
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: never
-    # The dev instance only deploys wjs-develop, so the job exists
-    # only in pipelines for that branch (no rule matches elsewhere).
-    - if: $CI_COMMIT_REF_NAME == $CI_COMMIT_REF_NAME
-      when: on_success
+    # Manual because we don't want to risk resetting some on-going translation:
+    - if: $CI_COMMIT_TAG
+      when: manual
+  # Do not block the pipeline waiting for the manual job
+  # (with `rules`, manual jobs default to allow_failure: false)
   allow_failure: true
   variables:
+    # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    # The dev instance always deploys the wjs-develop branch (no ref accepted)
-    DEPLOY_CMD: "deploy-t4dev-profile"
+    DEPLOY_CMD: "deploy-t5pp-profile"

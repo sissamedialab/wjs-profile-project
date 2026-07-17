@@ -116,6 +116,11 @@ function set_instance_variables() {
             MODE=git
             GIT_REF="feature/issue-2907__test-envs"
             ;;
+        t5pp)
+            SUFFIX="-t5"
+            MODE=release
+            GIT_REF=wjs-production
+            ;;
     esac
 
     # The path to the clone of the Janeway repo. This contains the `src` folder.
