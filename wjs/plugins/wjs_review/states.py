@@ -220,8 +220,8 @@ def get_article_issue_tracker_url(workflow: ArticleWorkflow, repo: str) -> str:
     """Get the issue tracker url for the given article and repo."""
     article = workflow.article
     repo_url = settings.ISSUE_TRACKER_URLS.get(repo)
-
-    return f"{repo_url}new?issue[title]={article.pk} {article.title}"
+    paper_id = f"{article.journal.code}_{article.pk}"
+    return f"{repo_url}new?issue[title]={paper_id} - {article.title}&issue[description]=[{paper_id}]({workflow.url})"
 
 
 def get_article_pk_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
