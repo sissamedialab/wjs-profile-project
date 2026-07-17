@@ -9,15 +9,15 @@ msgstr ""
 "Project-Id-Version: WJS 0.3\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-06-09 08:47+0200\n"
-"PO-Revision-Date: 2025-07-25 12:51+0200\n"
-"Last-Translator: b'Matteo Gamboz <gamboz@medialab.sissa.it>'\n"
+"PO-Revision-Date: 2026-07-17 13:01+0200\n"
+"Last-Translator: Maria Teresa Leo <mariateresa.leo@sissamedialab.it>\n"
 "Language-Team: Portughese <wjs-support@medialab.sissa.it>\n"
 "Language: pt_BR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Translated-Using: django-rosetta 0.9.4\n"
+"X-Translated-Using: django-rosetta 0.10.3\n"
 
 #: defaults/settings.py:100 defaults/settings.py:457 defaults/settings.py:461
 msgid "English"
@@ -65,22 +65,13 @@ msgstr "Italiano"
 msgid "Director"
 msgstr "Diretor"
 
-#: jcom_profile/constants.py:24 jcom_profile/constants.py:25
-#: plugins/wjs_review/filters.py:128 plugins/wjs_review/models.py:1347
-#: plugins/wjs_review/models.py:1748
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:59
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:70
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_decision.html:16
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:18
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_articles_list.html:15
+#: jcom_profile/constants.py:24 jcom_profile/constants.py:25 plugins/wjs_review/filters.py:128 plugins/wjs_review/models.py:1347 plugins/wjs_review/models.py:1748 plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:59 plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:70 plugins/wjs_review/templates/wjs_review/details/elements/review_decision.html:16 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:18 plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_articles_list.html:15
 #, fuzzy
 #| msgid "Editorial Team"
 msgid "Editor"
 msgstr "Corpo editorial"
 
-#: jcom_profile/constants.py:26
-#: jcom_profile/templates/admin/core/affiliation_summary.html:21
-#: plugins/wjs_review/templates/wjs_review/write_message/elements/header.html:6
+#: jcom_profile/constants.py:26 jcom_profile/templates/admin/core/affiliation_summary.html:21 plugins/wjs_review/templates/wjs_review/write_message/elements/header.html:6
 msgid "Author"
 msgstr "Autor"
 
@@ -88,10 +79,7 @@ msgstr "Autor"
 msgid "Co-author"
 msgstr "Coautor"
 
-#: jcom_profile/constants.py:28 plugins/wjs_review/filters.py:311
-#: plugins/wjs_review/forms.py:257
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_head.html:3
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/review_files_table.html:8
+#: jcom_profile/constants.py:28 plugins/wjs_review/filters.py:311 plugins/wjs_review/forms.py:257 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_head.html:3 plugins/wjs_review/templates/wjs_review/make_decision/elements/review_files_table.html:8
 #, fuzzy
 #| msgid "Peer Review"
 msgid "Reviewer"
@@ -101,8 +89,7 @@ msgstr "Revisão pelos pares"
 msgid "EO"
 msgstr "EO"
 
-#: jcom_profile/constants.py:30 plugins/wjs_review/filters.py:316
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:91
+#: jcom_profile/constants.py:30 plugins/wjs_review/filters.py:316 plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:91
 msgid "Typesetter"
 msgstr "Diagramador"
 
@@ -129,8 +116,7 @@ msgid "Submission Subject Coauthors Acknowledgement"
 msgstr "Assunto do envio - Confirmação aos coautores"
 
 #: jcom_profile/custom_settings_utils.py:208
-msgid ""
-"Subject for Email sent to coauthors when they have submitted an article."
+msgid "Subject for Email sent to coauthors when they have submitted an article."
 msgstr "Assunto do e-mail enviado aos coautores quando um artigo é enviado."
 
 #: jcom_profile/custom_settings_utils.py:232
@@ -138,41 +124,22 @@ msgid "User automatically as main author"
 msgstr "Usuário automaticamente como autor principal"
 
 #: jcom_profile/custom_settings_utils.py:234
-msgid ""
-"If true, the submitting user is set as main author. To work, the setting "
-"'user_automatically_author' must be on."
-msgstr ""
-"Se verdadeiro, o usuário que faz o envio é definido como autor principal. "
-"Para funcionar, a configuração 'user_automatically_author' deve estar "
-"ativada."
+msgid "If true, the submitting user is set as main author. To work, the setting 'user_automatically_author' must be on."
+msgstr "Se verdadeiro, o usuário que faz o envio é definido como autor principal. Para funcionar, a configuração 'user_automatically_author' deve estar ativada."
 
 #: jcom_profile/custom_settings_utils.py:426
 msgid "Analytics tracking code"
 msgstr "Código de rastreamento de analytics"
 
 #: jcom_profile/custom_settings_utils.py:428
-msgid ""
-"Code added to every page of the journal in order to track visits and "
-"analytics. E.g. Google Analitics or Matomo complete tracking code. Not just "
-"the site code 🙂"
-msgstr ""
-"Código adicionado a todas as páginas do periódico para rastrear visitas e "
-"analytics. Ex.: código de rastreamento completo do Google Analytics ou "
-"Matomo. Não apenas o código do site 🙂"
+msgid "Code added to every page of the journal in order to track visits and analytics. E.g. Google Analitics or Matomo complete tracking code. Not just the site code 🙂"
+msgstr "Código adicionado a todas as páginas do periódico para rastrear visitas e analytics. Ex.: código de rastreamento completo do Google Analytics ou Matomo. Não apenas o código do site 🙂"
 
 #: jcom_profile/forms.py:88
-msgid ""
-"ORCID ID must be in the format xxxx-xxxx-xxxx-xxxx (e.g., "
-"0000-0000-0000-0000)"
-msgstr ""
-"O ORCID ID deve estar no formato xxxx-xxxx-xxxx-xxxx (ex.: "
-"0000-0000-0000-0000)"
+msgid "ORCID ID must be in the format xxxx-xxxx-xxxx-xxxx (e.g., 0000-0000-0000-0000)"
+msgstr "O ORCID ID deve estar no formato xxxx-xxxx-xxxx-xxxx (ex.: 0000-0000-0000-0000)"
 
-#: jcom_profile/forms.py:101
-#: jcom_profile/templates/admin/core/accounts/orcid_registration.html:28
-#: jcom_profile/templates/wjs/profile/base.html:33
-#: jcom_profile/templates/wjs/profile/personal_password_edit.html:4
-#: jcom_profile/templates/wjs/profile/personal_password_edit.html:7
+#: jcom_profile/forms.py:101 jcom_profile/templates/admin/core/accounts/orcid_registration.html:28 jcom_profile/templates/wjs/profile/base.html:33 jcom_profile/templates/wjs/profile/personal_password_edit.html:4 jcom_profile/templates/wjs/profile/personal_password_edit.html:7
 msgid "Password"
 msgstr "Senha"
 
@@ -182,30 +149,18 @@ msgstr "Repita a senha"
 
 #: jcom_profile/forms.py:106
 msgid "By registering an account you agree to our Privacy Policy"
-msgstr ""
-"Ao registrar uma conta, você concorda com a nossa Política de Privacidade"
+msgstr "Ao registrar uma conta, você concorda com a nossa Política de Privacidade"
 
 #: jcom_profile/forms.py:127
 #, python-format
-msgid ""
-"By registering an account you agree to our <a href=\"%s\">Privacy Policy</a>"
-msgstr ""
-"Ao registrar uma conta, você concorda com a nossa <a href=\"%s\">Política de"
-" Privacidade</a>"
+msgid "By registering an account you agree to our <a href=\"%s\">Privacy Policy</a>"
+msgstr "Ao registrar uma conta, você concorda com a nossa <a href=\"%s\">Política de Privacidade</a>"
 
 #: jcom_profile/forms.py:135 jcom_profile/profile/forms.py:79
 msgid "Required"
 msgstr "Obrigatório"
 
-#: jcom_profile/forms.py:165 jcom_profile/forms.py:454
-#: jcom_profile/forms.py:574 jcom_profile/templates/wjs/profile/base.html:37
-#: jcom_profile/templates/wjs/profile/personal_interests_edit.html:4
-#: jcom_profile/templates/wjs/profile/personal_interests_edit.html:7
-#: jcom_profile/views.py:881 plugins/wjs_review/filters.py:103
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:27
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_keywords.html:5
-#: plugins/wjs_review/templates/wjs_review/journal_editors/elements/editor_parameters_table.html:11
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/keywords.html:4
+#: jcom_profile/forms.py:165 jcom_profile/forms.py:454 jcom_profile/forms.py:574 jcom_profile/templates/wjs/profile/base.html:37 jcom_profile/templates/wjs/profile/personal_interests_edit.html:4 jcom_profile/templates/wjs/profile/personal_interests_edit.html:7 jcom_profile/views.py:881 plugins/wjs_review/filters.py:103 plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:27 plugins/wjs_review/templates/wjs_review/details/elements/metadata_keywords.html:5 plugins/wjs_review/templates/wjs_review/journal_editors/elements/editor_parameters_table.html:11 plugins/wjs_review/templates/wjs_review/sync_texdb/keywords.html:4
 msgid "Keywords"
 msgstr "Palavras-chave"
 
@@ -214,20 +169,12 @@ msgid "Keyword"
 msgstr "Palavra-chave"
 
 #: jcom_profile/forms.py:253
-msgid ""
-"Upload odt file with first, middle, last name, email, affiliation, paper "
-"title; one per row."
-msgstr ""
-"Envie um arquivo odt com nome, nome do meio, sobrenome, e-mail, afiliação e "
-"título do artigo; um por linha."
+msgid "Upload odt file with first, middle, last name, email, affiliation, paper title; one per row."
+msgstr "Envie um arquivo odt com nome, nome do meio, sobrenome, e-mail, afiliação e título do artigo; um por linha."
 
 #: jcom_profile/forms.py:258
-msgid ""
-"If set to false, articles are not created. The authors must start a "
-"submission themselves."
-msgstr ""
-"Se definido como falso, os artigos não são criados. Os autores devem iniciar"
-" o envio por conta própria."
+msgid "If set to false, articles are not created. The authors must start a submission themselves."
+msgstr "Se definido como falso, os artigos não são criados. Os autores devem iniciar o envio por conta própria."
 
 #: jcom_profile/forms.py:268
 msgid "Match euristics - NOT IMPLEMENTED"
@@ -239,8 +186,7 @@ msgstr "Sendo otimista ... TODO ESCREVA-ME!"
 
 #: jcom_profile/forms.py:274
 msgid "All new contributions will have the choosen section (article type)."
-msgstr ""
-"Todas as novas contribuições terão a seção escolhida (tipo de artigo)."
+msgstr "Todas as novas contribuições terão a seção escolhida (tipo de artigo)."
 
 #: jcom_profile/forms.py:301
 msgid "Apply changes to this user account"
@@ -253,10 +199,9 @@ msgid "Search titles, content, keywords, and authors"
 msgstr "Pesquisar títulos, palavras-chave e autores"
 
 #: jcom_profile/forms.py:356
-#, fuzzy
 #| msgid "Edit Article"
 msgid "Filter by article type"
-msgstr "Editar Artigo"
+msgstr "Filtrar por tipo de artigo"
 
 #: jcom_profile/forms.py:362 jcom_profile/views.py:850
 msgid "Filter by keyword"
@@ -273,60 +218,46 @@ msgid "Show"
 msgstr "Mostrar"
 
 #: jcom_profile/forms.py:380
-#, fuzzy
 #| msgid "Articles"
 msgid "Article identifier"
-msgstr "Artigos"
+msgstr "Identificador do artigo"
 
 #: jcom_profile/forms.py:386 jcom_profile/forms.py:457
-#, fuzzy
 #| msgid "Identifiers"
 msgid "Identifier type"
-msgstr "Identificadores"
+msgstr "Tipo de identificador"
 
-#: jcom_profile/forms.py:391
-#: jcom_profile/templates/admin/core/affiliation_summary.html:42
-#, fuzzy
+#: jcom_profile/forms.py:391 jcom_profile/templates/admin/core/affiliation_summary.html:42
 #| msgid "Articles"
 msgid "Article title"
-msgstr "Artigos"
+msgstr "Título do artigo"
 
 #: jcom_profile/forms.py:397
-#, fuzzy
 #| msgid "Articles"
 msgid "Article abstract"
-msgstr "Artigos"
+msgstr "Resumo do artigo"
 
 #: jcom_profile/forms.py:401
-#, fuzzy
 #| msgid "Articles"
 msgid "Article authors"
-msgstr "Artigos"
+msgstr "Autores do artigo"
 
-#: jcom_profile/forms.py:405 jcom_profile/forms.py:461
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:8
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/message_from_to.html:6
+#: jcom_profile/forms.py:405 jcom_profile/forms.py:461 plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:8 plugins/wjs_review/templates/wjs_review/messages_overview/elements/message_from_to.html:6
 msgid "From"
 msgstr "De"
 
-#: jcom_profile/forms.py:410 jcom_profile/forms.py:462
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:16
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/message_from_to.html:8
-#: plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:22
+#: jcom_profile/forms.py:410 jcom_profile/forms.py:462 plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:16 plugins/wjs_review/templates/wjs_review/messages_overview/elements/message_from_to.html:8 plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:22
 msgid "To"
 msgstr "Para"
 
-#: jcom_profile/forms.py:452 plugins/wjs_review/forms.py:1779
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:55
+#: jcom_profile/forms.py:452 plugins/wjs_review/forms.py:1779 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:55
 msgid "Text"
 msgstr "Texto"
 
-#: jcom_profile/forms.py:453 jcom_profile/forms.py:591
-#: plugins/wjs_review/filters.py:109
-#, fuzzy
+#: jcom_profile/forms.py:453 jcom_profile/forms.py:591 plugins/wjs_review/filters.py:109
 #| msgid "Articles"
 msgid "Article type"
-msgstr "Artigos"
+msgstr "Tipo de artigo"
 
 #: jcom_profile/forms.py:455
 msgid "Year"
@@ -338,24 +269,11 @@ msgstr "Ano"
 msgid "Identifier"
 msgstr "Identificadores"
 
-#: jcom_profile/forms.py:458 jcom_profile/forms.py:570
-#: plugins/wjs_review/filters.py:86 plugins/wjs_review/forms.py:1037
-#: plugins/wjs_review/models.py:1794
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:9
-#: plugins/wjs_review/templates/wjs_review/evaluate_review/review_evaluate.html:31
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:12
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_articles_list.html:14
-#: plugins/wjs_review/templates/wjs_review/make_decision/decision.html:24
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:7
-#: plugins/wjs_review/templates/wjs_review/write_message/elements/header.html:5
+#: jcom_profile/forms.py:458 jcom_profile/forms.py:570 plugins/wjs_review/filters.py:86 plugins/wjs_review/forms.py:1037 plugins/wjs_review/models.py:1794 plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:9 plugins/wjs_review/templates/wjs_review/evaluate_review/review_evaluate.html:31 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:12 plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_articles_list.html:14 plugins/wjs_review/templates/wjs_review/make_decision/decision.html:24 plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:7 plugins/wjs_review/templates/wjs_review/write_message/elements/header.html:5
 msgid "Title"
 msgstr "Título"
 
-#: jcom_profile/forms.py:459 jcom_profile/forms.py:571
-#: plugins/wjs_review/models.py:1795
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_abstract.html:5
-#: plugins/wjs_review/templates/wjs_review/evaluate_review/review_evaluate.html:35
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:18
+#: jcom_profile/forms.py:459 jcom_profile/forms.py:571 plugins/wjs_review/models.py:1795 plugins/wjs_review/templates/wjs_review/details/elements/metadata_abstract.html:5 plugins/wjs_review/templates/wjs_review/evaluate_review/review_evaluate.html:35 plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:18
 msgid "Abstract"
 msgstr "Resumo"
 
@@ -377,18 +295,13 @@ msgstr "Escolha a edição de publicação"
 msgid "Comments for the Editor"
 msgstr "Comentários para o Editor"
 
-#: jcom_profile/forms.py:651
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_field_answers.html:29
+#: jcom_profile/forms.py:651 plugins/wjs_review/templates/wjs_review/details/elements/metadata_field_answers.html:29
 msgid "Competing interests"
 msgstr "Conflitos de interesse"
 
 #: jcom_profile/forms.py:654
-msgid ""
-"If you have any conflict of interests in the publication of this article "
-"please state them here."
-msgstr ""
-"Se você tiver qualquer conflito de interesses na publicação deste artigo, "
-"por favor declare-os aqui."
+msgid "If you have any conflict of interests in the publication of this article please state them here."
+msgstr "Se você tiver qualquer conflito de interesses na publicação deste artigo, por favor declare-os aqui."
 
 #: jcom_profile/hooks.py:32 jcom_profile/templates/wjs/profile/base.html:42
 msgid "Edit assignment parameters"
@@ -452,8 +365,7 @@ msgstr "Afiliação"
 msgid "Interests"
 msgstr "Interesses"
 
-#: jcom_profile/models.py:50 plugins/wjs_review/filters.py:403
-#: plugins/wjs_review/filters.py:482 plugins/wjs_review/forms.py:1608
+#: jcom_profile/models.py:50 plugins/wjs_review/filters.py:403 plugins/wjs_review/filters.py:482 plugins/wjs_review/forms.py:1608
 msgid "User notes"
 msgstr "Notas do usuário"
 
@@ -502,10 +414,8 @@ msgid "LaTeX fragment"
 msgstr "Fragmento LaTeX"
 
 #: jcom_profile/models.py:134
-msgid ""
-"LaTeX fragment that should appear in the PDF of all papers of this issue."
-msgstr ""
-"Fragmento LaTeX que deve aparecer no PDF de todos os artigos desta edição."
+msgid "LaTeX fragment that should appear in the PDF of all papers of this issue."
+msgstr "Fragmento LaTeX que deve aparecer no PDF de todos os artigos desta edição."
 
 #: jcom_profile/models.py:141 jcom_profile/models.py:142
 msgid "Issue parameters"
@@ -542,12 +452,8 @@ msgid "Anonymous user email"
 msgstr "E-mail de usuário anônimo"
 
 #: jcom_profile/models.py:176
-msgid ""
-"When the subscription/reminder confirmation email has been sent to an "
-"anonymous recipient"
-msgstr ""
-"Quando o e-mail de confirmação de assinatura/lembrete foi enviado a um "
-"destinatário anônimo"
+msgid "When the subscription/reminder confirmation email has been sent to an anonymous recipient"
+msgstr "Quando o e-mail de confirmação de assinatura/lembrete foi enviado a um destinatário anônimo"
 
 #: jcom_profile/models.py:182
 msgid "recipient"
@@ -583,8 +489,7 @@ msgstr "Endereço de correio electrónico actual"
 #, fuzzy
 #| msgid "I want to receive alerts about news published in the journal."
 msgid "I want to receive alerts about news published in the journal."
-msgstr ""
-"Quero receber alertas sobre as últimas notícias publicadas na revista."
+msgstr "Quero receber alertas sobre as últimas notícias publicadas na revista."
 
 #: jcom_profile/newsletter/forms.py:28
 msgid "Preferred language for alerts"
@@ -594,8 +499,7 @@ msgstr "Língua preferida para os alertas"
 msgid "Thank you for setting your preferences"
 msgstr "Obrigado por definir as suas preferências"
 
-#: jcom_profile/profile/forms.py:20 plugins/wjs_review/forms.py:357
-#: plugins/wjs_review/models.py:1993
+#: jcom_profile/profile/forms.py:20 plugins/wjs_review/forms.py:357 plugins/wjs_review/models.py:1993
 msgid "First name"
 msgstr "Nome"
 
@@ -603,8 +507,7 @@ msgstr "Nome"
 msgid "Middle name"
 msgstr "Nome do meio"
 
-#: jcom_profile/profile/forms.py:22 plugins/wjs_review/forms.py:358
-#: plugins/wjs_review/models.py:1995
+#: jcom_profile/profile/forms.py:22 plugins/wjs_review/forms.py:358 plugins/wjs_review/models.py:1995
 msgid "Last name"
 msgstr "Sobrenome"
 
@@ -622,18 +525,13 @@ msgstr "Aviso de privacidade aceito em"
 msgid "Agree to our Privacy Policy"
 msgstr "Política de Privacidade"
 
-#: jcom_profile/profile/forms.py:34
-#: plugins/wjs_review/templates/wjs_review/base/elements/author.html:42
+#: jcom_profile/profile/forms.py:34 plugins/wjs_review/templates/wjs_review/base/elements/author.html:42
 msgid "Biography"
 msgstr "Biografia"
 
 #: jcom_profile/profile/forms.py:36
-msgid ""
-"Biographies are compulsory for authors and will be included in published "
-"papers."
-msgstr ""
-"As biografias são obrigatórias para os autores e serão incluídas nos artigos"
-" publicados."
+msgid "Biographies are compulsory for authors and will be included in published papers."
+msgstr "As biografias são obrigatórias para os autores e serão incluídas nos artigos publicados."
 
 #: jcom_profile/profile/forms.py:68
 #, python-format
@@ -720,8 +618,7 @@ msgstr "Afiliação"
 msgid "Interests updated."
 msgstr "Afiliação"
 
-#: jcom_profile/templates/admin/core/accounts/activate_account.html:5
-#: jcom_profile/templates/admin/core/accounts/activate_account.html:30
+#: jcom_profile/templates/admin/core/accounts/activate_account.html:5 jcom_profile/templates/admin/core/accounts/activate_account.html:30
 #, fuzzy
 #| msgid "Activate"
 msgid "Activate Account"
@@ -749,8 +646,7 @@ msgstr ""
 "                  ativa. Você pode verificar se ela está ativa tentando fazer login.\n"
 "                "
 
-#: jcom_profile/templates/admin/core/accounts/activate_account.html:47
-#: jcom_profile/templates/admin/core/accounts/login.html:50
+#: jcom_profile/templates/admin/core/accounts/activate_account.html:47 jcom_profile/templates/admin/core/accounts/login.html:50
 msgid "Login"
 msgstr "Acesso "
 
@@ -780,13 +676,11 @@ msgstr "Entrar com ORCiD"
 msgid "Log in with"
 msgstr "Acesso "
 
-#: jcom_profile/templates/admin/core/accounts/login.html:60
-#: jcom_profile/templates/admin/core/accounts/orcid_registration.html:50
+#: jcom_profile/templates/admin/core/accounts/login.html:60 jcom_profile/templates/admin/core/accounts/orcid_registration.html:50
 msgid "Forgotten your password?"
 msgstr "Esqueceu sua senha?"
 
-#: jcom_profile/templates/admin/core/accounts/login.html:66
-#: jcom_profile/templates/admin/core/accounts/orcid_registration.html:56
+#: jcom_profile/templates/admin/core/accounts/login.html:66 jcom_profile/templates/admin/core/accounts/orcid_registration.html:56
 msgid "Register a new account"
 msgstr "Registrar uma nova conta"
 
@@ -808,14 +702,7 @@ msgstr ""
 "                uma conta existente para vincular seu ORCiD para uso futuro.\n"
 "              "
 
-#: jcom_profile/templates/admin/core/accounts/orcid_registration.html:27
-#: jcom_profile/templates/admin/core/affiliation_summary.html:12
-#: jcom_profile/templates/admin/core/affiliation_summary.html:25
-#: jcom_profile/templates/wjs/profile/base.html:30
-#: jcom_profile/templates/wjs/profile/personal_email_edit.html:4
-#: jcom_profile/templates/wjs/profile/personal_email_edit.html:7
-#: plugins/wjs_review/forms.py:360 plugins/wjs_review/models.py:1985
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:33
+#: jcom_profile/templates/admin/core/accounts/orcid_registration.html:27 jcom_profile/templates/admin/core/affiliation_summary.html:12 jcom_profile/templates/admin/core/affiliation_summary.html:25 jcom_profile/templates/wjs/profile/base.html:30 jcom_profile/templates/wjs/profile/personal_email_edit.html:4 jcom_profile/templates/wjs/profile/personal_email_edit.html:7 plugins/wjs_review/forms.py:360 plugins/wjs_review/models.py:1985 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:33
 #, fuzzy
 #| msgid "email"
 msgid "Email"
@@ -825,13 +712,7 @@ msgstr "O seu e-mail"
 msgid "Log in"
 msgstr "Entrar"
 
-#: jcom_profile/templates/admin/core/accounts/password_guide.html:3
-#: plugins/wjs_review/templates/wjs_review/base/elements/author.html:5
-#: plugins/wjs_review/templates/wjs_review/details/editor_assigns_themselves_as_reviewer.html:3
-#: plugins/wjs_review/templates/wjs_review/details/editor_rejects_assignment.html:3
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:28
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/select_reviewer_form.html:2
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/invite_external_reviewer.html:3
+#: jcom_profile/templates/admin/core/accounts/password_guide.html:3 plugins/wjs_review/templates/wjs_review/base/elements/author.html:5 plugins/wjs_review/templates/wjs_review/details/editor_assigns_themselves_as_reviewer.html:3 plugins/wjs_review/templates/wjs_review/details/editor_rejects_assignment.html:3 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:28 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/select_reviewer_form.html:2 plugins/wjs_review/templates/wjs_review/select_reviewer/invite_external_reviewer.html:3
 msgid "Close"
 msgstr "Fechar"
 
@@ -841,8 +722,7 @@ msgstr "Guia de senha"
 
 #: jcom_profile/templates/admin/core/accounts/password_guide.html:27
 msgid "When it comes to passwords, length is better than complexity."
-msgstr ""
-"Quando se trata de senhas, o comprimento é melhor do que a complexidade."
+msgstr "Quando se trata de senhas, o comprimento é melhor do que a complexidade."
 
 #: jcom_profile/templates/admin/core/accounts/password_guide.html:31
 msgid ""
@@ -880,8 +760,7 @@ msgstr ""
 msgid "Register for an account with SISSA Journals"
 msgstr "Registre-se para ter uma conta nos Periódicos da SISSA"
 
-#: jcom_profile/templates/admin/core/accounts/register.html:49
-#: jcom_profile/templates/admin/core/accounts/reset_password.html:16
+#: jcom_profile/templates/admin/core/accounts/register.html:49 jcom_profile/templates/admin/core/accounts/reset_password.html:16
 msgid "Password Rules"
 msgstr "Regras de senha"
 
@@ -913,15 +792,11 @@ msgstr "guia de senha"
 msgid "For more information read our"
 msgstr "Afiliação"
 
-#: jcom_profile/templates/admin/core/accounts/reset_password.html:33
-#: jcom_profile/templates/jcom_profile/plugins/pluginconfig_form.html:27
-#: plugins/wjs_review/templates/wjs_review/details/articleworkflow_form.html:5
-#: plugins/wjs_review/templates/wjs_review/write_message/write_messages.html:71
+#: jcom_profile/templates/admin/core/accounts/reset_password.html:33 jcom_profile/templates/jcom_profile/plugins/pluginconfig_form.html:27 plugins/wjs_review/templates/wjs_review/details/articleworkflow_form.html:5 plugins/wjs_review/templates/wjs_review/write_message/write_messages.html:71
 msgid "Save"
 msgstr "Salvar"
 
-#: jcom_profile/templates/admin/core/affiliation_confirm_remove.html:5
-#: jcom_profile/templates/admin/core/affiliation_confirm_remove.html:8
+#: jcom_profile/templates/admin/core/affiliation_confirm_remove.html:5 jcom_profile/templates/admin/core/affiliation_confirm_remove.html:8
 msgid "Confirm removal of affiliation"
 msgstr "Confirmar remoção da afiliação"
 
@@ -933,9 +808,7 @@ msgstr "Tem certeza de que deseja remover esta afiliação?"
 msgid "Yes, remove"
 msgstr "Sim, remover"
 
-#: jcom_profile/templates/admin/core/affiliation_confirm_remove.html:24
-#: jcom_profile/templates/admin/core/affiliation_form.html:116
-#: jcom_profile/templates/admin/core/organizationname_form.html:28
+#: jcom_profile/templates/admin/core/affiliation_confirm_remove.html:24 jcom_profile/templates/admin/core/affiliation_form.html:116 jcom_profile/templates/admin/core/organizationname_form.html:28
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -998,19 +871,12 @@ msgid "Affiliation details"
 msgstr "Data da publicação"
 
 #: jcom_profile/templates/admin/core/affiliation_form.html:40
-msgid ""
-"Make your changes to the affiliation, and then select <strong>Save</strong>."
-msgstr ""
-"Faça suas alterações na afiliação e, em seguida, selecione "
-"<strong>Salvar</strong>."
+msgid "Make your changes to the affiliation, and then select <strong>Save</strong>."
+msgstr "Faça suas alterações na afiliação e, em seguida, selecione <strong>Salvar</strong>."
 
 #: jcom_profile/templates/admin/core/affiliation_form.html:42
-msgid ""
-"Enter optional affiliation details, and select <strong>Save</strong> to "
-"create the affiliation."
-msgstr ""
-"Insira detalhes opcionais da afiliação e selecione <strong>Salvar</strong> "
-"para criar a afiliação."
+msgid "Enter optional affiliation details, and select <strong>Save</strong> to create the affiliation."
+msgstr "Insira detalhes opcionais da afiliação e selecione <strong>Salvar</strong> para criar a afiliação."
 
 #: jcom_profile/templates/admin/core/affiliation_form.html:46
 msgid "Organization name"
@@ -1020,8 +886,7 @@ msgstr "Nome da organização"
 msgid "Edit custom name"
 msgstr "Editar nome personalizado"
 
-#: jcom_profile/templates/admin/core/affiliation_form.html:64
-#: jcom_profile/templates/admin/core/organization_search.html:55
+#: jcom_profile/templates/admin/core/affiliation_form.html:64 jcom_profile/templates/admin/core/organization_search.html:55
 #, fuzzy
 #| msgid "Section"
 msgid "Locations"
@@ -1031,37 +896,7 @@ msgstr "Seção"
 msgid "ROR"
 msgstr "ROR"
 
-#: jcom_profile/templates/admin/core/affiliation_form.html:111
-#: jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:4
-#: jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:5
-#: jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:6
-#: jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:7
-#: jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:8
-#: jcom_profile/templates/admin/core/organizationname_form.html:23
-#: jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:51
-#: jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:52
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:31
-#: plugins/wjs_review/templates/wjs_review/evaluate_review/review_evaluate.html:8
-#: plugins/wjs_review/templates/wjs_review/evaluate_review/review_evaluate.html:9
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:3
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:4
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:5
-#: plugins/wjs_review/templates/wjs_review/revision/delete_file.html:5
-#: plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:25
-#: plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:26
-#: plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:32
-#: plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:34
-#: plugins/wjs_review/templates/wjs_review/revision/elements/meta_data.html:19
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:28
-#: plugins/wjs_review/templates/wjs_review/revision/elements/revision_files.html:23
-#: plugins/wjs_review/templates/wjs_review/revision/elements/revision_files.html:24
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:3
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:4
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:5
-#: plugins/wjs_review/templates/wjs_review/revision/upload_revision_author_cover_letter_file.html:11
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:4
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:5
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:6
+#: jcom_profile/templates/admin/core/affiliation_form.html:111 jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:4 jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:5 jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:6 jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:7 jcom_profile/templates/admin/core/affiliation_list_display_with_actions.html:8 jcom_profile/templates/admin/core/organizationname_form.html:23 jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:51 jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:52 plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:31 plugins/wjs_review/templates/wjs_review/evaluate_review/review_evaluate.html:8 plugins/wjs_review/templates/wjs_review/evaluate_review/review_evaluate.html:9 plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:3 plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:4 plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:5 plugins/wjs_review/templates/wjs_review/revision/delete_file.html:5 plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:25 plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:26 plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:32 plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:34 plugins/wjs_review/templates/wjs_review/revision/elements/meta_data.html:19 plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:28 plugins/wjs_review/templates/wjs_review/revision/elements/revision_files.html:23 plugins/wjs_review/templates/wjs_review/revision/elements/revision_files.html:24 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:3 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:4 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:5 plugins/wjs_review/templates/wjs_review/revision/upload_revision_author_cover_letter_file.html:11 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:4 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:5 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:6
 msgid "<i class=\\"
 msgstr "<i class=\\"
 
@@ -1069,13 +904,11 @@ msgstr "<i class=\\"
 msgid "Please select your affiliation(s)"
 msgstr "Por favor, selecione sua(s) afiliação(ões)"
 
-#: jcom_profile/templates/admin/core/affiliation_summary.html:8
-#: plugins/wjs_review/models.py:2045
+#: jcom_profile/templates/admin/core/affiliation_summary.html:8 plugins/wjs_review/models.py:2045
 msgid "User"
 msgstr "Usuário"
 
-#: jcom_profile/templates/admin/core/affiliation_summary.html:16
-#: jcom_profile/templates/admin/core/affiliation_summary.html:29
+#: jcom_profile/templates/admin/core/affiliation_summary.html:16 jcom_profile/templates/admin/core/affiliation_summary.html:29
 msgid "ORCID"
 msgstr "ORCID"
 
@@ -1100,9 +933,7 @@ msgstr ""
 "              Os cargos estão %(status)s.\n"
 "            "
 
-#: jcom_profile/templates/admin/core/affiliation_summary.html:61
-#: jcom_profile/templates/admin/core/affiliation_summary.html:69
-#: jcom_profile/templates/admin/core/affiliation_summary.html:77
+#: jcom_profile/templates/admin/core/affiliation_summary.html:61 jcom_profile/templates/admin/core/affiliation_summary.html:69 jcom_profile/templates/admin/core/affiliation_summary.html:77
 msgid "change"
 msgstr "alterar"
 
@@ -1128,8 +959,7 @@ msgstr ""
 "              As datas de afiliação estão %(status)s.\n"
 "            "
 
-#: jcom_profile/templates/admin/core/affiliation_update_from_orcid.html:5
-#: jcom_profile/templates/admin/core/affiliation_update_from_orcid.html:8
+#: jcom_profile/templates/admin/core/affiliation_update_from_orcid.html:5 jcom_profile/templates/admin/core/affiliation_update_from_orcid.html:8
 msgid "Update affiliations from ORCiD"
 msgstr "Atualizar afiliações a partir do ORCiD"
 
@@ -1153,8 +983,7 @@ msgstr "Sim, continuar"
 msgid "Go back"
 msgstr "Voltar"
 
-#: jcom_profile/templates/admin/core/organization_search.html:5
-#: jcom_profile/templates/admin/core/organization_search.html:8
+#: jcom_profile/templates/admin/core/organization_search.html:5 jcom_profile/templates/admin/core/organization_search.html:8
 #, fuzzy
 #| msgid "Affiliation"
 msgid "Add Affiliation"
@@ -1164,17 +993,7 @@ msgstr "Afiliação"
 msgid "Search for organization"
 msgstr "Pesquisar organização"
 
-#: jcom_profile/templates/admin/core/organization_search.html:29
-#: plugins/wjs_review/templates/wjs_review/article_messages/elements/messages_list.html:2
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_list.html:4
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:2
-#: plugins/wjs_review/templates/wjs_review/lists/elements/filters_base.html:3
-#: plugins/wjs_review/templates/wjs_review/lists/elements/filters_eo.html:2
-#: plugins/wjs_review/templates/wjs_review/lists/elements/filters_staff.html:3
-#: plugins/wjs_review/templates/wjs_review/lists/elements/filters_workon.html:3
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/messages_list.html:2
-#: plugins/wjs_review/templates/wjs_review/reminders/elements/reminders_list.html:2
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:2
+#: jcom_profile/templates/admin/core/organization_search.html:29 plugins/wjs_review/templates/wjs_review/article_messages/elements/messages_list.html:2 plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_list.html:4 plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:2 plugins/wjs_review/templates/wjs_review/lists/elements/filters_base.html:3 plugins/wjs_review/templates/wjs_review/lists/elements/filters_eo.html:2 plugins/wjs_review/templates/wjs_review/lists/elements/filters_staff.html:3 plugins/wjs_review/templates/wjs_review/lists/elements/filters_workon.html:3 plugins/wjs_review/templates/wjs_review/messages_overview/elements/messages_list.html:2 plugins/wjs_review/templates/wjs_review/reminders/elements/reminders_list.html:2 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:2
 msgid "Search"
 msgstr "Buscar"
 
@@ -1214,8 +1033,7 @@ msgstr "Se você não encontrar sua organização, pode criar uma personalizada.
 msgid "Create organization"
 msgstr "Criar organização"
 
-#: jcom_profile/templates/admin/core/organizationname_form.html:5
-#: jcom_profile/templates/admin/core/organizationname_form.html:8
+#: jcom_profile/templates/admin/core/organizationname_form.html:5 jcom_profile/templates/admin/core/organizationname_form.html:8
 msgid "Custom organization"
 msgstr "Organização personalizada"
 
@@ -1223,8 +1041,7 @@ msgstr "Organização personalizada"
 msgid "Custom name"
 msgstr "Nome personalizado"
 
-#: jcom_profile/templates/jcom_profile/plugins/pluginconfig_form.html:13
-#: jcom_profile/templates/wjs/base/elements/user_menu_dropdown_list.html:76
+#: jcom_profile/templates/jcom_profile/plugins/pluginconfig_form.html:13 jcom_profile/templates/wjs/base/elements/user_menu_dropdown_list.html:76
 msgid "Manager"
 msgstr "Gerente"
 
@@ -1232,9 +1049,7 @@ msgstr "Gerente"
 msgid "Journal Home Settings"
 msgstr "Configurações da página inicial do periódico"
 
-#: jcom_profile/templates/wjs/base/elements/user_menu_dropdown_list.html:34
-#: jcom_profile/templates/wjs/profile/director_update_editor_parameters.html:22
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/review_report_form.html:67
+#: jcom_profile/templates/wjs/base/elements/user_menu_dropdown_list.html:34 jcom_profile/templates/wjs/profile/director_update_editor_parameters.html:22 plugins/wjs_review/templates/wjs_review/submit_review/elements/review_report_form.html:67
 msgid "Submit"
 msgstr "Enviar"
 
@@ -1312,8 +1127,7 @@ msgstr "Perfil"
 msgid "Logout"
 msgstr "Terminar a sessão"
 
-#: jcom_profile/templates/wjs/newsletter/anonymous_subscription_email_sent.html:4
-#: jcom_profile/templates/wjs/newsletter/anonymous_subscription_email_sent.html:7
+#: jcom_profile/templates/wjs/newsletter/anonymous_subscription_email_sent.html:4 jcom_profile/templates/wjs/newsletter/anonymous_subscription_email_sent.html:7
 msgid "Subscription to be confirmed"
 msgstr "Subscrição a confirmar"
 
@@ -1336,19 +1150,11 @@ msgstr ""
 "Foi enviado um e-mail com um link de confirmação para o seu endereço de e-mail.\n"
 "Por favor, abra a ligação para activar o seu alerta de publicação."
 
-#: jcom_profile/templates/wjs/newsletter/anonymous_user_register_newsletter.html:4
-#: jcom_profile/templates/wjs/newsletter/anonymous_user_register_newsletter.html:11
-#: jcom_profile/templates/wjs/newsletter/delete_subscription.html:4
-#: jcom_profile/templates/wjs/newsletter/delete_subscription.html:7
-#: jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:4
-#: jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:7
-#: jcom_profile/templates/wjs/newsletter/email/newsletter_template.html:21
-#: jcom_profile/templates/wjs/profile/base.html:50
+#: jcom_profile/templates/wjs/newsletter/anonymous_user_register_newsletter.html:4 jcom_profile/templates/wjs/newsletter/anonymous_user_register_newsletter.html:11 jcom_profile/templates/wjs/newsletter/delete_subscription.html:4 jcom_profile/templates/wjs/newsletter/delete_subscription.html:7 jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:4 jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:7 jcom_profile/templates/wjs/newsletter/email/newsletter_template.html:21 jcom_profile/templates/wjs/profile/base.html:50
 msgid "Publication alert"
 msgstr "Alerta de publicação"
 
-#: jcom_profile/templates/wjs/newsletter/anonymous_user_register_newsletter.html:14
-#: plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:13
+#: jcom_profile/templates/wjs/newsletter/anonymous_user_register_newsletter.html:14 plugins/wjs_subscribe_newsletter/templates/homepage_elements/wjs_publication_form.html:13
 msgid "Subscribe"
 msgstr "Subscrever"
 
@@ -1370,22 +1176,12 @@ msgstr ""
 "Pode subscrever novamente em qualquer altura a partir da <a href=\"/\">página inicial da JCOMAL</a>."
 
 #: jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:13
-msgid ""
-"Your subscription is active. Please use the checkboxes if you wish to change"
-" your topics of interest and limit incoming alerts to new publications "
-"matching those topics only."
-msgstr ""
-"A sua subscrição está activa. Utilize as caixas de verificação se desejar "
-"alterar os seus tópicos de interesse e limitar os alertas recebidos a novas "
-"publicações que correspondam apenas a esses tópicos."
+msgid "Your subscription is active. Please use the checkboxes if you wish to change your topics of interest and limit incoming alerts to new publications matching those topics only."
+msgstr "A sua subscrição está activa. Utilize as caixas de verificação se desejar alterar os seus tópicos de interesse e limitar os alertas recebidos a novas publicações que correspondam apenas a esses tópicos."
 
 #: jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:15
-msgid ""
-"If new topics are added to the list in the future, you will be automatically"
-" subscribed to them and will be able to uncheck them from this page."
-msgstr ""
-"Se novos tópicos forem adicionados à lista no futuro, você será "
-"automaticamente inscrito neles e poderá desmarcá-los nesta página."
+msgid "If new topics are added to the list in the future, you will be automatically subscribed to them and will be able to uncheck them from this page."
+msgstr "Se novos tópicos forem adicionados à lista no futuro, você será automaticamente inscrito neles e poderá desmarcá-los nesta página."
 
 #: jcom_profile/templates/wjs/newsletter/edit_newsletters_subscription.html:54
 msgid "Publication alert subscription"
@@ -1436,82 +1232,54 @@ msgstr ""
 
 #: jcom_profile/templates/wjs/newsletter/unsubscribe_confirmation_modal.html:3
 #, fuzzy, python-format
-#| msgid ""
-#| "Please confirm that you do not wish to receive any JCOM publication alert"
+#| msgid "Please confirm that you do not wish to receive any JCOM publication alert"
 msgid ""
 "\n"
 "    Please confirm that you do not wish to receive any %(code)s publication alert\n"
 "  "
-msgstr ""
-"Por favor, confirme que não deseja receber qualquer alerta de publicação de "
-"JCOMAL"
+msgstr "Por favor, confirme que não deseja receber qualquer alerta de publicação de JCOMAL"
 
-#: jcom_profile/templates/wjs/newsletter/unsubscribe_confirmation_modal.html:9
-#: plugins/wjs_review/forms.py:1757
+#: jcom_profile/templates/wjs/newsletter/unsubscribe_confirmation_modal.html:9 plugins/wjs_review/forms.py:1757
 msgid "Yes"
 msgstr "Sim"
 
-#: jcom_profile/templates/wjs/newsletter/unsubscribe_confirmation_modal.html:10
-#: plugins/wjs_review/forms.py:1758
+#: jcom_profile/templates/wjs/newsletter/unsubscribe_confirmation_modal.html:10 plugins/wjs_review/forms.py:1758
 msgid "No"
 msgstr "Não"
 
 #: jcom_profile/templates/wjs/profile/base.html:24
-#, fuzzy
 #| msgid "Profile"
 msgid "Personal Details"
-msgstr "Perfil"
+msgstr "Dados pessoais"
 
-#: jcom_profile/templates/wjs/profile/base.html:27
-#: jcom_profile/templates/wjs/profile/personal_affiliations_edit.html:4
-#: jcom_profile/templates/wjs/profile/personal_affiliations_edit.html:7
-#, fuzzy
+#: jcom_profile/templates/wjs/profile/base.html:27 jcom_profile/templates/wjs/profile/personal_affiliations_edit.html:4 jcom_profile/templates/wjs/profile/personal_affiliations_edit.html:7
 #| msgid "Affiliation"
 msgid "Affiliations"
-msgstr "Afiliação"
+msgstr "Afiliações"
 
-#: jcom_profile/templates/wjs/profile/base.html:46
-#: jcom_profile/templates/wjs/profile/personal_info_edit.html:4
-#: jcom_profile/templates/wjs/profile/personal_info_edit.html:7
-#, fuzzy
+#: jcom_profile/templates/wjs/profile/base.html:46 jcom_profile/templates/wjs/profile/personal_info_edit.html:4 jcom_profile/templates/wjs/profile/personal_info_edit.html:7
 #| msgid "Affiliation"
 msgid "Additional information"
-msgstr "Afiliação"
+msgstr "Informações adicionais"
 
 #: jcom_profile/templates/wjs/profile/director_update_editor_parameters.html:5
 msgid "Update editor parameters"
 msgstr "Atualizar parâmetros do editor"
 
-#: jcom_profile/templates/wjs/profile/personal_edit.html:4
-#: jcom_profile/templates/wjs/profile/personal_edit.html:7
-#, fuzzy
+#: jcom_profile/templates/wjs/profile/personal_edit.html:4 jcom_profile/templates/wjs/profile/personal_edit.html:7
 #| msgid "Profile"
 msgid "Personal details"
-msgstr "Perfil"
+msgstr "Dados pessoais"
 
 #: jcom_profile/templates/wjs/profile/personal_edit.html:31
 msgid "Connect your ORCID iD"
 msgstr "Conecte seu ORCID iD"
 
 #: jcom_profile/templates/wjs/profile/personal_edit.html:47
-msgid ""
-"If you have any questions about how your personal data is managed, please "
-"contact <a "
-"href=\"mailto:privacy@medialab.sissa.it\">privacy@medialab.sissa.it</a>"
-msgstr ""
-"Se você tiver dúvidas sobre como seus dados pessoais são gerenciados, entre "
-"em contato com <a "
-"href=\"mailto:privacy@medialab.sissa.it\">privacy@medialab.sissa.it</a>"
+msgid "If you have any questions about how your personal data is managed, please contact <a href=\"mailto:privacy@medialab.sissa.it\">privacy@medialab.sissa.it</a>"
+msgstr "Se você tiver dúvidas sobre como seus dados pessoais são gerenciados, entre em contato com <a href=\"mailto:privacy@medialab.sissa.it\">privacy@medialab.sissa.it</a>"
 
-#: jcom_profile/templates/wjs/profile/personal_edit.html:49
-#: jcom_profile/templates/wjs/profile/personal_email_edit.html:27
-#: jcom_profile/templates/wjs/profile/personal_info_edit.html:35
-#: jcom_profile/templates/wjs/profile/personal_interests_edit.html:44
-#: jcom_profile/templates/wjs/profile/personal_password_edit.html:16
-#: jcom_profile/templates/wjs/profile/update_editor_parameters.html:43
-#: plugins/wjs_review/forms.py:501
-#: plugins/wjs_review/templates/wjs_review/journal_editors/elements/editor_parameters_list.html:3
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/sync_texdb.html:9
+#: jcom_profile/templates/wjs/profile/personal_edit.html:49 jcom_profile/templates/wjs/profile/personal_email_edit.html:27 jcom_profile/templates/wjs/profile/personal_info_edit.html:35 jcom_profile/templates/wjs/profile/personal_interests_edit.html:44 jcom_profile/templates/wjs/profile/personal_password_edit.html:16 jcom_profile/templates/wjs/profile/update_editor_parameters.html:43 plugins/wjs_review/forms.py:501 plugins/wjs_review/templates/wjs_review/journal_editors/elements/editor_parameters_list.html:3 plugins/wjs_review/templates/wjs_review/sync_texdb/sync_texdb.html:9
 msgid "Update"
 msgstr "Atualizar"
 
@@ -1529,47 +1297,25 @@ msgstr "<b>Nota</b>: ao alterar seu endereço de e-mail:"
 
 #: jcom_profile/templates/wjs/profile/personal_email_edit.html:16
 #, fuzzy
-#| msgid ""
-#| "If you want to change your email address you may do so below, however, you "
-#| "will be logged out and your account will be marked as inactive until you "
-#| "follow the instructions in the verification email."
-msgid ""
-"you will be <b>logged out</b> and your account will be marked as inactive "
-"until you follow the instructions in the verification email."
-msgstr ""
-"Se desejar alterar o seu endereço de correio electrónico pode fazê-lo "
-"abaixo, no entanto, será desconectado e a sua conta será marcada como "
-"inactiva até que siga as instruções no e-mail de verificação."
+#| msgid "If you want to change your email address you may do so below, however, you will be logged out and your account will be marked as inactive until you follow the instructions in the verification email."
+msgid "you will be <b>logged out</b> and your account will be marked as inactive until you follow the instructions in the verification email."
+msgstr "Se desejar alterar o seu endereço de correio electrónico pode fazê-lo abaixo, no entanto, será desconectado e a sua conta será marcada como inactiva até que siga as instruções no e-mail de verificação."
 
 #: jcom_profile/templates/wjs/profile/personal_email_edit.html:17
 #, fuzzy
-#| msgid ""
-#| "Changing your email address will also change your username as these are one "
-#| "and the same."
-msgid ""
-"also your username <b>will change</b>, as email and username are one and the"
-" same."
-msgstr ""
-"Alterar o seu endereço de correio electrónico também mudará o seu nome de "
-"utilizador, uma vez que estes são os mesmos."
+#| msgid "Changing your email address will also change your username as these are one and the same."
+msgid "also your username <b>will change</b>, as email and username are one and the same."
+msgstr "Alterar o seu endereço de correio electrónico também mudará o seu nome de utilizador, uma vez que estes são os mesmos."
 
 #: jcom_profile/templates/wjs/profile/personal_info_edit.html:10
-msgid ""
-"Please provide as much information as possible to help the Journal, its "
-"editors and reviewers get to know you better."
-msgstr ""
-"Por favor, forneça o máximo de informações possível para ajudar o periódico,"
-" seus editores e revisores a conhecê-lo melhor."
+msgid "Please provide as much information as possible to help the Journal, its editors and reviewers get to know you better."
+msgstr "Por favor, forneça o máximo de informações possível para ajudar o periódico, seus editores e revisores a conhecê-lo melhor."
 
-#: jcom_profile/templates/wjs/profile/personal_interests_edit.html:11
-#: jcom_profile/templates/wjs/profile/update_editor_parameters.html:14
+#: jcom_profile/templates/wjs/profile/personal_interests_edit.html:11 jcom_profile/templates/wjs/profile/update_editor_parameters.html:14
 msgid "Please select the keywords that best describe your areas of expertise."
-msgstr ""
-"Por favor, selecione as palavras-chave que melhor descrevem suas áreas de "
-"especialização."
+msgstr "Por favor, selecione as palavras-chave que melhor descrevem suas áreas de especialização."
 
-#: jcom_profile/templates/wjs/profile/update_editor_parameters.html:4
-#: jcom_profile/templates/wjs/profile/update_editor_parameters.html:7
+#: jcom_profile/templates/wjs/profile/update_editor_parameters.html:4 jcom_profile/templates/wjs/profile/update_editor_parameters.html:7
 msgid "Paper assignments parameters"
 msgstr "Parâmetros de atribuição de artigos"
 
@@ -1610,16 +1356,13 @@ msgstr "Filtrar por secção"
 msgid "All author's publications are listed below."
 msgstr "Publicações deste autor"
 
-#: plugins/wjs_latest_articles/models.py:11
-#: plugins/wjs_latest_news/models.py:11
-#: plugins/wjs_subscribe_newsletter/models.py:15
+#: plugins/wjs_latest_articles/models.py:11 plugins/wjs_latest_news/models.py:11 plugins/wjs_subscribe_newsletter/models.py:15
 #, fuzzy
 #| msgid "Section"
 msgid "Section title"
 msgstr "Seção"
 
-#: plugins/wjs_latest_articles/models.py:12
-#: plugins/wjs_latest_news/models.py:12
+#: plugins/wjs_latest_articles/models.py:12 plugins/wjs_latest_news/models.py:12
 msgid "Number of items shown in the home page"
 msgstr "Número de itens exibidos na página inicial"
 
@@ -1635,8 +1378,7 @@ msgstr "Tag usada para filtrar notícias visíveis na segunda caixa"
 msgid "Number of items shown in the second box"
 msgstr "Número de itens exibidos na segunda caixa"
 
-#: plugins/wjs_review/custom_types.py:82 plugins/wjs_review/filters.py:492
-#: plugins/wjs_review/models.py:399
+#: plugins/wjs_review/custom_types.py:82 plugins/wjs_review/filters.py:492 plugins/wjs_review/models.py:399
 msgid "Withdrawn"
 msgstr "Retirado"
 
@@ -1688,8 +1430,7 @@ msgstr "Seção"
 msgid "Preprint ID/DOI"
 msgstr "ID do preprint/DOI"
 
-#: plugins/wjs_review/filters.py:93
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:23
+#: plugins/wjs_review/filters.py:93 plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:23
 #, fuzzy
 #| msgid "Current Email Address"
 msgid "Corresponding author"
@@ -1699,25 +1440,17 @@ msgstr "Endereço de correio electrónico actual"
 msgid "Language"
 msgstr "Idioma"
 
-#: plugins/wjs_review/filters.py:98 plugins/wjs_review/filters.py:104
-#: plugins/wjs_review/filters.py:110 plugins/wjs_review/filters.py:116
-#: plugins/wjs_review/filters.py:123 plugins/wjs_review/filters.py:134
-#: plugins/wjs_review/filters.py:140 plugins/wjs_review/filters.py:336
-#: plugins/wjs_review/filters.py:400 plugins/wjs_review/filters.py:464
-#: plugins/wjs_review/filters.py:479 plugins/wjs_review/filters.py:489
-#: plugins/wjs_review/forms.py:445 plugins/wjs_review/forms.py:1600
+#: plugins/wjs_review/filters.py:98 plugins/wjs_review/filters.py:104 plugins/wjs_review/filters.py:110 plugins/wjs_review/filters.py:116 plugins/wjs_review/filters.py:123 plugins/wjs_review/filters.py:134 plugins/wjs_review/filters.py:140 plugins/wjs_review/filters.py:336 plugins/wjs_review/filters.py:400 plugins/wjs_review/filters.py:464 plugins/wjs_review/filters.py:479 plugins/wjs_review/filters.py:489 plugins/wjs_review/forms.py:445 plugins/wjs_review/forms.py:1600
 msgid "All"
 msgstr "Todos"
 
-#: plugins/wjs_review/filters.py:115
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:30
+#: plugins/wjs_review/filters.py:115 plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:30
 #, fuzzy
 #| msgid "Edit Special Issue"
 msgid "Special Issue"
 msgstr "Editar Especial Edição"
 
-#: plugins/wjs_review/filters.py:122
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_articles_list.html:16
+#: plugins/wjs_review/filters.py:122 plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_articles_list.html:16
 msgid "Status"
 msgstr "Status"
 
@@ -1735,16 +1468,11 @@ msgstr "Categoria ArXiv"
 msgid "Preprint ID/ArXiv ID"
 msgstr "ID do preprint/ID ArXiv"
 
-#: plugins/wjs_review/filters.py:307
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_authors.html:6
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_articles_list.html:13
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/authors.html:4
-#: plugins/wjs_review/templates/wjs_review/write_message/elements/header.html:6
+#: plugins/wjs_review/filters.py:307 plugins/wjs_review/templates/wjs_review/details/elements/metadata_authors.html:6 plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_articles_list.html:13 plugins/wjs_review/templates/wjs_review/sync_texdb/authors.html:4 plugins/wjs_review/templates/wjs_review/write_message/elements/header.html:6
 msgid "Authors"
 msgstr "Autores"
 
-#: plugins/wjs_review/filters.py:335 plugins/wjs_review/filters.py:463
-#: plugins/wjs_review/models.py:460
+#: plugins/wjs_review/filters.py:335 plugins/wjs_review/filters.py:463 plugins/wjs_review/models.py:460
 msgid "EO in charge"
 msgstr "EO responsável"
 
@@ -1762,8 +1490,7 @@ msgstr "País do autor"
 msgid "Author's Institution"
 msgstr "Afiliação"
 
-#: plugins/wjs_review/filters.py:390 plugins/wjs_review/filters.py:391
-#: plugins/wjs_review/filters.py:469 plugins/wjs_review/filters.py:470
+#: plugins/wjs_review/filters.py:390 plugins/wjs_review/filters.py:391 plugins/wjs_review/filters.py:469 plugins/wjs_review/filters.py:470
 msgid "Sender/Recipient"
 msgstr "Remetente/Destinatário"
 
@@ -1771,21 +1498,17 @@ msgstr "Remetente/Destinatário"
 msgid "Subject/Body"
 msgstr "Assunto/Corpo"
 
-#: plugins/wjs_review/filters.py:399 plugins/wjs_review/filters.py:478
-#: plugins/wjs_review/models.py:1462
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:12
+#: plugins/wjs_review/filters.py:399 plugins/wjs_review/filters.py:478 plugins/wjs_review/models.py:1462 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:12
 msgid "Type"
 msgstr "Tipo"
 
-#: plugins/wjs_review/filters.py:402 plugins/wjs_review/filters.py:481
-#: plugins/wjs_review/forms.py:1604
+#: plugins/wjs_review/filters.py:402 plugins/wjs_review/filters.py:481 plugins/wjs_review/forms.py:1604
 #, fuzzy
 #| msgid "Articles"
 msgid "User messages"
 msgstr "Artigos"
 
-#: plugins/wjs_review/filters.py:404 plugins/wjs_review/filters.py:483
-#: plugins/wjs_review/forms.py:1612
+#: plugins/wjs_review/filters.py:404 plugins/wjs_review/filters.py:483 plugins/wjs_review/forms.py:1612
 msgid "System"
 msgstr "Sistema"
 
@@ -1811,8 +1534,7 @@ msgstr "Eventos importantes"
 msgid "Production Complete"
 msgstr "Publicações"
 
-#: plugins/wjs_review/filters.py:527 plugins/wjs_review/filters.py:528
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:21
+#: plugins/wjs_review/filters.py:527 plugins/wjs_review/filters.py:528 plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:21
 #, fuzzy
 #| msgctxt "USER FACING"
 #| msgid "Filter by section"
@@ -1848,8 +1570,7 @@ msgstr "Artigos"
 msgid "Allow reviewer to see author's cover letter"
 msgstr "Permitir que o revisor veja a carta de apresentação do autor"
 
-#: plugins/wjs_review/forms.py:225 plugins/wjs_review/forms.py:549
-#: plugins/wjs_review/forms.py:770 plugins/wjs_review/forms.py:1283
+#: plugins/wjs_review/forms.py:225 plugins/wjs_review/forms.py:549 plugins/wjs_review/forms.py:770 plugins/wjs_review/forms.py:1283
 msgid "Date must be in the future"
 msgstr "A data deve estar no futuro"
 
@@ -1861,15 +1582,11 @@ msgstr "Condições de atribuição não atendidas."
 msgid "I will send my review by"
 msgstr "Enviarei minha revisão até"
 
-#: plugins/wjs_review/forms.py:440
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:25
-#: plugins/wjs_review/templates/wjs_review/journal_editors/elements/editor_parameters_table.html:7
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:31
+#: plugins/wjs_review/forms.py:440 plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:25 plugins/wjs_review/templates/wjs_review/journal_editors/elements/editor_parameters_table.html:7 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:31
 msgid "Name"
 msgstr "Nome"
 
-#: plugins/wjs_review/forms.py:446
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_list.html:34
+#: plugins/wjs_review/forms.py:446 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_list.html:34
 msgid "Reviewed previous version"
 msgstr "Revisou a versão anterior"
 
@@ -1877,8 +1594,7 @@ msgstr "Revisou a versão anterior"
 msgid "My reviewer archive"
 msgstr "Meu arquivo de revisor"
 
-#: plugins/wjs_review/forms.py:448
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_list.html:32
+#: plugins/wjs_review/forms.py:448 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_list.html:32
 msgid "Declined/removed from previous version"
 msgstr "Recusado/removido da versão anterior"
 
@@ -1890,15 +1606,13 @@ msgstr "Comentários adicionais"
 msgid "Please provide a reason for declining"
 msgstr "Por favor, forneça um motivo para a recusa"
 
-#: plugins/wjs_review/forms.py:501 plugins/wjs_review/forms.py:1977
-#: plugins/wjs_review/models.py:420
+#: plugins/wjs_review/forms.py:501 plugins/wjs_review/forms.py:1977 plugins/wjs_review/models.py:420
 #, fuzzy
 #| msgid "Accept GDPR"
 msgid "Accept"
 msgstr "Aceitar o GDPR"
 
-#: plugins/wjs_review/forms.py:501 plugins/wjs_review/forms.py:1986
-#: plugins/wjs_review/models.py:421
+#: plugins/wjs_review/forms.py:501 plugins/wjs_review/forms.py:1986 plugins/wjs_review/models.py:421
 msgid "Reject"
 msgstr "Rejeitar"
 
@@ -1913,16 +1627,13 @@ msgstr "Se você aceitar o convite, sua revisão é esperada até"
 #: plugins/wjs_review/forms.py:532
 #, python-brace-format
 msgid "I acknowledge the <a href=\"{url}\" target=\"_blank\">privacy policy</a>"
-msgstr ""
-"Eu reconheço a <a href=\"{url}\" target=\"_blank\">política de "
-"privacidade</a>"
+msgstr "Eu reconheço a <a href=\"{url}\" target=\"_blank\">política de privacidade</a>"
 
 #: plugins/wjs_review/forms.py:567
 msgid "Please acknowledge the privacy policy to continue"
 msgstr "Por favor, reconheça a política de privacidade para continuar"
 
-#: plugins/wjs_review/forms.py:671
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_decision.html:21
+#: plugins/wjs_review/forms.py:671 plugins/wjs_review/templates/wjs_review/details/elements/review_decision.html:21
 #, fuzzy
 #| msgid "Submissions"
 msgid "Decision"
@@ -1959,8 +1670,7 @@ msgstr "Os dados do formulário foram comprometidos"
 msgid "File type"
 msgstr "Tipo de arquivo"
 
-#: plugins/wjs_review/forms.py:828
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:25
+#: plugins/wjs_review/forms.py:828 plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:25
 msgid "Manuscript"
 msgstr "Manuscrito"
 
@@ -1976,96 +1686,55 @@ msgstr "Rótulo do arquivo"
 msgid "Source file"
 msgstr "Arquivo de origem"
 
-#: plugins/wjs_review/forms.py:889 plugins/wjs_review/models.py:546
-#: plugins/wjs_review/templates/wjs_review/details/elements/production_galleyproofing.html:29
+#: plugins/wjs_review/forms.py:889 plugins/wjs_review/models.py:546 plugins/wjs_review/templates/wjs_review/details/elements/production_galleyproofing.html:29
 msgid "Author notes"
 msgstr "Notas do autor"
 
 #: plugins/wjs_review/forms.py:931
-msgid ""
-"If I have modified title and/or abstract, I will take care of updating them "
-"in my preprint file as soon as possible. Either in a revised version or "
-"during the stage of proofreading (if my preprint is accepted for "
-"publication)."
-msgstr ""
-"Se eu tiver modificado o título e/ou o resumo, encarregar-me-ei de atualizá-"
-"los no arquivo do meu preprint o mais rápido possível. Seja em uma versão "
-"revisada ou durante a fase de revisão de provas (se meu preprint for aceito "
-"para publicação)."
+msgid "If I have modified title and/or abstract, I will take care of updating them in my preprint file as soon as possible. Either in a revised version or during the stage of proofreading (if my preprint is accepted for publication)."
+msgstr "Se eu tiver modificado o título e/ou o resumo, encarregar-me-ei de atualizá-los no arquivo do meu preprint o mais rápido possível. Seja em uma versão revisada ou durante a fase de revisão de provas (se meu preprint for aceito para publicação)."
 
 #: plugins/wjs_review/forms.py:946 plugins/wjs_review/forms.py:996
-msgid ""
-"You must confirm that the cover letter lists and describes the changes."
-msgstr ""
-"Você deve confirmar que a carta de apresentação lista e descreve as "
-"alterações."
+msgid "You must confirm that the cover letter lists and describes the changes."
+msgstr "Você deve confirmar que a carta de apresentação lista e descreve as alterações."
 
-#: plugins/wjs_review/forms.py:948 plugins/wjs_review/forms.py:998
-#: plugins/wjs_review/forms.py:2034
+#: plugins/wjs_review/forms.py:948 plugins/wjs_review/forms.py:998 plugins/wjs_review/forms.py:2034
 msgid "You should provide and save a cover letter."
 msgstr "Você deve fornecer e salvar uma carta de apresentação."
 
 #: plugins/wjs_review/forms.py:955
-msgid ""
-"I confirm that title and abstract on this web page correspond to those "
-"written in the preprint file."
-msgstr ""
-"Confirmo que o título e o resumo nesta página web correspondem aos escritos "
-"no arquivo do preprint."
+msgid "I confirm that title and abstract on this web page correspond to those written in the preprint file."
+msgstr "Confirmo que o título e o resumo nesta página web correspondem aos escritos no arquivo do preprint."
 
 #: plugins/wjs_review/forms.py:960
-msgid ""
-"I confirm that this resubmission fulfills the stylistic guidelines of the "
-"Journal and its ethical policy in all its aspects including use of Al, "
-"authorship, etc."
-msgstr ""
-"Confirmo que este reenvio cumpre as diretrizes estilísticas do periódico e "
-"sua política ética em todos os seus aspectos, incluindo o uso de IA, "
-"autoria, etc."
+msgid "I confirm that this resubmission fulfills the stylistic guidelines of the Journal and its ethical policy in all its aspects including use of Al, authorship, etc."
+msgstr "Confirmo que este reenvio cumpre as diretrizes estilísticas do periódico e sua política ética em todos os seus aspectos, incluindo o uso de IA, autoria, etc."
 
 #: plugins/wjs_review/forms.py:965
-msgid ""
-"I confirm that the file does not contain any author information and has line"
-" numbering."
-msgstr ""
-"Confirmo que o arquivo não contém nenhuma informação do autor e possui "
-"numeração de linhas."
+msgid "I confirm that the file does not contain any author information and has line numbering."
+msgstr "Confirmo que o arquivo não contém nenhuma informação do autor e possui numeração de linhas."
 
 #: plugins/wjs_review/forms.py:969
-msgid ""
-"I confirm that the cover letter lists and describes clearly the changes "
-"implemented in the preprint and motivates any modifications that have not "
-"been made."
-msgstr ""
-"Confirmo que a carta de apresentação lista e descreve claramente as "
-"alterações implementadas no preprint e justifica quaisquer modificações que "
-"não tenham sido feitas."
+msgid "I confirm that the cover letter lists and describes clearly the changes implemented in the preprint and motivates any modifications that have not been made."
+msgstr "Confirmo que a carta de apresentação lista e descreve claramente as alterações implementadas no preprint e justifica quaisquer modificações que não tenham sido feitas."
 
 #: plugins/wjs_review/forms.py:990
-msgid ""
-"You must confirm that the title and abstract correspond to the preprint "
-"file."
-msgstr ""
-"Você deve confirmar que o título e o resumo correspondem ao arquivo do "
-"preprint."
+msgid "You must confirm that the title and abstract correspond to the preprint file."
+msgstr "Você deve confirmar que o título e o resumo correspondem ao arquivo do preprint."
 
 #: plugins/wjs_review/forms.py:992
-msgid ""
-"You must confirm that the resubmission fulfills the stylistic guidelines."
+msgid "You must confirm that the resubmission fulfills the stylistic guidelines."
 msgstr "Você deve confirmar que o reenvio cumpre as diretrizes estilísticas."
 
 #: plugins/wjs_review/forms.py:994
-msgid ""
-"You must confirm that the file does not contain any author information."
-msgstr ""
-"Você deve confirmar que o arquivo não contém nenhuma informação do autor."
+msgid "You must confirm that the file does not contain any author information."
+msgstr "Você deve confirmar que o arquivo não contém nenhuma informação do autor."
 
 #: plugins/wjs_review/forms.py:1000
 msgid "You must provide a manuscript."
 msgstr "Você deve fornecer um manuscrito."
 
-#: plugins/wjs_review/forms.py:1035 plugins/wjs_review/forms.py:1531
-#: plugins/wjs_review/forms__production.py:112
+#: plugins/wjs_review/forms.py:1035 plugins/wjs_review/forms.py:1531 plugins/wjs_review/forms__production.py:112
 msgid "Optional attachment"
 msgstr "Anexo opcional"
 
@@ -2073,17 +1742,13 @@ msgstr "Anexo opcional"
 msgid "Date due"
 msgstr "Data limite"
 
-#: plugins/wjs_review/forms.py:1228
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:25
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_head.html:10
+#: plugins/wjs_review/forms.py:1228 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:25 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_head.html:10
 #, fuzzy
 #| msgid "Peer Review"
 msgid "Review due date"
 msgstr "Revisão pelos pares"
 
-#: plugins/wjs_review/forms.py:1230
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:14
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_head.html:9
+#: plugins/wjs_review/forms.py:1230 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:14 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_head.html:9
 msgid "Accept/decline due date"
 msgstr "Data limite para aceitar/recusar"
 
@@ -2103,16 +1768,11 @@ msgstr "O usuário selecionado deve fazer parte do EO."
 msgid "Executing users must be part of EO."
 msgstr "Os usuários executores devem fazer parte do EO."
 
-#: plugins/wjs_review/forms.py:1359 plugins/wjs_review/forms.py:1393
-#: plugins/wjs_review/forms.py:1398 plugins/wjs_review/forms.py:1728
-#: plugins/wjs_review/templates/wjs_review/article_messages/elements/message.html:7
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:55
-#: plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:24
+#: plugins/wjs_review/forms.py:1359 plugins/wjs_review/forms.py:1393 plugins/wjs_review/forms.py:1398 plugins/wjs_review/forms.py:1728 plugins/wjs_review/templates/wjs_review/article_messages/elements/message.html:7 plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:55 plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:24
 msgid "Subject"
 msgstr "Assunto"
 
-#: plugins/wjs_review/forms.py:1360 plugins/wjs_review/forms.py:1395
-#: plugins/wjs_review/forms.py:1400 plugins/wjs_review/forms.py:1729
+#: plugins/wjs_review/forms.py:1360 plugins/wjs_review/forms.py:1395 plugins/wjs_review/forms.py:1400 plugins/wjs_review/forms.py:1729
 msgid "Body"
 msgstr "Corpo"
 
@@ -2126,21 +1786,15 @@ msgstr "Enviar notificação ao revisor"
 msgid "Search..."
 msgstr "Buscar"
 
-#: plugins/wjs_review/forms.py:1596
-#: plugins/wjs_review/templates/wjs_review/details/elements/filter_by_type.html:4
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:40
+#: plugins/wjs_review/forms.py:1596 plugins/wjs_review/templates/wjs_review/details/elements/filter_by_type.html:4 plugins/wjs_review/templates/wjs_review/messages_overview/elements/message.html:40
 #, fuzzy
 #| msgid "Filter by section"
 msgid "Filter by type"
 msgstr "Filtrar por secção"
 
 #: plugins/wjs_review/forms.py:1621
-msgid ""
-"Image for social media - .JPG/.PNG, recommended size 1200x630 pixels "
-"(minimum 600x315 pixels)"
-msgstr ""
-"Imagem para redes sociais - .JPG/.PNG, tamanho recomendado 1200x630 pixels "
-"(mínimo 600x315 pixels)"
+msgid "Image for social media - .JPG/.PNG, recommended size 1200x630 pixels (minimum 600x315 pixels)"
+msgstr "Imagem para redes sociais - .JPG/.PNG, tamanho recomendado 1200x630 pixels (mínimo 600x315 pixels)"
 
 #: plugins/wjs_review/forms.py:1627
 msgid "Article title - English language"
@@ -2156,8 +1810,7 @@ msgstr "Descrição curta para redes sociais - máximo de 250 caracteres"
 
 #: plugins/wjs_review/forms.py:1666
 msgid "Short description for social media must be 250 characters or less"
-msgstr ""
-"A descrição curta para redes sociais deve ter no máximo 250 caracteres"
+msgstr "A descrição curta para redes sociais deve ter no máximo 250 caracteres"
 
 #: plugins/wjs_review/forms.py:1762
 msgid "Any conflict of interest to declare?"
@@ -2168,17 +1821,10 @@ msgid "Cover letter for the Editor-in-Charge"
 msgstr "Carta de apresentação para o Editor Responsável"
 
 #: plugins/wjs_review/forms.py:1772
-msgid ""
-"Cover letter for the Editor-in-Charge is required.<br> Important: if you had"
-" uploaded a file, this will need to be uploaded again."
-msgstr ""
-"A carta de apresentação para o Editor Responsável é obrigatória.<br> "
-"Importante: se você tinha enviado um arquivo, ele precisará ser enviado "
-"novamente."
+msgid "Cover letter for the Editor-in-Charge is required.<br> Important: if you had uploaded a file, this will need to be uploaded again."
+msgstr "A carta de apresentação para o Editor Responsável é obrigatória.<br> Importante: se você tinha enviado um arquivo, ele precisará ser enviado novamente."
 
-#: plugins/wjs_review/forms.py:1779
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:10
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:21
+#: plugins/wjs_review/forms.py:1779 plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:10 plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:21
 msgid "TeX"
 msgstr "TeX"
 
@@ -2195,12 +1841,8 @@ msgid "Review for authors (Rich text)"
 msgstr "Pesquisar títulos, palavras-chave e autores"
 
 #: plugins/wjs_review/forms.py:1788
-msgid ""
-"Please write your comments in the text area and/or upload a "
-"file.<br><br>Please DO NOT SIGN THE REPORT."
-msgstr ""
-"Por favor, escreva seus comentários na área de texto e/ou envie um "
-"arquivo.<br><br>Por favor, NÃO ASSINE O RELATÓRIO."
+msgid "Please write your comments in the text area and/or upload a file.<br><br>Please DO NOT SIGN THE REPORT."
+msgstr "Por favor, escreva seus comentários na área de texto e/ou envie um arquivo.<br><br>Por favor, NÃO ASSINE O RELATÓRIO."
 
 #: plugins/wjs_review/forms.py:1793 plugins/wjs_review/forms.py:1795
 #, fuzzy
@@ -2210,19 +1852,8 @@ msgstr "Pesquisar títulos, palavras-chave e autores"
 
 #: plugins/wjs_review/forms.py:1797
 #, python-brace-format
-msgid ""
-"Please write your report in an offline editor and save a copy to avoid "
-"losing the content in case of a system failure. In LaTex there is no need of"
-" '\\begin{document}' etc.<br>Use the test pdf button below to preview your "
-"report before the final upload. The report will be automatically compiled "
-"and forwarded after clicking “submit”.<br><br>Please DO NOT SIGN THE REPORT."
-msgstr ""
-"Por favor, escreva seu relatório em um editor offline e salve uma cópia para"
-" evitar perder o conteúdo em caso de falha do sistema. Em LaTeX não há "
-"necessidade de '\\begin{document}' etc.<br>Use o botão de pdf de teste "
-"abaixo para pré-visualizar seu relatório antes do envio final. O relatório "
-"será compilado automaticamente e encaminhado após clicar em "
-"“enviar”.<br><br>Por favor, NÃO ASSINE O RELATÓRIO."
+msgid "Please write your report in an offline editor and save a copy to avoid losing the content in case of a system failure. In LaTex there is no need of '\\begin{document}' etc.<br>Use the test pdf button below to preview your report before the final upload. The report will be automatically compiled and forwarded after clicking “submit”.<br><br>Please DO NOT SIGN THE REPORT."
+msgstr "Por favor, escreva seu relatório em um editor offline e salve uma cópia para evitar perder o conteúdo em caso de falha do sistema. Em LaTeX não há necessidade de '\\begin{document}' etc.<br>Use o botão de pdf de teste abaixo para pré-visualizar seu relatório antes do envio final. O relatório será compilado automaticamente e encaminhado após clicar em “enviar”.<br><br>Por favor, NÃO ASSINE O RELATÓRIO."
 
 #: plugins/wjs_review/forms.py:1807
 #, fuzzy
@@ -2231,32 +1862,20 @@ msgid "File title"
 msgstr "Ordenar os artigos por"
 
 #: plugins/wjs_review/forms.py:1871
-msgid ""
-"Your review cannot be uploaded since you have declared a conflict of "
-"interest.<br>"
-msgstr ""
-"Sua revisão não pode ser enviada pois você declarou um conflito de "
-"interesse.<br>"
+msgid "Your review cannot be uploaded since you have declared a conflict of interest.<br>"
+msgstr "Sua revisão não pode ser enviada pois você declarou um conflito de interesse.<br>"
 
 #: plugins/wjs_review/forms.py:1878
 msgid "This field is required if the recommendation is to revise."
 msgstr "Este campo é obrigatório se a recomendação for revisar."
 
 #: plugins/wjs_review/forms.py:1884 plugins/wjs_review/forms.py:1891
-msgid ""
-"Please provide either \"Review (to be sent to Authors)\" or \"Files (to be "
-"sent to Authors)\", or LaTeX review."
-msgstr ""
-"Por favor, forneça \"Revisão (a ser enviada aos autores)\" ou \"Arquivos (a "
-"serem enviados aos autores)\", ou a revisão em LaTeX."
+msgid "Please provide either \"Review (to be sent to Authors)\" or \"Files (to be sent to Authors)\", or LaTeX review."
+msgstr "Por favor, forneça \"Revisão (a ser enviada aos autores)\" ou \"Arquivos (a serem enviados aos autores)\", ou a revisão em LaTeX."
 
 #: plugins/wjs_review/forms.py:1899
-msgid ""
-"Please provide either \"Review (to be sent to Authors)\" or \"Files (to be "
-"sent to Authors)\"."
-msgstr ""
-"Por favor, forneça \"Revisão (a ser enviada aos autores)\" ou \"Arquivos (a "
-"serem enviados aos autores)\"."
+msgid "Please provide either \"Review (to be sent to Authors)\" or \"Files (to be sent to Authors)\"."
+msgstr "Por favor, forneça \"Revisão (a ser enviada aos autores)\" ou \"Arquivos (a serem enviados aos autores)\"."
 
 #: plugins/wjs_review/forms.py:1905
 msgid "Please provide the LaTeX review."
@@ -2288,24 +1907,15 @@ msgstr "Não aplicável"
 #, fuzzy
 #| msgid "I want to receive alerts about news published in the journal."
 msgid "It can be published in this form."
-msgstr ""
-"Quero receber alertas sobre as últimas notícias publicadas na revista."
+msgstr "Quero receber alertas sobre as últimas notícias publicadas na revista."
 
 #: plugins/wjs_review/forms.py:1925
-msgid ""
-"There are some weaknesses or errors. The author(s) should revise the paper, "
-"taking the reviewers` comments into account."
-msgstr ""
-"Há algumas fraquezas ou erros. O(s) autor(es) deve(m) revisar o artigo, "
-"levando em conta os comentários dos revisores."
+msgid "There are some weaknesses or errors. The author(s) should revise the paper, taking the reviewers` comments into account."
+msgstr "Há algumas fraquezas ou erros. O(s) autor(es) deve(m) revisar o artigo, levando em conta os comentários dos revisores."
 
 #: plugins/wjs_review/forms.py:1932
-msgid ""
-"There are major weaknesses or errors. The author(s) should rewrite the "
-"paper, along the lines indicated by the reviewers` comments."
-msgstr ""
-"Há fraquezas ou erros importantes. O(s) autor(es) deve(m) reescrever o "
-"artigo, seguindo as orientações indicadas pelos comentários dos revisores."
+msgid "There are major weaknesses or errors. The author(s) should rewrite the paper, along the lines indicated by the reviewers` comments."
+msgstr "Há fraquezas ou erros importantes. O(s) autor(es) deve(m) reescrever o artigo, seguindo as orientações indicadas pelos comentários dos revisores."
 
 #: plugins/wjs_review/forms.py:1936
 #, fuzzy
@@ -2402,24 +2012,16 @@ msgid "Appropriateness of the manuscript length"
 msgstr "Adequação da extensão do manuscrito"
 
 #: plugins/wjs_review/forms.py:2014
-msgid ""
-"I confirm that my cover letter to the Editor includes my reasons for asking "
-"for reconsideration of this version."
-msgstr ""
-"Confirmo que minha carta de apresentação ao Editor inclui meus motivos para "
-"solicitar a reconsideração desta versão."
+msgid "I confirm that my cover letter to the Editor includes my reasons for asking for reconsideration of this version."
+msgstr "Confirmo que minha carta de apresentação ao Editor inclui meus motivos para solicitar a reconsideração desta versão."
 
 #: plugins/wjs_review/forms.py:2032
-msgid ""
-"You must confirm that the cover letter includes reasons for reconsideration."
-msgstr ""
-"Você deve confirmar que a carta de apresentação inclui os motivos para a "
-"reconsideração."
+msgid "You must confirm that the cover letter includes reasons for reconsideration."
+msgstr "Você deve confirmar que a carta de apresentação inclui os motivos para a reconsideração."
 
 #: plugins/wjs_review/forms.py:2050
 msgid "Please write here any additional comments for the Editor in Chief"
-msgstr ""
-"Por favor, escreva aqui quaisquer comentários adicionais para o Editor-Chefe"
+msgstr "Por favor, escreva aqui quaisquer comentários adicionais para o Editor-Chefe"
 
 #: plugins/wjs_review/forms__production.py:29
 msgid "Select file to upload"
@@ -2439,8 +2041,7 @@ msgstr "Rótulo do arquivo suplementar"
 
 #: plugins/wjs_review/forms__production.py:152
 msgid "List of requested corrections and/or reply to typesetter's queries"
-msgstr ""
-"Lista de correções solicitadas e/ou resposta às consultas do diagramador"
+msgstr "Lista de correções solicitadas e/ou resposta às consultas do diagramador"
 
 #: plugins/wjs_review/forms__production.py:192
 #, fuzzy
@@ -2460,10 +2061,7 @@ msgstr "Nenhuma correção fornecida"
 msgid "Cover Letter"
 msgstr "Carta de apresentação"
 
-#: plugins/wjs_review/logic.py:799 plugins/wjs_review/logic.py:1176
-#: plugins/wjs_review/logic.py:2249 plugins/wjs_review/logic.py:2313
-#: plugins/wjs_review/logic.py:3589 plugins/wjs_review/logic.py:3923
-#: plugins/wjs_review/logic.py:4057
+#: plugins/wjs_review/logic.py:799 plugins/wjs_review/logic.py:1176 plugins/wjs_review/logic.py:2249 plugins/wjs_review/logic.py:2313 plugins/wjs_review/logic.py:3589 plugins/wjs_review/logic.py:3923 plugins/wjs_review/logic.py:4057
 msgid "Transition conditions not met"
 msgstr "Condições de transição não atendidas"
 
@@ -2473,16 +2071,8 @@ msgstr "Não é possível atribuir a revisão"
 
 #: plugins/wjs_review/logic.py:899
 #, python-format
-msgid ""
-"Thank you for accepting to upload your review by %s. If you are ready to "
-"upload your review right now please fill in the form below, otherwise just "
-"exit the page and click \"upload review\" from the manuscript web page in "
-"due time."
-msgstr ""
-"Obrigado por aceitar enviar sua revisão até %s. Se você estiver pronto para "
-"enviar sua revisão agora, preencha o formulário abaixo; caso contrário, "
-"basta sair da página e clicar em \"enviar revisão\" na página web do "
-"manuscrito no momento oportuno."
+msgid "Thank you for accepting to upload your review by %s. If you are ready to upload your review right now please fill in the form below, otherwise just exit the page and click \"upload review\" from the manuscript web page in due time."
+msgstr "Obrigado por aceitar enviar sua revisão até %s. Se você estiver pronto para enviar sua revisão agora, preencha o formulário abaixo; caso contrário, basta sair da página e clicar em \"enviar revisão\" na página web do manuscrito no momento oportuno."
 
 #: plugins/wjs_review/logic.py:929
 msgid "The invite to review has been declined."
@@ -2502,8 +2092,7 @@ msgstr "%s atribuído à revisão do artigo."
 msgid "Invitation conditions not met"
 msgstr "Condições de convite não atendidas"
 
-#: plugins/wjs_review/logic.py:2927 plugins/wjs_review/logic.py:3064
-#: plugins/wjs_review/logic.py:3398
+#: plugins/wjs_review/logic.py:2927 plugins/wjs_review/logic.py:3064 plugins/wjs_review/logic.py:3398
 msgid "Decision conditions not met"
 msgstr "Condições de decisão não atendidas"
 
@@ -2516,9 +2105,7 @@ msgstr "Afiliação"
 #: plugins/wjs_review/logic.py:4462 plugins/wjs_review/logic.py:4746
 #, python-format
 msgid "The PDF file could not be generated. Please contact %s for assistance"
-msgstr ""
-"Não foi possível gerar o arquivo PDF. Por favor, entre em contato com %s "
-"para obter assistência"
+msgstr "Não foi possível gerar o arquivo PDF. Por favor, entre em contato com %s para obter assistência"
 
 #: plugins/wjs_review/logic__production.py:2146
 msgid "No source files. Please upload some!"
@@ -2538,12 +2125,7 @@ msgstr "Nenhum autor de correspondência na nova lista de autores!"
 msgid "Similar accounts exist!"
 msgstr "A conta não existe."
 
-#: plugins/wjs_review/models.py:162
-#: plugins/wjs_review/templates/wjs_review/details/elements/production_version.html:6
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_version.html:6
-#: plugins/wjs_review/templates/wjs_review/details/elements/timeline_version.html:12
-#: plugins/wjs_review/templates/wjs_review/details/elements/timeline_version.html:32
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:21
+#: plugins/wjs_review/models.py:162 plugins/wjs_review/templates/wjs_review/details/elements/production_version.html:6 plugins/wjs_review/templates/wjs_review/details/elements/review_version.html:6 plugins/wjs_review/templates/wjs_review/details/elements/timeline_version.html:12 plugins/wjs_review/templates/wjs_review/details/elements/timeline_version.html:32 plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:21
 #, fuzzy
 #| msgid "Submissions"
 msgid "Version"
@@ -2611,8 +2193,7 @@ msgstr "Revisão de provas"
 msgid "Ready for typesetter"
 msgstr "Pronto para o diagramador"
 
-#: plugins/wjs_review/models.py:409
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:40
+#: plugins/wjs_review/models.py:409 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:40
 #, fuzzy
 #| msgid "Published by"
 msgid "Published"
@@ -2718,18 +2299,13 @@ msgstr "Atribuído ao editor"
 msgid "Article"
 msgstr "Artigo"
 
-#: plugins/wjs_review/models.py:457
-#: plugins/wjs_review/templates/wjs_review/details/sections/title.html:12
+#: plugins/wjs_review/models.py:457 plugins/wjs_review/templates/wjs_review/details/sections/title.html:12
 msgid "State"
 msgstr "Estado"
 
 #: plugins/wjs_review/models.py:477
-msgid ""
-"Source file of the published galleys, prepared by the system from the last "
-"TA source files"
-msgstr ""
-"Arquivo de origem das provas publicadas, preparado pelo sistema a partir dos"
-" últimos arquivos de origem do TA"
+msgid "Source file of the published galleys, prepared by the system from the last TA source files"
+msgstr "Arquivo de origem das provas publicadas, preparado pelo sistema a partir dos últimos arquivos de origem do TA"
 
 #: plugins/wjs_review/models.py:486
 msgid "The latest typesetted files contain no queries for the author"
@@ -2741,8 +2317,7 @@ msgstr "O status das últimas provas"
 
 #: plugins/wjs_review/models.py:496
 msgid "No special check is required on the latest typesetted files"
-msgstr ""
-"Nenhuma verificação especial é necessária nos últimos arquivos diagramados"
+msgstr "Nenhuma verificação especial é necessária nos últimos arquivos diagramados"
 
 #: plugins/wjs_review/models.py:502
 msgid "Short description for social media"
@@ -2849,12 +2424,8 @@ msgid "Verbosity"
 msgstr "Verbosidade"
 
 #: plugins/wjs_review/models.py:1471
-msgid ""
-"Define the message verbosity: ie: the amount of content sent my email / set "
-"in the timeline"
-msgstr ""
-"Definir a verbosidade da mensagem: ou seja, a quantidade de conteúdo enviada"
-" por e-mail / definida na linha do tempo"
+msgid "Define the message verbosity: ie: the amount of content sent my email / set in the timeline"
+msgstr "Definir a verbosidade da mensagem: ou seja, a quantidade de conteúdo enviada por e-mail / definida na linha do tempo"
 
 #: plugins/wjs_review/models.py:1506
 msgid "Related messages"
@@ -2869,12 +2440,8 @@ msgid "Read by EO"
 msgstr "Lido pelo EO"
 
 #: plugins/wjs_review/models.py:1522
-msgid ""
-"True when a member of the EO marks as read a message exchanged by other two "
-"actors"
-msgstr ""
-"Verdadeiro quando um membro do EO marca como lida uma mensagem trocada entre"
-" outros dois atores"
+msgid "True when a member of the EO marks as read a message exchanged by other two actors"
+msgstr "Verdadeiro quando um membro do EO marca como lida uma mensagem trocada entre outros dois atores"
 
 #: plugins/wjs_review/models.py:1702
 msgid "The child message is a forward of the parent message."
@@ -2920,8 +2487,7 @@ msgstr "Artigo fora da minha área de especialização"
 msgid "Unable to find an appropriate reviewer"
 msgstr "Não foi possível encontrar um revisor apropriado"
 
-#: plugins/wjs_review/models.py:1740
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:41
+#: plugins/wjs_review/models.py:1740 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:41
 msgid "Other"
 msgstr "Outro"
 
@@ -2949,8 +2515,7 @@ msgstr "Atribuição de editor anterior"
 msgid "Past editor assignments"
 msgstr "Atribuições de editor anteriores"
 
-#: plugins/wjs_review/models.py:1774
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/author_note.html:12
+#: plugins/wjs_review/models.py:1774 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/author_note.html:12
 msgid "Cover letter file"
 msgstr "Arquivo da carta de apresentação"
 
@@ -3034,8 +2599,7 @@ msgstr "visível (identidade revelada)"
 msgid "visible (identity NOT revealed)"
 msgstr "visível (identidade NÃO revelada)"
 
-#: plugins/wjs_review/models.py:2024 plugins/wjs_review/models.py:2030
-#: plugins/wjs_review/models.py:2043
+#: plugins/wjs_review/models.py:2024 plugins/wjs_review/models.py:2030 plugins/wjs_review/models.py:2043
 msgid "not visibile"
 msgstr "não visível"
 
@@ -3072,11 +2636,8 @@ msgid "Extra permission set"
 msgstr "Conjunto de permissões extra"
 
 #: plugins/wjs_review/models.py:2070
-msgid ""
-"Used to assign permissions to parts of the objects (eg: cover letter etc)"
-msgstr ""
-"Usado para atribuir permissões a partes dos objetos (ex.: carta de "
-"apresentação etc.)"
+msgid "Used to assign permissions to parts of the objects (eg: cover letter etc)"
+msgstr "Usado para atribuir permissões a partes dos objetos (ex.: carta de apresentação etc.)"
 
 #: plugins/wjs_review/models.py:2079
 #, fuzzy
@@ -3090,25 +2651,21 @@ msgstr "Submissões"
 msgid "Permission assignments"
 msgstr "Submissões"
 
-#: plugins/wjs_review/models.py:2133 plugins/wjs_review/models.py:2134
-#: plugins/wjs_review/models.py:2135 plugins/wjs_review/models.py:2157
+#: plugins/wjs_review/models.py:2133 plugins/wjs_review/models.py:2134 plugins/wjs_review/models.py:2135 plugins/wjs_review/models.py:2157
 msgid "Reviewer should evaluate assignment"
 msgstr "O revisor deve avaliar a atribuição"
 
-#: plugins/wjs_review/models.py:2136 plugins/wjs_review/models.py:2137
-#: plugins/wjs_review/models.py:2158
+#: plugins/wjs_review/models.py:2136 plugins/wjs_review/models.py:2137 plugins/wjs_review/models.py:2158
 msgid "Reviewer should write review"
 msgstr "O revisor deve escrever a revisão"
 
-#: plugins/wjs_review/models.py:2139 plugins/wjs_review/models.py:2140
-#: plugins/wjs_review/models.py:2141 plugins/wjs_review/models.py:2160
+#: plugins/wjs_review/models.py:2139 plugins/wjs_review/models.py:2140 plugins/wjs_review/models.py:2141 plugins/wjs_review/models.py:2160
 #, fuzzy
 #| msgid "Peer Review"
 msgid "Editor should select reviewer"
 msgstr "Revisão pelos pares"
 
-#: plugins/wjs_review/models.py:2142 plugins/wjs_review/models.py:2143
-#: plugins/wjs_review/models.py:2144 plugins/wjs_review/models.py:2161
+#: plugins/wjs_review/models.py:2142 plugins/wjs_review/models.py:2143 plugins/wjs_review/models.py:2144 plugins/wjs_review/models.py:2161
 msgid "Editor should make decision"
 msgstr "O editor deve tomar a decisão"
 
@@ -3120,13 +2677,11 @@ msgstr "O autor deve enviar a revisão maior"
 msgid "Author should submit minor revision"
 msgstr "O autor deve enviar a revisão menor"
 
-#: plugins/wjs_review/models.py:2150 plugins/wjs_review/models.py:2151
-#: plugins/wjs_review/models.py:2164
+#: plugins/wjs_review/models.py:2150 plugins/wjs_review/models.py:2151 plugins/wjs_review/models.py:2164
 msgid "Author should submit technical revision"
 msgstr "O autor deve enviar a revisão técnica"
 
-#: plugins/wjs_review/models.py:2152 plugins/wjs_review/models.py:2153
-#: plugins/wjs_review/models.py:2165
+#: plugins/wjs_review/models.py:2152 plugins/wjs_review/models.py:2153 plugins/wjs_review/models.py:2165
 msgid "Director should assign editor"
 msgstr "O diretor deve atribuir um editor"
 
@@ -3154,8 +2709,7 @@ msgstr "Desativado"
 msgid "Clemency dats"
 msgstr "Dias de tolerância"
 
-#: plugins/wjs_review/models.py:2197
-#: plugins/wjs_review/templates/wjs_review/write_message/write_messages.html:134
+#: plugins/wjs_review/models.py:2197 plugins/wjs_review/templates/wjs_review/write_message/write_messages.html:134
 msgid "Recipient"
 msgstr "Destinatário"
 
@@ -3169,8 +2723,7 @@ msgstr "Ocultar nome do ator"
 
 #: plugins/wjs_review/models.py:2208
 msgid "Hide the name of the actor in the message body / subject / From-header"
-msgstr ""
-"Ocultar o nome do ator no corpo / assunto da mensagem / cabeçalho From"
+msgstr "Ocultar o nome do ator no corpo / assunto da mensagem / cabeçalho From"
 
 #: plugins/wjs_review/models.py:2214
 msgid "Message subject"
@@ -3190,12 +2743,8 @@ msgstr "Lembretes"
 
 #: plugins/wjs_review/models.py:2385
 #, python-brace-format
-msgid ""
-"LaTeX preamble prepended to reviewers and editors reports. Please note that "
-"it should end with \\begin{document}."
-msgstr ""
-"Preâmbulo LaTeX adicionado no início dos relatórios de revisores e editores."
-" Observe que ele deve terminar com \\begin{document}."
+msgid "LaTeX preamble prepended to reviewers and editors reports. Please note that it should end with \\begin{document}."
+msgstr "Preâmbulo LaTeX adicionado no início dos relatórios de revisores e editores. Observe que ele deve terminar com \\begin{document}."
 
 #: plugins/wjs_review/models.py:2392
 msgid "LaTeX preamble"
@@ -3213,17 +2762,13 @@ msgstr "Número padrão de dias para aceitação do convite de revisão"
 
 #: plugins/wjs_review/plugin_settings.py:92
 msgid "Default number of days from current date to set acceptance_due_date."
-msgstr ""
-"Número padrão de dias a partir da data atual para definir "
-"acceptance_due_date."
+msgstr "Número padrão de dias a partir da data atual para definir acceptance_due_date."
 
-#: plugins/wjs_review/plugin_settings.py:116
-#: plugins/wjs_review/plugin_settings.py:142
+#: plugins/wjs_review/plugin_settings.py:116 plugins/wjs_review/plugin_settings.py:142
 msgid "Page size of the items list"
 msgstr "Tamanho da página da lista de itens"
 
-#: plugins/wjs_review/plugin_settings.py:118
-#: plugins/wjs_review/plugin_settings.py:144
+#: plugins/wjs_review/plugin_settings.py:118 plugins/wjs_review/plugin_settings.py:144
 msgid "Number of items in the lists / tables of items."
 msgstr "Número de itens nas listas / tabelas de itens."
 
@@ -3233,219 +2778,135 @@ msgstr "Mensagem exibida quando o revisor recusa a revisão"
 
 #: plugins/wjs_review/plugin_settings.py:170
 msgid "Provide a thank you message when reviewer declines the review."
-msgstr ""
-"Forneça uma mensagem de agradecimento quando o revisor recusar a revisão."
+msgstr "Forneça uma mensagem de agradecimento quando o revisor recusar a revisão."
 
 #: plugins/wjs_review/plugin_settings.py:194
 msgid "Subject for article not suitable decision notification"
 msgstr "Assunto da notificação de decisão de artigo não adequado"
 
 #: plugins/wjs_review/plugin_settings.py:196
-msgid ""
-"Subject of the notification sent to the author when the article is deemed "
-"not suitable."
-msgstr ""
-"Assunto da notificação enviada ao autor quando o artigo é considerado não "
-"adequado."
+msgid "Subject of the notification sent to the author when the article is deemed not suitable."
+msgstr "Assunto da notificação enviada ao autor quando o artigo é considerado não adequado."
 
 #: plugins/wjs_review/plugin_settings.py:216
 msgid "Body of the article-not-suitable message"
 msgstr "Corpo da mensagem de artigo não adequado"
 
 #: plugins/wjs_review/plugin_settings.py:218
-msgid ""
-"Body of the notification sent to the author when the article is deemed not "
-"suitable."
-msgstr ""
-"Corpo da notificação enviada ao autor quando o artigo é considerado não "
-"adequado."
+msgid "Body of the notification sent to the author when the article is deemed not suitable."
+msgstr "Corpo da notificação enviada ao autor quando o artigo é considerado não adequado."
 
 #: plugins/wjs_review/plugin_settings.py:249
 msgid "Subject for revision request due date postponing notification"
-msgstr ""
-"Assunto da notificação de adiamento da data limite de solicitação de revisão"
+msgstr "Assunto da notificação de adiamento da data limite de solicitação de revisão"
 
 #: plugins/wjs_review/plugin_settings.py:251
-msgid ""
-"Subject of the email sent to the author when an editor postpones the "
-"revision due date."
-msgstr ""
-"Assunto do e-mail enviado ao autor quando um editor adia a data limite da "
-"revisão."
+msgid "Subject of the email sent to the author when an editor postpones the revision due date."
+msgstr "Assunto do e-mail enviado ao autor quando um editor adia a data limite da revisão."
 
 #: plugins/wjs_review/plugin_settings.py:271
 msgid "Body of the revision request due date postponing notification"
-msgstr ""
-"Corpo da notificação de adiamento da data limite de solicitação de revisão"
+msgstr "Corpo da notificação de adiamento da data limite de solicitação de revisão"
 
 #: plugins/wjs_review/plugin_settings.py:273
-msgid ""
-"Body of the email sent to the author when an editor postpones the revision "
-"due date."
-msgstr ""
-"Corpo do e-mail enviado ao autor quando um editor adia a data limite da "
-"revisão."
+msgid "Body of the email sent to the author when an editor postpones the revision due date."
+msgstr "Corpo do e-mail enviado ao autor quando um editor adia a data limite da revisão."
 
 #: plugins/wjs_review/plugin_settings.py:301
-msgid ""
-"Subject for revision request due date postponing too far in the future "
-"notification"
-msgstr ""
-"Assunto da notificação de adiamento da data limite de solicitação de revisão"
-" para muito longe no futuro"
+msgid "Subject for revision request due date postponing too far in the future notification"
+msgstr "Assunto da notificação de adiamento da data limite de solicitação de revisão para muito longe no futuro"
 
 #: plugins/wjs_review/plugin_settings.py:303
-msgid ""
-"Subject of the notification sent to EO when an editor postpones the revision"
-" due date too far in the future."
-msgstr ""
-"Assunto da notificação enviada ao EO quando um editor adia a data limite da "
-"revisão para muito longe no futuro."
+msgid "Subject of the notification sent to EO when an editor postpones the revision due date too far in the future."
+msgstr "Assunto da notificação enviada ao EO quando um editor adia a data limite da revisão para muito longe no futuro."
 
 #: plugins/wjs_review/plugin_settings.py:323
-msgid ""
-"Body of the revision request due date postponing too far in the future "
-"notification"
-msgstr ""
-"Corpo da notificação de adiamento da data limite de solicitação de revisão "
-"para muito longe no futuro"
+msgid "Body of the revision request due date postponing too far in the future notification"
+msgstr "Corpo da notificação de adiamento da data limite de solicitação de revisão para muito longe no futuro"
 
 #: plugins/wjs_review/plugin_settings.py:325
-msgid ""
-"Body of the notification sent to EO when an editor postpones the revision "
-"due date too far in the future."
-msgstr ""
-"Corpo da notificação enviada ao EO quando um editor adia a data limite da "
-"revisão para muito longe no futuro."
+msgid "Body of the notification sent to EO when an editor postpones the revision due date too far in the future."
+msgstr "Corpo da notificação enviada ao EO quando um editor adia a data limite da revisão para muito longe no futuro."
 
 #: plugins/wjs_review/plugin_settings.py:356
 msgid "Subject for technical revision request"
 msgstr "Assunto da solicitação de revisão técnica"
 
 #: plugins/wjs_review/plugin_settings.py:358
-msgid ""
-"Subject of the notification sent to author when a technical revision has be "
-"requested."
-msgstr ""
-"Assunto da notificação enviada ao autor quando uma revisão técnica é "
-"solicitada."
+msgid "Subject of the notification sent to author when a technical revision has be requested."
+msgstr "Assunto da notificação enviada ao autor quando uma revisão técnica é solicitada."
 
 #: plugins/wjs_review/plugin_settings.py:378
 msgid "Body of technical revision request notice"
 msgstr "Corpo do aviso de solicitação de revisão técnica"
 
 #: plugins/wjs_review/plugin_settings.py:380
-msgid ""
-"Body of the notification sent to the author when a technical revision has "
-"been requested."
-msgstr ""
-"Corpo da notificação enviada ao autor quando uma revisão técnica é "
-"solicitada."
+msgid "Body of the notification sent to the author when a technical revision has been requested."
+msgstr "Corpo da notificação enviada ao autor quando uma revisão técnica é solicitada."
 
 #: plugins/wjs_review/plugin_settings.py:403
 msgid "Subject for article requeue after issues verification notice"
-msgstr ""
-"Assunto do aviso de reenfileiramento do artigo após verificação de problemas"
+msgstr "Assunto do aviso de reenfileiramento do artigo após verificação de problemas"
 
 #: plugins/wjs_review/plugin_settings.py:405
-msgid ""
-"The subject of the system message that is logged when EO verifies that an "
-"article's issues are not important and the article is requeued for editor "
-"assignment."
-msgstr ""
-"O assunto da mensagem do sistema registrada quando o EO verifica que os "
-"problemas de um artigo não são importantes e o artigo é reenfileirado para "
-"atribuição de editor."
+msgid "The subject of the system message that is logged when EO verifies that an article's issues are not important and the article is requeued for editor assignment."
+msgstr "O assunto da mensagem do sistema registrada quando o EO verifica que os problemas de um artigo não são importantes e o artigo é reenfileirado para atribuição de editor."
 
 #: plugins/wjs_review/plugin_settings.py:425
 msgid "Body of article requeue after issues verification notice"
-msgstr ""
-"Corpo do aviso de reenfileiramento do artigo após verificação de problemas"
+msgstr "Corpo do aviso de reenfileiramento do artigo após verificação de problemas"
 
 #: plugins/wjs_review/plugin_settings.py:427
-msgid ""
-"The body of the system message that is logged when EO verifies that an "
-"article's issues are not important and the article is requeued for editor "
-"assignment."
-msgstr ""
-"O corpo da mensagem do sistema registrada quando o EO verifica que os "
-"problemas de um artigo não são importantes e o artigo é reenfileirado para "
-"atribuição de editor."
+msgid "The body of the system message that is logged when EO verifies that an article's issues are not important and the article is requeued for editor assignment."
+msgstr "O corpo da mensagem do sistema registrada quando o EO verifica que os problemas de um artigo não são importantes e o artigo é reenfileirado para atribuição de editor."
 
 #: plugins/wjs_review/plugin_settings.py:450
 msgid "Subject for article requires resubmission after issues verification"
 msgstr "Assunto de artigo requer reenvio após verificação de problemas"
 
 #: plugins/wjs_review/plugin_settings.py:452
-msgid ""
-"The subject of notification to the author of papers that cannot start the "
-"review process and that require resubmission."
-msgstr ""
-"O assunto da notificação ao autor de artigos que não podem iniciar o "
-"processo de revisão e que exigem reenvio."
+msgid "The subject of notification to the author of papers that cannot start the review process and that require resubmission."
+msgstr "O assunto da notificação ao autor de artigos que não podem iniciar o processo de revisão e que exigem reenvio."
 
 #: plugins/wjs_review/plugin_settings.py:472
-msgid ""
-"Body fo the notification for article requires resubmission after issues "
-"verification"
-msgstr ""
-"Corpo da notificação de artigo requer reenvio após verificação de problemas"
+msgid "Body fo the notification for article requires resubmission after issues verification"
+msgstr "Corpo da notificação de artigo requer reenvio após verificação de problemas"
 
 #: plugins/wjs_review/plugin_settings.py:474
-msgid ""
-"The body of notification to the author of papers that cannot start the "
-"review process and that require resubmission."
-msgstr ""
-"O corpo da notificação ao autor de artigos que não podem iniciar o processo "
-"de revisão e que exigem reenvio."
+msgid "The body of notification to the author of papers that cannot start the review process and that require resubmission."
+msgstr "O corpo da notificação ao autor de artigos que não podem iniciar o processo de revisão e que exigem reenvio."
 
 #: plugins/wjs_review/plugin_settings.py:509
 msgid "Subject for JCAP TA pending notification to EO"
 msgstr "Assunto da notificação ao EO de TA pendente do JCAP"
 
 #: plugins/wjs_review/plugin_settings.py:511
-msgid ""
-"Subject of the message sent to EO when a JCAP article is accepted but "
-"production readiness has not yet been confirmed."
-msgstr ""
-"Assunto da mensagem enviada ao EO quando um artigo do JCAP é aceito, mas a "
-"prontidão para produção ainda não foi confirmada."
+msgid "Subject of the message sent to EO when a JCAP article is accepted but production readiness has not yet been confirmed."
+msgstr "Assunto da mensagem enviada ao EO quando um artigo do JCAP é aceito, mas a prontidão para produção ainda não foi confirmada."
 
 #: plugins/wjs_review/plugin_settings.py:532
 msgid "Body for JCAP TA pending notification to EO"
 msgstr "Corpo da notificação ao EO de TA pendente do JCAP"
 
 #: plugins/wjs_review/plugin_settings.py:534
-msgid ""
-"Body of the message sent to EO when a JCAP article is accepted but "
-"production readiness has not yet been confirmed."
-msgstr ""
-"Corpo da mensagem enviada ao EO quando um artigo do JCAP é aceito, mas a "
-"prontidão para produção ainda não foi confirmada."
+msgid "Body of the message sent to EO when a JCAP article is accepted but production readiness has not yet been confirmed."
+msgstr "Corpo da mensagem enviada ao EO quando um artigo do JCAP é aceito, mas a prontidão para produção ainda não foi confirmada."
 
 #: plugins/wjs_review/plugin_settings.py:563
 msgid "Subject for notifications of actions as hijacked users"
 msgstr "Assunto das notificações de ações como usuários personificados"
 
 #: plugins/wjs_review/plugin_settings.py:565
-msgid ""
-"Subject of the notification sent to the hijacked user for actions done in "
-"his place."
-msgstr ""
-"Assunto da notificação enviada ao usuário personificado por ações realizadas"
-" em seu lugar."
+msgid "Subject of the notification sent to the hijacked user for actions done in his place."
+msgstr "Assunto da notificação enviada ao usuário personificado por ações realizadas em seu lugar."
 
 #: plugins/wjs_review/plugin_settings.py:585
 msgid "Body for the notifications of actions as hijacked users"
 msgstr "Corpo das notificações de ações como usuários personificados"
 
 #: plugins/wjs_review/plugin_settings.py:587
-msgid ""
-"Body of the notification sent to the hijacked user for actions done in his "
-"place."
-msgstr ""
-"Corpo da notificação enviada ao usuário personificado por ações realizadas "
-"em seu lugar."
+msgid "Body of the notification sent to the hijacked user for actions done in his place."
+msgstr "Corpo da notificação enviada ao usuário personificado por ações realizadas em seu lugar."
 
 #: plugins/wjs_review/plugin_settings.py:613
 msgid "Body of the assign-to-reviewer message - non customizable part"
@@ -3490,45 +2951,24 @@ msgid "Default maximum number of days for major revision"
 msgstr "Número máximo padrão de dias para revisão maior"
 
 #: plugins/wjs_review/plugin_settings.py:745
-msgid ""
-"The default maximum number of days for author to submit a major revision."
+msgid "The default maximum number of days for author to submit a major revision."
 msgstr "O número máximo padrão de dias para o autor enviar uma revisão maior."
 
 #: plugins/wjs_review/plugin_settings.py:768
-msgid ""
-"Days after which postponing a major revision due date is considered too far "
-"in the future"
-msgstr ""
-"Dias após os quais adiar a data limite de uma revisão maior é considerado "
-"muito longe no futuro"
+msgid "Days after which postponing a major revision due date is considered too far in the future"
+msgstr "Dias após os quais adiar a data limite de uma revisão maior é considerado muito longe no futuro"
 
 #: plugins/wjs_review/plugin_settings.py:771
-msgid ""
-"When editor postpones a major revision due date for more than this number of"
-" days, a warning is issued to EO. Do not confuse with "
-"default_author_major_revision_days_max."
-msgstr ""
-"Quando o editor adia a data limite de uma revisão maior por mais do que este"
-" número de dias, um aviso é emitido ao EO. Não confundir com "
-"default_author_major_revision_days_max."
+msgid "When editor postpones a major revision due date for more than this number of days, a warning is issued to EO. Do not confuse with default_author_major_revision_days_max."
+msgstr "Quando o editor adia a data limite de uma revisão maior por mais do que este número de dias, um aviso é emitido ao EO. Não confundir com default_author_major_revision_days_max."
 
 #: plugins/wjs_review/plugin_settings.py:792
-msgid ""
-"Days after which postponing a minor revision due date is considered too far "
-"in the future"
-msgstr ""
-"Dias após os quais adiar a data limite de uma revisão menor é considerado "
-"muito longe no futuro"
+msgid "Days after which postponing a minor revision due date is considered too far in the future"
+msgstr "Dias após os quais adiar a data limite de uma revisão menor é considerado muito longe no futuro"
 
 #: plugins/wjs_review/plugin_settings.py:795
-msgid ""
-"When editor postpones a minor revision due date for more than this number of"
-" days, a warning is issued to EO. Do not confuse with "
-"default_author_minor_revision_days_max."
-msgstr ""
-"Quando o editor adia a data limite de uma revisão menor por mais do que este"
-" número de dias, um aviso é emitido ao EO. Não confundir com "
-"default_author_minor_revision_days_max."
+msgid "When editor postpones a minor revision due date for more than this number of days, a warning is issued to EO. Do not confuse with default_author_minor_revision_days_max."
+msgstr "Quando o editor adia a data limite de uma revisão menor por mais do que este número de dias, um aviso é emitido ao EO. Não confundir com default_author_minor_revision_days_max."
 
 #: plugins/wjs_review/plugin_settings.py:817
 msgid "Default number of days for minor revision"
@@ -3543,8 +2983,7 @@ msgid "Default maximum number of days for minor revision"
 msgstr "Número máximo padrão de dias para revisão menor"
 
 #: plugins/wjs_review/plugin_settings.py:841
-msgid ""
-"The default maximum number of days for author to submit a minor revision."
+msgid "The default maximum number of days for author to submit a minor revision."
 msgstr "O número máximo padrão de dias para o autor enviar uma revisão menor."
 
 #: plugins/wjs_review/plugin_settings.py:863
@@ -3568,21 +3007,15 @@ msgid "Whether the author of a paper can contact the director"
 msgstr "Se o autor de um artigo pode contatar o diretor"
 
 #: plugins/wjs_review/plugin_settings.py:925
-msgid ""
-"The communication system will allow an author of a paper to directly contact"
-" the director of the journal only if this setting is true."
-msgstr ""
-"O sistema de comunicação permitirá que um autor de um artigo contate "
-"diretamente o diretor do periódico apenas se esta configuração for "
-"verdadeira."
+msgid "The communication system will allow an author of a paper to directly contact the director of the journal only if this setting is true."
+msgstr "O sistema de comunicação permitirá que um autor de um artigo contate diretamente o diretor do periódico apenas se esta configuração for verdadeira."
 
 #: plugins/wjs_review/plugin_settings.py:950
 msgid "Journal directory on prophy site"
 msgstr "Diretório do periódico no site Prophy"
 
 #: plugins/wjs_review/plugin_settings.py:952
-msgid ""
-"The folder on Prophy site which contains the papers sent from the journal."
+msgid "The folder on Prophy site which contains the papers sent from the journal."
 msgstr "A pasta no site Prophy que contém os artigos enviados pelo periódico."
 
 #: plugins/wjs_review/plugin_settings.py:972
@@ -3598,382 +3031,248 @@ msgid "Subject for postponing due date notification"
 msgstr "Assunto da notificação de adiamento da data limite"
 
 #: plugins/wjs_review/plugin_settings.py:999
-msgid ""
-"The subject of the notification that is sent to the reviewer, when the "
-"editor postpones the due date"
-msgstr ""
-"O assunto da notificação enviada ao revisor quando o editor adia a data "
-"limite"
+msgid "The subject of the notification that is sent to the reviewer, when the editor postpones the due date"
+msgstr "O assunto da notificação enviada ao revisor quando o editor adia a data limite"
 
 #: plugins/wjs_review/plugin_settings.py:1019
 msgid "Body of the postponing due date notification"
 msgstr "Corpo da notificação de adiamento da data limite"
 
 #: plugins/wjs_review/plugin_settings.py:1021
-msgid ""
-"The body of the notification that is sent to the reviewer, when the editor "
-"postpones the due date"
-msgstr ""
-"O corpo da notificação enviada ao revisor quando o editor adia a data limite"
+msgid "The body of the notification that is sent to the reviewer, when the editor postpones the due date"
+msgstr "O corpo da notificação enviada ao revisor quando o editor adia a data limite"
 
 #: plugins/wjs_review/plugin_settings.py:1051
 msgid "Subject for notification when due date is postponed far in the future."
-msgstr ""
-"Assunto da notificação quando a data limite é adiada para muito longe no "
-"futuro."
+msgstr "Assunto da notificação quando a data limite é adiada para muito longe no futuro."
 
 #: plugins/wjs_review/plugin_settings.py:1053
-msgid ""
-"The subject of a notification that the system sends to EO when editors or "
-"reviewers postpone a review due date far into the future."
-msgstr ""
-"O assunto de uma notificação que o sistema envia ao EO quando editores ou "
-"revisores adiam uma data limite de revisão para muito longe no futuro."
+msgid "The subject of a notification that the system sends to EO when editors or reviewers postpone a review due date far into the future."
+msgstr "O assunto de uma notificação que o sistema envia ao EO quando editores ou revisores adiam uma data limite de revisão para muito longe no futuro."
 
 #: plugins/wjs_review/plugin_settings.py:1073
-msgid ""
-"Body of notification sent when due date is postponed in the far future."
-msgstr ""
-"Corpo da notificação enviada quando a data limite é adiada para muito longe "
-"no futuro."
+msgid "Body of notification sent when due date is postponed in the far future."
+msgstr "Corpo da notificação enviada quando a data limite é adiada para muito longe no futuro."
 
 #: plugins/wjs_review/plugin_settings.py:1075
-msgid ""
-"The body of a notification that the system sends to EO when editors or "
-"reviewers postpone a review due datefar into the future."
-msgstr ""
-"O corpo de uma notificação que o sistema envia ao EO quando editores ou "
-"revisores adiam uma data limite de revisão para muito longe no futuro."
+msgid "The body of a notification that the system sends to EO when editors or reviewers postpone a review due datefar into the future."
+msgstr "O corpo de uma notificação que o sistema envia ao EO quando editores ou revisores adiam uma data limite de revisão para muito longe no futuro."
 
 #: plugins/wjs_review/plugin_settings.py:1107
 msgid "Subject for declination of Editor assignment"
 msgstr "Assunto da recusa de atribuição de editor"
 
 #: plugins/wjs_review/plugin_settings.py:1109
-msgid ""
-"The subject of the notification that is sent to the director when an editor "
-"declines an assignment."
-msgstr ""
-"O assunto da notificação enviada ao diretor quando um editor recusa uma "
-"atribuição."
+msgid "The subject of the notification that is sent to the director when an editor declines an assignment."
+msgstr "O assunto da notificação enviada ao diretor quando um editor recusa uma atribuição."
 
 #: plugins/wjs_review/plugin_settings.py:1129
 msgid "Default body of the notification for declination of Editor assignment"
 msgstr "Corpo padrão da notificação de recusa de atribuição de editor"
 
 #: plugins/wjs_review/plugin_settings.py:1131
-msgid ""
-"The default body of the notification that is sent to the director when an "
-"editor declines an assignment. This will be further edited by the editor."
-msgstr ""
-"O corpo padrão da notificação enviada ao diretor quando um editor recusa uma"
-" atribuição. Este será posteriormente editado pelo editor."
+msgid "The default body of the notification that is sent to the director when an editor declines an assignment. This will be further edited by the editor."
+msgstr "O corpo padrão da notificação enviada ao diretor quando um editor recusa uma atribuição. Este será posteriormente editado pelo editor."
 
 #: plugins/wjs_review/plugin_settings.py:1168
-msgid ""
-"Subject of notification sent to active reviewers when editor declines "
-"assignment"
-msgstr ""
-"Assunto da notificação enviada aos revisores ativos quando o editor recusa a"
-" atribuição"
+msgid "Subject of notification sent to active reviewers when editor declines assignment"
+msgstr "Assunto da notificação enviada aos revisores ativos quando o editor recusa a atribuição"
 
 #: plugins/wjs_review/plugin_settings.py:1170
-msgid ""
-"Subject of the notification sent to active reviewers when editor declines "
-"assignment."
-msgstr ""
-"Assunto da notificação enviada aos revisores ativos quando o editor recusa a"
-" atribuição."
+msgid "Subject of the notification sent to active reviewers when editor declines assignment."
+msgstr "Assunto da notificação enviada aos revisores ativos quando o editor recusa a atribuição."
 
 #: plugins/wjs_review/plugin_settings.py:1191
 msgid "Notification sent to active reviewers when editor declines assignment"
-msgstr ""
-"Notificação enviada aos revisores ativos quando o editor recusa a atribuição"
+msgstr "Notificação enviada aos revisores ativos quando o editor recusa a atribuição"
 
 #: plugins/wjs_review/plugin_settings.py:1193
-msgid ""
-"Body of the notification sent to active reviewers when editor declines "
-"assignment."
-msgstr ""
-"Corpo da notificação enviada aos revisores ativos quando o editor recusa a "
-"atribuição."
+msgid "Body of the notification sent to active reviewers when editor declines assignment."
+msgstr "Corpo da notificação enviada aos revisores ativos quando o editor recusa a atribuição."
 
 #: plugins/wjs_review/plugin_settings.py:1227
 msgid "Subject of the notification for self-selection of Editor as Reviewer"
 msgstr "Assunto da notificação de autosseleção de Editor como Revisor"
 
 #: plugins/wjs_review/plugin_settings.py:1229
-msgid ""
-"The subject of the notification that is sent when an Editor self-selects as "
-"Reviewer."
-msgstr ""
-"O assunto da notificação enviada quando um Editor se autosseleciona como "
-"Revisor."
+msgid "The subject of the notification that is sent when an Editor self-selects as Reviewer."
+msgstr "O assunto da notificação enviada quando um Editor se autosseleciona como Revisor."
 
 #: plugins/wjs_review/plugin_settings.py:1249
 msgid "Body of the notification for self-selection of Editor as Reviewer"
 msgstr "Corpo da notificação de autosseleção de Editor como Revisor"
 
 #: plugins/wjs_review/plugin_settings.py:1251
-msgid ""
-"The body of the notification that is sent when an Editor self-selects as "
-"Reviewer."
-msgstr ""
-"O corpo da notificação enviada quando um Editor se autosseleciona como "
-"Revisor."
+msgid "The body of the notification that is sent when an Editor self-selects as Reviewer."
+msgstr "O corpo da notificação enviada quando um Editor se autosseleciona como Revisor."
 
 #: plugins/wjs_review/plugin_settings.py:1274
 msgid "Subject for eo assignment."
 msgstr "Assunto da atribuição de EO."
 
 #: plugins/wjs_review/plugin_settings.py:1276
-msgid ""
-"The subject of the notification that is sent to the eo when he is assigned "
-"to an article."
-msgstr ""
-"O assunto da notificação enviada ao EO quando ele é atribuído a um artigo."
+msgid "The subject of the notification that is sent to the eo when he is assigned to an article."
+msgstr "O assunto da notificação enviada ao EO quando ele é atribuído a um artigo."
 
 #: plugins/wjs_review/plugin_settings.py:1296
 msgid "The body for for assignment of a eo notification."
 msgstr "O corpo da notificação de atribuição de um EO."
 
 #: plugins/wjs_review/plugin_settings.py:1298
-msgid ""
-"The body of the notification that is sent to the eo when he is assigned to "
-"an article."
-msgstr ""
-"O corpo da notificação enviada ao EO quando ele é atribuído a um artigo."
+msgid "The body of the notification that is sent to the eo when he is assigned to an article."
+msgstr "O corpo da notificação enviada ao EO quando ele é atribuído a um artigo."
 
 #: plugins/wjs_review/plugin_settings.py:1321
 msgid "Subject for Proofreading or final check request."
 msgstr "Assunto da solicitação de revisão de provas ou verificação final."
 
 #: plugins/wjs_review/plugin_settings.py:1323
-msgid ""
-"The subject of the notification that is sent to the Author when the paper "
-"has been typesetted and is ready for proofreading or for the final check."
-msgstr ""
-"O assunto da notificação enviada ao Autor quando o artigo foi diagramado e "
-"está pronto para a revisão de provas ou para a verificação final."
+msgid "The subject of the notification that is sent to the Author when the paper has been typesetted and is ready for proofreading or for the final check."
+msgstr "O assunto da notificação enviada ao Autor quando o artigo foi diagramado e está pronto para a revisão de provas ou para a verificação final."
 
 #: plugins/wjs_review/plugin_settings.py:1344
-msgid ""
-"Body of the request of Author's proofreading or final check notification."
-msgstr ""
-"Corpo da notificação de solicitação de revisão de provas ou verificação "
-"final do Autor."
+msgid "Body of the request of Author's proofreading or final check notification."
+msgstr "Corpo da notificação de solicitação de revisão de provas ou verificação final do Autor."
 
 #: plugins/wjs_review/plugin_settings.py:1346
-msgid ""
-"The body of the notification that is sent to to the Author when the paper "
-"has been typesetted and is ready for proofreading or for the final check."
-msgstr ""
-"O corpo da notificação enviada ao Autor quando o artigo foi diagramado e "
-"está pronto para a revisão de provas ou para a verificação final."
+msgid "The body of the notification that is sent to to the Author when the paper has been typesetted and is ready for proofreading or for the final check."
+msgstr "O corpo da notificação enviada ao Autor quando o artigo foi diagramado e está pronto para a revisão de provas ou para a verificação final."
 
 #: plugins/wjs_review/plugin_settings.py:1394
 msgid "Subject of reviewer deassigned notification."
 msgstr "Assunto da notificação de remoção de atribuição do revisor."
 
 #: plugins/wjs_review/plugin_settings.py:1396
-msgid ""
-"The subject of the notification that is sent to the reviewer when "
-"deassigned."
-msgstr ""
-"O assunto da notificação enviada ao revisor quando sua atribuição é "
-"removida."
+msgid "The subject of the notification that is sent to the reviewer when deassigned."
+msgstr "O assunto da notificação enviada ao revisor quando sua atribuição é removida."
 
 #: plugins/wjs_review/plugin_settings.py:1416
 msgid "Defalt body of reviewer deassign notification."
 msgstr "Corpo padrão da notificação de remoção de atribuição do revisor."
 
 #: plugins/wjs_review/plugin_settings.py:1418
-msgid ""
-"The default body of the notification that is sent to the reviewer when "
-"deassigned. This can be modified by the operator."
-msgstr ""
-"O corpo padrão da notificação enviada ao revisor quando sua atribuição é "
-"removida. Isto pode ser modificado pelo operador."
+msgid "The default body of the notification that is sent to the reviewer when deassigned. This can be modified by the operator."
+msgstr "O corpo padrão da notificação enviada ao revisor quando sua atribuição é removida. Isto pode ser modificado pelo operador."
 
 #: plugins/wjs_review/plugin_settings.py:1450
 msgid "Subject for EO opening an appeal."
 msgstr "Assunto da abertura de um recurso pelo EO."
 
 #: plugins/wjs_review/plugin_settings.py:1452
-msgid ""
-"The subject of the notification that is sent to the author when EO opens an "
-"appeal."
-msgstr ""
-"O assunto da notificação enviada ao autor quando o EO abre um recurso."
+msgid "The subject of the notification that is sent to the author when EO opens an appeal."
+msgstr "O assunto da notificação enviada ao autor quando o EO abre um recurso."
 
 #: plugins/wjs_review/plugin_settings.py:1472
 msgid "Default message for EO opening an appeal."
 msgstr "Mensagem padrão para a abertura de um recurso pelo EO."
 
 #: plugins/wjs_review/plugin_settings.py:1474
-msgid ""
-"The body of the notification that is sent to the author when EO opens an "
-"appeal."
+msgid "The body of the notification that is sent to the author when EO opens an appeal."
 msgstr "O corpo da notificação enviada ao autor quando o EO abre um recurso."
 
-#: plugins/wjs_review/plugin_settings.py:1506
-#: plugins/wjs_review/plugin_settings.py:1560
+#: plugins/wjs_review/plugin_settings.py:1506 plugins/wjs_review/plugin_settings.py:1560
 msgid "Subject for author withdrawing a preprint."
 msgstr "Assunto da retirada de um preprint pelo autor."
 
 #: plugins/wjs_review/plugin_settings.py:1508
-msgid ""
-"The subject of the notification that is sent to the EO/Editor when a "
-"preprint is withdrawn."
-msgstr ""
-"O assunto da notificação enviada ao EO/Editor quando um preprint é retirado."
+msgid "The subject of the notification that is sent to the EO/Editor when a preprint is withdrawn."
+msgstr "O assunto da notificação enviada ao EO/Editor quando um preprint é retirado."
 
-#: plugins/wjs_review/plugin_settings.py:1528
-#: plugins/wjs_review/plugin_settings.py:1582
+#: plugins/wjs_review/plugin_settings.py:1528 plugins/wjs_review/plugin_settings.py:1582
 msgid "Default message for author withdrawing a preprint."
 msgstr "Mensagem padrão para a retirada de um preprint pelo autor."
 
 #: plugins/wjs_review/plugin_settings.py:1530
-msgid ""
-"The body of the notification that is sent to the EO/Editor when a preprint "
-"is withdrawn. The author can modify it (so don't include the editor's name)."
-msgstr ""
-"O corpo da notificação enviada ao EO/Editor quando um preprint é retirado. O"
-" autor pode modificá-lo (portanto, não inclua o nome do editor)."
+msgid "The body of the notification that is sent to the EO/Editor when a preprint is withdrawn. The author can modify it (so don't include the editor's name)."
+msgstr "O corpo da notificação enviada ao EO/Editor quando um preprint é retirado. O autor pode modificá-lo (portanto, não inclua o nome do editor)."
 
 #: plugins/wjs_review/plugin_settings.py:1562
-msgid ""
-"The subject of the notification that is sent to the reviewers/typesetter "
-"when a preprint is withdrawn."
-msgstr ""
-"O assunto da notificação enviada aos revisores/diagramador quando um "
-"preprint é retirado."
+msgid "The subject of the notification that is sent to the reviewers/typesetter when a preprint is withdrawn."
+msgstr "O assunto da notificação enviada aos revisores/diagramador quando um preprint é retirado."
 
 #: plugins/wjs_review/plugin_settings.py:1584
-msgid ""
-"The body of the notification that is sent to the reviewers/typesetter when a"
-" preprint is withdrawn."
-msgstr ""
-"O corpo da notificação enviada aos revisores/diagramador quando um preprint "
-"é retirado."
+msgid "The body of the notification that is sent to the reviewers/typesetter when a preprint is withdrawn."
+msgstr "O corpo da notificação enviada aos revisores/diagramador quando um preprint é retirado."
 
 #: plugins/wjs_review/plugin_settings.py:1617
 msgid "Subject for author submitting an appeal."
 msgstr "Assunto do envio de um recurso pelo autor."
 
 #: plugins/wjs_review/plugin_settings.py:1619
-msgid ""
-"The subject of the notification that is sent to the editor when author "
-"submits an appeal."
-msgstr ""
-"O assunto da notificação enviada ao editor quando o autor envia um recurso."
+msgid "The subject of the notification that is sent to the editor when author submits an appeal."
+msgstr "O assunto da notificação enviada ao editor quando o autor envia um recurso."
 
 #: plugins/wjs_review/plugin_settings.py:1639
 msgid "Default message for when author submits an appeal."
 msgstr "Mensagem padrão para quando o autor envia um recurso."
 
 #: plugins/wjs_review/plugin_settings.py:1641
-msgid ""
-"The body of the notification that is sent to the editor when author submits "
-"an appeal."
-msgstr ""
-"O corpo da notificação enviada ao editor quando o autor envia um recurso."
+msgid "The body of the notification that is sent to the editor when author submits an appeal."
+msgstr "O corpo da notificação enviada ao editor quando o autor envia um recurso."
 
 #: plugins/wjs_review/plugin_settings.py:1674
 msgid "Subject for EO send the paper back to the typesetter."
 msgstr "Assunto do reenvio do artigo ao diagramador pelo EO."
 
 #: plugins/wjs_review/plugin_settings.py:1676
-msgid ""
-"The subject of the notification that is sent to the typesetter when EO send "
-"the paper back."
-msgstr ""
-"O assunto da notificação enviada ao diagramador quando o EO devolve o "
-"artigo."
+msgid "The subject of the notification that is sent to the typesetter when EO send the paper back."
+msgstr "O assunto da notificação enviada ao diagramador quando o EO devolve o artigo."
 
 #: plugins/wjs_review/plugin_settings.py:1696
 msgid "Default message for EO send the paper back to the typesetter."
 msgstr "Mensagem padrão para o reenvio do artigo ao diagramador pelo EO."
 
 #: plugins/wjs_review/plugin_settings.py:1698
-msgid ""
-"The body of the notification that is sent to the typesetter when EO send the"
-" paper back."
-msgstr ""
-"O corpo da notificação enviada ao diagramador quando o EO devolve o artigo."
+msgid "The body of the notification that is sent to the typesetter when EO send the paper back."
+msgstr "O corpo da notificação enviada ao diagramador quando o EO devolve o artigo."
 
 #: plugins/wjs_review/plugin_settings.py:1731
 msgid "Subject of author submits technical revision for reviewers"
 msgstr "Assunto de o autor envia revisão técnica para os revisores"
 
 #: plugins/wjs_review/plugin_settings.py:1733
-msgid ""
-"Subject of the notification sent to reviewers when an author updates "
-"metadata (i.e. submits a technical revision)."
-msgstr ""
-"Assunto da notificação enviada aos revisores quando um autor atualiza os "
-"metadados (ou seja, envia uma revisão técnica)."
+msgid "Subject of the notification sent to reviewers when an author updates metadata (i.e. submits a technical revision)."
+msgstr "Assunto da notificação enviada aos revisores quando um autor atualiza os metadados (ou seja, envia uma revisão técnica)."
 
 #: plugins/wjs_review/plugin_settings.py:1753
 msgid "Body of author submits technical revision for reviewers"
 msgstr "Corpo de o autor envia revisão técnica para os revisores"
 
 #: plugins/wjs_review/plugin_settings.py:1755
-msgid ""
-"Body of the notification sent to reviewers when an author updates metadata "
-"(i.e. submits a technical revision)."
-msgstr ""
-"Corpo da notificação enviada aos revisores quando um autor atualiza os "
-"metadados (ou seja, envia uma revisão técnica)."
+msgid "Body of the notification sent to reviewers when an author updates metadata (i.e. submits a technical revision)."
+msgstr "Corpo da notificação enviada aos revisores quando um autor atualiza os metadados (ou seja, envia uma revisão técnica)."
 
 #: plugins/wjs_review/plugin_settings.py:1787
 msgid "Subject of EO manually assigns an Editor"
 msgstr "Assunto de o EO atribui manualmente um Editor"
 
 #: plugins/wjs_review/plugin_settings.py:1789
-msgid ""
-"Subject of the notification sent to the new Editor when he is manually "
-"assigned by the EO."
-msgstr ""
-"Assunto da notificação enviada ao novo Editor quando ele é atribuído "
-"manualmente pelo EO."
+msgid "Subject of the notification sent to the new Editor when he is manually assigned by the EO."
+msgstr "Assunto da notificação enviada ao novo Editor quando ele é atribuído manualmente pelo EO."
 
 #: plugins/wjs_review/plugin_settings.py:1809
 msgid "Body of EO manually assigns an Editor"
 msgstr "Corpo de o EO atribui manualmente um Editor"
 
 #: plugins/wjs_review/plugin_settings.py:1811
-msgid ""
-"Body of the notification sent to the new Editor when he is manually assigned"
-" by the EO."
-msgstr ""
-"Corpo da notificação enviada ao novo Editor quando ele é atribuído "
-"manualmente pelo EO."
+msgid "Body of the notification sent to the new Editor when he is manually assigned by the EO."
+msgstr "Corpo da notificação enviada ao novo Editor quando ele é atribuído manualmente pelo EO."
 
 #: plugins/wjs_review/plugin_settings.py:1917
 msgid "Subject of new coauthor added while syncing TeX and DB"
-msgstr ""
-"Assunto de novo coautor adicionado durante a sincronização de TeX e BD"
+msgstr "Assunto de novo coautor adicionado durante a sincronização de TeX e BD"
 
 #: plugins/wjs_review/plugin_settings.py:1919
-msgid ""
-"Subject of the notification sent to a new account for a coauthor created "
-"during production while syncing TeX and DB data."
-msgstr ""
-"Assunto da notificação enviada a uma nova conta de um coautor criado durante"
-" a produção ao sincronizar os dados de TeX e BD."
+msgid "Subject of the notification sent to a new account for a coauthor created during production while syncing TeX and DB data."
+msgstr "Assunto da notificação enviada a uma nova conta de um coautor criado durante a produção ao sincronizar os dados de TeX e BD."
 
 #: plugins/wjs_review/plugin_settings.py:1940
 msgid "Body of new coauthor added while syncing TeX and DB"
 msgstr "Corpo de novo coautor adicionado durante a sincronização de TeX e BD"
 
 #: plugins/wjs_review/plugin_settings.py:1942
-msgid ""
-"Body of the notification sent to a new account for a coauthor created during"
-" production while syncing TeX and DB data."
-msgstr ""
-"Corpo da notificação enviada a uma nova conta de um coautor criado durante a"
-" produção ao sincronizar os dados de TeX e BD."
+msgid "Body of the notification sent to a new account for a coauthor created during production while syncing TeX and DB data."
+msgstr "Corpo da notificação enviada a uma nova conta de um coautor criado durante a produção ao sincronizar os dados de TeX e BD."
 
 #: plugins/wjs_review/plugin_settings.py:2042
 msgid "Type of report allowed"
@@ -3984,32 +3283,20 @@ msgid "Type of reviewer report allowed: rich text, LaTeX or both"
 msgstr "Tipo de relatório de revisor permitido: texto rico, LaTeX ou ambos"
 
 #: plugins/wjs_review/plugin_settings.py:2067
-msgid ""
-"Subject of notifications for special request for access mode on submission"
-msgstr ""
-"Assunto das notificações de solicitação especial de modo de acesso no envio"
+msgid "Subject of notifications for special request for access mode on submission"
+msgstr "Assunto das notificações de solicitação especial de modo de acesso no envio"
 
 #: plugins/wjs_review/plugin_settings.py:2069
-msgid ""
-"Subject of the notification sent to EO when corresponding author fill the "
-"special request field in submission Step 7."
-msgstr ""
-"Assunto da notificação enviada ao EO quando o autor de correspondência "
-"preenche o campo de solicitação especial na Etapa 7 do envio."
+msgid "Subject of the notification sent to EO when corresponding author fill the special request field in submission Step 7."
+msgstr "Assunto da notificação enviada ao EO quando o autor de correspondência preenche o campo de solicitação especial na Etapa 7 do envio."
 
 #: plugins/wjs_review/plugin_settings.py:2090
-msgid ""
-"Body of notifications for special request for access mode on submission"
-msgstr ""
-"Corpo das notificações de solicitação especial de modo de acesso no envio"
+msgid "Body of notifications for special request for access mode on submission"
+msgstr "Corpo das notificações de solicitação especial de modo de acesso no envio"
 
 #: plugins/wjs_review/plugin_settings.py:2092
-msgid ""
-"Body of the notification sent to EO when corresponding author fill the "
-"special request field in submission Step 7."
-msgstr ""
-"Corpo da notificação enviada ao EO quando o autor de correspondência "
-"preenche o campo de solicitação especial na Etapa 7 do envio."
+msgid "Body of the notification sent to EO when corresponding author fill the special request field in submission Step 7."
+msgstr "Corpo da notificação enviada ao EO quando o autor de correspondência preenche o campo de solicitação especial na Etapa 7 do envio."
 
 #: plugins/wjs_review/plugin_settings.py:2122
 msgid "Expected galley formats"
@@ -4017,9 +3304,7 @@ msgstr "Formatos de provas esperados"
 
 #: plugins/wjs_review/plugin_settings.py:2123
 msgid "List of galley file formats expected to be produced by JCOM Assistant."
-msgstr ""
-"Lista de formatos de arquivo de provas que se espera que sejam produzidos "
-"pelo JCOM Assistant."
+msgstr "Lista de formatos de arquivo de provas que se espera que sejam produzidos pelo JCOM Assistant."
 
 #: plugins/wjs_review/reminders/settings.py:279
 msgid "Reminder: reviewers to select"
@@ -4067,13 +3352,11 @@ msgstr "Lembrete: a data limite da sua revisão expira hoje"
 msgid "Reminder: late review"
 msgstr "Revisão pelos pares"
 
-#: plugins/wjs_review/reminders/settings.py:604
-#: plugins/wjs_review/reminders/settings.py:660
+#: plugins/wjs_review/reminders/settings.py:604 plugins/wjs_review/reminders/settings.py:660
 msgid "Reminder: revision to submit soon"
 msgstr "Lembrete: revisão a enviar em breve"
 
-#: plugins/wjs_review/reminders/settings.py:627
-#: plugins/wjs_review/reminders/settings.py:683
+#: plugins/wjs_review/reminders/settings.py:627 plugins/wjs_review/reminders/settings.py:683
 msgid "Reminder: revision due date expires today"
 msgstr "Lembrete: a data limite da revisão expira hoje"
 
@@ -4115,8 +3398,7 @@ msgstr "Enviar o artigo diagramado ao autor para revisão de provas?"
 
 #: plugins/wjs_review/states.py:1206
 msgid "Are you sure you want to set the paper ready for publication?"
-msgstr ""
-"Tem certeza de que deseja marcar o artigo como pronto para publicação?"
+msgstr "Tem certeza de que deseja marcar o artigo como pronto para publicação?"
 
 #: plugins/wjs_review/states.py:1417
 msgid "Are you sure you want to start the publication process?"
@@ -4130,8 +3412,7 @@ msgstr "Tem certeza de que deseja tentar novamente o processo de publicação?"
 msgid "Are you sure you want to delete this personal note?"
 msgstr "Tem certeza de que deseja excluir esta nota pessoal?"
 
-#: plugins/wjs_review/templates/wjs_review/article_messages/elements/message.html:27
-#: plugins/wjs_review/templates/wjs_review/write_message/elements/header.html:13
+#: plugins/wjs_review/templates/wjs_review/article_messages/elements/message.html:27 plugins/wjs_review/templates/wjs_review/write_message/elements/header.html:13
 msgid "Reply"
 msgstr "Responder"
 
@@ -4139,10 +3420,7 @@ msgstr "Responder"
 msgid "Edit"
 msgstr "Editar"
 
-#: plugins/wjs_review/templates/wjs_review/article_messages/elements/message.html:32
-#: plugins/wjs_review/templates/wjs_review/details/elements/typesetting_annotate_files.html:2
-#: plugins/wjs_review/templates/wjs_review/details/esm_files_list.html:3
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:20
+#: plugins/wjs_review/templates/wjs_review/article_messages/elements/message.html:32 plugins/wjs_review/templates/wjs_review/details/elements/typesetting_annotate_files.html:2 plugins/wjs_review/templates/wjs_review/details/esm_files_list.html:3 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:20
 msgid "Delete"
 msgstr "Excluir"
 
@@ -4150,29 +3428,19 @@ msgstr "Excluir"
 msgid "Forward"
 msgstr "Encaminhar"
 
-#: plugins/wjs_review/templates/wjs_review/article_messages/elements/messages_list.html:3
-#: plugins/wjs_review/templates/wjs_review/lists/elements/filters_base.html:4
-#: plugins/wjs_review/templates/wjs_review/lists/elements/filters_eo.html:3
-#: plugins/wjs_review/templates/wjs_review/lists/elements/filters_staff.html:4
-#: plugins/wjs_review/templates/wjs_review/lists/elements/filters_workon.html:4
-#: plugins/wjs_review/templates/wjs_review/messages_overview/elements/messages_list.html:3
+#: plugins/wjs_review/templates/wjs_review/article_messages/elements/messages_list.html:3 plugins/wjs_review/templates/wjs_review/lists/elements/filters_base.html:4 plugins/wjs_review/templates/wjs_review/lists/elements/filters_eo.html:3 plugins/wjs_review/templates/wjs_review/lists/elements/filters_staff.html:4 plugins/wjs_review/templates/wjs_review/lists/elements/filters_workon.html:4 plugins/wjs_review/templates/wjs_review/messages_overview/elements/messages_list.html:3
 #, fuzzy
 #| msgid "Section"
 msgid "Reset filters"
 msgstr "Seção"
 
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_list.html:3
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:36
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_list.html:47
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/select_reviewer_form.html:3
+#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_list.html:3 plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:36 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_list.html:47 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/select_reviewer_form.html:3
 #, fuzzy
 #| msgid "Peer Review"
 msgid "Select"
 msgstr "Revisão pelos pares"
 
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_list.html:5
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:3
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:3
+#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_list.html:5 plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:3 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:3
 msgid "Reset"
 msgstr "Redefinir"
 
@@ -4200,18 +3468,13 @@ msgstr "Concluído"
 msgid "(last 365 days)"
 msgstr "(últimos 365 dias)"
 
-#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:35
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:39
+#: plugins/wjs_review/templates/wjs_review/assign_editor/elements/editor_table.html:35 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:39
 msgid "Pending"
 msgstr "Pendente"
 
 #: plugins/wjs_review/templates/wjs_review/assign_editor/elements/new_editor_form.html:5
-msgid ""
-"Set visibility rights (if turned on, a new page will open up for the "
-"details)"
-msgstr ""
-"Definir direitos de visibilidade (se ativado, uma nova página será aberta "
-"para os detalhes)"
+msgid "Set visibility rights (if turned on, a new page will open up for the details)"
+msgstr "Definir direitos de visibilidade (se ativado, uma nova página será aberta para os detalhes)"
 
 #: plugins/wjs_review/templates/wjs_review/assign_editor/select_editor.html:24
 msgid "Message for current editor"
@@ -4221,8 +3484,7 @@ msgstr "Mensagem para o editor atual"
 msgid "Select new editor"
 msgstr "Selecionar novo editor"
 
-#: plugins/wjs_review/templates/wjs_review/assign_editor/select_editor.html:48
-#: plugins/wjs_review/templates/wjs_review/write_message/write_messages.html:73
+#: plugins/wjs_review/templates/wjs_review/assign_editor/select_editor.html:48 plugins/wjs_review/templates/wjs_review/write_message/write_messages.html:73
 msgid "Send"
 msgstr "Enviar"
 
@@ -4244,9 +3506,7 @@ msgstr "Trilha de navegação"
 msgid "Contacts"
 msgstr "Contatos"
 
-#: plugins/wjs_review/templates/wjs_review/base/elements/author.html:4
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:5
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_main.html:4
+#: plugins/wjs_review/templates/wjs_review/base/elements/author.html:4 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:5 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_main.html:4
 #, fuzzy
 #| msgid "Articles"
 msgid "Send message"
@@ -4314,8 +3574,7 @@ msgstr "Nota:"
 msgid "Send Corrections"
 msgstr "Colecção"
 
-#: plugins/wjs_review/templates/wjs_review/details/annotated_files_listing.html:16
-#: plugins/wjs_review/templates/wjs_review/details/withdraw_preprint.html:17
+#: plugins/wjs_review/templates/wjs_review/details/annotated_files_listing.html:16 plugins/wjs_review/templates/wjs_review/details/withdraw_preprint.html:17
 msgid "About this page"
 msgstr "Sobre esta página"
 
@@ -4355,17 +3614,11 @@ msgstr ""
 "          </dl>\n"
 "          "
 
-#: plugins/wjs_review/templates/wjs_review/details/decline_review.html:2
-#: plugins/wjs_review/templates/wjs_review/details/editor_assigns_themselves_as_reviewer.html:2
-#: plugins/wjs_review/templates/wjs_review/details/editor_rejects_assignment.html:2
+#: plugins/wjs_review/templates/wjs_review/details/decline_review.html:2 plugins/wjs_review/templates/wjs_review/details/editor_assigns_themselves_as_reviewer.html:2 plugins/wjs_review/templates/wjs_review/details/editor_rejects_assignment.html:2
 msgid "Decline"
 msgstr "Recusar"
 
-#: plugins/wjs_review/templates/wjs_review/details/deselect_reviewer.html:5
-#: plugins/wjs_review/templates/wjs_review/details/editor_revision_request_date_due_form.html:2
-#: plugins/wjs_review/templates/wjs_review/details/eo_select_editor.html:2
-#: plugins/wjs_review/templates/wjs_review/edit_permissions/assign_permission.html:5
-#: plugins/wjs_review/templates/wjs_review/make_decision/decision.html:68
+#: plugins/wjs_review/templates/wjs_review/details/deselect_reviewer.html:5 plugins/wjs_review/templates/wjs_review/details/editor_revision_request_date_due_form.html:2 plugins/wjs_review/templates/wjs_review/details/eo_select_editor.html:2 plugins/wjs_review/templates/wjs_review/edit_permissions/assign_permission.html:5 plugins/wjs_review/templates/wjs_review/make_decision/decision.html:68
 #, fuzzy
 #| msgid "Affiliation"
 msgid "Confirm"
@@ -4394,8 +3647,7 @@ msgstr ""
 msgid "Decline assignment for"
 msgstr "Recusar atribuição de"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/article_files_listing.html:5
-#: plugins/wjs_review/templates/wjs_review/details/elements/article_files_listing.html:22
+#: plugins/wjs_review/templates/wjs_review/details/elements/article_files_listing.html:5 plugins/wjs_review/templates/wjs_review/details/elements/article_files_listing.html:22
 msgid "Manuscript Files"
 msgstr "Arquivos do manuscrito"
 
@@ -4433,8 +3685,7 @@ msgstr "Afiliação"
 msgid "Additional info"
 msgstr "Informações adicionais"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_authors.html:23
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_cover.html:33
+#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_authors.html:23 plugins/wjs_review/templates/wjs_review/details/elements/review_cover.html:33
 #, fuzzy
 #| msgid "Affiliation"
 msgid "Authors' Contributions"
@@ -4446,10 +3697,7 @@ msgstr "Afiliação"
 msgid "Author's declarations"
 msgstr "Afiliação"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_field_answers.html:14
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_cover.html:14
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:5
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:5
+#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_field_answers.html:14 plugins/wjs_review/templates/wjs_review/details/elements/review_cover.html:14 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:5 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:5
 msgid "Read <i class=\\"
 msgstr "Ler <i class=\\"
 
@@ -4493,8 +3741,7 @@ msgstr "Artigos"
 msgid "Free keywords"
 msgstr "Filtrar por palavra-chave"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_keywords.html:16
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_keywords.html:21
+#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_keywords.html:16 plugins/wjs_review/templates/wjs_review/details/elements/metadata_keywords.html:21
 msgid "Weight"
 msgstr "Peso"
 
@@ -4524,10 +3771,7 @@ msgstr "Enviar"
 msgid "v1 submitted"
 msgstr "Enviar"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:60
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:84
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:92
-#: plugins/wjs_review/templates/wjs_review/elements/article_additional_social_files.html:2
+#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:60 plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:84 plugins/wjs_review/templates/wjs_review/details/elements/metadata_main.html:92 plugins/wjs_review/templates/wjs_review/elements/article_additional_social_files.html:2
 msgid "N/A"
 msgstr "N/D"
 
@@ -4551,18 +3795,15 @@ msgstr "Editar edição"
 msgid "Planned Issue"
 msgstr "Editar edição"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_preprint_files.html:20
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_revision.html:37
+#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_preprint_files.html:20 plugins/wjs_review/templates/wjs_review/details/elements/review_revision.html:37
 msgid "Administrative files, data/figure files that will not be published"
-msgstr ""
-"Arquivos administrativos, arquivos de dados/figuras que não serão publicados"
+msgstr "Arquivos administrativos, arquivos de dados/figuras que não serão publicados"
 
 #: plugins/wjs_review/templates/wjs_review/details/elements/metadata_preprint_files.html:44
 msgid "Manuscript files (latest author version)"
 msgstr "Arquivos do manuscrito (última versão do autor)"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_preprint_files.html:62
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_revision.html:49
+#: plugins/wjs_review/templates/wjs_review/details/elements/metadata_preprint_files.html:62 plugins/wjs_review/templates/wjs_review/details/elements/review_revision.html:49
 msgid "Electronic supplementary material to be published alongside the paper"
 msgstr "Material suplementar eletrônico a ser publicado junto com o artigo"
 
@@ -4588,9 +3829,7 @@ msgstr "Editar Artigo"
 msgid "Queries"
 msgstr "Consultas"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/production_flags.html:12
-#: plugins/wjs_review/templates/wjs_review/details/elements/production_galleyproofing.html:9
-#: plugins/wjs_review/templates/wjs_review/details/elements/production_typesetting.html:8
+#: plugins/wjs_review/templates/wjs_review/details/elements/production_flags.html:12 plugins/wjs_review/templates/wjs_review/details/elements/production_galleyproofing.html:9 plugins/wjs_review/templates/wjs_review/details/elements/production_typesetting.html:8
 msgid "Galleys"
 msgstr "Provas"
 
@@ -4616,8 +3855,7 @@ msgstr "Afiliação"
 msgid "Show author notes"
 msgstr "Mostrar notas do autor"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/production_galleyproofing.html:24
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_decision.html:11
+#: plugins/wjs_review/templates/wjs_review/details/elements/production_galleyproofing.html:24 plugins/wjs_review/templates/wjs_review/details/elements/review_decision.html:11
 msgid "Read"
 msgstr "Ler"
 
@@ -4635,8 +3873,7 @@ msgstr "Seção"
 msgid "Source files"
 msgstr "Arquivos de origem"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/production_version.html:13
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_revision.html:6
+#: plugins/wjs_review/templates/wjs_review/details/elements/production_version.html:13 plugins/wjs_review/templates/wjs_review/details/elements/review_revision.html:6
 #, fuzzy
 #| msgid "Submissions"
 msgid "Version files"
@@ -4646,15 +3883,11 @@ msgstr "Submissões"
 msgid "No file uploaded yet"
 msgstr "Nenhum arquivo enviado ainda"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:7
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_main.html:6
+#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:7 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_main.html:6
 msgid "Write a message <i class=\\"
 msgstr "Escrever uma mensagem <i class=\\"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:11
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:16
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:19
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:23
+#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:11 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:16 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:19 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:23
 msgid "Assignment date"
 msgstr "Data de atribuição"
 
@@ -4670,8 +3903,7 @@ msgstr "Colecção"
 msgid "Deselected on"
 msgstr "Colecção"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:20
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:24
+#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:20 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:24
 #, fuzzy
 #| msgid "Accept GDPR"
 msgid "Acceptance date"
@@ -4683,8 +3915,7 @@ msgstr "Aceitar o GDPR"
 msgid "Review date"
 msgstr "Revisão pelos pares"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:30
-#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:33
+#: plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:30 plugins/wjs_review/templates/wjs_review/details/elements/review_assignment_body.html:33
 msgid "reminder to"
 msgstr "lembrete para"
 
@@ -4748,15 +3979,11 @@ msgstr "A mensagem foi lida por todos os destinatários"
 msgid "Production Version"
 msgstr "Versão de produção"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/typesetting_annotate_files.html:3
-#: plugins/wjs_review/templates/wjs_review/details/esm_files_list.html:5
+#: plugins/wjs_review/templates/wjs_review/details/elements/typesetting_annotate_files.html:3 plugins/wjs_review/templates/wjs_review/details/esm_files_list.html:5
 msgid "Are you sure you want to delete this file?"
 msgstr "Tem certeza de que deseja excluir este arquivo?"
 
-#: plugins/wjs_review/templates/wjs_review/details/elements/typesetting_annotate_files.html:4
-#: plugins/wjs_review/templates/wjs_review/details/esm_files_list.html:2
-#: plugins/wjs_review/templates/wjs_review/details/typesetter_upload_files.html:2
-#: plugins/wjs_review/templates/wjs_review/revision/upload_file.html:2
+#: plugins/wjs_review/templates/wjs_review/details/elements/typesetting_annotate_files.html:4 plugins/wjs_review/templates/wjs_review/details/esm_files_list.html:2 plugins/wjs_review/templates/wjs_review/details/typesetter_upload_files.html:2 plugins/wjs_review/templates/wjs_review/revision/upload_file.html:2
 msgid "Upload File"
 msgstr "Enviar arquivo"
 
@@ -4804,9 +4031,7 @@ msgstr "i"
 msgid "Manage supplementary files"
 msgstr "Gerenciar arquivos suplementares"
 
-#: plugins/wjs_review/templates/wjs_review/details/sections/actions.html:7
-#: plugins/wjs_review/templates/wjs_review/details/sections/production.html:4
-#: plugins/wjs_review/views.py:179 plugins/wjs_review/views.py:187
+#: plugins/wjs_review/templates/wjs_review/details/sections/actions.html:7 plugins/wjs_review/templates/wjs_review/details/sections/production.html:4 plugins/wjs_review/views.py:179 plugins/wjs_review/views.py:187
 #, fuzzy
 #| msgid "Publications"
 msgid "Production"
@@ -4818,9 +4043,7 @@ msgstr "Publicações"
 msgid "Actions"
 msgstr "Seção"
 
-#: plugins/wjs_review/templates/wjs_review/details/sections/review.html:4
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:57
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:50
+#: plugins/wjs_review/templates/wjs_review/details/sections/review.html:4 plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:57 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:50
 msgid "Review"
 msgstr "Revisão"
 
@@ -4832,8 +4055,7 @@ msgstr "Linha do tempo"
 msgid "No message available"
 msgstr "Nenhuma mensagem disponível"
 
-#: plugins/wjs_review/templates/wjs_review/details/sections/title.html:28
-#: plugins/wjs_review/views.py:1926
+#: plugins/wjs_review/templates/wjs_review/details/sections/title.html:28 plugins/wjs_review/views.py:1926
 #, fuzzy
 #| msgid "Submissions"
 msgid "Make decision"
@@ -4851,8 +4073,7 @@ msgstr "Arquivo atualmente enviado"
 msgid "Upload a new file to replace the existing one."
 msgstr "Envie um novo arquivo para substituir o existente."
 
-#: plugins/wjs_review/templates/wjs_review/details/update_reviewer_due_date.html:2
-#: plugins/wjs_review/views.py:3278
+#: plugins/wjs_review/templates/wjs_review/details/update_reviewer_due_date.html:2 plugins/wjs_review/views.py:3278
 msgid "Change due date"
 msgstr "Alterar data limite"
 
@@ -4861,12 +4082,8 @@ msgid "Send and confirm"
 msgstr "Enviar e confirmar"
 
 #: plugins/wjs_review/templates/wjs_review/details/withdraw_preprint.html:18
-msgid ""
-"<p>Provide a reason for withdrawal. After withdrawal, the preprint will no "
-"longer be under consideration in JCOM.</p>"
-msgstr ""
-"<p>Forneça um motivo para a retirada. Após a retirada, o preprint não estará"
-" mais sob consideração no JCOM.</p>"
+msgid "<p>Provide a reason for withdrawal. After withdrawal, the preprint will no longer be under consideration in JCOM.</p>"
+msgstr "<p>Forneça um motivo para a retirada. Após a retirada, o preprint não estará mais sob consideração no JCOM.</p>"
 
 #: plugins/wjs_review/templates/wjs_review/elements/article_additional_social_files.html:7
 #, fuzzy
@@ -4886,8 +4103,7 @@ msgstr "Inglês"
 msgid "Short description"
 msgstr "Seção"
 
-#: plugins/wjs_review/templates/wjs_review/elements/article_additional_social_files.html:17
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_files_modal.html:4
+#: plugins/wjs_review/templates/wjs_review/elements/article_additional_social_files.html:17 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_files_modal.html:4
 msgid "Image"
 msgstr "Imagem"
 
@@ -4915,15 +4131,10 @@ msgstr "Por favor, corrija e teste o pdf novamente."
 
 #: plugins/wjs_review/templates/wjs_review/elements/conversion_error.html:6
 #, python-format
-msgid ""
-"Download the file for the details: <a target=\"_blank\" "
-"href=\"%(url)s\">download</a>"
-msgstr ""
-"Baixe o arquivo para os detalhes: <a target=\"_blank\" "
-"href=\"%(url)s\">baixar</a>"
+msgid "Download the file for the details: <a target=\"_blank\" href=\"%(url)s\">download</a>"
+msgstr "Baixe o arquivo para os detalhes: <a target=\"_blank\" href=\"%(url)s\">baixar</a>"
 
-#: plugins/wjs_review/templates/wjs_review/evaluate_review/elements/info.html:4
-#: plugins/wjs_review/templates/wjs_review/revision/elements/info.html:4
+#: plugins/wjs_review/templates/wjs_review/evaluate_review/elements/info.html:4 plugins/wjs_review/templates/wjs_review/revision/elements/info.html:4
 #, fuzzy
 #| msgid "Affiliation"
 msgid "Information"
@@ -5012,9 +4223,7 @@ msgstr "Gerente"
 msgid "Needs attention"
 msgstr "Requer atenção"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/director/table_item.html:50
-#: plugins/wjs_review/templates/wjs_review/lists/elements/eo/table_item.html:71
-#: plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:16
+#: plugins/wjs_review/templates/wjs_review/lists/elements/director/table_item.html:50 plugins/wjs_review/templates/wjs_review/lists/elements/eo/table_item.html:71 plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:16
 msgid "days"
 msgstr "dias"
 
@@ -5038,25 +4247,19 @@ msgstr "Outros"
 msgid "Edit issue parameters"
 msgstr "Editar parâmetros da edição"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:3
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:3
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/table_article.html:2
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:3 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:3 plugins/wjs_review/templates/wjs_review/lists/elements/issue/table_article.html:2
 #, fuzzy
 #| msgid "Issues"
 msgid "Issue Files"
 msgstr "Edições"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:4
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:23
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:4
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:63
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:4 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:23 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:4 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:63
 #, fuzzy
 #| msgid "Note:"
 msgid "Notes"
 msgstr "Nota:"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:6
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:6
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:6 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:6
 msgid "Add a note <i class=\\"
 msgstr "Adicionar uma nota <i class=\\"
 
@@ -5070,9 +4273,7 @@ msgstr "Publicações"
 msgid "Publication date"
 msgstr "Data da publicação"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:19
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:35
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_detail.html:36
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_plain_detail.html:19 plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:35 plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_detail.html:36
 msgid "Manuscripts"
 msgstr "Manuscritos"
 
@@ -5104,20 +4305,15 @@ msgstr "Publicado por"
 msgid "Expected"
 msgstr "Esperado"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:47
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:93
-#: plugins/wjs_review/templates/wjs_review/revision/elements/revision_files.html:17
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:77
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_issue_special_detail.html:47 plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:93 plugins/wjs_review/templates/wjs_review/revision/elements/revision_files.html:17 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:77
 msgid "Files"
 msgstr "Arquivos"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_toggle_batch.html:3
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_detail.html:15
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_toggle_batch.html:3 plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_detail.html:15
 msgid "Issue is published in batch mode"
 msgstr "A edição é publicada em modo de lote"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_toggle_batch.html:4
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_detail.html:16
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/_toggle_batch.html:4 plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_detail.html:16
 msgid "Issue is published piecemeal"
 msgstr "A edição é publicada de forma fracionada"
 
@@ -5137,15 +4333,13 @@ msgstr "Data"
 msgid "Extra"
 msgstr "Extra"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_detail.html:17
-#: plugins/wjs_stats/templates/wjs_stats/articles.html:39
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/issue_detail.html:17 plugins/wjs_stats/templates/wjs_stats/articles.html:39
 #, fuzzy
 #| msgid "Manager"
 msgid "Janeway Manager"
 msgstr "Gerente"
 
-#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/table_article.html:22
-#: plugins/wjs_review/templates/wjs_review/lists/elements/table_item_status.html:16
+#: plugins/wjs_review/templates/wjs_review/lists/elements/issue/table_article.html:22 plugins/wjs_review/templates/wjs_review/lists/elements/table_item_status.html:16
 msgid "Last update"
 msgstr "Última atualização"
 
@@ -5202,38 +4396,28 @@ msgid "Reviewers: "
 msgstr "Revisão pelos pares"
 
 #: plugins/wjs_review/templates/wjs_review/make_decision/decision.html:6
-msgid ""
-"The following form includes any reports that you have just decided to send "
-"the authors. Please consider personalising the text and modifying any "
-"reviewer report as appropriate. After clicking \\"
-msgstr ""
-"O formulário a seguir inclui quaisquer relatórios que você acabou de decidir"
-" enviar aos autores. Considere personalizar o texto e modificar qualquer "
-"relatório de revisor conforme apropriado. Após clicar \\"
+msgid "The following form includes any reports that you have just decided to send the authors. Please consider personalising the text and modifying any reviewer report as appropriate. After clicking \\"
+msgstr "O formulário a seguir inclui quaisquer relatórios que você acabou de decidir enviar aos autores. Considere personalizar o texto e modificar qualquer relatório de revisor conforme apropriado. Após clicar \\"
 
-#: plugins/wjs_review/templates/wjs_review/make_decision/decision.html:52
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/review_report_form.html:42
+#: plugins/wjs_review/templates/wjs_review/make_decision/decision.html:52 plugins/wjs_review/templates/wjs_review/submit_review/elements/review_report_form.html:42
 #, fuzzy
 #| msgid "View"
 msgid "Test PDF"
 msgstr "Visualizar"
 
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:7
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:8
+#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:7 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:8
 #, fuzzy
 #| msgid "Peer Review"
 msgid "Review for editor"
 msgstr "Revisão pelos pares"
 
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:8
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:9
+#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:8 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:9
 #, fuzzy
 #| msgid "Search titles, keywords, and authors"
 msgid "Review for author"
 msgstr "Pesquisar títulos, palavras-chave e autores"
 
-#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:9
-#: plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:10
+#: plugins/wjs_review/templates/wjs_review/make_decision/elements/report_forms_table.html:9 plugins/wjs_review/templates/wjs_review/submit_review/elements/report_form_summary.html:10
 #, fuzzy
 #| msgid "Search titles, keywords, and authors"
 msgid "Review for author (LaTeX)"
@@ -5290,8 +4474,7 @@ msgstr "Ordenar os artigos por"
 msgid "Sent"
 msgstr "Enviado"
 
-#: plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:14
-#: plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:16
+#: plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:14 plugins/wjs_review/templates/wjs_review/reminders/elements/reminder.html:16
 msgid "Due"
 msgstr "Prazo"
 
@@ -5307,9 +4490,7 @@ msgstr "Ocultar remetente"
 msgid "Created"
 msgstr "Criado"
 
-#: plugins/wjs_review/templates/wjs_review/revision/delete_file.html:6
-#: plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:27
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:6
+#: plugins/wjs_review/templates/wjs_review/revision/delete_file.html:6 plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:27 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:6
 msgid "return confirm('Are you sure you want to delete this item?');"
 msgstr "return confirm('Tem certeza de que deseja excluir este item?');"
 
@@ -5323,8 +4504,7 @@ msgstr "Afiliação"
 msgid "Cover letter to Editor"
 msgstr "Carta de apresentação ao Editor"
 
-#: plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:28
-#: plugins/wjs_review/templates/wjs_review/write_message/write_messages.html:169
+#: plugins/wjs_review/templates/wjs_review/revision/elements/cover_letter.html:28 plugins/wjs_review/templates/wjs_review/write_message/write_messages.html:169
 msgid "Load a new file to replace the current one"
 msgstr "Carregue um novo arquivo para substituir o atual"
 
@@ -5519,12 +4699,8 @@ msgid "Metadata"
 msgstr "Metadados"
 
 #: plugins/wjs_review/templates/wjs_review/revision/elements/meta_data.html:34
-msgid ""
-"To confirm the submission of the meta data, please provide the cover letter "
-"and Click \\"
-msgstr ""
-"Para confirmar o envio dos metadados, forneça a carta de apresentação e "
-"clique \\"
+msgid "To confirm the submission of the meta data, please provide the cover letter and Click \\"
+msgstr "Para confirmar o envio dos metadados, forneça a carta de apresentação e clique \\"
 
 #: plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:17
 msgid "Previous version"
@@ -5538,8 +4714,7 @@ msgstr "Dados e Figuras"
 msgid "Supplementary"
 msgstr "Suplementar"
 
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:31
-#: plugins/wjs_review/templates/wjs_review/revision/elements/revision_files.html:29
+#: plugins/wjs_review/templates/wjs_review/revision/elements/past_revisions.html:31 plugins/wjs_review/templates/wjs_review/revision/elements/revision_files.html:29
 msgid "Manuscript files"
 msgstr "Arquivos do manuscrito"
 
@@ -5563,28 +4738,23 @@ msgstr "Substituir arquivos"
 msgid "Replace files with selected version"
 msgstr "Substituir arquivos pela versão selecionada"
 
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:15
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:10
+#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:15 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:10
 msgid "Label"
 msgstr "Rótulo"
 
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:16
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:11
+#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:16 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:11
 msgid "Filename"
 msgstr "Nome do arquivo"
 
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:17
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:13
+#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:17 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:13
 msgid "Uploaded"
 msgstr "Enviado"
 
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:18
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:14
+#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:18 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:14
 msgid "Size"
 msgstr "Tamanho"
 
-#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:19
-#: plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:15
+#: plugins/wjs_review/templates/wjs_review/revision/elements/past_versions_files.html:19 plugins/wjs_review/templates/wjs_review/revision/elements/update_versions_files.html:15
 msgid "Download"
 msgstr "Descarregar"
 
@@ -5668,8 +4838,7 @@ msgstr "Já selecionado"
 msgid "Did not send requested review (previous version)"
 msgstr "Não enviou a revisão solicitada (versão anterior)"
 
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_list.html:45
-#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:5
+#: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_list.html:45 plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:5
 msgid "Invite new <i class=\\"
 msgstr "Convidar novo <i class=\\"
 
@@ -5688,14 +4857,8 @@ msgid "Contact EO to update reviewer email"
 msgstr "Contate o EO para atualizar o e-mail do revisor"
 
 #: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:31
-msgid ""
-"Click to go user's profile-as-reviewer with name, orcid, affil, reviewer "
-"stats, workload-as-reviewer?, kwd-as-rev?, editor's personal notes on the "
-"rev.,..."
-msgstr ""
-"Clique para ir ao perfil-como-revisor do usuário com nome, orcid, afiliação,"
-" estatísticas de revisor, carga-de-trabalho-como-revisor?, palavras-chave-"
-"como-revisor?, notas pessoais do editor sobre o revisor,..."
+msgid "Click to go user's profile-as-reviewer with name, orcid, affil, reviewer stats, workload-as-reviewer?, kwd-as-rev?, editor's personal notes on the rev.,..."
+msgstr "Clique para ir ao perfil-como-revisor do usuário com nome, orcid, afiliação, estatísticas de revisor, carga-de-trabalho-como-revisor?, palavras-chave-como-revisor?, notas pessoais do editor sobre o revisor,..."
 
 #: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:35
 msgid "Past | prophy | notes | declined-or-removed |"
@@ -5706,12 +4869,8 @@ msgid "Flags"
 msgstr "Sinalizadores"
 
 #: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:36
-msgid ""
-"Number of reviews that this person is currently working on, i.e. assigned "
-"but not completed."
-msgstr ""
-"Número de revisões em que esta pessoa está trabalhando atualmente, ou seja, "
-"atribuídas mas não concluídas."
+msgid "Number of reviews that this person is currently working on, i.e. assigned but not completed."
+msgstr "Número de revisões em que esta pessoa está trabalhando atualmente, ou seja, atribuídas mas não concluídas."
 
 #: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:36
 #, fuzzy
@@ -5720,12 +4879,8 @@ msgid "Pending reviews"
 msgstr "Revisão pelos pares"
 
 #: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:37
-msgid ""
-"Number of papers that this person has reviewed (wrote a report for) at least"
-" once, in the last year."
-msgstr ""
-"Número de artigos que esta pessoa revisou (escreveu um relatório) pelo menos"
-" uma vez, no último ano."
+msgid "Number of papers that this person has reviewed (wrote a report for) at least once, in the last year."
+msgstr "Número de artigos que esta pessoa revisou (escreveu um relatório) pelo menos uma vez, no último ano."
 
 #: plugins/wjs_review/templates/wjs_review/select_reviewer/elements/reviewers_table.html:37
 #, fuzzy
@@ -5832,8 +4987,7 @@ msgstr "Obrigado por definir as suas preferências"
 msgid "Review submitted by"
 msgstr "Revisão pelos pares"
 
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/authors.html:7
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/keywords.html:10
+#: plugins/wjs_review/templates/wjs_review/sync_texdb/authors.html:7 plugins/wjs_review/templates/wjs_review/sync_texdb/keywords.html:10
 msgid "TeX - this the source of truth"
 msgstr "TeX - esta é a fonte da verdade"
 
@@ -5842,8 +4996,7 @@ msgid "proposed mapping"
 msgstr "mapeamento proposto"
 
 #: plugins/wjs_review/templates/wjs_review/sync_texdb/authors.html:65
-msgid ""
-"A new account will be created and an email will be sent to the new user!"
+msgid "A new account will be created and an email will be sent to the new user!"
 msgstr "Uma nova conta será criada e um e-mail será enviado ao novo usuário!"
 
 #: plugins/wjs_review/templates/wjs_review/sync_texdb/authors.html:74
@@ -5872,19 +5025,14 @@ msgid "Keywords are identical. Nothing to do."
 msgstr "As palavras-chave são idênticas. Nada a fazer."
 
 #: plugins/wjs_review/templates/wjs_review/sync_texdb/sync_texdb.html:14
-msgid ""
-"Ensure metadata coherence between TeX and DB: if the metadata differ, you "
-"can update the DB values with value taken from the TeX source."
-msgstr ""
-"Garanta a coerência dos metadados entre TeX e BD: se os metadados diferirem,"
-" você pode atualizar os valores do BD com o valor extraído da fonte TeX."
+msgid "Ensure metadata coherence between TeX and DB: if the metadata differ, you can update the DB values with value taken from the TeX source."
+msgstr "Garanta a coerência dos metadados entre TeX e BD: se os metadados diferirem, você pode atualizar os valores do BD com o valor extraído da fonte TeX."
 
 #: plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:4
 msgid "Title and abstract"
 msgstr "Título e resumo"
 
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:14
-#: plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:25
+#: plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:14 plugins/wjs_review/templates/wjs_review/sync_texdb/titleabstract.html:25
 msgid "DB"
 msgstr "BD"
 
@@ -5893,11 +5041,8 @@ msgid "Title and abstract are identical. Nothing to do."
 msgstr "O título e o resumo são idênticos. Nada a fazer."
 
 #: plugins/wjs_review/templates/wjs_review/templatetags/sections_info.html:3
-msgid ""
-"Please make sure your manuscript complies with the following requirements."
-msgstr ""
-"Por favor, certifique-se de que seu manuscrito atende aos seguintes "
-"requisitos."
+msgid "Please make sure your manuscript complies with the following requirements."
+msgstr "Por favor, certifique-se de que seu manuscrito atende aos seguintes requisitos."
 
 #: plugins/wjs_review/templates/wjs_review/write_message/elements/footer.html:6
 #, python-format
@@ -5964,39 +5109,25 @@ msgstr "Não atribuído"
 msgid "<strong>disabled</strong>"
 msgstr "<strong>desativado</strong>"
 
-#: plugins/wjs_review/views.py:178 plugins/wjs_review/views.py:186
-#: plugins/wjs_review/views.py:194 plugins/wjs_review/views.py:199
-#: plugins/wjs_review/views.py:203 plugins/wjs_review/views.py:207
-#: plugins/wjs_review/views.py:359 plugins/wjs_review/views.py:424
-#: plugins/wjs_review/views.py:667 plugins/wjs_review/views.py:768
-#: plugins/wjs_review/views.py:833
+#: plugins/wjs_review/views.py:178 plugins/wjs_review/views.py:186 plugins/wjs_review/views.py:194 plugins/wjs_review/views.py:199 plugins/wjs_review/views.py:203 plugins/wjs_review/views.py:207 plugins/wjs_review/views.py:359 plugins/wjs_review/views.py:424 plugins/wjs_review/views.py:667 plugins/wjs_review/views.py:768 plugins/wjs_review/views.py:833
 msgid "Pending preprints"
 msgstr "Preprints pendentes"
 
-#: plugins/wjs_review/views.py:180 plugins/wjs_review/views.py:188
-#: plugins/wjs_review/views.py:195 plugins/wjs_review/views.py:200
-#: plugins/wjs_review/views.py:204 plugins/wjs_review/views.py:208
-#: plugins/wjs_review/views.py:396 plugins/wjs_review/views.py:483
-#: plugins/wjs_review/views.py:701 plugins/wjs_review/views.py:811
-#: plugins/wjs_review/views.py:884
+#: plugins/wjs_review/views.py:180 plugins/wjs_review/views.py:188 plugins/wjs_review/views.py:195 plugins/wjs_review/views.py:200 plugins/wjs_review/views.py:204 plugins/wjs_review/views.py:208 plugins/wjs_review/views.py:396 plugins/wjs_review/views.py:483 plugins/wjs_review/views.py:701 plugins/wjs_review/views.py:811 plugins/wjs_review/views.py:884
 msgid "Archived preprints"
 msgstr "Preprints arquivados"
 
-#: plugins/wjs_review/views.py:181 plugins/wjs_review/views.py:189
-#: plugins/wjs_review/views.py:196 plugins/wjs_review/views.py:210
-#: plugins/wjs_review/views.py:564
+#: plugins/wjs_review/views.py:181 plugins/wjs_review/views.py:189 plugins/wjs_review/views.py:196 plugins/wjs_review/views.py:210 plugins/wjs_review/views.py:564
 #, fuzzy
 #| msgid "Edit Issue"
 msgid "Pending Issues"
 msgstr "Editar edição"
 
-#: plugins/wjs_review/views.py:182 plugins/wjs_review/views.py:190
-#: plugins/wjs_review/views.py:537 plugins/wjs_review/views.py:750
+#: plugins/wjs_review/views.py:182 plugins/wjs_review/views.py:190 plugins/wjs_review/views.py:537 plugins/wjs_review/views.py:750
 msgid "Search preprints"
 msgstr "Pesquisar preprints"
 
-#: plugins/wjs_review/views.py:183 plugins/wjs_review/views.py:191
-#: plugins/wjs_review/views.py:2181
+#: plugins/wjs_review/views.py:183 plugins/wjs_review/views.py:191 plugins/wjs_review/views.py:2181
 msgid "Activity"
 msgstr "Atividade"
 
@@ -6092,8 +5223,7 @@ msgstr "Editar Artigo"
 msgid "Make decision (EO)"
 msgstr "Tomar decisão (EO)"
 
-#: plugins/wjs_review/views.py:2112 plugins/wjs_review/views.py:2151
-#: plugins/wjs_review/views.py:2364 plugins/wjs_review/views.py:3593
+#: plugins/wjs_review/views.py:2112 plugins/wjs_review/views.py:2151 plugins/wjs_review/views.py:2364 plugins/wjs_review/views.py:3593
 #, fuzzy
 #| msgid "Collection"
 msgid "Messages and notes"
@@ -6278,12 +5408,9 @@ msgstr "Artigos do diagramador"
 msgid "Upload typeset preprint"
 msgstr "Enviar preprint diagramado"
 
-#: plugins/wjs_review/views__production.py:174
-#: plugins/wjs_review/views__production.py:781
-msgid ""
-"Galley generation started - You will receive an email after it is completed."
-msgstr ""
-"Geração de provas iniciada - Você receberá um e-mail após a conclusão."
+#: plugins/wjs_review/views__production.py:174 plugins/wjs_review/views__production.py:781
+msgid "Galley generation started - You will receive an email after it is completed."
+msgstr "Geração de provas iniciada - Você receberá um e-mail após a conclusão."
 
 #: plugins/wjs_review/views__production.py:383
 msgid "Send corrections/reply to queries"
@@ -6298,12 +5425,8 @@ msgid "Send back to typesetter"
 msgstr "Devolver ao diagramador"
 
 #: plugins/wjs_review/views__production.py:735
-msgid ""
-"Publication process started.<br>It will take some time to complete, wait for"
-" completion message."
-msgstr ""
-"Processo de publicação iniciado.<br>Levará algum tempo para concluir, "
-"aguarde a mensagem de conclusão."
+msgid "Publication process started.<br>It will take some time to complete, wait for completion message."
+msgstr "Processo de publicação iniciado.<br>Levará algum tempo para concluir, aguarde a mensagem de conclusão."
 
 #: plugins/wjs_review/views__production.py:790
 msgid "Sync TeX and DB"
@@ -6353,9 +5476,7 @@ msgstr "Novas publicações"
 
 #: plugins/wjs_stats/templates/wjs_stats/glitches.html:82
 msgid "Lenght of RFP queues. Too few paper in queue mean problems ahead."
-msgstr ""
-"Comprimento das filas de RFP. Poucos artigos na fila significam problemas "
-"adiante."
+msgstr "Comprimento das filas de RFP. Poucos artigos na fila significam problemas adiante."
 
 #: plugins/wjs_subscribe_newsletter/models.py:16
 msgid "Introduction text"
@@ -6489,12 +5610,8 @@ msgstr "Texto de introdução"
 #~ msgid "Call for papers"
 #~ msgstr "Chamada para trabalhos"
 
-#~ msgid ""
-#~ "We receive submissions of manuscripts during the whole year. There is no "
-#~ "call currently for a special issue."
-#~ msgstr ""
-#~ "Recebemos submissão de manuscritos durante todo o ano. Atualmente, não há "
-#~ "chamada para edição especial."
+#~ msgid "We receive submissions of manuscripts during the whole year. There is no call currently for a special issue."
+#~ msgstr "Recebemos submissão de manuscritos durante todo o ano. Atualmente, não há chamada para edição especial."
 
 #~ msgid "Browse"
 #~ msgstr "Arquivo"
@@ -6625,11 +5742,8 @@ msgstr "Texto de introdução"
 #~ msgstr "Afiliação"
 
 #, fuzzy
-#~ msgid ""
-#~ "Check this box if you would like to receive notifications of new articles "
-#~ "published in this journal"
-#~ msgstr ""
-#~ "Quero receber alertas sobre as últimas notícias publicadas na revista."
+#~ msgid "Check this box if you would like to receive notifications of new articles published in this journal"
+#~ msgstr "Quero receber alertas sobre as últimas notícias publicadas na revista."
 
 #, fuzzy
 #~ msgid "E-mail"
@@ -6713,10 +5827,7 @@ msgstr "Texto de introdução"
 #~ "        Changing your email address will also change your username as these\n"
 #~ "        are one and the same.</p>\n"
 #~ "      "
-#~ msgstr ""
-#~ "Se desejar alterar o seu endereço de correio electrónico pode fazê-lo "
-#~ "abaixo, no entanto, será desconectado e a sua conta será marcada como "
-#~ "inactiva até que siga as instruções no e-mail de verificação."
+#~ msgstr "Se desejar alterar o seu endereço de correio electrónico pode fazê-lo abaixo, no entanto, será desconectado e a sua conta será marcada como inactiva até que siga as instruções no e-mail de verificação."
 
 #, fuzzy
 #~ msgid "No accounts to display."
@@ -6813,10 +5924,7 @@ msgstr "Texto de introdução"
 #~ "                account will be marked as inactive until you follow the instructions in the verification email. <strong>Note: </strong>\n"
 #~ "                Changing your email address will also change your username as these are one and the same.</p>\n"
 #~ "                "
-#~ msgstr ""
-#~ "Se desejar alterar o seu endereço de correio electrónico pode fazê-lo "
-#~ "abaixo, no entanto, será desconectado e a sua conta será marcada como "
-#~ "inactiva até que siga as instruções no e-mail de verificação."
+#~ msgstr "Se desejar alterar o seu endereço de correio electrónico pode fazê-lo abaixo, no entanto, será desconectado e a sua conta será marcada como inactiva até que siga as instruções no e-mail de verificação."
 
 #, fuzzy
 #~ msgid "Filter"
@@ -6866,8 +5974,7 @@ msgstr "Texto de introdução"
 
 #, fuzzy
 #~ msgid "There are no articles published in this journal yet"
-#~ msgstr ""
-#~ "Quero receber alertas sobre as últimas notícias publicadas na revista."
+#~ msgstr "Quero receber alertas sobre as últimas notícias publicadas na revista."
 
 #, fuzzy
 #~ msgid "Featured Articles"
@@ -6903,18 +6010,13 @@ msgstr "Texto de introdução"
 #~ "                    below, however, you will be logged out and\n"
 #~ "                    your account will be marked as inactive until you follow the\n"
 #~ "                    instructions in the verfication email."
-#~ msgstr ""
-#~ "Se desejar alterar o seu endereço de correio electrónico pode fazê-lo "
-#~ "abaixo, no entanto, será desconectado e a sua conta será marcada como "
-#~ "inactiva até que siga as instruções no e-mail de verificação."
+#~ msgstr "Se desejar alterar o seu endereço de correio electrónico pode fazê-lo abaixo, no entanto, será desconectado e a sua conta será marcada como inactiva até que siga as instruções no e-mail de verificação."
 
 #, fuzzy
 #~ msgid ""
 #~ "Changing your email address will also change your username\n"
 #~ "                    as these are one and the same."
-#~ msgstr ""
-#~ "Alterar o seu endereço de correio electrónico também mudará o seu nome de "
-#~ "utilizador, uma vez que estes são os mesmos."
+#~ msgstr "Alterar o seu endereço de correio electrónico também mudará o seu nome de utilizador, uma vez que estes são os mesmos."
 
 #, fuzzy
 #~ msgid "This journal has no issues"
