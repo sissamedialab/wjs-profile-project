@@ -58,7 +58,7 @@ function parse_command() {
     # Don't be too generous with the pattern here: watch out for sh injections!
     # Remember Bobby Tables https://xkcd.com/327/
     # ([[:alnum:]_] is enough for a SHA or a tag, and REF is only ever used quoted)
-    if [[ "$1" =~ ^deploy-(prod|pp|dev|t[1-5])-(janeway|profile|submission|themes|search)(:([[:alnum:]_]+))?$ ]]; then
+    if [[ "$1" =~ ^deploy-(prod|pp|dev|t[1-5]|t4dev)-(janeway|profile|submission|themes|search)(:([[:alnum:]_]+))?$ ]]; then
         INSTANCE="${BASH_REMATCH[1]}"
         PACKAGE="${BASH_REMATCH[2]}"
         REF="${BASH_REMATCH[4]}"
@@ -110,6 +110,11 @@ function set_instance_variables() {
             SUFFIX="-${INSTANCE}"
             MODE=git
             GIT_REF="$REF"
+            ;;
+        t4dev)
+            SUFFIX="-t4"
+            MODE=git
+            GIT_REF="feature/issue-2907__test-envs"
             ;;
     esac
 

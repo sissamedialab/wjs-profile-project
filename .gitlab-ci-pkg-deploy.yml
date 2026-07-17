@@ -15,5 +15,5 @@
 
   script:
     - echo "Deploying to $SERVER_IP"
-    - chmod og= $ID_RSA
-    - ssh -i $ID_RSA -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP $DEPLOY_CMD
+    - chmod og= $ID_ED25519
+    - ssh -i $ID_ED25519 -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP $DEPLOY_CMD

@@ -157,3 +157,22 @@ Deploy to T5:
     - .deploy-to-test-template
   variables:
     TEST_INSTANCE: "t5"
+
+
+TMP Deploy to t4 as if dev:
+  extends:
+    - .deploy
+  environment: dev
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    # The dev instance only deploys wjs-develop, so the job exists
+    # only in pipelines for that branch (no rule matches elsewhere).
+    - if: $CI_COMMIT_REF_NAME == "feature/issue-2907__test-envs"
+      when: on_success
+  allow_failure: true
+  variables:
+    SERVER_IP: "$TEST_SERVER_IP"
+    SERVER_USER: "$TEST_SERVER_USER"
+    # The dev instance always deploys the wjs-develop branch (no ref accepted)
+    DEPLOY_CMD: "deploy-t4dev-profile"

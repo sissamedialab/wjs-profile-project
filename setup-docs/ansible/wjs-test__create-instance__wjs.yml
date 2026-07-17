@@ -71,7 +71,7 @@
     - name: Create Django settings file
       template:
         dest: "/home/wjs/{{ full_name }}/src/core/settings/__init__.py"
-        src: griffo-files/django_settings.py.j2
+        src: config/django_settings.py.j2
         mode: '0644'
 
 
