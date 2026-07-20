@@ -4243,7 +4243,11 @@ class YakuninClient:
 
         """
         yakunin_log_file = next(tmpdir.glob("yakunin-task.log"), None)
-        return Path(yakunin_log_file).read_text(encoding="utf-8")
+
+        # pdflatex's stdout can contain bytes that are not valid UTF-8
+        # so we set `errors="replace"`
+        # (full explanation in yakunin.archive.Archive.read_log)
+        return Path(yakunin_log_file).read_text(encoding="utf-8", errors="replace")
 
     @staticmethod
     def no_errors_in_log(log: str) -> bool:
