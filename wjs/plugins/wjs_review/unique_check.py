@@ -1,6 +1,6 @@
 from django.db.models import Q
 from journal.models import Journal
-from plugins.wjs_submission.unique_check import get_article_candidates
+from plugins.wjs_submission.unique_check import get_articles_matching_signature
 from submission.models import STAGE_UNSUBMITTED
 
 from .models import ArticleWorkflow, WjsSection
@@ -29,7 +29,7 @@ def check_article_uniqueness_by_submission_status_and_section(
     :return: A boolean
     :rtype: bool
     """
-    filtered_articles = get_article_candidates(response_content, journal)
+    filtered_articles = get_articles_matching_signature(response_content, journal)
     sections = WjsSection.objects.filter(journal=journal)
     filtered_articles = filtered_articles.exclude(
         # articles with different section (article type) AND status unsubmitted / withdrawn / Not suitable
@@ -72,7 +72,7 @@ def check_article_uniqueness_by_submission_status_and_section_in_all_journals(re
     :rtype: bool
     """
     # filtering without journal
-    filtered_articles = get_article_candidates(response_content)
+    filtered_articles = get_articles_matching_signature(response_content)
     filtered_articles = filtered_articles.exclude(
         Q(stage=STAGE_UNSUBMITTED)
         | Q(
