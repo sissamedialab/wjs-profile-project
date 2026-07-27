@@ -22,7 +22,7 @@ include:
     ref: wjs-production
     file: '.gitlab-ci-pkg-build-and-upload.yml'
   - project: 'wjs/wjs-profile-project'
-    ref: wjs-production
+    ref: ${CI_COMMIT_REF_NAME}
     file: '.gitlab-ci-pkg-deploy.yml'
   - project: 'wjs/wjs-profile-project'
     ref: ${CI_COMMIT_REF_NAME}
@@ -32,7 +32,7 @@ include:
     file: '.gitlab-ci-pre-commit.yml'
 
 
-run-tests:
+Run tests:
   # Always run tests, except for tags, which have tests already run on
   # them when the commit is made.
   except:
@@ -41,7 +41,7 @@ run-tests:
     - .run-tests
 
 
-pre-commit:
+Pre-commit:
   # Always run linting, except for tags
   except:
     - tags
@@ -49,64 +49,116 @@ pre-commit:
     - .run-pre-commit
 
 
-upload-package:
+Upload package:
   only:
     - tags
   extends:
     - .upload-package
 
 
-deploy-to-pre-production:
-  # We don't want to risk resetting some on-going translation:
+Deploy to pre-production:
   environment: pre-production
-  when: manual
   extends:
     - .deploy
-
-  # This is sort of implicit, because the deployment process is basically `pip install -U wjs`
-  # needs:
-  #   - upload-package
-  # Also, if `only: - tags` is omitted, gitlab complains that
-  # 'deploy-to-pre-production' job needs 'upload-package' job, but 'upload-package' is not in any previous stage
-  # only:
-  #   - tags
-
+  # Deploying to pp means installing the last released (uploaded) package,
+  # so the job only makes sense in tag pipelines, after "Upload package".
+  needs:
+    - Upload package
+  rules:
+    # Manual because we don't want to risk resetting some on-going translation:
+    - if: $CI_COMMIT_TAG
+      when: manual
+  # Do not block the pipeline waiting for the manual job
+  # (with `rules`, manual jobs default to allow_failure: false)
+  allow_failure: true
   variables:
     # TEST_SERVER_IP and TEST_SERVER_USER are defined in gitlab's group WJS
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-pp-wjs"
+    DEPLOY_CMD: "deploy-pp-profile"
 
 
-deploy-to-production:
+Deploy to production:
   extends:
     - .deploy
-  when: manual
+  # Deploying to prod means installing the last released (uploaded) package,
+  # so the job only makes sense in tag pipelines, after "Upload package".
+  needs:
+    - Upload package
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+  allow_failure: true
   environment: production
   variables:
     SERVER_IP: "$PROD_SERVER_IP"
     SERVER_USER: "$PROD_SERVER_USER"
-    DEPLOY_CMD: "deploy-prod-wjs"
+    DEPLOY_CMD: "deploy-prod-profile"
 
 
-deploy-to-test:
-  # Deploy the current commit to test instance
-  # Warning! Be sure not to disrupt other peoples work 🙂
+Deploy to dev:
   extends:
     - .deploy
-  when: manual
-  variables:
-    SERVER_IP: "$TEST_SERVER_IP"
-    SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-test-wjs:${CI_COMMIT_SHA}"
-
-
-deploy-to-dev:
-  extends:
-    - .deploy
-  when: manual
   environment: dev
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    # The dev instance only deploys wjs-develop, so the job exists
+    # only in pipelines for that branch (no rule matches elsewhere).
+    - if: $CI_COMMIT_REF_NAME == "wjs-develop"
+      when: on_success
+  allow_failure: true
   variables:
     SERVER_IP: "$TEST_SERVER_IP"
     SERVER_USER: "$TEST_SERVER_USER"
-    DEPLOY_CMD: "deploy-dev-wjs:${CI_COMMIT_SHA}"
+    # The dev instance always deploys the wjs-develop branch (no ref accepted)
+    DEPLOY_CMD: "deploy-dev-profile"
+
+
+# ======================
+# Deploy to T1-T5
+# ======================
+.deploy-to-test-template:
+  extends:
+    - .deploy
+  when: manual
+  variables:
+    SERVER_IP: "$TEST_SERVER_IP"
+    SERVER_USER: "$TEST_SERVER_USER"
+    TEST_INSTANCE: "t1"
+    DEPLOY_CMD: "deploy-${TEST_INSTANCE}-profile:${CI_COMMIT_SHA}"
+
+Deploy to T1:
+  environment: T1
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t1"
+
+Deploy to T2:
+  environment: T2
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t2"
+
+Deploy to T3:
+  environment: T3
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t3"
+
+Deploy to T4:
+  environment: T4
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t4"
+
+Deploy to T5:
+  environment: T5
+  extends:
+    - .deploy-to-test-template
+  variables:
+    TEST_INSTANCE: "t5"

@@ -2,6 +2,17 @@ import os
 from pathlib import Path
 from wjs.defaults.settings import *  # noqa
 
+DEBUG=True
+Q_CLUSTER["sync"] = False
+Q_CLUSTER["retry"] = 320
+Q_CLUSTER["timeout"] = 300
+
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+YAKUNIN_URL = "http://wjs-services-test.ud.sissamedialab.it:1235/"
+JCOMASSISTANT_URL = "http://wjs-services-test.ud.sissamedialab.it:1234/api/v2/"
+
 SECRET_KEY = "{{ django_secret_key | default('change-me-in-production') }}"
 
 DATABASES = {
@@ -15,10 +26,18 @@ DATABASES = {
     },
 }
 WJAPP_JHEP_APIKEY = "{{ jhep_api_key | default('change-me') }}"
-
 WJS_NEWSLETTER_TOKEN_SALT = WJAPP_JHEP_APIKEY
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# This is the default redirect if no other sites are found.
+DEFAULT_HOST = "https://wjs-test-{{ instance_name }}-journals.wjapp.it"
+DEFAULT_FROM_EMAIL = "wjs-support+{{ instance_name }}@medialab.sissa.it"
+
+# Use mailcatcher for emails
+# https://docs.djangoproject.com/en/1.11/topics/email/
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "localhost"
+EMAIL_PORT = 1025
+EMAIL_USE_TLS = False
 
 CACHES = {
     "default": {

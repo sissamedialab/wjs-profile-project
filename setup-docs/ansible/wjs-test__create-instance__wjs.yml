@@ -6,7 +6,8 @@
 # from those that are to be done as root (e.g. apache config).
 #
 # Call as
-# ansible-playbook wjs-test__create-instance__wjs.yml wjs-test__create-instance__root.yml  -e instance="aaa" postgres_password="***"
+#  export POSTGRES_PASSWORD="***"
+# ansible-playbook wjs-test__create-instance__wjs.yml wjs-test__create-instance__root.yml  -e instance="aaa"
 #
 # NB: check the postgres password on the remote .pgpass!
 #
@@ -70,15 +71,8 @@
     - name: Create Django settings file
       template:
         dest: "/home/wjs/{{ full_name }}/src/core/settings/__init__.py"
-        src: griffo-files/django_settings.py.j2
+        src: config/django_settings.py.j2
         mode: '0644'
-
-    # TODO: check me! Move to django_settings.py.j2
-    - name: Add SECURE_PROXY_SSL_HEADER setting if missing
-      lineinfile:
-        path: /home/wjs/{{ full_name }}/src/core/settings/__init__.py
-        line: "SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')"
-        state: present
 
 
 
@@ -165,24 +159,21 @@
         mode: preserve
 
 
-    # For not, do _not_ copy files from pp instance
-
-    # TO BE DROPPED AFTER Janeway 1.8
-    - name: Link typesetting plugin
-      file:
-        src: "/home/wjs/typesetting"
-        dest: "/home/wjs/{{ full_name }}/src/plugins/typesetting"
-        state: link
-        owner: wjs
-        group: wjs
+    # Do _not_ copy files from pp instance
+    # In order to copy some article's files to, for instance t1:
+    # for i in 3677 3647 3634 3646 3645 3655 3615 3679
+    # do
+    #   rsync -va /home/wjs/janeway-pp/src/files/articles/$i \
+    #       /home/wjs/janeway-t1/src/files/articles/
+    # done
 
 
-      # Note: at this point, no management command can be used,
-      # because there is reference from wjs_review to plugins/wjs_submission,
-      # but the latter does not yet exist.
-      #
-      # Remove possibly existing link to wjs_submission plugin
-      # (e.g., from previous runs of this play)
+    # Note: at this point, no management command can be used,
+    # because there is reference from wjs_review to plugins/wjs_submission,
+    # but the latter does not yet exist.
+    #
+    # Remove possibly existing link to wjs_submission plugin
+    # (e.g., from previous runs of this play)
     - name: Ensure wjs-submission is not yet present
       file:
         path: "/home/wjs/{{ full_name }}/src/plugins/wjs_submission"
@@ -215,6 +206,8 @@
       args:
         chdir: "/home/wjs/{{ full_name }}/src"
 
+    # Manually anonymize the DB only when requested
+
 
 
 
@@ -225,6 +218,7 @@
         owner: wjs
         group: wjs
         mode: '0644'
+      notify: restart instance services
 
 
 
@@ -235,19 +229,47 @@
         owner: wjs
         group: wjs
         mode: '0644'
-      notify: reload user systemd
+      notify: restart instance services
 
 
 
-    # TODO start instance?
+    - name: Add aliases to start/stop the instance's services to .bashrc
+      ansible.builtin.lineinfile:
+        path: /home/wjs/.bashrc
+        regexp: "^alias {{ item }}-{{ instance_name }}="
+        line: "alias {{ item }}-{{ instance_name }}='systemctl --user {{ item }} gunicorn-{{ instance_name }} && systemctl --user {{ item }} qcluster-{{ instance_name }}'"
+      loop:
+        - start
+        - stop
+
+
+    - name: Enable and start gunicorn and qcluster services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        # daemon_reload runs before enable/start, so freshly copied units are picked up
+        daemon_reload: yes
+        enabled: yes
+        state: started
+        scope: user
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      loop:
+        - "gunicorn-{{ instance_name }}.service"
+        - "qcluster-{{ instance_name }}.service"
 
 
 
   handlers:
-    - name: reload user systemd
+    # Restart (and daemon-reload) so that changed unit files take effect
+    # also on already-running instances.
+    - name: restart instance services
       ansible.builtin.systemd_service:
+        name: "{{ item }}"
         daemon_reload: yes
+        state: restarted
         scope: user
-      become_user: wjs
       environment:
         XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      loop:
+        - "gunicorn-{{ instance_name }}.service"
+        - "qcluster-{{ instance_name }}.service"
