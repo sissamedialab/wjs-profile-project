@@ -1,0 +1,40 @@
+# Deploy the deploy script (to deploy-2026.sh)
+#
+# Call as
+#  export DEPLOY_TOKEN_USER=***
+#  export DEPLOY_TOKEN_PASSWORD=***
+# ansible-playbook deploy-deploy-script.yml
+---
+- name: Deploy the deploy script
+  hosts: test
+  remote_user: wjs
+  vars:
+    # default=undef() makes the playbook fail if the environment variable is not set
+    DEPLOY_TOKEN_USER: "{{ lookup('env', 'DEPLOY_TOKEN_USER', default=undef()) }}"
+    DEPLOY_TOKEN_PASSWORD: "{{ lookup('env', 'DEPLOY_TOKEN_PASSWORD', default=undef()) }}"
+
+  tasks:
+
+    - name: Copy the deploy script
+      # Do not convert the script into a jinja template, because it would be too difficult
+      # to validate it as a shell script otherwise.
+      ansible.builtin.copy:
+        src: scripts/deploy.sh
+        dest: /home/wjs/deploy-2026.sh
+        owner: wjs
+        group: wjs
+        mode: '0755'
+
+    - name: Set user to access the repo
+      ansible.builtin.replace:
+        path: /home/wjs/deploy-2026.sh
+        regexp: '^DEPLOY_TOKEN_USER=\*\*\*$'
+        replace: "DEPLOY_TOKEN_USER={{ DEPLOY_TOKEN_USER }}"
+      no_log: true
+
+    - name: Set password to access the repo
+      ansible.builtin.replace:
+        path: /home/wjs/deploy-2026.sh
+        regexp: '^DEPLOY_TOKEN_PASSWORD=\*\*\*$'
+        replace: "DEPLOY_TOKEN_PASSWORD={{ DEPLOY_TOKEN_PASSWORD }}"
+      no_log: true
