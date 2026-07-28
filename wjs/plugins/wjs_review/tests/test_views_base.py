@@ -408,7 +408,9 @@ def test_wjs_message_write(assigned_article, eo_user, client):
 
 @pytest.mark.django_db
 def test_wjs_message_toggle_read_by_eo(assigned_article, eo_user, client):
-    message = log_operation(assigned_article, "test", "test", recipients=[eo_user])
+    message = log_operation(
+        article=assigned_article, message_subject="test", message_body="test", recipients=[eo_user]
+    )
     client.force_login(eo_user)
     response = client.get(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/toggle_read_by_eo/{message.pk}/"
@@ -418,7 +420,9 @@ def test_wjs_message_toggle_read_by_eo(assigned_article, eo_user, client):
 
 @pytest.mark.django_db
 def test_wjs_message_toggle_read(assigned_article, eo_user, client):
-    message = log_operation(assigned_article, "test", "test", recipients=[eo_user])
+    message = log_operation(
+        article=assigned_article, message_subject="test", message_body="test", recipients=[eo_user]
+    )
     client.force_login(eo_user)
     response = client.get(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/toggle_read/{message.pk}/{eo_user.pk}/"
@@ -441,7 +445,9 @@ def test_wjs_message_download_attachment(assigned_article, eo_user, client, crea
     recipient = create_jcom_user("recipient").janeway_account
     other_user = create_jcom_user("other_user").janeway_account
 
-    message = log_operation(assigned_article, "test", "test", recipients=[recipient], actor=eo_user)
+    message = log_operation(
+        article=assigned_article, message_subject="test", message_body="test", recipients=[recipient], actor=eo_user
+    )
     message.attachments.add(attachment_file)
 
     url = (
@@ -488,7 +494,9 @@ def test_wjs_message_write_to_auwm(assigned_to_typesetter_article_with_files_to_
 @pytest.mark.django_db
 def test_wjs_message_forward(assigned_article, eo_user, client):
     client.force_login(eo_user)
-    message = log_operation(assigned_article, "test", "test", recipients=[eo_user])
+    message = log_operation(
+        article=assigned_article, message_subject="test", message_body="test", recipients=[eo_user]
+    )
     message.to_be_forwarded_to = assigned_article.correspondence_author
     message.save()
     response = client.get(
@@ -501,7 +509,7 @@ def test_wjs_message_forward(assigned_article, eo_user, client):
 @pytest.mark.django_db
 def test_wjs_message_forward_no_recipients(assigned_article, eo_user, client):
     client.force_login(eo_user)
-    message = log_operation(assigned_article, "test")
+    message = log_operation(article=assigned_article, message_subject="test", message_body="test")
     response = client.get(
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/forward/{message.pk}/"
     )

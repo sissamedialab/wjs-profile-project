@@ -1,5 +1,6 @@
 import pytest
 from django.core import mail
+from plugins.wjs_review.models import Message
 
 from wjs.jcom_profile.forms import UpdateAssignmentParametersForm
 from wjs.jcom_profile.models import StaffWorkloadParameters
@@ -21,5 +22,12 @@ def test_staff_disable_notification(eo_user, editors, journal, enabled):
     )
     assert form.is_valid()
     assert form.save()
-    assert mail.outbox[0].subject == "Assignment Parameters Status Changed"
+    assert len(mail.outbox) == 1
+    msg = mail.outbox[0]
+    assert Message.objects.count() == 1
+    message = Message.objects.first()
+    assert msg.subject == "[JCOM] Assignment Parameters Status Changed"
     assert f"Status: {status}" in mail.outbox[0].body
+    assert message.message_type == Message.MessageTypes.SYSTEM
+    assert message.subject == "Assignment Parameters Status Changed"
+    assert message.verbosity == Message.MessageVerbosity.FULL
