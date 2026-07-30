@@ -176,15 +176,24 @@ class ProfileEmailEditView(BaseProfileEditView):
     template_name = "wjs/profile/personal_email_edit.html"
     success_url = reverse_lazy("core_edit_profile_email")
     update_message = _("Alternative email updated.")
-    update_message_2 = _("Email change started.")
+    update_message_2 = _("Please, check your inbox.")
 
     def form_valid(self, form):
         try:
-            if form.cleaned_data["new_email"]:
-                logic.handle_email_change(
-                    self.request, form.cleaned_data["new_email"], next_url=self.get_success_url()
-                )
-                messages.success(self.request, self.update_message_2)
+            alternative_email_updated = form.cleaned_data["alternative_email"] and hasattr(
+                self.request.user, "jcomprofile"
+            )
+            if form.cleaned_data["new_email"] or alternative_email_updated:
+                if alternative_email_updated:
+                    self.request.user.jcomprofile.alternative_email = form.cleaned_data["alternative_email"]
+                    self.request.user.jcomprofile.save()
+                    messages.success(self.request, self.update_message)
+
+                if form.cleaned_data["new_email"]:
+                    logic.handle_email_change(
+                        self.request, form.cleaned_data["new_email"], next_url=self.get_success_url()
+                    )
+                    messages.success(self.request, self.update_message_2)
                 return redirect(self.get_success_url())
             else:
                 return super().form_valid(form)

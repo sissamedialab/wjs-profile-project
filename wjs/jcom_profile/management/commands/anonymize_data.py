@@ -18,10 +18,10 @@ import faker
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
-from django.db.models import F, Value
+from django.db.models import Case, CharField, F, Value, When
 from django.db.models.functions import Concat
 from journal.models import Journal
-from plugins.wjs_review.models import Message
+from plugins.wjs_review.models import EditorDecision, Message, WorkflowReviewAssignment
 from submission.models import Article
 from utils import setting_handler
 from utils.logger import get_logger
@@ -55,21 +55,10 @@ class Command(BaseCommand):
 
         assert settings.DEBUG is True
 
-        accounts = Account.objects.exclude(
-            email__in=(
-                "elia.calderan@sissamedialab.it",
-                "matteo.gamboz@sissamedialab.it",
-                "i.spalletti@nephila.digital",
-                "mariateresa.leo@sissamedialab.it",
-                "m.caglienzi@nephila.digital",
-                "marco.mizzaro@sissamedialab.it",
-                "s.petronici@nephila.digital",
-                "wjs-support@sissamedialab.it",
-                "davide.fracarossi@sissamedialab.it",
-            ),
-        )
+        accounts = Account.objects.exclude(is_admin=True)
         anonymize_users(accounts)
-        anonymize_message_subjects()
+        anonymize_message()
+        anonymize_editor_decision()
         if options["titles"]:
             anonymize_titles()
         disable_crossref()
@@ -77,14 +66,13 @@ class Command(BaseCommand):
 
 
 def anonymize_users(accounts):
-    """Anonymize emails and names."""
+    """Anonymize emails, names and some other fields."""
     anonymize_emails(accounts)
-    anonymize_names(accounts)
-    # TODO: what about ORCIDIDs, github username, bio, profile image,...
+    anonymize_accounts_data(accounts)
 
 
-def anonymize_names(accounts):
-    """Set random names onto users."""
+def anonymize_accounts_data(accounts):
+    """Set random names and some other fields onto users."""
     fake = faker.Faker()
     for account in accounts:
         if account.first_name:
@@ -93,6 +81,18 @@ def anonymize_names(accounts):
             account.last_name = fake.last_name()
         if account.middle_name:
             account.middle_name = fake.first_name()
+        account.salutation = ""
+        account.suffix = ""
+        account.name_prefix = ""
+        account.orcid = None
+        account.biography = fake.sentence(nb_words=random.randint(5, 13)).title()
+        account.twitter = None
+        account.facebook = None
+        account.linkedin = None
+        account.github = None
+        account.website = None
+        account.profile_image = None
+        account.signature = ""
         account.save()
 
 
@@ -112,23 +112,62 @@ def anonymize_titles():
         article.save()
 
 
+def anonymize_subjects(qs):
+    """Anonymize some subjects."""
+    handled_pks = set()
+    cases = [
+        ("please select", "please select referee"),
+        ("confirms assignment", "confirms assignment"),
+        ("declines assignment", "declines assignment"),
+        ("review by", "review received"),
+        ("revision", "revision update"),
+        ("your report", "your report"),
+        ("accept/decline", "accept/decline assignment"),
+        ("coauthor", "selects coauthor"),
+        ("information request", "information request to author"),
+        ("review request", "review request"),
+        ("your decision", "your decision"),
+        ("no reply from referee", "no reply from referee"),
+        ("final check", "final check"),
+        ("declined assignment", "declined assignment"),
+        ("declined invite", "declined invite"),
+        ("accepted invite", "accepted invite"),
+    ]
+
+    roles = ("Referee", "Editor", "Reviewer", "Author")
+    for phrase, label in cases:
+        pks = list(qs.filter(subject__icontains=phrase).exclude(pk__in=handled_pks).values_list("pk", flat=True))
+        if pks:
+            whens = [When(subject__startswith=role, then=Value(f"{role} ⋆⋆⋆ {label}")) for role in roles]
+            qs.filter(pk__in=pks).update(subject=Case(*whens, default=Value(label), output_field=CharField()))
+            handled_pks.update(pks)
+
+    qs.exclude(pk__in=handled_pks).update(subject="*** anonymized content ***")
+
+
 def anonymize_message_subjects():
     """Anonymize some message subjects."""
+    Message.objects.exclude(message_type="System log message").update(subject="*** anonymized subject ***")
     Message.objects.filter(subject__endswith="invited to review").update(subject="⋆⋆⋆ invited to review")
 
-    Message.objects.filter(
-        subject__startswith="Editor",
-        subject__endswith="declined assignment",
-    ).update(subject="Editor ⋆⋆⋆ declined assignment")
+    qs = Message.objects.filter(message_type="System log message").exclude(subject__endswith="invited to review")
+    anonymize_subjects(qs)
 
-    Message.objects.filter(
-        subject__startswith="Reviewer",
-        subject__endswith="declined invite",
-    ).update(subject="Reviewer ⋆⋆⋆ declined invite")
-    Message.objects.filter(
-        subject__startswith="Reviewer",
-        subject__endswith="accepted invite",
-    ).update(subject="Reviewer ⋆⋆⋆ accepted invite")
+
+def anonymize_message():
+    """Anonymize message subjects and body"""
+    anonymize_message_subjects()
+    Message.objects.all().update(body="*** anonymized content ***")
+
+
+def anonymize_editor_decision():
+    """Anonymize decision_editor_report"""
+    EditorDecision.objects.all().update(decision_editor_report="*** anonymized content ***")
+
+
+def anonymize_workflow_review_assignment():
+    """Anonymize report_form_answers"""
+    WorkflowReviewAssignment.objects.all().update(report_form_answers="{}")
 
 
 def disable_crossref():
