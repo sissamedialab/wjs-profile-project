@@ -44,7 +44,6 @@ class WjsPersonalInfoForm(EditAccountForm):
             "last_name",
             "year_of_birth",
             "gender",
-            "orcid",
             "profession",
             "preferred_timezone",
             "biography",
