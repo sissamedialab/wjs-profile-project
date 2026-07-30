@@ -13,10 +13,14 @@ from ..mixins import AuthenticatedUserPassesTest
 from ..models import ArticleWorkflow
 from ..permissions import is_article_typesetter_or_eo
 from .forms import (
+    SyncArxivForm,
     SyncAuthorsForm,
+    SyncCasDasForm,
+    SyncFundingsForm,
     SyncKeywordsForm,
     SyncLanguageForm,
     SyncLicenseForm,
+    SyncRightsForm,
     SyncTitleAbstractForm,
 )
 from .logic import MetadataFromTeX
@@ -99,8 +103,12 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         texdata = self.get_texdata()
         context.update(self._get_context_data_language(texdata))
         context.update(self._get_context_data_license(texdata))
+        context.update(self._get_context_data_rights(texdata))
+        context.update(self._get_context_data_arxiv(texdata))
+        context.update(self._get_context_data_casdas(texdata))
         context.update(self._get_context_data_titleabstract(texdata))
         context.update(self._get_context_data_keywords(texdata))
+        context.update(self._get_context_data_fundings(texdata))
         context.update(self._get_context_data_authors(texdata))
         return context
 
@@ -120,6 +128,21 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         form_license = SyncLicenseForm(texdata, data={"action": "sync_license"})
         return {"form_license": form_license}
 
+    def _get_context_data_rights(self, texdata: MetadataFromTeX) -> dict:
+        """Return context info related to the copyright/rights."""
+        form_rights = SyncRightsForm(texdata, data={"action": "sync_rights"})
+        return {"form_rights": form_rights}
+
+    def _get_context_data_arxiv(self, texdata: MetadataFromTeX) -> dict:
+        """Return context info related to the arXiv id."""
+        form_arxiv = SyncArxivForm(texdata, data={"action": "sync_arxiv"})
+        return {"form_arxiv": form_arxiv}
+
+    def _get_context_data_casdas(self, texdata: MetadataFromTeX) -> dict:
+        """Return context info related to the Code/Data Availability Statements."""
+        form_casdas = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+        return {"form_casdas": form_casdas}
+
     def _get_context_data_titleabstract(self, texdata: MetadataFromTeX) -> dict:
         """Return context info related to title and abstract."""
         form_titleabstract = SyncTitleAbstractForm(texdata, data={"action": "sync_titleabstract"})
@@ -129,6 +152,11 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         """Return context info related to the keywords."""
         form_keywords = SyncKeywordsForm(texdata, data={"action": "sync_keywords"})
         return form_keywords.get_form_context_data()
+
+    def _get_context_data_fundings(self, texdata: MetadataFromTeX) -> dict:
+        """Return context info related to the fundings."""
+        form_fundings = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+        return form_fundings.get_form_context_data()
 
     def _get_context_data_authors(self, texdata: MetadataFromTeX) -> dict:
         """Return context info related to the authors."""
@@ -153,10 +181,18 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             self._post_language(request)
         elif action == "sync_license":
             self._post_license(request)
+        elif action == "sync_rights":
+            self._post_rights(request)
+        elif action == "sync_arxiv":
+            self._post_arxiv(request)
+        elif action == "sync_casdas":
+            self._post_casdas(request)
         elif action == "sync_titleabstract":
             self._post_titleabstract(request)
         elif action == "sync_keywords":
             self._post_keywords(request)
+        elif action == "sync_fundings":
+            self._post_fundings(request)
         elif action == "sync_authors":
             self._post_authors(request)
         else:
@@ -183,6 +219,36 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         else:
             messages.add_message(request, messages.SUCCESS, _("License synchronized."))
 
+    def _post_rights(self, request):
+        """Synchronize the copyright/rights."""
+        form = SyncRightsForm(self.get_texdata(), data=request.POST)
+        try:
+            form.sync()
+        except ValueError as e:
+            messages.add_message(request, messages.ERROR, str(e))
+        else:
+            messages.add_message(request, messages.SUCCESS, _("Rights synchronized."))
+
+    def _post_arxiv(self, request):
+        """Synchronize the arXiv id."""
+        form = SyncArxivForm(self.get_texdata(), data=request.POST)
+        try:
+            form.sync()
+        except ValueError as e:
+            messages.add_message(request, messages.ERROR, str(e))
+        else:
+            messages.add_message(request, messages.SUCCESS, _("arXiv id synchronized."))
+
+    def _post_casdas(self, request):
+        """Synchronize the Code/Data Availability Statements."""
+        form = SyncCasDasForm(self.get_texdata(), data=request.POST)
+        try:
+            form.sync()
+        except ValueError as e:
+            messages.add_message(request, messages.ERROR, str(e))
+        else:
+            messages.add_message(request, messages.SUCCESS, _("CAS/DAS synchronized."))
+
     def _post_titleabstract(self, request):
         """Synchronize title and abstract."""
         form = SyncTitleAbstractForm(self.get_texdata(), data=request.POST)
@@ -204,6 +270,16 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             messages.add_message(request, messages.ERROR, str(e))
         else:
             messages.add_message(request, messages.SUCCESS, _("Keywords synchronized."))
+
+    def _post_fundings(self, request):
+        """Synchronize the fundings."""
+        form = SyncFundingsForm(self.get_texdata(), data=request.POST)
+        try:
+            form.sync()
+        except ValueError as e:
+            messages.add_message(request, messages.ERROR, str(e))
+        else:
+            messages.add_message(request, messages.SUCCESS, _("Fundings synchronized."))
 
     def _post_authors(self, request):
         """Synchronize the authors."""
