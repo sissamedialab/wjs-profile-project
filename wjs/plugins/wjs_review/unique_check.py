@@ -7,7 +7,7 @@ from .models import ArticleWorkflow, WjsSection
 
 
 def check_article_uniqueness_by_submission_status_and_section(
-    response_content: dict, journal: Journal, **kwargs
+    response_content: dict, journal: Journal, article_id: int
 ) -> bool:
     """
     Check that article is unique by submission status and section.
@@ -20,12 +20,15 @@ def check_article_uniqueness_by_submission_status_and_section(
                 withdrawn / Not suitable OR
           articles with same section AND status unsubmitted (ie: they have not completed step 8) OR withdrawn OR
           articles which have been created by arxiv id check (current_step=0)
+          article with the same id (to avoid errors during submission continuation and revision)
 
     :param response_content: A dictionary containing 'arxiv_id', 'title',
         and 'abstract' keys to filter candidate articles.
     :type response_content: dict
     :param journal: The Journal instance to filter candidates by.
     :type journal: Journal
+    :param article_id: The Article id to filter candidates by.
+    :type article_id: int
     :return: A boolean
     :rtype: bool
     """
@@ -51,11 +54,13 @@ def check_article_uniqueness_by_submission_status_and_section(
         |
         # If current step is 0, it's an article which just have been created via ArxivMicroservice
         Q(current_step=0)
-    )
+    ).exclude(pk=article_id)
     return not filtered_articles.exists()
 
 
-def check_article_uniqueness_by_submission_status_and_section_in_all_journals(response_content: dict, **kwargs):
+def check_article_uniqueness_by_submission_status_and_section_in_all_journals(
+    response_content: dict, journal: Journal, article_id: int
+):
     """
     Check that article is unique by submission status and section in all journals.
 
@@ -64,10 +69,15 @@ def check_article_uniqueness_by_submission_status_and_section_in_all_journals(re
         article with same arxiv id (ignore version number) AND/OR same title and same abstract
     except
         articles in unsubmitted (ie: they have not completed step 8) / rejected / not suitable / withdrawn state
+        article with the same id (to avoid errors during submission continuation and revision)
 
     :param response_content: A dictionary containing 'arxiv_id', 'title',
         and 'abstract' keys to filter candidate articles.
     :type response_content: dict
+    :param journal: The Journal instance to filter candidates by.
+    :type journal: Journal
+    :param article_id: The Article id to filter candidates by.
+    :type article_id: int
     :return: A boolean
     :rtype: bool
     """
@@ -82,12 +92,12 @@ def check_article_uniqueness_by_submission_status_and_section_in_all_journals(re
                 ArticleWorkflow.ReviewStates.WITHDRAWN,
             ]
         )
-    )
+    ).exclude(pk=article_id)
     return not filtered_articles.exists()
 
 
 def check_article_uniqueness_by_submission_status_and_section_in_all_journals_combined(
-    response_content: dict, journal: Journal, **kwargs
+    response_content: dict, journal: Journal, article_id: int
 ):
     """
     Check that article is unique by submission status and section in all journals.
@@ -113,9 +123,13 @@ def check_article_uniqueness_by_submission_status_and_section_in_all_journals_co
     :type response_content: dict
     :param journal: The Journal instance to filter candidates by.
     :type journal: Journal
+    :param article_id: The Article id to filter candidates by.
+    :type article_id: int
     :return: A boolean
     :rtype: bool
     """
     return check_article_uniqueness_by_submission_status_and_section(
-        response_content, journal
-    ) and check_article_uniqueness_by_submission_status_and_section_in_all_journals(response_content)
+        response_content, journal, article_id=article_id
+    ) and check_article_uniqueness_by_submission_status_and_section_in_all_journals(
+        response_content=response_content, journal=journal, article_id=article_id
+    )
