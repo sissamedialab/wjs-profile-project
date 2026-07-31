@@ -526,8 +526,10 @@ def sections(journal):
 def _article(author, coauthor, journal, sections, submitted=False):
     if submitted:
         date_started = date_submitted = now() - timedelta(days=random.randint(10, 20))
+        stage = submission_models.STAGE_ASSIGNED
     else:
         date_started = date_submitted = None
+        stage = submission_models.STAGE_UNSUBMITTED
     article = submission_models.Article.objects.create(
         abstract="Abstract",
         journal=journal,
@@ -538,6 +540,7 @@ def _article(author, coauthor, journal, sections, submitted=False):
         date_started=date_started,
         section=random.choice(sections),
         language="eng",
+        stage=stage,
     )
     add_author_using_email(author.email, article)
     add_author_using_email(coauthor.email, article)

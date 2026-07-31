@@ -614,7 +614,7 @@ msgid "Alternative email updated."
 msgstr ""
 
 #: jcom_profile/profile/views.py:154
-msgid "Please, check your inbox."
+msgid "Email change started."
 msgstr ""
 
 #: jcom_profile/profile/views.py:174

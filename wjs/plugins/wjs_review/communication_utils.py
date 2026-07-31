@@ -198,14 +198,13 @@ def get_director_user(obj: Union[Article, Journal]) -> Account:
 
 
 def log_operation(
+    article: Article,
     message_subject: str,
     message_body: str = "",
-    article: Article | None = None,
-    journal: Journal | None = None,
-    actor: Account | None = None,
-    hijacking_actor: Account | None = None,
+    actor: Account = None,
+    hijacking_actor: Account = None,
     notify_actor: bool = False,
-    recipients: list[Account] | None = None,
+    recipients: list[Account] = None,
     message_type: Message.MessageTypes = Message.MessageTypes.SYSTEM,
     verbosity: Message.MessageVerbosity = Message.MessageVerbosity.FULL,
     flag_as_read: bool = False,
@@ -228,22 +227,12 @@ def log_operation(
     :return: the created message
     :rtype: Message
     """
-    # safeguards to provide improved error messages due to incompatible argument change
-    if article and isinstance(article, Article):
-        content_type = ContentType.objects.get_for_model(article)
-        journal = article.journal
-        eo_user = get_eo_user(article)
-        object_id = article.pk
-    elif journal and isinstance(journal, Journal):
-        content_type = ContentType.objects.get_for_model(journal)
-        eo_user = get_eo_user(journal)
-        object_id = journal.pk
-    else:
-        raise ValueError("Either article or journal must be provided - Verify compatibility with updated signature")
     if not actor:
-        actor = get_system_user(journal=journal)
+        actor = get_system_user(journal=article.journal)
         notify_actor = False
 
+    content_type = ContentType.objects.get_for_model(article)
+    object_id = article.id
     message = Message.objects.create(
         actor=actor,
         subject=message_subject,
@@ -262,6 +251,7 @@ def log_operation(
     # Message to self are considered read
     MessageRecipients.objects.filter(message=message, recipient=actor).update(read=True)
     # Message to eo_user are considered read
+    eo_user = get_eo_user(article)
     MessageRecipients.objects.filter(message=message, recipient=eo_user).update(read=True)
     message.emit_notification()
     if notify_actor and hijacking_actor:
@@ -269,7 +259,7 @@ def log_operation(
         hijack_subject = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="hijack_notification_subject",
-            journal=journal,
+            journal=article.journal,
             request=fake_request,
             context={"original_subject": message_subject, "original_body": message_body, "hijacker": hijacking_actor},
             template_is_setting=True,
@@ -277,16 +267,15 @@ def log_operation(
         hijack_body = render_template_from_setting(
             setting_group_name="wjs_review",
             setting_name="hijack_notification_body",
-            journal=journal,
+            journal=article.journal,
             request=fake_request,
             context={"original_subject": message_subject, "original_body": message_body, "hijacker": hijacking_actor},
             template_is_setting=True,
         )
         log_operation(
-            message_subject=hijack_subject,
-            message_body=hijack_body,
-            article=article,
-            journal=journal,
+            article,
+            hijack_subject,
+            hijack_body,
             recipients=[actor],
             verbosity=Message.MessageVerbosity.FULL,
             message_type=Message.MessageTypes.HIJACK,

@@ -1,15 +1,12 @@
 {% load django_bootstrap5 i18n static wjs_review wjs_tags %}
-
+{% load wjs_review %}
 {% translate "Select" as select_label %}
 {% translate "Search" as search_label %}
 {% translate "Reset" as reset_label %}
 {% url "wjs_assign_editor" workflow.pk as search_editor %}
 {% for user in users %}
   <tr>
-    <td>
-      {{ user.get_full_name }} {% if user.article_editor %}[ {% translate "past editor" %} ]{% endif %}
-      {% if user|editor_vacancy_dates:journal %} - <span class="text-muted">{% translate "Unavailable on" %} {{ user|editor_vacancy_dates:journal }}</span>{% endif %}
-    </td>
+    <td>{{ user.get_full_name }} {% if user.article_editor %}[ {% translate "past editor" %} ]{% endif %}</td>
     {% if workflow.article.journal|show_editor_keywords %}
       <td>{{ user.matching_keywords|join:", " }}</td>
       <td>{{ user.num_shared_kwds }}</td>
@@ -24,18 +21,14 @@
       {% get_pending_reviews_in_timeframe user %}
     </td>
     <td>
-      {% if user|is_enabled_as_editor:journal %}
-        <input class="form-check-input" type="radio" name="selected_editor" id="selected-editor-{{ user.pk }}" autocomplete="off"
-               {% if form.cleaned_data.selected_editor == user.pk %}checked{% endif %}
-               value="{{ user.pk }}"
-               hx-get="{% url 'wjs_assign_editor' workflow.pk %}"
-               hx-target="#new-editor-form"
-               hx-swap="innerHTML"
-               hx-on::after-request="document.getElementById('new-editor-form').style.display = 'block';">
-        <label class="form-check-label visually-hidden" for="selected-editor-{{ user.pk }}">{{ select_label }} {{ user.get_full_name }}</label>
-      {% else %}
-        <span class="text-muted">{% translate "Editor not available" %}</span>
-      {% endif %}
+      <input class="form-check-input" type="radio" name="selected_editor" id="selected-editor-{{ user.pk }}" autocomplete="off"
+        {% if form.cleaned_data.selected_editor == user.pk %}checked{% endif %}
+        value="{{ user.pk }}"
+        hx-get="{% url 'wjs_assign_editor' workflow.pk %}"
+        hx-target="#new-editor-form"
+        hx-swap="innerHTML"
+        hx-on::after-request="document.getElementById('new-editor-form').style.display = 'block';">
+      <label class="form-check-label visually-hidden" for="selected-editor-{{ user.pk }}">{{ select_label }} {{ user.get_full_name }}</label>
     </td>
   </tr>
 {% endfor %}

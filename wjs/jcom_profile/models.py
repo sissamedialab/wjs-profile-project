@@ -1,17 +1,13 @@
 """The model for a field "profession" for JCOM authors."""
 
-from typing import Optional
-
 from core.model_utils import MiniHTMLFormField
 from core.models import Account, AccountManager
 from django.conf import settings
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.db.models import JSONField
 from django.forms import TextInput
-from django.utils import timezone
 from django.utils.timezone import now
 from django.utils.translation import gettext as _
 from django_bleach.forms import BleachField as BleachFormField
@@ -73,82 +69,6 @@ class JCOMProfile(Account):
             self.gdpr_acceptance = now()
         super().save(*args, **kwargs)
 
-    def parameters(self, journal: Journal) -> Optional["StaffWorkloadParameters"]:
-        """
-        Retrieve and cache staff workload parameters for the given journal.
-
-        This method attempts to retrieve workload parameters for a specific journal and user pair
-        from the cache. If unavailable, it queries the database, caches the result, and returns it.
-
-        :param journal: The journal object for which workload parameters are retrieved.
-        :type journal: Journal
-        :return: The workload parameters instance, or None if not found.
-        :rtype: StaffWorkloadParameters
-        """
-        cache_key = f"StaffWorkloadParameters:{journal.pk}:{self.pk}"
-        params = cache.get(cache_key)
-        if not params:
-            params = StaffWorkloadParameters.objects.filter(journal=journal, user=self).first()
-            cache.set(cache_key, params)
-        return params
-
-    def is_available_as_editor(self, journal: Journal) -> bool:
-        """
-        Check if the user is available as an editor for a given journal.
-
-        Determine whether the current user can serve as an editor for the specified
-        journal, based on their workload parameters.
-
-        :param journal: The journal to check against.
-        :type journal: Journal
-        :return: True if the user is available as an editor for the journal,
-            otherwise False.
-        :rtype: bool
-        """
-        try:
-            return self.parameters(journal).is_available
-        except AttributeError:
-            return False
-
-    def is_enabled_as_editor(self, journal: Journal) -> bool:
-        """
-        Check if the current object is enabled as an editor for the given journal.
-
-        This method determines whether the object has editing privileges enabled
-        for a specific journal instance. It only checks the general flag, not possible vacancy dates
-        (use :py:meth:`is_available_as_editor` if you need to check vacancy dates)
-
-        :param journal: The journal instance to check editing privileges for
-        :type journal: Journal
-        :return: True if editor has marked themselves as available
-        :rtype: bool
-        """
-        try:
-            return self.parameters(journal).enabled
-        except AttributeError:
-            return False
-
-    def vacancy_dates(self, journal: Journal) -> str:
-        """
-        Generate and return a string representation of vacancy dates for a given journal.
-
-        Retrieve the vacancy start and end dates from the journal's parameters and
-        format them as a string. If the dates are not available, return an empty string.
-
-        :param journal: The journal object containing parameter details.
-        :type journal: Journal
-        :return: Formatted string of vacancy start and end dates, or an empty string
-                 if dates are not available.
-        :rtype: str
-        """
-        try:
-            params = self.parameters(journal)
-            if params.vacancy_start or params.vacancy_end:
-                return f"{params.vacancy_start or ''} - {params.vacancy_end or ''}".strip()
-        except AttributeError:
-            pass
-        return ""
-
 
 class Correspondence(models.Model):
     """Storage area for wjapp, PoS, SGP,... userCods."""
@@ -201,63 +121,12 @@ class StaffWorkloadParameters(models.Model):
         return f"{self.user} - Assignment parameters"
 
     def save(self, *args, **kwargs):
-        """
-        Validate the instance and save it to the database.
-
-        Performs validation on the instance before saving it to ensure
-        that all data complies with the defined constraints and rules
-        set in the model. This method delegates the actual save operation
-        to the parent class.
-
-        :param args: Positional arguments to pass to the parent save method.
-        :param kwargs: Keyword arguments to pass to the parent save method.
-        :return: None
-        """  #
-        cache.delete(f"StaffWorkloadParameters:{self.journal.pk}:{self.user.pk}")
         self.full_clean()
         super().save(*args, **kwargs)
 
     def clean(self, exclude=None):
-        """
-        Validate the consistency of vacancy start and end dates.
-
-        Ensure that the vacancy end date occurs after the vacancy start date,
-        raising an appropriate validation error if this condition is not met.
-
-        :param exclude: A set of fields to exclude during validation.
-        :type exclude: Optional[set]
-        :return: None
-        :raises ValidationError: If the vacancy end date is before the vacancy
-            start date.
-        """
         if self.vacancy_end and self.vacancy_start and self.vacancy_end < self.vacancy_start:
             raise ValidationError({"vacancy_end": _("Vacancy end date must be after vacancy start date.")})
-
-    @property
-    def is_available(self):
-        """
-        Determine if the object is currently available.
-
-        This method checks the availability of the object based on the `enabled`
-        status and its potential vacancy period defined by `vacancy_start` and
-        `vacancy_end` dates. The current date is considered to establish whether
-        the object is on vacancy. If the object is on vacancy or not enabled,
-        it is considered unavailable.
-
-        :return: True if the object is enabled and not currently on vacancy,
-            otherwise False.
-        :rtype: bool
-        """
-        today = timezone.now().date()
-        on_vacancy = False
-        if self.vacancy_start and self.vacancy_end:
-            on_vacancy = self.vacancy_start <= today <= self.vacancy_end
-        elif self.vacancy_start:
-            on_vacancy = self.vacancy_start <= today
-        elif self.vacancy_end:
-            on_vacancy = today <= self.vacancy_end
-
-        return self.enabled and not on_vacancy
 
 
 class StaffKeyword(models.Model):

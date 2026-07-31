@@ -158,11 +158,6 @@ def get_plugin_context(request, homepage_elements):
     PluginConfig = apps.get_model("wjs_home_blocks.PluginConfig")
 
     element = PluginConfig.objects.filter(journal=request.journal).first()
-    if not element:
-        return {
-            "main_column_items": 1,
-            f"{SHORT_NAME}_element": element,
-        }
     return {
         "main_column_items": element.main_column_items,
         f"{SHORT_NAME}_element": element,
