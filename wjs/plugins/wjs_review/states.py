@@ -691,8 +691,10 @@ class EditorToBeSelected(BaseState):
             .last()
         ):
             waiting_days = (timezone.now() - latest_editor_assignment.date_unassigned).days
-        else:
+        elif article.date_submitted:
             waiting_days = (timezone.now() - article.date_submitted).days
+        else:
+            waiting_days = "N/A"
         return f"Editor has not been selected for {waiting_days} days"
 
     @classmethod
