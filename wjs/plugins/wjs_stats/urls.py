@@ -43,9 +43,4 @@ urlpatterns = [
         views.EditorsAndKeywordsChar.as_view(),
         name="wjs_stats_editors_and_keywords",
     ),
-    path(
-        "keywords-usage/",
-        views.KeywordsUsageChart.as_view(),
-        name="wjs_stats_keywords_usage",
-    ),
 ]

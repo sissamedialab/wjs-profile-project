@@ -1,7 +1,7 @@
 from django.contrib import admin
 from submission.admin import ArticleAdmin
 
-from .advanced_admin import admin as advanced_admin  # noqa: F401
+from . import advanced_admin  # noqa: F401
 from .models import (
     ArticleWorkflow,
     EditorDecision,

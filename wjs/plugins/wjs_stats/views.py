@@ -17,7 +17,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Count, Min, Q
-from django.db.models.functions import Lower, TruncMonth
+from django.db.models.functions import TruncMonth
 from django.http import FileResponse, HttpResponse
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -27,7 +27,7 @@ from django.views.generic.edit import FormView
 from identifiers.models import CrossrefStatus
 from journal.models import Issue, Journal
 from requests.auth import HTTPBasicAuth
-from submission.models import Article, Keyword, KeywordArticle, Section
+from submission.models import Article, Keyword, Section
 from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
 
@@ -737,62 +737,6 @@ class EditorsAndKeywordsChar(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
     def test_func(self):
         """Verify that only staff can see this."""
         return self.request.user.is_staff
-
-
-class KeywordsUsageChart(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
-    """Render a d3js matrix of monthly keyword usage in the last ten years.
-
-    For each month, count how many published articles (by date_published) use each keyword.
-    """
-
-    template_name = "wjs_stats/keywords_usage.html"
-
-    def test_func(self):
-        """Verify that only staff can see this."""
-        return self.request.user.is_staff
-
-    def get_context_data(self, **kwargs):
-        """Build the keywords × months usage matrix."""
-        context = super().get_context_data(**kwargs)
-        journal = self.request.journal
-
-        # The 120 months (10 years) ending with the current one, oldest first.
-        today = now().date()
-        year, month = today.year, today.month
-        months = []
-        for _ in range(120):
-            months.insert(0, {"year": year, "month": month})
-            month -= 1
-            if month == 0:
-                year, month = year - 1, 12
-
-        start = timezone.make_aware(timezone.datetime(months[0]["year"], months[0]["month"], 1))
-        usage = (
-            KeywordArticle.objects.filter(
-                article__journal=journal,
-                article__date_published__gte=start,
-            )
-            .order_by()
-            .annotate(month=TruncMonth("article__date_published"))
-            .values("keyword_id", "month")
-            .annotate(count=Count("pk"))
-        )
-        counts = {(row["keyword_id"], (row["month"].year, row["month"].month)): row["count"] for row in usage}
-
-        # All the journal's keywords, regardless of their usage count.
-        keywords = list(journal.keywords.order_by(Lower("word")))
-        matrix = [[counts.get((keyword.pk, (m["year"], m["month"])), 0) for m in months] for keyword in keywords]
-
-        context["keywords"] = [keyword.word for keyword in keywords]
-        context["months"] = months
-        context["matrix"] = matrix
-        # The maximum cell value for each look-back window (1 to 10 years),
-        # so that the gray scale adapts to the period shown.
-        context["max_count_by_years"] = [
-            max((count for row in matrix for count in row[-years * 12 :]), default=0)  # noqa E203
-            for years in range(1, 11)
-        ]
-        return context
 
 
 class OrcidsStatsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
