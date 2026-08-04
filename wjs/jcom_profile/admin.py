@@ -26,7 +26,7 @@ class JCOMProfileInline(admin.StackedInline):
     """Helper class to "inline" account profession."""
 
     model = JCOMProfile
-    fields = ["profession", "gdpr_checkbox", "invitation_token", "usernotes"]
+    fields = ["profession", "career_stage", "gdpr_checkbox", "invitation_token", "usernotes"]
     # TODO: No! this repeats all the fields (first name, password,...)
 
 

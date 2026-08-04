@@ -28,7 +28,11 @@
         </div>
 
         <div class="row">
-          <div class="col-md-6">{% bootstrap_field form.profession %}</div>
+          {% if journal|is_field_available:"career_stage" %}
+            <div class="col-md-6">{% bootstrap_field form.career_stage %}</div>
+          {% else %}
+            <div class="col-md-6">{% bootstrap_field form.profession %}</div>
+          {% endif %}
         </div>
 
         {% if form.register_as_reader %}

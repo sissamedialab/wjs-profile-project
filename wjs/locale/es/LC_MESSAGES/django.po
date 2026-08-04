@@ -1304,8 +1304,8 @@ msgid "Please provide as much information as possible to help the Journal, its e
 msgstr "Por favor, proporcione la mayor cantidad de información posible para ayudar a la revista, sus editores y revisores a conocerle mejor."
 
 #: jcom_profile/templates/wjs/profile/personal_interests_edit.html:11 jcom_profile/templates/wjs/profile/update_editor_parameters.html:14
-msgid "Please select the keywords that best describe your areas of expertise."
-msgstr "Por favor, seleccione las palabras clave que mejor describan sus áreas de especialización."
+msgid "Please select the keywords that best describe your areas of expertise. Appropriate keyword selection is crucial to optimize the review process."
+msgstr "Por favor, seleccione las palabras clave que mejor describan sus áreas de especialización. La selección adecuada de palabras clave es fundamental para optimizar el proceso de revisión."
 
 #: jcom_profile/templates/wjs/profile/update_editor_parameters.html:4 jcom_profile/templates/wjs/profile/update_editor_parameters.html:7
 msgid "Paper assignments parameters"

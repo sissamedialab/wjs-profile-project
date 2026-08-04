@@ -8,7 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from submission.models import Keyword
 from utils.middleware import context_request
 
-from ..constants import GENDER_FORM_CHOICES, PROFESSIONS_FORM
+from ..constants import CAREER_STAGES_FORM, GENDER_FORM_CHOICES, PROFESSIONS_FORM
 from ..forms import KeywordCheckboxesFormMixin, _get_privacy_url
 from ..models import JCOMProfile, WjsMiniHTMLFormField
 from ..templatetags.wjs_tags import is_field_available
@@ -23,6 +23,7 @@ class WjsPersonalInfoForm(EditAccountForm):
     year_of_birth = forms.IntegerField(label=_("Year of birth"), required=False)
     gender = forms.ChoiceField(label=_("Gender"), choices=GENDER_FORM_CHOICES, required=False)
     profession = forms.ChoiceField(label=_("Profession"), required=False, choices=PROFESSIONS_FORM)
+    career_stage = forms.ChoiceField(label=_("Career stage"), required=False, choices=CAREER_STAGES_FORM)
     privacy_notice = forms.DateTimeField(
         label=_("Privacy notice acknowledged on"), widget=forms.DateTimeInput(attrs={"readonly": True}), required=False
     )
@@ -45,6 +46,7 @@ class WjsPersonalInfoForm(EditAccountForm):
             "year_of_birth",
             "gender",
             "profession",
+            "career_stage",
             "preferred_timezone",
             "biography",
             "privacy_notice",
@@ -69,6 +71,9 @@ class WjsPersonalInfoForm(EditAccountForm):
         if not is_field_available(self.journal, "profession"):
             self.fields["profession"].required = False
             self.fields["profession"].widget = forms.HiddenInput()
+        if not is_field_available(self.journal, "career_stage"):
+            self.fields["career_stage"].required = False
+            self.fields["career_stage"].widget = forms.HiddenInput()
         if self.instance.jcomprofile.gdpr_acceptance:
             self.fields["gdpr_checkbox"].widget = forms.HiddenInput()
         else:
@@ -92,6 +97,24 @@ class WjsPersonalInfoForm(EditAccountForm):
             return None
         try:
             return int(profession)
+        except ValueError:
+            return None
+
+    def clean_career_stage(self) -> int | None:
+        """
+        Cleans and validates the 'career_stage' field.
+
+        This method checks the 'career_stage' field provided in the cleaned data
+        and ensures that it is not empty. If the field is empty, it returns None.
+        Otherwise, it returns the validated career stage.
+
+        :return: The validated career stage if present, otherwise None.
+        """
+        career_stage = self.cleaned_data["career_stage"]
+        if not career_stage:
+            return None
+        try:
+            return int(career_stage)
         except ValueError:
             return None
 

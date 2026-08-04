@@ -1341,7 +1341,7 @@ msgstr ""
 
 #: jcom_profile/templates/wjs/profile/personal_interests_edit.html:11
 #: jcom_profile/templates/wjs/profile/update_editor_parameters.html:14
-msgid "Please select the keywords that best describe your areas of expertise."
+msgid "Please select the keywords that best describe your areas of expertise. Appropriate keyword selection is crucial to optimize the review process."
 msgstr ""
 
 #: jcom_profile/templates/wjs/profile/update_editor_parameters.html:4

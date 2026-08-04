@@ -20,7 +20,7 @@ from sortedm2m.fields import SortedManyToManyField
 from submission.models import Article
 from tinymce.widgets import TinyMCE
 
-from .constants import GENDER_CHOICES, PROFESSIONS
+from .constants import CAREER_STAGES, GENDER_CHOICES, PROFESSIONS
 
 # TODO: use settings.AUTH_USER_MODEL
 
@@ -48,6 +48,7 @@ class JCOMProfile(Account):
     # to `null=False` (i.e. `NOT NULL` at DB level) because we do not
     # have this data for most of our existing users.
     profession = models.IntegerField(null=True, choices=PROFESSIONS)
+    career_stage = models.IntegerField(null=True, choices=CAREER_STAGES)
     gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
     gdpr_acceptance = models.DateTimeField(_("GDPR acceptance date"), null=True, blank=True)
     invitation_token = models.CharField(_("Invitation token"), max_length=500, default="", blank=True)
