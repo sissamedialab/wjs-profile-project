@@ -24,7 +24,11 @@
 
     <div class="d-block">
       {# FIXME: profession field must be update to reflect actual content #}
-      {% if author.jcomprofile.profession %}<span class="text-primary">{{ author.jcomprofile.get_profession_display }}</span> <strong>·</strong> {% endif %}
+      {% if journal|is_field_available:"career_stage" %}
+        {% if author.jcomprofile.career_stage %}<span class="text-primary">{{ author.jcomprofile.get_career_stage_display }}</span> <strong>·</strong> {% endif %}
+      {% elif journal|is_field_available:"profession" %}
+        {% if author.jcomprofile.profession %}<span class="text-primary">{{ author.jcomprofile.get_profession_display }}</span> <strong>·</strong> {% endif %}
+      {% endif %}
       {% if author.affiliation %}<span class="text-primary">{{ author.affiliation }}</span>{% endif %}
     </div>
   </div>

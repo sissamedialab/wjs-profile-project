@@ -95,3 +95,12 @@ PROFESSIONS = [
 ]
 
 PROFESSIONS_FORM = BLANK_CHOICE_DASH + PROFESSIONS
+
+CAREER_STAGES = [
+    (0, "Student (i.e. pre-PhD)"),
+    (1, "Early career (e.g. postdoc, fixed-term contract)"),
+    (2, "Tenure track"),
+    (3, "Permanent (tenured or indefinite contract)"),
+]
+
+CAREER_STAGES_FORM = BLANK_CHOICE_DASH + CAREER_STAGES

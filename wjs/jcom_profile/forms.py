@@ -115,6 +115,7 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
             "middle_name",
             "last_name",
             "profession",
+            "career_stage",
             "gdpr_checkbox",
         )
 
@@ -129,6 +130,9 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         if not is_field_available(self.journal, "profession"):
             self.fields["profession"].required = False
             self.fields["profession"].widget = forms.HiddenInput()
+        if not is_field_available(self.journal, "career_stage"):
+            self.fields["career_stage"].required = False
+            self.fields["career_stage"].widget = forms.HiddenInput()
         self.fields["first_name"].required = False
         for field in self.fields:
             if self.fields[field].required:
