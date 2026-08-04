@@ -1,5 +1,5 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 i18n static wjs_permissions %}
+{% load django_bootstrap5 i18n static wjs_permissions wjs_review %}
 {% block content_wrapper %}
 {% translate "Add Notes" as add_notes_label %}
 {% translate "Send Corrections" as send_label %}
@@ -28,9 +28,12 @@
               </ul>
             </dd>
             <dd>All requests for correction must clearly state where they should be implemented in the document (page number, paragraph and line) and specify both the old (wrong) version and the correction.</dd>
-            <dd>If the typesetter's queries request you to send a short description and an image for social media, please upload them through the dedicated link from your manuscript web page.</dd>
-          </dl>
           {% endblocktranslate %}
+          {% journal_requires_social_media_files request.journal as show_social_media_note %}
+          {% if show_social_media_note %}
+            {% blocktranslate %}<dd>If the typesetter's queries request you to send a short description and an image for social media, please upload them through the dedicated link from your manuscript web page.</dd>{% endblocktranslate %}
+          {% endif %}
+          </dl>
         </div>
       </div>
     </div>
