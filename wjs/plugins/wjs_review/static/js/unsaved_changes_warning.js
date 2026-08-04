@@ -100,7 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (targetButton) {
       const isBootstrapToggle =
         targetButton.hasAttribute("data-bs-toggle") || targetButton.hasAttribute("data-bs-dismiss");
-      if (isBootstrapToggle || targetButton.type === "submit") return;
+      if (isBootstrapToggle || targetButton.type === "submit" || targetButton.id === "toggleAllAccordions") return;
 
       event.preventDefault();
       nextTargetUrl = "back";
