@@ -664,6 +664,19 @@ def journal_with_language_content(journal: Journal) -> bool:
 
 
 @register.simple_tag()
+def journal_requires_social_media_files(journal: Journal) -> bool:
+    """
+    Check if the journal requires social media data (a short description and an image) for its articles.
+
+    :param journal: The journal to check access to.
+    :type journal: Journal
+    :return True if the journal requires social media files, False otherwise.
+    :rtype: bool
+    """
+    return journal.code in settings.WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES
+
+
+@register.simple_tag()
 def article_needs_article_data_for_social_media_without_translation(article: Article, user: Account) -> bool:
     """
     Check if article needs social media data (short description and image) but no translations.
