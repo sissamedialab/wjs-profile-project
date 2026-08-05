@@ -147,11 +147,11 @@ def test_editor_assignment_vacancy(
     for editor in editors[1:]:
         if vacancy_start:
             StaffWorkloadParameters.objects.filter(user=editor, journal=article.journal).update(
-                vacancy_start=timezone.now() - timedelta(days=1)
+                vacancy_start=timezone.now() - timedelta(days=5)
             )
         if vacancy_end:
             StaffWorkloadParameters.objects.filter(user=editor, journal=article.journal).update(
-                vacancy_end=timezone.now() + timedelta(days=1)
+                vacancy_end=timezone.now() + timedelta(days=5)
             )
 
     with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):

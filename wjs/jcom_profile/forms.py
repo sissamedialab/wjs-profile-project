@@ -40,6 +40,7 @@ from .models import (
     StaffWorkloadParameters,
     WjsMiniHTMLFormField,
 )
+from .permissions import has_reviewer_role, has_section_editor_role
 from .settings_helpers import get_article_language_choices
 from .templatetags.wjs_tags import display_title, is_field_available
 
@@ -207,6 +208,13 @@ class UpdateAssignmentParametersForm(KeywordCheckboxesFormMixin, forms.ModelForm
         super().__init__(*args, **kwargs)
         self.fields["keywords"].queryset = self.instance.journal.keywords.all().order_by("word")
         self.initial_enabled = self.instance.enabled
+        self.fields["vacancy_start"].label = _("Except from")
+        self.fields["vacancy_end"].label = _("to")
+        if not has_section_editor_role(user=self.instance.user, journal=self.instance.journal) and has_reviewer_role(
+            user=self.instance.user, journal=self.instance.journal
+        ):
+            self.fields["workload"].widget = forms.HiddenInput(attrs={"readonly": True})
+            self.fields["workload"].required = False
 
     def save(self, commit=True):
         """Save m2m with through and with not _meta.auto_created."""

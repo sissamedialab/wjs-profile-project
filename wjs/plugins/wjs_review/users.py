@@ -17,7 +17,6 @@ from django.db.models import (
 )
 from django.db.models.expressions import NegatedExpression
 from django.http import QueryDict
-from django.utils import timezone
 from django.utils.timezone import now
 from journal.models import Journal
 from submission.models import Article, Keyword
@@ -171,19 +170,31 @@ def annotate_is_active_reviewer(self, article: Article):
 
 
 def annotate_is_reviewer_available(self, article: Article):
-    """Annotate Accounts, indicating if the person has disabled themselves from reviewer."""
-    _base = StaffWorkloadParameters.objects.filter(
-        journal=article.journal,
-        user=OuterRef("id"),
-    )
-    vacancy = Q(
-        Q(vacancy_start__isnull=False)
-        | Q(vacancy_start__lte=timezone.now()) & Q(vacancy_end__isnull=False)
-        | Q(vacancy_end__gte=timezone.now())
-    )
-    _filter = _base.filter(vacancy, enabled=True)
+    """
+    Annotate whether a reviewer is available for the given article.
+
+    This annotation is a mix of two conditions:
+    - StaffWorkloadParameters exists for the current user and its no_vacancy value (annotated in annotate_vacancy)
+      is true: this is verified by by filtering the annotated queryset by no_vacancy and storing as annotation
+      the exists of the query (ie: a StaffWorkloadParameters exists for each user after filering by no_vacancy)
+    - StaffWorkloadParameters does not exists (ie: the reviewer has never completed that section and we assume is
+      available)
+
+    :param self: Reference to the current queryset or manager instance.
+    :param article: Article instance for which reviewer availability is to be checked.
+    :type article: Article
+    :return: Annotated queryset indicating reviewer availability.
+    :rtype: QuerySet
+    """
+
+    _base = StaffWorkloadParameters.objects.filter(journal=article.journal)
+    # we need two queryset for the different OuterRef netsing:
+    # - NegatedExpression needs a queryset with OuterRef to filter StaffWorkloadParameters on the current user row
+    # - annotate_vacancy has OuterRef embedded and we must not pass an additional one
+    _nested_query = _base.filter(user=OuterRef("id"))
+    _parameters_without_vacancy = _base.annotate_vacancy().filter(no_vacancy=True)
     return self.annotate(
-        wjs_is_available_reviewer=Exists(_filter) | NegatedExpression(Exists(_base)),
+        is_available_as_reviewer=Exists(_parameters_without_vacancy) | NegatedExpression(Exists(_nested_query)),
     )
 
 

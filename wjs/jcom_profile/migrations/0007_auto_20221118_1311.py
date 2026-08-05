@@ -18,7 +18,10 @@ class Migration(migrations.Migration):
             name="EditorAssignmentParameters",
             fields=[
                 ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("workload", models.PositiveSmallIntegerField(default=0)),
+                (
+                    "workload",
+                    models.PositiveSmallIntegerField(default=0, verbose_name="Max. monthly assignments as Editor"),
+                ),
                 ("brake_on", models.PositiveSmallIntegerField(default=0)),
                 (
                     "editor",

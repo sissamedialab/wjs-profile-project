@@ -27,7 +27,7 @@ def test_staff_disable_notification(eo_user, editors, journal, enabled):
     assert Message.objects.count() == 1
     message = Message.objects.first()
     assert msg.subject == "[JCOM] Assignment Parameters Status Changed"
-    assert f"Status: {status}" in mail.outbox[0].body
+    assert f"Status: {status}" in msg.body
     assert message.message_type == Message.MessageTypes.SYSTEM
     assert message.subject == "Assignment Parameters Status Changed"
     assert message.verbosity == Message.MessageVerbosity.FULL
