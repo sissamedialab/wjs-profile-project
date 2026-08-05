@@ -1887,7 +1887,6 @@ class PopulateRevisionStep7(BasePopulateRevisionStep):
         fundings = RevisionSubmissionArticleFunding.objects.filter(revision_storage=self.revision_storage)
         for funding in fundings:
             SubmissionArticleFunding.objects.create(
-                pk=funding.pk,
                 article=self.article,
                 name=funding.name,
                 fundref_id=funding.fundref_id,

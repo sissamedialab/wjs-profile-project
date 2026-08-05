@@ -14,6 +14,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.forms import formset_factory
+from django.forms.fields import CharField
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.formats import date_format
@@ -733,6 +734,10 @@ class DecisionForm(forms.ModelForm):
             setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
         ).value
         if "tex" in reviewer_report_type:
+            self.fields["decision_editor_report"] = CharField(
+                label=_("Editor Report for authors"),
+                required=False,
+            )
             self.fields["decision_editor_report"].widget = forms.Textarea()
         if kwargs["initial"].get("decision", None) == ArticleWorkflow.Decisions.TECHNICAL_REVISION:
             del self.fields["decision_editor_report"]
