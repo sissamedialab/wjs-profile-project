@@ -1596,3 +1596,33 @@ def test_article_decision_triggered_twice_is_serialized(
     with pytest.raises(ValidationError):
         form_second.save()
     assert EditorDecision.objects.filter(workflow=assigned_article.articleworkflow).count() == 1
+
+
+@pytest.mark.django_db
+def test_decision_form_decisioneditorreport(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+):
+    """ """
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    fake_request.user = editor
+    workflow = assigned_article.articleworkflow
+
+    # note that white space is trimmed, so we start from the first line
+    # and end without a newline:
+    text_with_pesky_chars = r"""gt: $x>1$
+    lt: $y<1$
+    amp: \& co."""
+    form = DecisionForm(
+        data={
+            "decision": ArticleWorkflow.Decisions.ACCEPT,
+            "decision_editor_report": text_with_pesky_chars,
+        },
+        instance=workflow,
+        user=editor,
+        request=fake_request,
+        initial={"decision": ArticleWorkflow.Decisions.ACCEPT},
+        has_pending_reviews=False,
+    )
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["decision_editor_report"] == text_with_pesky_chars
