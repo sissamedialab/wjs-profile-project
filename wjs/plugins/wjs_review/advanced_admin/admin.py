@@ -112,7 +112,8 @@ class EditorRevisionRequestAdmin(admin.ModelAdmin):
 class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
     form = WorkflowReviewAssignmentForm
     search_fields = (
-        "pk",
+        "id",
+        "article__id",
         "article__identifier__identifier",
     )
     readonly_fields = ("tex_report_pdf", "review_file_display")
@@ -122,7 +123,8 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
         "reviewer_report",
     )
     list_display = [
-        "pk",
+        "report_id",
+        "article_id",
         "article_title",
         "version_number",
         "pubid",
@@ -136,6 +138,9 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
 
     def version_number(self, obj):
         return obj.version[0].number if obj.version else "-"
+
+    def report_id(self, obj):
+        return obj.pk
 
     @admin.display(description="Attachment")
     def review_file_display(self, obj):
@@ -199,7 +204,10 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(EditorDecision, site=advanced_admin_site)
 class EditorDecisionAdmin(admin.ModelAdmin):
-    search_fields = ("workflow__article__identifier__identifier",)
+    search_fields = (
+        "workflow__article__id",
+        "workflow__article__identifier__identifier",
+    )
     readonly_fields = ("decision_editor_report_pdf",)
     fields = (
         "decision_editor_report",
