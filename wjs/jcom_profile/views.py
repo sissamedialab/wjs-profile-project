@@ -120,6 +120,8 @@ class StaffWorkloadParametersUpdate(KeywordsHierarchyContextMixin, UserPassesTes
 
     def test_func(self):
         user, journal = self.request.user, self.request.journal
+        if user.is_anonymous:
+            return False
         return (
             has_section_editor_role(journal, user) or has_reviewer_role(journal, user) or permissions.has_eo_role(user)
         )

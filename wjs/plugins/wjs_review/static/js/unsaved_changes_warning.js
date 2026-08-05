@@ -24,6 +24,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (field.type === "checkbox" || field.type === "radio") {
       return field.checked;
     }
+    if (field.type === "textarea") {
+      const tinymceWidget = getTinyMceEditor(field);
+      return tinymceWidget.getContent() ? tinymceWidget.getContent() : field.value;
+    }
     if (field.tagName === "SELECT" && field.multiple) {
       return Array.from(field.selectedOptions)
         .map(option => option.value)
