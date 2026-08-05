@@ -255,7 +255,7 @@ def reviewer_btn_props(
     if other_reviewer:
         disabled = True
         disabled_cause = "Another reviewer is being selected"
-    elif not reviewer.is_active or not reviewer.wjs_is_available_reviewer:
+    elif not reviewer.is_active or not reviewer.is_available_as_reviewer:
         disabled = True
         disabled_cause = "User is not available to review temporarily or permanently"
     elif reviewer.wjs_is_author:

@@ -21,6 +21,7 @@ from submission.models import Article
 from tinymce.widgets import TinyMCE
 
 from .constants import CAREER_STAGES, GENDER_CHOICES, PROFESSIONS
+from .managers import StaffWorkloadParametersQuerySet
 
 # TODO: use settings.AUTH_USER_MODEL
 
@@ -189,11 +190,13 @@ class StaffWorkloadParameters(models.Model):
     keywords = models.ManyToManyField("submission.Keyword", through="StaffKeyword", blank=True)
     user = models.ForeignKey("core.Account", on_delete=models.CASCADE)
     journal = models.ForeignKey("journal.Journal", on_delete=models.CASCADE)
-    workload = models.PositiveSmallIntegerField(default=0)
+    workload = models.PositiveSmallIntegerField(default=0, verbose_name=_("Max. monthly assignments as Editor"))
     brake_on = models.PositiveSmallIntegerField(default=0)
     vacancy_start = models.DateField(_("Vacancy start"), null=True, blank=True)
     vacancy_end = models.DateField(_("Vacancy end"), null=True, blank=True)
-    enabled = models.BooleanField(_("Available to be assigned new submissions?"), default=True)
+    enabled = models.BooleanField(_("I am generally available to be assigned new submissions"), default=True)
+
+    objects = StaffWorkloadParametersQuerySet().as_manager()
 
     class Meta:
         unique_together = ("user", "journal")

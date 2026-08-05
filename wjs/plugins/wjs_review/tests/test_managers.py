@@ -1,3 +1,4 @@
+import datetime
 from collections.abc import Callable
 
 import pytest
@@ -8,7 +9,7 @@ from django.utils import timezone
 from plugins.wjs_review.models import ArticleWorkflow, Message, WorkflowReviewAssignment
 from submission.models import Article
 
-from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.models import JCOMProfile, StaffWorkloadParameters
 
 Account = get_user_model()
 
@@ -180,7 +181,7 @@ def test_count_reviewer_completed_reviews(journal, article_factory, account_fact
     qs = Account.objects.filter(
         pk=r1.id,
     ).annotate_count_reviewed_papers_in_timeframe(
-        timezone.timedelta(days=1),
+        datetime.timedelta(days=1),
     )
     assert qs.get().count_reviewed_papers_in_timeframe == 2
 
@@ -196,6 +197,101 @@ def test_count_reviewer_completed_reviews(journal, article_factory, account_fact
     qs = Account.objects.filter(
         pk=r2.id,
     ).annotate_count_reviewed_papers_in_timeframe(
-        timezone.timedelta(days=1),
+        datetime.timedelta(days=1),
     )
     assert qs.get().count_reviewed_papers_in_timeframe == 1
+
+
+@pytest.mark.parametrize(
+    "vacancy,expected",
+    (
+        ("no_start", False),
+        ("no_end", False),
+        ("in_range", False),
+        ("out_range", True),
+        ("no_dates", True),
+    ),
+)
+@pytest.mark.django_db
+def test_reviewer_is_available(user: Account, article: Article, vacancy: str, expected: bool):
+    """
+    Reviewer availability depends on the vacancy dates.
+
+    This function evaluates whether a reviewer is available to review an
+    article, depending on their defined vacancy start and end dates. The
+    availability is determined by checking if the current date falls within
+    or outside the specified range for different test cases.
+
+    :param user: Account object representing the reviewer.
+    :param article: Article object for which reviewer availability is tested.
+    :param vacancy: Case scenario defining the vacancy setup.
+    :param expected: Boolean value denoting expected availability result.
+    :return: None
+    """
+    params = StaffWorkloadParameters.objects.create(
+        journal=article.journal,
+        user=user,
+    )
+    if vacancy in ["no_start", "in_range"]:
+        params.vacancy_end = timezone.now() + datetime.timedelta(days=10)
+    if vacancy in ["no_end", "in_range"]:
+        params.vacancy_start = timezone.now() + datetime.timedelta(days=-10)
+    if vacancy in ["out_range"]:
+        params.vacancy_start = timezone.now() + datetime.timedelta(days=10)
+        params.vacancy_end = timezone.now() + datetime.timedelta(days=20)
+    params.save()
+    annotated = Account.objects.annotate_is_reviewer_available(article).filter(pk=user.pk).get()
+    assert annotated.is_available_as_reviewer is expected
+
+
+@pytest.mark.parametrize("enabled", (True, False))
+@pytest.mark.django_db
+def test_reviewer_is_available_depends_on_enabled(user: Account, article: Article, enabled: bool):
+    """
+    Reviewer availability depends on the enabled parameter.
+
+    This test verifies that the `is_reviewer_available` annotation correctly
+    reflects the value of the `enabled` flag for a given user and article. The
+    test creates a `StaffWorkloadParameters` object to simulate reviewer
+    availability toggling and ensures that the output matches expectations.
+
+    :param user: The account to be tested for reviewer availability.
+    :type user: Account
+    :param article: The article used for reviewer availability annotation.
+    :type article: Article
+    :param enabled: A flag indicating whether the reviewer is enabled or not.
+    :type enabled: bool
+    :return: None
+    """
+    StaffWorkloadParameters.objects.create(
+        journal=article.journal,
+        user=user,
+        enabled=enabled,
+    )
+    annotated = Account.objects.annotate_is_reviewer_available(article).filter(pk=user.pk).get()
+    assert annotated.is_available_as_reviewer is enabled
+
+
+@pytest.mark.parametrize("with_staff,expected", ((True, True), (False, True)))
+@pytest.mark.django_db
+def test_reviewer_is_available_with_params(user: Account, article: Article, with_staff: bool, expected: bool):
+    """
+    Reviewer availability does not depends on the existance of StaffWorkloadParameters.
+
+    :param user: The Account instance representing the reviewer.
+    :param article: The Article instance used to assess reviewer availability.
+    :param with_staff: Flag indicating whether staff workload parameters
+        should be created for the reviewer.
+    :param expected: Boolean representing the expected status of
+        reviewer availability.
+    :return: None
+    """
+    if with_staff:
+        StaffWorkloadParameters.objects.create(
+            journal=article.journal,
+            user=user,
+        )
+    else:
+        assert not StaffWorkloadParameters.objects.filter(user=user, journal=article.journal).exists()
+    annotated = Account.objects.annotate_is_reviewer_available(article).filter(pk=user.pk).get()
+    assert annotated.is_available_as_reviewer is expected

@@ -1559,6 +1559,8 @@ class Message(TimeStampedModel):
         """Return the URL to the message."""
         if self.content_type.model_class() == Article:
             return f"{reverse('wjs_article_messages', args=[self.target.articleworkflow.pk])}#message-item-{self.pk}"
+        if self.content_type.model_class() == Journal:
+            return f"{reverse('wjs_messages_overview')}#message-item-{self.pk}"
 
     @property
     def journal(self) -> Journal:
