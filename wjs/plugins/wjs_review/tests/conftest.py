@@ -102,9 +102,8 @@ def cleanup_notifications_side_effects():
     Message.objects.all().delete()
 
 
-@pytest.mark.django_db
-@pytest.fixture  # (scope="session")  ??? can't have scope session and db access???
-def apply_wjs_settings():
+@pytest.fixture
+def apply_wjs_settings(db):
     """Update Janeway settings with our defaults."""
     call_command("apply_wjs_settings", "--noinput")
 
