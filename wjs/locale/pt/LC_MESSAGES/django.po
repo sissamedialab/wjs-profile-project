@@ -599,8 +599,8 @@ msgid "Alternative email updated."
 msgstr "E-mail alternativo atualizado."
 
 #: jcom_profile/profile/views.py:154
-msgid "Email change started."
-msgstr "Alteração de e-mail iniciada."
+msgid "Please, check your inbox."
+msgstr "Por favor, verifique sua caixa de entrada."
 
 #: jcom_profile/profile/views.py:174
 msgid "Password updated."
@@ -1312,8 +1312,8 @@ msgid "Please provide as much information as possible to help the Journal, its e
 msgstr "Por favor, forneça o máximo de informações possível para ajudar o periódico, seus editores e revisores a conhecê-lo melhor."
 
 #: jcom_profile/templates/wjs/profile/personal_interests_edit.html:11 jcom_profile/templates/wjs/profile/update_editor_parameters.html:14
-msgid "Please select the keywords that best describe your areas of expertise."
-msgstr "Por favor, selecione as palavras-chave que melhor descrevem suas áreas de especialização."
+msgid "Please select the keywords that best describe your areas of expertise. Appropriate keyword selection is crucial to optimize the review process."
+msgstr "Por favor, selecione as palavras-chave que melhor descrevem suas áreas de especialização. A seleção adequada de palavras-chave é fundamental para otimizar o processo de revisão."
 
 #: jcom_profile/templates/wjs/profile/update_editor_parameters.html:4 jcom_profile/templates/wjs/profile/update_editor_parameters.html:7
 msgid "Paper assignments parameters"

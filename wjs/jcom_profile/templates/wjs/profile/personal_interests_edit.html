@@ -8,7 +8,7 @@
   <form class="wjs-profile-form" method="post">
 
     <div class="wjs-profile-form__main">
-      <p>{% translate "Please select the keywords that best describe your areas of expertise." %}</p>
+      <p>{% translate "Please select the keywords that best describe your areas of expertise. Appropriate keyword selection is crucial to optimize the review process." %}</p>
 
       {% csrf_token %}
       {% include "wjs/profile/_keywords_selection.html" %}

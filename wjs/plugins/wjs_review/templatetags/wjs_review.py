@@ -85,6 +85,58 @@ def get_available_transitions(context: Dict[str, Any], workflow: ArticleWorkflow
 
 
 @register.filter
+def is_available_as_editor(user: Account, journal: Journal) -> bool:
+    """
+    Check if a user is available as an editor for a journal.
+
+    This function evaluates whether the given user is marked as available
+    to serve as an editor for the specified journal. It relies on the
+    `is_available_as_editor` method of the user's `jcomprofile`.
+
+    :param user: The account to check for editor availability.
+    :type user: Account
+    :param journal: The journal to evaluate the user's availability as an editor.
+    :type journal: Journal
+    :return: True if the user is available as an editor for the journal, False otherwise.
+    :rtype: bool
+    """
+    return user.jcomprofile.is_available_as_editor(journal)
+
+
+@register.filter
+def is_enabled_as_editor(user: Account, journal: Journal) -> bool:
+    """
+    Check if a user is enabled as an editor for a journal.
+
+    This function evaluates whether the given user has made themselves enabled as editor.
+    It relies on the `is_enabled_as_editor` method of the user's `jcomprofile`.
+
+    :param user: The account to check for editor enabling.
+    :type user: Account
+    :param journal: The journal to evaluate the user's enabling as an editor.
+    :type journal: Journal
+    :return: True if the user is enabled as an editor for the journal, False otherwise.
+    :rtype: bool
+    """
+    return user.jcomprofile.is_enabled_as_editor(journal)
+
+
+@register.filter
+def editor_vacancy_dates(user: Account, journal: Journal) -> str:
+    """
+    Format editor vacancy dates for the specified journal if set.
+
+    :param user: The account of the user whose editor vacancy dates need to be formatted.
+    :type user: Account
+    :param journal: The journal to check for vacancy dates.
+    :type journal: Journal
+    :return: Formatted vacancy dates or an empty string if not set
+    :rtype: str
+    """
+    return user.jcomprofile.vacancy_dates(journal)
+
+
+@register.filter
 def show_editor_keywords(journal: Journal) -> bool:
     """Return True if we should show editor keywords when selecting an article."""
     return journal.code in settings.WJS_SHOW_EDITOR_KEYWORDS
@@ -203,7 +255,7 @@ def reviewer_btn_props(
     if other_reviewer:
         disabled = True
         disabled_cause = "Another reviewer is being selected"
-    elif not reviewer.is_active or not reviewer.wjs_is_available_reviewer:
+    elif not reviewer.is_active or not reviewer.is_available_as_reviewer:
         disabled = True
         disabled_cause = "User is not available to review temporarily or permanently"
     elif reviewer.wjs_is_author:
@@ -609,6 +661,19 @@ def journal_with_language_content(journal: Journal) -> bool:
     :rtype: bool
     """
     return journal.code in settings.WJS_JOURNALS_WITH_ENGLISH_CONTENT
+
+
+@register.simple_tag()
+def journal_requires_social_media_files(journal: Journal) -> bool:
+    """
+    Check if the journal requires social media data (a short description and an image) for its articles.
+
+    :param journal: The journal to check access to.
+    :type journal: Journal
+    :return True if the journal requires social media files, False otherwise.
+    :rtype: bool
+    """
+    return journal.code in settings.WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES
 
 
 @register.simple_tag()

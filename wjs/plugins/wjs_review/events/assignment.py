@@ -8,9 +8,8 @@ from typing import TYPE_CHECKING, Optional
 from core.models import AccountRole, Role
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import F, FloatField, Func, OuterRef, Q, QuerySet, Subquery
+from django.db.models import F, FloatField, Func, OuterRef, QuerySet, Subquery
 from django.db.models.functions import Cast, Coalesce, NullIf
-from django.utils import timezone
 from django.utils.module_loading import import_string
 from journal.models import Journal
 from submission.models import Article
@@ -93,20 +92,13 @@ def get_available_editor_parameters(editors, journal: Journal) -> QuerySet[Staff
     :return: A queryset of `StaffWorkloadParameters` objects matching the criteria.
     :rtype: QuerySet[StaffWorkloadParameters]
     """
+    editors_id = list(editors)
     base_available = StaffWorkloadParameters.objects.filter(
-        journal=journal, user__in=editors, workload__gt=0, enabled=True
+        journal=journal, user__in=editors_id, workload__gt=0, enabled=True
     )
-    # Exclude a record only if a vacancy window is set and "now" falls into it.
-    # Windows can be open-ended: only a start means "on leave from that date on",
-    # only an end means "on leave until that date". A record with both bounds null
-    # has no window set and is never excluded.
-    today = timezone.localdate()
-    on_vacation = (
-        (Q(vacancy_start__isnull=True) | Q(vacancy_start__lte=today))
-        & (Q(vacancy_end__isnull=True) | Q(vacancy_end__gte=today))
-        & (Q(vacancy_start__isnull=False) | Q(vacancy_end__isnull=False))
-    )
-    return base_available.exclude(on_vacation)
+    base_available1 = base_available.annotate_vacancy()
+    q = base_available1.filter(no_vacancy=True)
+    return q
 
 
 def default_assign_editors_to_articles(article: Article, **kwargs) -> Optional["WjsEditorAssignment"]:

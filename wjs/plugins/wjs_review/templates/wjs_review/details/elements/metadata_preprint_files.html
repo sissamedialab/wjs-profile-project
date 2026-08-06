@@ -94,7 +94,7 @@
     {% endif %}
   {% endif %}
 
-  {% if author_notes and version.cover_letter.has_content %}
+  {% if author_notes and version.cover_letter.has_content and not workflow|is_production_state %}
     {% if version.latest or not latest_only %}
       {% include "wjs_review/details/elements/review_cover.html" with custom_version="unset" %}
     {% endif %}

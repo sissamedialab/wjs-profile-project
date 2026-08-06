@@ -1,0 +1,132 @@
+{% extends "admin/core/base.html" %}
+{% block title %}
+  WJS Stats - Keywords usage per month
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    .chart {
+        font: 12px sans-serif;
+        overflow-x: auto;
+    }
+    .chart rect {
+        stroke: #ddd;
+        stroke-width: 0.5px;
+    }
+  </style>
+{% endblock css %}
+{% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section>
+    <h2>Keywords usage per month</h2>
+    <div>
+      <label>
+        Look back
+        <input type="range" id="years" min="1" max="10" value="10">
+        <span id="years-label">10</span> year(s)
+      </label>
+    </div>
+    <div id="chart" class="chart"></div>
+  </section>
+  {{ keywords|json_script:"keywords-data" }}
+  {{ months|json_script:"months-data" }}
+  {{ matrix|json_script:"matrix-data" }}
+  {{ max_count_by_years|json_script:"max-counts-data" }}
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    (function () {
+        const keywords = JSON.parse(document.getElementById("keywords-data").textContent);
+        const allMonths = JSON.parse(document.getElementById("months-data").textContent);
+        const allMatrix = JSON.parse(document.getElementById("matrix-data").textContent);
+        const maxCounts = JSON.parse(document.getElementById("max-counts-data").textContent);
+
+        const cellSize = 18;
+        const margin = {top: 45, right: 10, bottom: 10, left: 350};
+
+        function draw(years) {
+            const months = allMonths.slice(-years * 12);
+            const matrix = allMatrix.map(row => row.slice(-years * 12));
+            const maxCount = maxCounts[years - 1];
+
+            const width = margin.left + months.length * cellSize + margin.right;
+            const height = margin.top + keywords.length * cellSize + margin.bottom;
+
+            d3.select("#chart").selectAll("svg").remove();
+            const svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            // 16-point gray scale: white is reserved for 0; nonzero counts go from
+            // the first gray (lightest) to black (maxCount).
+            const levels = 16;
+            const grays = d3.range(1, levels).map(i => {
+                const v = Math.round(255 * (1 - i / (levels - 1)));
+                return `rgb(${v},${v},${v})`;
+            });
+            const quantized = d3.scaleQuantize()
+                .domain([0, Math.max(maxCount, 1)])
+                .range(grays);
+            const color = count => count === 0 ? "rgb(255,255,255)" : quantized(count);
+
+            // Column headers: month numbers, with the year above the first column
+            // and above each January.
+            svg.append("g")
+                .selectAll("text")
+                .data(months)
+                .join("text")
+                .attr("x", (d, i) => margin.left + i * cellSize + cellSize / 2)
+                .attr("y", margin.top - 6)
+                .attr("text-anchor", "middle")
+                .text(d => d.month);
+            svg.append("g")
+                .selectAll("text")
+                .data(months.filter((d, i) => i === 0 || d.month === 1))
+                .join("text")
+                .attr("x", d => margin.left + months.indexOf(d) * cellSize)
+                .attr("y", margin.top - 22)
+                .attr("text-anchor", "start")
+                .text(d => d.year);
+
+            // Row labels: keywords.
+            svg.append("g")
+                .selectAll("text")
+                .data(keywords)
+                .join("text")
+                .attr("x", 0)
+                .attr("y", (d, i) => margin.top + i * cellSize + cellSize / 2)
+                .attr("text-anchor", "start")
+                .attr("dominant-baseline", "central")
+                .text(d => d);
+
+            // Cells.
+            svg.append("g")
+                .selectAll("g")
+                .data(matrix)
+                .join("g")
+                .attr("transform", (d, i) => `translate(${margin.left},${margin.top + i * cellSize})`)
+                .selectAll("rect")
+                .data((row, i) => row.map((count, j) => ({count: count, row: i, col: j})))
+                .join("rect")
+                .attr("x", d => d.col * cellSize)
+                .attr("width", cellSize)
+                .attr("height", cellSize)
+                .attr("fill", d => color(d.count))
+                .append("title")
+                .text(d => `${keywords[d.row]} — ${d.count} (${months[d.col].year}-${String(months[d.col].month).padStart(2, "0")})`);
+        }
+
+        const slider = document.getElementById("years");
+        const sliderLabel = document.getElementById("years-label");
+        slider.addEventListener("input", function () {
+            sliderLabel.textContent = slider.value;
+            draw(+slider.value);
+        });
+        draw(+slider.value);
+    })();
+  </script>
+{% endblock body %}

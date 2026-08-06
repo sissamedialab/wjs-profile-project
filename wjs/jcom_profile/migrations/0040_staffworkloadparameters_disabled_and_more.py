@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             name="enabled",
             field=models.BooleanField(
                 default=True,
-                verbose_name="Available to be assigned new submissions?",
+                verbose_name="I am generally available to be assigned new submissions",
             ),
         ),
         migrations.AddField(

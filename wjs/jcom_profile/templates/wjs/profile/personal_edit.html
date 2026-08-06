@@ -5,6 +5,11 @@
 
 {% block profile_form %}
   <h1 class="wjs-profile-form__title">{% translate "Personal details" %}</h1>
+  <p>
+    {% blocktranslate %}
+      Please enter as much information as possible in the different tabs. Year of birth and gender will be used only in aggregated form for statistical purposes. The other data will be used for the review process and, if included in published papers, will be proofread by you before publication.
+    {% endblocktranslate %}
+  </p>
   <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
     <div class="wjs-profile-form__main">
       {{ form.errors }}
@@ -34,6 +39,9 @@
         </div>
       </div>
     </div>
+    {% if journal|is_field_available:"career_stage" %}
+      {% bootstrap_field form.career_stage wrapper_class="mb-4" %}
+    {% endif %}
     {% if journal|is_field_available:"profession" %}
       {% bootstrap_field form.profession wrapper_class="mb-4" %}
     {% endif %}

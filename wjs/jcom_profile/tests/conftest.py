@@ -11,6 +11,7 @@ import pytest_factoryboy
 from core.models import Account, File, Role, Setting, SupplementaryFile
 from django.conf import settings as django_settings
 from django.contrib.auth.models import Group
+from django.contrib.contenttypes.models import ContentType
 from django.core import management
 from django.core.cache import cache
 from django.db.models import QuerySet
@@ -105,6 +106,20 @@ def sync_translation_fields(db):
     """
     management.call_command("sync_translation_fields", "--noinput")
     management.call_command("update_translation_fields")
+
+
+@pytest.fixture(autouse=True)
+def clear_content_type_cache():
+    """Clear Django's ContentType cache before/after each test.
+
+    Under xdist-parallel execution with --reuse-db, ContentType.objects.get_for_model()'s
+    process-level cache can go stale relative to the actual DB rows (e.g. after a rolled-back
+    transaction from a TestCase-wrapped test), causing spurious IntegrityErrors on FK columns
+    referencing content types at teardown. See wjs-profile-project#204.
+    """
+    ContentType.objects.clear_cache()
+    yield
+    ContentType.objects.clear_cache()
 
 
 @pytest.fixture(autouse=True)

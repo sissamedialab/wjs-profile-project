@@ -24,6 +24,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (field.type === "checkbox" || field.type === "radio") {
       return field.checked;
     }
+    if (field.type === "textarea") {
+      const tinymceWidget = getTinyMceEditor(field);
+      return tinymceWidget.getContent() ? tinymceWidget.getContent() : field.value;
+    }
     if (field.tagName === "SELECT" && field.multiple) {
       return Array.from(field.selectedOptions)
         .map(option => option.value)
@@ -100,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (targetButton) {
       const isBootstrapToggle =
         targetButton.hasAttribute("data-bs-toggle") || targetButton.hasAttribute("data-bs-dismiss");
-      if (isBootstrapToggle || targetButton.type === "submit") return;
+      if (isBootstrapToggle || targetButton.type === "submit" || targetButton.id === "toggleAllAccordions") return;
 
       event.preventDefault();
       nextTargetUrl = "back";

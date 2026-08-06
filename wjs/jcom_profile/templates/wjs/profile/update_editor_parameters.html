@@ -1,16 +1,16 @@
 {% extends "wjs/profile/base.html" %}
 {% load django_bootstrap5 i18n static wjs_tags %}
 
-{% block page_title %}{% translate "Paper assignments parameters" %}{% endblock page_title %}
+{% block page_title %}{% translate "Edit assignment parameters" %}{% endblock page_title %}
 
 {% block profile_form %}
-  <h1 class="wjs-profile-form__title">{% translate "Paper assignments parameters" %}</h1>
+  <h1 class="wjs-profile-form__title">{% translate "Edit assignment parameters" %}</h1>
 
   <form class="wjs-profile-form" method="post">
     {% csrf_token %}
     <div class="wjs-profile-form__main">
       <div class="mb-4">
-        <p>{% translate "Please provide your availability for assignment." %}</p>
+        <p>{% translate "Please provide your availability to be assigned new submissions." %}</p>
             {% bootstrap_field form.enabled %}
         <div class="row g-6">
           <div class="col-6">
@@ -25,8 +25,7 @@
         </div>
       </div>
       <div class="mb-4">
-        <p>{% translate "Please select the keywords that best describe your areas of expertise." %}</p>
-        <label class="form-label" for="{{ form.keywords.id_for_label }}">{{ form.keywords.label }}</label>
+        <p><b>{% translate "Please select the keywords that best describe your areas of expertise. Appropriate keyword selection is crucial to optimize the review process." %}</b></p>
         {% include "wjs/profile/_keywords_selection.html" %}
       </div>
     </div>
