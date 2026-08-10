@@ -55,7 +55,7 @@ class WjsSectionAdmin(admin.ModelAdmin):
     """Helper class to "admin" WjsSection."""
 
     list_display = ["section", "pubid_and_tex_sectioncode", "doi_sectioncode"]
-    list_filter = ["section"]
+    list_filter = ["journal__code"]
     search_fields = ["section__name"]
 
 

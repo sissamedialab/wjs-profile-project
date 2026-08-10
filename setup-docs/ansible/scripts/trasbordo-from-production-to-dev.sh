@@ -79,7 +79,7 @@ psql --quiet -U "$dev_db_user" -h localhost --no-password --dbname "$dev_db_name
 update press_press set domain='wjs-test-dev-journals.wjapp.it';
 update journal_journal set domain='wjs-test-dev-jcom.wjapp.it' where code='JCOM';
 update journal_journal set domain='wjs-test-dev-jcomal.wjapp.it' where code='JCOMAL';
-update journal_journal set domain='wjs-test-dev-jquant.wjapp.it' where code='JQUANT';
+update journal_journal set domain='wjs-test-dev-jquant.wjapp.it' where code='JQuant';
 update journal_journal set domain='wjs-test-dev-jhep.wjapp.it' where code='JHEP';
 update journal_journal set domain='wjs-test-dev-jcap.wjapp.it' where code='JCAP';
 update journal_journal set domain='wjs-test-dev-jstat.wjapp.it' where code='JSTAT';
@@ -124,18 +124,18 @@ VENV_PATH="/home/wjs/.virtualenvs/janeway-dev"
 WJS_SUBMISSION_PATH="${VENV_PATH}/lib/python3.11/site-packages/wjs/plugins/wjs_submission"
 PYTHON_BIN="${VENV_PATH}/bin/python"
 # Load jquant fixtures overriding any values from production
-${PYTHON_BIN} manage.py import_keywords_json ${WJS_SUBMISSION_PATH}/install/jhep-kwds.json --journal=JQUANT
+${PYTHON_BIN} manage.py import_keywords_json ${WJS_SUBMISSION_PATH}/install/jhep-kwds.json --journal=JQuant
 ${PYTHON_BIN} manage.py import_keywords_json ${WJS_SUBMISSION_PATH}/install/jhep-kwds.json --journal=JHEP
 ${PYTHON_BIN} manage.py install_plugins
 ${PYTHON_BIN} manage.py set_setting --journal=JCOM --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=disabled
 ${PYTHON_BIN} manage.py set_setting --journal=JCOM --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
 ${PYTHON_BIN} manage.py set_setting --journal=JCOMAL --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=disabled
 ${PYTHON_BIN} manage.py set_setting --journal=JCOMAL --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
-${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=hierarchical_keywords --setting-value=True
-${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
-${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=required
-${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=hierarchical_keywords --setting-value=True
-${PYTHON_BIN} manage.py set_setting --journal=JQUANT --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
+${PYTHON_BIN} manage.py set_setting --journal=JQuant --group-name=submissionconfiguration --setting-name=hierarchical_keywords --setting-value=True
+${PYTHON_BIN} manage.py set_setting --journal=JQuant --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
+${PYTHON_BIN} manage.py set_setting --journal=JQuant --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=required
+${PYTHON_BIN} manage.py set_setting --journal=JQuant --group-name=submissionconfiguration --setting-name=hierarchical_keywords --setting-value=True
+${PYTHON_BIN} manage.py set_setting --journal=JQuant --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True
 ${PYTHON_BIN} manage.py set_setting --journal=JHEP --group-name=wjs_submission --setting-name=arxiv_field_status --setting-value=required
 ${PYTHON_BIN} manage.py set_setting --journal=JHEP --group-name=submissionconfiguration --setting-name=hierarchical_keywords --setting-value=True
 ${PYTHON_BIN} manage.py set_setting --journal=JHEP --group-name=submissionconfiguration --setting-name=autocomplete_keywords --setting-value=True

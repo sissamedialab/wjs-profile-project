@@ -214,14 +214,16 @@ class TestHTC:
         assert how_to_cite(mockarticle) == ""
 
     def test_htc_jquant_less_than_10_authors(self):
-        """Test how to cite for JQUANT format with less than 10 authors."""
+        """Test how to cite for JQuant format with less than 10 authors."""
         au1 = MockAuthor(*AUTHORS_WITH_INTERESTING_NAMES[3][0:6])
         au2 = MockAuthor(*AUTHORS_WITH_INTERESTING_NAMES[4][0:6])
         au3 = MockAuthor(*AUTHORS_WITH_INTERESTING_NAMES[5][0:6])
         mockarticle = MagicMock()
         mockarticle.date_published.year = 2024
         mockarticle.title = "TITLE"
-        mockarticle.journal.code = "JQUANT"
+        # NB: the journal code is JQuant, while the how-to-cite reports JQUANT.
+        #     This is desired!
+        mockarticle.journal.code = "JQuant"
         mockarticle.issue.volume = 2026
         mockarticle.issue.issue = 4
         mockarticle.page_numbers = "154"
@@ -239,7 +241,7 @@ class TestHTC:
         )
 
     def test_htc_jquant_more_than_10_authors(self):
-        """Test JQUANT format with 10 or more authors: only first author + et al."""
+        """Test JQuant format with 10 or more authors: only first author + et al."""
         authors = [
             MockAuthor(*AUTHORS_WITH_INTERESTING_NAMES[i % len(AUTHORS_WITH_INTERESTING_NAMES)][0:6])
             for i in range(11)
@@ -247,7 +249,9 @@ class TestHTC:
         mockarticle = MagicMock()
         mockarticle.date_published.year = 2024
         mockarticle.title = "TITLE"
-        mockarticle.journal.code = "JQUANT"
+        # NB: the journal code is JQuant, while the how-to-cite reports JQUANT.
+        #     This is desired!
+        mockarticle.journal.code = "JQuant"
         mockarticle.issue.volume = 2026
         mockarticle.issue.issue = 4
         mockarticle.page_numbers = "154"

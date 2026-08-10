@@ -69,6 +69,7 @@ from ..plugin_settings import (
     STAGE,
     set_default_plugin_settings,
 )
+from ..utils import guess_typesetted_texfile_name
 from .test_helpers import (
     ThreadedHTTPServer,
     _create_review_assignment,
@@ -913,7 +914,7 @@ def _zip_with_tex_with_query(article: Article) -> SimpleUploadedFile:
     )
     file_obj = io.BytesIO()
     with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
-        zipf.writestr(f"JCOM_{article.id}.tex", tex_content)
+        zipf.writestr(guess_typesetted_texfile_name(article), tex_content)
 
     file_obj.seek(0)
     return SimpleUploadedFile("source_tex_file.zip", file_obj.getvalue(), content_type="application/zip")
@@ -932,7 +933,7 @@ def _zip_with_tex_without_query(article: Article) -> SimpleUploadedFile:
     )
     file_obj = io.BytesIO()
     with zipfile.ZipFile(file_obj, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
-        zipf.writestr(f"JCOM_{article.id}.tex", tex_content)
+        zipf.writestr(guess_typesetted_texfile_name(article), tex_content)
 
     file_obj.seek(0)
     return SimpleUploadedFile("source_tex_file.zip", file_obj.getvalue(), content_type="application/zip")
