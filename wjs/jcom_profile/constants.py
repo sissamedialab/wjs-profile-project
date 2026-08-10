@@ -50,6 +50,10 @@ JCOM_SECTION_TO_PUBIDSECTIONCODE = {
     "review article": "V",
 }
 
+# In JCAP and JINST, the eid contains a section code only for these sections
+# (all the other papers get a plain progressive number).
+SECTIONS_WITH_LETTERED_EID = ("Erratum", "Addendum")
+
 # Obsolete!
 # The DOI also used to depend on the section, until May 2025.
 # We are leaving the old mapping here for documentation, but it should not be used.

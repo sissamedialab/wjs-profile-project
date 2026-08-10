@@ -39,7 +39,7 @@ from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.constants import EO_GROUP
+from wjs.jcom_profile.constants import EO_GROUP, SECTIONS_WITH_LETTERED_EID
 from wjs.jcom_profile.models import Correspondence, WjsMiniHTMLFormField
 from wjs.jcom_profile.utils import render_template
 
@@ -721,7 +721,10 @@ class ArticleWorkflow(TimeStampedModel):
         )
 
     def compute_pubid(self, save_eid: bool = False) -> str:
-        """Compute and return the pubid that the Article would get now.
+        """
+        Compute and return the pubid that the Article would get now.
+
+        The form of the pubid depends on the journal (see the per-journal methods).
 
         Pass along `save_eid` to compute_eid, so that the computed eid is stored as page number.
         This is useful during publication, but let the computation be free of side-effects otherwise.
@@ -749,44 +752,49 @@ class ArticleWorkflow(TimeStampedModel):
         """Compute pubid similar to JCOM."""
         return self._compute_pubid_JCOM(save_eid)
 
-    def _compute_pubid_JQUANT(self, save_eid: bool = False) -> str:  # noqa: N802
-        """
-        Compute temporary pubid for JQUANT.
+    def _compute_pubid_JHEP(self, save_eid: bool = False) -> str:  # noqa: N802
+        """Compute pubid in the form JHEP01(2000)003."""
+        volume = f"{self.article.issue.volume:04d}"
+        # Sanity check, but don't block:
+        year = timezone.now().year
+        if year != int(volume):
+            logger.error(
+                f"Article {self.article.id} pubid has different volume ({volume}) and publication year ({year})",
+            )
+        issue = f"{int(self.article.issue.issue):02d}"
+        eid = self.compute_eid(save_as_pagenumber=save_eid)
+        # NB: note the "upper" for the journal code!
+        #     It's useful for JQuant.
+        return f"{self.article.journal.code.upper()}{issue}({volume}){eid}"
 
-        ATM, eid is not computed (we should decide what to do and check WjsSection objects).
-        """
-        # Al least, ensure that the article has a page number in the form X01
-        # because this is expected by BeginPublication._prepare_source()
-        if not self.article.page_numbers:
-            self.article.page_numbers = "X01"
-            self.article.save()
-        return f"{self.article.journal.code}_{self.article.id}"
+    def _compute_pubid_JCAP(self, save_eid: bool = False) -> str:  # noqa: N802
+        """Compute pubid similar to JHEP."""
+        return self._compute_pubid_JHEP(save_eid=save_eid)
+
+    def _compute_pubid_JINST(self, save_eid: bool = False) -> str:  # noqa: N802
+        """Compute pubid similar to JHEP."""
+        return self._compute_pubid_JHEP(save_eid=save_eid)
+
+    def _compute_pubid_JQuant(self, save_eid: bool = False) -> str:  # noqa: N802
+        """Compute pubid similar to JHEP."""
+        return self._compute_pubid_JHEP(save_eid=save_eid)
 
     def compute_eid(self, save_as_pagenumber: bool = False) -> str:
-        """Return the Electronic IDentifier as intended by biblatex, which is similar to the concept of page number.
+        """
+        Return the Electronic IDentifier as intended by biblatex, which is similar to the concept of page number.
 
-        Eid has the form "A01", "C03", ... and it includes info about the paper section and the number of papers
-        published in the same section/issue.
+        The form of the eid depends on the journal (see the per-journal methods).
 
         If page_numbers has already been set (manually or otherwise), then just use it (see submission.Article).
         """
+        # See compute_pubid() for the rationale of this dispatch.
         if self.article.page_numbers:
             return self.article.page_numbers
-        counter = self._count_published_papers_in_same_issue_and_section() + 1
-        type_code = self.article.section.wjssection.pubid_and_tex_sectioncode
-        if not type_code:
-            logger.error(
-                f'Section "{self.article.section}" is missing PUBID code. PUBID will be wrong!'
-                "Please correct from the admin interface.",
-            )
-        # Editorials are special:
-        # there always is at most one, so they are not E01 E02,
-        # but just "E" (without any number)
-        if type_code == "E":
-            assert counter == 1, f"Impossible number of editorials ({counter}) for issue of article {self.id}"
-            eid = type_code
-        else:
-            eid = f"{type_code}{counter:02d}"
+
+        func_name = f"_compute_eid_{self.article.journal.code}"
+        if not hasattr(self, func_name):
+            raise NotImplementedError(f"Don't know how to compute eid for {self.article.journal.code}")
+        eid = getattr(self, func_name)()
 
         if save_as_pagenumber:
             self.article.page_numbers = eid
@@ -794,20 +802,74 @@ class ArticleWorkflow(TimeStampedModel):
 
         return eid
 
-    def _count_published_papers_in_same_issue_and_section(self) -> int:
+    def _compute_eid_JCOM(self) -> str:  # noqa: N802
         """
-        Nomen omen, but reviews are special 😢 (see the code).
+        Compute an eid of the form "A01", "C03", ...
 
-        Raises:
-          ValueError: if the primary issue is missing,
-          or if there is some configuration issue related to sections/article types.
+        It includes info about the paper section and the number of papers published in the same section/issue.
+        """
+        counter = self._count_published_papers_in_same_issue_and_section() + 1
+        type_code = self._get_section_code()
+        # Editorials are special:
+        # there always is at most one, so they are not E01 E02,
+        # but just "E" (without any number)
+        if type_code == "E":
+            assert counter == 1, f"Impossible number of editorials ({counter}) for issue of article {self.id}"
+            return type_code
+        return f"{type_code}{counter:02d}"
+
+    def _compute_eid_JCOMAL(self) -> str:  # noqa: N802
+        """Compute eid similar to JCOM."""
+        return self._compute_eid_JCOM()
+
+    def _compute_eid_JHEP(self) -> str:  # noqa: N802
+        """Compute an eid of the form "003": no section code, papers are counted per-issue."""
+        counter = self._published_papers_in_same_issue().count() + 1
+        return f"{counter:03d}"
+
+    def _compute_eid_JQuant(self) -> str:  # noqa: N802
+        """Compute eid similar to JHEP."""
+        return self._compute_eid_JHEP()
+
+    def _compute_eid_JCAP(self) -> str:  # noqa: N802
+        """Compute an eid of the form "003" or, for errata and addenda only, of the form "E01"/"A01".
+
+        "Normal" papers are counted per-issue (ignoring errata and addenda),
+        while errata and addenda are counted per-issue and per-section.
+        """
+        base_qs = self._published_papers_in_same_issue()
+        if self.article.section.name in SECTIONS_WITH_LETTERED_EID:
+            counter = base_qs.filter(section_id=self.article.section.pk).count() + 1
+            return f"{self._get_section_code()}{counter:02d}"
+        counter = base_qs.exclude(section__name__in=SECTIONS_WITH_LETTERED_EID).count() + 1
+        return f"{counter:03d}"
+
+    def _compute_eid_JINST(self) -> str:  # noqa: N802
+        """Compute eid similar to JCAP."""
+        return self._compute_eid_JCAP()
+
+    def _get_section_code(self) -> str:
+        """Return the section code (the letter used in eid and pubid) of the article's section."""
+        type_code = self.article.section.wjssection.pubid_and_tex_sectioncode
+        if not type_code:
+            logger.error(
+                f'Section "{self.article.section}" is missing PUBID code. PUBID will be wrong!'
+                "Please correct from the admin interface.",
+            )
+        return type_code
+
+    def _published_papers_in_same_issue(self) -> QuerySet[Article]:
+        """Return the papers of the same issue as this article that have already been published.
+
+        Raise:
+          ValueError: if the primary issue is missing.
 
         """
         if not self.article.primary_issue:
             # Manually raising error to give explanatory message
             raise ValueError(f"Trying to count similar papers but no primary issue set for article {self.article.id}")
 
-        base_qs = Article.objects.filter(
+        return Article.objects.filter(
             primary_issue_id=self.article.primary_issue.pk,
             # remember that, during publication, the article has already been given a publication date
             # when we reach this point
@@ -817,6 +879,17 @@ class ArticleWorkflow(TimeStampedModel):
                 ArticleWorkflow.ReviewStates.PUBLISHED,
             ],
         )
+
+    def _count_published_papers_in_same_issue_and_section(self) -> int:
+        """
+        Nomen omen, but reviews are special 😢 (see the code).
+
+        Raise:
+          ValueError: if the primary issue is missing,
+          or if there is some configuration issue related to sections/article types.
+
+        """
+        base_qs = self._published_papers_in_same_issue()
         if self.article.journal.code == "JCOM":
             pesky_sections_names = ["Book Review", "Conference Review"]
             pesky_sections = Section.objects.filter(name__in=pesky_sections_names)

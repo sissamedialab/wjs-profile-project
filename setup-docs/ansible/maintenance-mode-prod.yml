@@ -46,7 +46,7 @@
         - { journal: 'JCOM', motto: 'Journal of Science Communication' }
         - { journal: 'JCOMAL', motto: 'Journal of Science Communication - América Latina' }
         - { journal: 'JCAP', motto: 'Journal of Cosmology and Astroparticle Physics' }
-        - { journal: 'JQUANT', motto: 'Journal of Quantum Science' }
+        - { journal: 'JQuant', motto: 'Journal of Quantum Science' }
         - { journal: 'JHEP', motto: 'Journal of High Energy Physics' }
         - { journal: 'JSTAT', motto: 'Journal of Statistical Mechanics' }
         - { journal: 'JINST', motto: 'Journal of Instrumentation' }

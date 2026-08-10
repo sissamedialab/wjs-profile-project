@@ -85,7 +85,7 @@ def how_to_cite(article: Article) -> str:
     """
     Return a how-to-cite string
     Format depends on the journal:
-    - JQUANT: custom format with initials before last name
+    - JQuant: custom format with initials before last name
       - <10 authors: full list with "and" before last
       - >=10 authors: first author + "et al."
     - JCOM/JCOMAL: APA-style

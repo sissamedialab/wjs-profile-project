@@ -214,7 +214,7 @@
         - { command: "from press.models import Press; Press.objects.get_or_create(domain=\"import-journals.griffo.wjapp.it\")" }
         - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JCOM\", domain=\"import-jcom.griffo.wjapp.it\")" }
         - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JCOMAL\", domain=\"import-jcomal.griffo.wjapp.it\")" }
-        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JQUANT\", domain=\"import-jquant.griffo.wjapp.it\")" }
+        - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JQuant\", domain=\"import-jquant.griffo.wjapp.it\")" }
         - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JHEP\", domain=\"import-jhep.griffo.wjapp.it\")" }
         - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JCAP\", domain=\"import-jcap.griffo.wjapp.it\")" }
         - { command: "from journal.models import Journal; Journal.objects.get_or_create(code=\"JSTAT\", domain=\"import-jstat.griffo.wjapp.it\")" }
