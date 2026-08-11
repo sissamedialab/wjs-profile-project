@@ -400,11 +400,51 @@ def review_assignment_request_message(assignment: ReviewAssignment):
     return [f"<div>{le} | {le.message_id} | {le.description}</div>" for le in log_entry]
 
 
+# ---------------------------------------------------------------------------
+# Materialized AC display path (#2602):
+#     Previously this filter called BaseState.article_requires_attention() which
+#     resolved the user's role and evaluated conditions on the fly (N queries per
+#     page). Now it looks up from a dict of prefetched AttentionCondition rows
+#     (1 query total), keyed by article_id.
+#
+#     The dict is attached to the workflow queryset by the view via annotation
+#     or by a context processor. Only the highest-priority active AC per article
+#     is returned (matching the old single-AC display behavior).
+#
+#     The data model supports multiple ACs per article; if the UI requirement
+#     changes (New Issue 1 in 260318-SISSA-Specifications-for-attention-conditions.md),
+#     this filter can return a list instead of a single string.
+# ---------------------------------------------------------------------------
+
+
 @register.filter
 def article_requires_attention_tt(workflow: ArticleWorkflow, user: Account = None):
-    """Inquire with the state-logic class relative to the current workflow state."""
-    state_cls = getattr(states, workflow.state)
-    return state_cls.article_requires_attention(article=workflow.article, user=user)
+    """Look up the attention condition from the materialized AC table.
+
+    Prefers a prefetched dict attached to the workflow (set by the view).
+    Falls back to a direct query if no prefetched data is available.
+    """
+    # Try prefetched dict first (set by views that preload ACs)
+    user_acs = getattr(workflow, "_prefetched_acs", None)
+    if user_acs is not None:
+        return user_acs.get(workflow.article_id, "")
+
+    # Fallback: direct query (used when the view hasn't prefetched)
+    if user is None:
+        return ""
+
+    from ..models import AttentionCondition
+
+    ac = (
+        AttentionCondition.objects.filter(
+            article=workflow.article,
+            user=user,
+            status=AttentionCondition.Status.ACTIVE,
+        )
+        .order_by("priority", "created_at")
+        .first()
+    )
+    return ac.message if ac else ""
 
 
 @register.filter

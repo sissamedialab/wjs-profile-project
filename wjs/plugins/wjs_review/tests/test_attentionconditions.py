@@ -38,7 +38,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import get_eo_user
 
 from .conftest import _assign_article
-from .test_helpers import _create_review_assignment
+from .test_helpers import _create_review_assignment, attention_conditions_rebuild
 
 
 @pytest.mark.skipif("not config.getoption('--run-academic')")
@@ -146,6 +146,7 @@ def test_author_revision_is_late(
     expected = localtime(expected).date()
 
     # author has a.c., but editor and eo don't, because reminders are not yet sent
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
@@ -156,6 +157,7 @@ def test_author_revision_is_late(
     # all reminders sent today, same a before
     updated = reminders.update(date_sent=now())
     assert updated == reminders_count
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
@@ -167,6 +169,7 @@ def test_author_revision_is_late(
     # NB: using `all_reminders` because we set the date_sent above
     updated = all_reminders.update(date_sent=now() - timezone.timedelta(1))
     assert updated == reminders_count
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
@@ -177,6 +180,7 @@ def test_author_revision_is_late(
     # all reminders sent more than 1 day ago, also editor has a.c.
     updated = all_reminders.update(date_sent=now() - timezone.timedelta(2))
     assert updated == reminders_count
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
@@ -190,6 +194,7 @@ def test_author_revision_is_late(
     # all reminders sent more than two days ago, even EO has a.c.
     updated = all_reminders.update(date_sent=now() - timezone.timedelta(3))
     assert updated == reminders_count
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
@@ -268,6 +273,7 @@ def test_author_technicalrevision_is_late(
     expected = expected.date()
 
     # author has a.c., but editor and eo don't, because reminders are not yet sent
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
@@ -277,6 +283,7 @@ def test_author_technicalrevision_is_late(
 
     # all reminders sent today, same a before
     reminders.update(date_sent=now())
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
@@ -286,6 +293,7 @@ def test_author_technicalrevision_is_late(
 
     # all reminders sent yesterday, same as before
     all_reminders.update(date_sent=now() - timezone.timedelta(1))
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
@@ -295,6 +303,7 @@ def test_author_technicalrevision_is_late(
 
     # all reminders sent more than 1 day ago, also editor has a.c.
     all_reminders.update(date_sent=now() - timezone.timedelta(2))
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
@@ -306,6 +315,7 @@ def test_author_technicalrevision_is_late(
 
     # all reminders sent more than two days ago, even EO has a.c.
     all_reminders.update(date_sent=now() - timezone.timedelta(3))
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
@@ -394,6 +404,7 @@ def test_author_appeal_is_late(
     expected = now() + timezone.timedelta(days=-days_past)  # note the "-": the author is late!
     openappeal_err.date_due = expected
     openappeal_err.save()
+    attention_conditions_rebuild(article)
 
     state_cls = getattr(states, workflow.state)
     expected = expected.date()
@@ -436,6 +447,7 @@ def test_author_proofing_is_late(
     expected = now() + timezone.timedelta(days=-days_past)  # note the "-": the author is late!
     assignment.due = expected
     assignment.save()
+    attention_conditions_rebuild(article)
 
     state_cls = getattr(states, workflow.state)
     expected = expected.date()
@@ -479,6 +491,7 @@ def test_needs_assignment(assigned_article: Article, director: JCOMProfile):
     state_cls = getattr(states, workflow.state)
 
     # editor has a.c. but director doesn't, because reminders are not yet sent
+    attention_conditions_rebuild(article)
     assert state_cls.article_requires_attention(article=article, user=author) == ""
     assert (
         state_cls.article_requires_attention(article=article, user=section_editor)
@@ -492,6 +505,7 @@ def test_needs_assignment(assigned_article: Article, director: JCOMProfile):
     for reminder in reminders_list:
         reminder.date_sent = timezone.now()
         reminder.save()
+    attention_conditions_rebuild(article)
 
     assert state_cls.article_requires_attention(article=article, user=author) == ""
     assert (
@@ -503,6 +517,7 @@ def test_needs_assignment(assigned_article: Article, director: JCOMProfile):
     for reminder in reminders_list:
         reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
         reminder.save()
+    attention_conditions_rebuild(article)
 
     assert state_cls.article_requires_attention(article=article, user=eo) == "Review process not yet started/restarted"
     assert (
@@ -547,11 +562,13 @@ def test_reviewer_is_late(
 
     state_cls = getattr(states, workflow.state)
 
+    attention_conditions_rebuild(article)
     assert state_cls.article_requires_attention(article=article, user=reviewer) == ""
 
     # accept/decline overdue
     assignment.date_due = localtime(timezone.now()).date() - timezone.timedelta(days=1)
     assignment.save()
+    attention_conditions_rebuild(article)
     assert state_cls.article_requires_attention(article=article, user=reviewer) == "Invite to be accepted/declined"
 
     all_reminders = Reminder.objects.filter(
@@ -570,6 +587,7 @@ def test_reviewer_is_late(
         reminder.date_sent = localtime(timezone.now()).date() - timezone.timedelta(days=3)
         reminder.save()
 
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=section_editor)
         == "Reviewer has not yet answered the invitation"
@@ -580,6 +598,7 @@ def test_reviewer_is_late(
         reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
         reminder.save()
 
+    attention_conditions_rebuild(article)
     assert (
         state_cls.article_requires_attention(article=article, user=eo)
         == "Reviewer has not yet answered the invitation"
@@ -597,6 +616,7 @@ def test_reviewer_is_late(
         request=fake_request,
         token="",
     ).run()
+    attention_conditions_rebuild(article)
     assert state_cls.article_requires_attention(article=article, user=reviewer) == "Review is overdue"
 
     reminders = all_reminders.filter(
@@ -610,6 +630,7 @@ def test_reviewer_is_late(
         reminder.date_sent = localtime(timezone.now()).date() - timezone.timedelta(days=3)
         reminder.save()
 
+    attention_conditions_rebuild(article)
     assert state_cls.article_requires_attention(article=article, user=section_editor) == "Reviewer is late"
     # EO gets "You have unread messages" because the message "reviewer accepted invite" from reviewer to editor
     # is not marked "read-by-eo"
@@ -619,6 +640,7 @@ def test_reviewer_is_late(
         reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
         reminder.save()
 
+    attention_conditions_rebuild(article)
     assert state_cls.article_requires_attention(article=article, user=eo) == "Reviewer is late"
 
     form_data = {
@@ -635,6 +657,7 @@ def test_reviewer_is_late(
     service.run()
     Message.objects.update(read_by_eo=True)
     MessageRecipients.objects.update(read=True)
+    attention_conditions_rebuild(article)
     assert state_cls.article_requires_attention(article=article, user=eo) == ""
     assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
 
@@ -663,6 +686,7 @@ def test_editor_assignment_after_deassignment_is_late(
         )
         service.run()
 
+    attention_conditions_rebuild(assigned_article)
     message = EditorToBeSelected.article_requires_eo_attention(assigned_article)
     assert "5 days" in message
 
@@ -690,6 +714,7 @@ def test_editor_is_late(
         reminder.date_sent = timezone.now() - datetime.timedelta(days=5)
         reminder.save()
 
+    attention_conditions_rebuild(assigned_article)
     message = EditorSelected.article_requires_eo_attention(assigned_article, eo_user)
     assert message == "Review process not yet started/restarted"
 
@@ -698,13 +723,17 @@ def test_editor_is_late(
 def test_editor_first_assignment_is_late(
     submitted_article: Article,
     review_form: review_models.ReviewForm,
+    eo_user: JCOMProfile,
 ):
     """
     Attention condition message when no (present or past) editor exists starts from the submission date.
     """
     submitted_article.date_submitted = now() - timedelta(days=10)
     submitted_article.save()
+    submitted_article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+    submitted_article.articleworkflow.save()
 
+    attention_conditions_rebuild(submitted_article)
     message = EditorToBeSelected.article_requires_eo_attention(submitted_article)
     assert "10 days" in message
 
