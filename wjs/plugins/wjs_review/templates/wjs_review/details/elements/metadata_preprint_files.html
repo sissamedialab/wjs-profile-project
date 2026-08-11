@@ -15,12 +15,12 @@
   {% if workflow|is_user_article_author_or_eo:request.user or workflow.legacy_submission %}
     {% if article.data_figure_files.exists %}
       <div class="accordion-item">
-        <h2 class="accordion-header" id="admin-files">
+        <h3 class="accordion-header" id="admin-files">
           <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-admin-files" aria-expanded="false" aria-controls="collapse-admin-files"
                   title="{% translate "Administrative files, data/figure files that will not be published" %}">
             {{ journal_settings.styling.submission_figures_data_title|striptags }} &nbsp;&nbsp; <i class="bi bi-journal-medical"></i>
           </button>
-        </h2>
+        </h3>
         <div id="collapse-admin-files" class="accordion-collapse collapse" aria-labelledby="admin-files" data-bs-parent="#metadata">
           <div class="accordion-body">
             <ul class="list-group mb-1">
@@ -39,11 +39,11 @@
   {% if has_file_access %}
     {% if version.latest or not latest_only %}
       <div class="accordion-item">
-        <h2 class="accordion-header" id="heading-files">
+        <h3 class="accordion-header" id="heading-files">
           <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-files" aria-expanded="false" aria-controls="collapse-files">
             {% translate "Manuscript files (latest author version)" %} &nbsp;&nbsp; <i class="bi bi-filetype-pdf"></i>
           </button>
-        </h2>
+        </h3>
         <div id="collapse-files" class="accordion-collapse collapse" aria-labelledby="heading-files" data-bs-parent="#metadata">
           <div class="accordion-body">
             {% include "wjs_review/details/elements/article_files_listing.html" %}
@@ -57,12 +57,12 @@
     {% if version.latest or not latest_only %}
       {% if article.supplementary_files.exists or version.round.article.articleworkflow.supplementary_files_at_acceptance.exists %}
         <div class="accordion-item">
-          <h2 class="accordion-header" id="heading-esm-files">
+          <h3 class="accordion-header" id="heading-esm-files">
             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-esm-files" aria-expanded="false" aria-controls="collapse-esm-files"
                     title="{% translate "Electronic supplementary material to be published alongside the paper" %}">
               {% translate "ESM" %} &nbsp;&nbsp; <i class="bi bi-journal-code"></i>
             </button>
-          </h2>
+          </h3>
           <div id="collapse-esm-files" class="accordion-collapse collapse" aria-labelledby="heading-esm-files" data-bs-parent="#metadata">
             <div class="accordion-body">
               {% if article.supplementary_files.exists %}

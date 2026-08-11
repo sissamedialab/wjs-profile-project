@@ -1,10 +1,10 @@
 {% load django_bootstrap5 i18n %}
 <div class="accordion-item">
-  <h2 class="accordion-header" id="heading-field-answers-{{ forloop.counter }}">
+  <h3 class="accordion-header" id="heading-field-answers-{{ forloop.counter }}">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-field-answers-{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse-field-answers-{{ forloop.counter }}">
       {% translate "Author's declarations" %}
     </button>
-  </h2>
+  </h3>
   <div id="collapse-field-answers-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading-field-answers-{{ forloop.counter }}" data-bs-parent="#metadata">
     <div class="accordion-body">
       <table class="scroll small">
@@ -14,7 +14,7 @@
             {% translate "Read <i class=\"bi bi-file-text\"></i>" as open_label %}
             <!-- djlint:on -->
             The submitting author has confirmed the Journal’s <a href="#" data-bs-toggle="modal" data-bs-target="#checklist_modal">checklist for submissions</a>
-            {% include "wjs_review/base/elements/modal.html" with modal_id="checklist_modal" modal_title="Journal checklist" modal_body=journal_settings.general.submission_checklist|safe %}
+            {% include "wjs_review/base/elements/modal.html" with modal_id="checklist_modal" modal_title="Journal checklist" modal_body=journal_settings.general.submission_checklist|safe modal_title_tag=4 %}
           </th>
         </tr>
         {% for answer in article.fieldanswer_set.all %}

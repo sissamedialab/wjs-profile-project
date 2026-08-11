@@ -248,10 +248,11 @@ def display_title(issue: Issue | None, use_short=False) -> str:
         else:
             title = issue_title
         template = Template(
-            " &bull; ".join((volume, issue_number, year, title)),
+            '<span aria-hidden="true"> &bull; </span>'.join((volume, issue_number, year, title)),
         )
         return mark_safe(template.render(Context()))
-    return mark_safe(issue.update_display_title(save=False))
+    title = issue.update_display_title(save=False)
+    return mark_safe(title.replace(" &bull; ", '<span aria-hidden="true"> &bull; </span>'))
 
 
 @register.filter

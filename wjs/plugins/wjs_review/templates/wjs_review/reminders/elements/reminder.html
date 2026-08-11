@@ -8,7 +8,7 @@
     {% endif %}
   </div>
     <div class="card-header">
-      <h5 class="card-title">{{ reminder.get_code_display }}/{{ reminder.reminder_level }}</h5>
+      <h2 class="card-title fs-4">{{ reminder.get_code_display }}/{{ reminder.reminder_level }}</h2>
       <small>
         {% if reminder.date_sent %}
           {% translate "Sent" %}: <i>{{ reminder.date_sent }}</i> <span class="text-black-50">({% translate "Due" %}: {{ reminder.date_due }})</span>
@@ -21,7 +21,7 @@
       <div class="text-black-50 mb-2">
         {% translate "To" %}: {{ reminder.recipient }}
       </div>
-      <h6>{% translate "Subject" %}: <b>{{ reminder.message_subject }}</b></h6>
+      <h3 class="fs-5">{% translate "Subject" %}: <b>{{ reminder.message_subject }}</b></h3>
       <div class="body">{{ reminder.message_body|safe }}</div>
     </div>
     <div class="card-footer">

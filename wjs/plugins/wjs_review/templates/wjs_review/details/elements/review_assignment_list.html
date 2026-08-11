@@ -1,7 +1,7 @@
 {% load i18n wjs_permissions %}
 {% if assignments %}
   <div>
-    <h6 class="fw-bold mb-3"><i class="{{ stage.css_class }} me-1"></i>{% translate stage.label %}</h6>
+    <h4 class="fw-bold mb-3 fs-6"><i class="{{ stage.css_class }} me-1"></i>{% translate stage.label %}</h4>
     {% for assignment in assignments %}
       {% user_has_access_to workflow=workflow user=request.user target=assignment permission_type=PermissionType.ALL review_round=assignment.review_round.round_number as all_access %}
       {% user_has_access_to workflow=workflow user=request.user target=assignment permission_type=PermissionType.NO_NAMES review_round=assignment.review_round.round_number as no_names %}

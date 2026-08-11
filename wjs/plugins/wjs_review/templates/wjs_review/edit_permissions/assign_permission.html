@@ -6,7 +6,7 @@
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
-        <h1 class="page-title">{{ view.title }}</h1>
+        <h1 class="fs-3">{{ view.title }}</h1>
       </div>
     </div>
   </div>
@@ -20,8 +20,8 @@
           {% for subforms in forms %}
             <div class="row border-bottom">
               <div class="col-sm-2 mt-2 pt-2">
-                <h5><b>{{ workflow }}{% if subforms.grouper > 0 %}/{{ subforms.grouper }}{% endif %}</b>
-                </h5>
+                <h2><b>{{ workflow }}{% if subforms.grouper > 0 %}/{{ subforms.grouper }}{% endif %}</b>
+                </h2>
               </div>
               <div class="col-sm-10 mt-2 pt-2">
                 {% for form_item in subforms.list %}

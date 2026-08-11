@@ -44,15 +44,19 @@
             <i class="bi bi-clipboard2-data"></i>
           </a>
           {% if user in message.recipients.all and not user == message.actor %}
-            {% include "wjs_review/article_messages/elements/toggle_message_read.html" with form=forms|keyvalue:message.pk %}
+            <div hx-on::after-swap="document.getElementById('read-toggle-{{ message.pk }}').querySelector('[role=checkbox]').focus()">
+              {% include "wjs_review/article_messages/elements/toggle_message_read.html" with form=forms|keyvalue:message.pk %}
+            </div>
           {% endif %}
           {% if request.user|is_user_eo %}
-            {% include "wjs_review/article_messages/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.pk %}
+            <div hx-on::after-swap="document.getElementById('read-toggle-eo-{{ message.pk }}').querySelector('[role=checkbox]').focus()">
+              {% include "wjs_review/article_messages/elements/toggle_message_read_by_eo.html" with form=eo_forms|keyvalue:message.pk %}
+            </div>
           {% endif %}
         </div>
 
       </div>
-      <h3 class="fs-6">{% translate "Subject" %}: <b>{{ message.subject }}</b></h3>
+      <h3 class="fs-5">{% translate "Subject" %}: <b>{{ message.subject }}</b></h3>
       <div class="body">{{ message.body|safe }}</div>
       {% if message.attachments.exists %}
         <div class="d-flex mt-1">

@@ -1,6 +1,8 @@
 {% load django_bootstrap5 i18n static wjs_permissions wjs_review %}
 <span>
-  <b>{% if show_name %}{{ assignment.reviewer.get_full_name }}{% else %}{% translate "Reviewer" %}{% endif %}</b>
+  {% if bold %}<b>{% endif %}
+  {% if show_name %}{{ assignment.reviewer.get_full_name }}{% else %}{% translate "Reviewer" %}{% endif %}
+  {% if bold %}</b>{% endif %}
   {% if assignment.attention_condition and workflow|is_user_article_manager:request.user %}[{{ assignment.attention_condition.message }}]{% endif %}
 </span>
 &nbsp;

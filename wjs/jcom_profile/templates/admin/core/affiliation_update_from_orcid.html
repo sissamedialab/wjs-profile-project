@@ -13,7 +13,7 @@
 
   {% if old_affils.exists %}
     <div class="alert alert-danger">
-      <h3 class="h5">{% translate "Old affiliations to be removed" %}</h3>
+      <h2 class="h5">{% translate "Old affiliations to be removed" %}</h2>
       <div class="d-flex flex-column gap-2 mt-2">
         {% for old_affil in old_affils %}
           {% include "admin/core/affiliation_display.html" with affiliation=old_affil %}
@@ -24,7 +24,7 @@
 
   {% if new_affils %}
     <div class="alert alert-success">
-      <h3 class="h5">{% translate "New affiliations to be added" %}</h3>
+      <h2 class="h5">{% translate "New affiliations to be added" %}</h2>
       <div class="d-flex flex-column gap-2 mt-2">
         {% for new_affil in new_affils %}
           {% include "admin/core/affiliation_display.html" with affiliation=new_affil %}

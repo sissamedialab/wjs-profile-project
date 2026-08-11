@@ -1,15 +1,15 @@
 {% load i18n static wjs_review %}
 
-<div class="accordion-item">
-  <h2 class="accordion-header" id="heading-revision-{{ version.number }}">
+<div class="accordion-item wjs-review__accordion-item">
+  <h3 class="accordion-header" id="heading-revision-{{ version.number }}">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-revision-{{ version.number }}" aria-expanded="false" aria-controls="collapse-revision-{{ version.number }}">
       <i class="bi bi-journals pe-2"></i> {% translate "Version files" %}
     </button>
-  </h2>
+  </h3>
   <div id="collapse-revision-{{ version.number }}" class="accordion-collapse collapse" aria-labelledby="heading-revision-{{ version.number }}" data-bs-parent="#metadata">
       <ul class="list-group m-0 p-0">
         {% if article_info.manuscript_files.exists %}
-          <li class="list-group-item fw-bold">
+          <li class="list-group-item fw-bold wjs-review__accordion-list-item">
             {% translate "PDF File" %}
             <ul class="list-group mb-1">
               {% for file in article_info.manuscript_files.all %}
