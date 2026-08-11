@@ -1,7 +1,7 @@
 {% load django_bootstrap5 i18n wjs_review %}
 {% if review_versions and review_versions.0.number > 0 %}
 <div id="review" class="card border border-1 mb-4">
-  <h2 class="card-header fw-bolder fs-5">{% translate "Review" %}</h2>
+  <h2 class="card-header fw-bolder fs-4">{% translate "Review" %}</h2>
   <div class="card-body">
     <div class="accordion" id="review-accordion">
       {% for version in review_versions %}

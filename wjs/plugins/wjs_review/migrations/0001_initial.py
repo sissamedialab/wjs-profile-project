@@ -327,7 +327,6 @@ class Migration(migrations.Migration):
                     "read_by_eo",
                     models.BooleanField(
                         default=False,
-                        help_text="True when a member of the EO marks as read a message exchanged by other two actors",
                         verbose_name="Read by EO",
                     ),
                 ),

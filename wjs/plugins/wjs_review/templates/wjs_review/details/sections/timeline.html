@@ -1,6 +1,6 @@
 {% load django_bootstrap5 i18n wjs_review %}
 <div id="timeline" class="card border border-1">
-  <h2 class="card-header fw-bolder fs-5">{% translate "Timeline" %}</h2>
+  <h2 class="card-header fw-bolder fs-4">{% translate "Timeline" %}</h2>
   <div class="card-body">{% if not timeline_messages.unset %}
     {% comment %}
     	if timeline_messages.unset is defined, it means we have not started a ReviewAssignment yet

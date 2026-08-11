@@ -2,10 +2,10 @@
 {% translate "Search" as filter_label %}
 {% url "wjs_article_reminders" pk=workflow.pk as filter_url %}
 <div id="reminder-list">
-  <div class="container mb-3">
-    <div class="d-flex justify-content-between">
-      <h1 class="page-title">{{ view.title }}</h1>
-      <form class="mb-4" hx-get="{{ filter_url }}" hx-target="#reminder-list">
+  <div class="container mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <h1 class="fw-bold fs-3 mb-0">{{ view.title }}</h1>
+      <form hx-get="{{ filter_url }}" hx-target="#reminder-list">
         <div class="d-flex justify-content-end">
           {% bootstrap_field filter.form.recipient show_label=False wrapper_class="me-3" addon_before='<i class="bi bi-funnel"></i>' %}
           {% bootstrap_field filter.form.code__startswith show_label=False wrapper_class="me-3" %}

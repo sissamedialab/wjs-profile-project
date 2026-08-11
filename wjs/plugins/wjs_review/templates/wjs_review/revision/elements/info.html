@@ -1,7 +1,7 @@
 {% load i18n %}
 <div class="card my-4">
   <div class="card-header">
-    <h5 class="card-title">{% translate "Information" %}</h5>
+    <h3 class="card-title">{% translate "Information" %}</h3>
   </div>
   <div class="card-body">
   {% if view.confirm_version %}
@@ -62,8 +62,8 @@
     {% endblocktranslate %}
   {% endif %}
     {% if revision_request.editor_note %}
-      <h6>{% translate "Editor report" %}
-      </h6>
+      <h4>{% translate "Editor report" %}
+      </h4>
       <p>
         {{ revision_request.editor_note|safe }}
       </p>

@@ -3,7 +3,7 @@
 {% with doi=article.get_doi pubid=article.get_pubid %}
   <div class="d-flex justify-content-between">
     <div class="d-flex align-items-center gap-3">
-      <h1 class="page-title">
+      <h1 class="fs-3">
         {% if article.section %}<span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span> -{% endif %}
         {% if pubid %}{{ pubid }} -{% endif %}
         {{ workflow }}

@@ -41,11 +41,11 @@
   {% if author.biography and journal|is_field_available:"biography" %}
     <div class="accordion accordion-flush" id="accordionAuthor{{ author.id }}">
       <div class="accordion-item">
-        <h2 class="accordion-header" id="headingBio{{ author.id }}">
+        <div class="accordion-header" id="headingBio{{ author.id }}">
           <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBio{{ author.id }}" aria-expanded="false" aria-controls="collapseBio{{ author.id }}">
             <strong class="small">{% translate "Biography" %}</strong>
           </button>
-        </h2>
+        </div>
         <div id="collapseBio{{ author.id }}" class="accordion-collapse collapse" aria-labelledby="headingBio{{ author.id }}" data-bs-parent="#authorsAccordion">
           <div class="accordion-body small">
             {{ author.biography | striptags }}
@@ -69,7 +69,9 @@
           {% if author.jcomprofile.records_arxiv and journal|is_field_available:"records_arxiv" %}
           <li class="border-bottom py-2 d-flex flex-row gap-3">
             <img src="{% static "img/icons/arxiv_logo.png" %}" alt="arxiv logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_arxiv|ensure_https }}">{% blocktranslate with name=author.get_full_name %}{{ name }}'s arXiv page{% endblocktranslate %}</a>
+            <a target="_blank" href="{{ author.jcomprofile.records_arxiv|ensure_https }}">
+              {% blocktranslate with name=author.get_full_name %}{{ name }}'s <span class="visually-hidden">archive</span><span aria-hidden="true">arXiv</span> page{% endblocktranslate %}
+            </a>
           </li>
           {% endif %}
           {% if author.jcomprofile.records_inspire and journal|is_field_available:"records_inspire" %}

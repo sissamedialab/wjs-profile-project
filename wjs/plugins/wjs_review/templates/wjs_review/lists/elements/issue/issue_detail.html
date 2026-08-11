@@ -3,7 +3,7 @@
   <div class="card-body">
     <div class="card-title">
       <div class="d-flex justify-content-between align-items-center mb-2">
-      <h2 class="fw-bold fs-6">
+      <h2 class="fw-bold fs-4">
         {{ issue|display_title:True }}
       </h2>
 
@@ -31,11 +31,11 @@
     </div>
     <div class="accordion" id="manuscripts-{{ issue.pk }}">
       <div class="accordion-item">
-        <h6 class="accordion-header" id="heading-manuscripts-{{ issue.pk }}">
+        <h3 class="accordion-header" id="heading-manuscripts-{{ issue.pk }}">
           <button class="accordion-button bg-white collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-manuscripts-{{ issue.pk }}" aria-expanded="false" aria-controls="collapse-manuscripts-{{ issue.pk }}">
             <b>{% translate "Manuscripts" %}</b>
           </button>
-        </h6>
+        </h3>
         <div id="collapse-manuscripts-{{ issue.pk }}" class="accordion-collapse collapse" aria-labelledby="heading-manuscripts-{{ issue.pk }}" data-bs-parent="#manuscripts-{{ issue.pk }}">
           <div class="accordion-body">
             <div id="issues-list-content">
