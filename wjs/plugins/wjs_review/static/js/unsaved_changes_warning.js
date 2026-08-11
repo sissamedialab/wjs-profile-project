@@ -64,6 +64,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function bindTinyMceEditor(editor) {
     if (!form.contains(editor.getElement())) return;
+    function rebaselineEditor() {
+      const field = editor.getElement();
+      if (initialState.has(field)) {
+        initialState.set(field, getFieldValue(field));
+      }
+      updateEditedState();
+    }
+
+    if (editor.initialized) {
+      rebaselineEditor();
+    } else {
+      editor.on("init", rebaselineEditor);
+    }
+
     editor.on("input change keyup Undo Redo SetContent", updateEditedState);
   }
 
