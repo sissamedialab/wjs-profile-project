@@ -2,6 +2,15 @@
 Logic classes for production-related actions & co.
 
 This module should be *-imported into logic.py
+
+
+Materialized Attention Conditions (#2602):
+    Production logic classes now call ac_service to maintain the materialized
+    AttentionCondition table for typesetting and proofreading ACs.
+
+    See logic.py module docstring for the general approach.
+    See 260318-SISSA-Specifications-for-attention-conditions.md for AC specifications.
+
 """
 
 import dataclasses
@@ -285,6 +294,11 @@ class AssignTypesetter:
             if self.is_user_typesetter():
                 self._mark_message_read(message)
             self.save_supplementary_files_at_acceptance()
+
+            # No AC update here: the assignment is created in this same run()
+            # with a future due date, so TYPESETTER_LATE cannot hold yet; it is
+            # a time-based AC, created only by the evaluator (nightly rebuild).
+
             return self.assignment
 
 
@@ -394,6 +408,17 @@ class RequestProofs:
             self._update_state()
             proofing_assignment = self._create_proofing_assignment()
             self._log_operation(context=self._get_message_context())
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # Typesetting complete: clear typesetter late ACs.
+            # No AUTHOR_PROOFING_LATE upsert: the proofing assignment is created
+            # in this same run() with a future due date; time-based ACs are
+            # created only by the evaluator (nightly rebuild).
+            ac_service.resolve_ac(self.article, self.typesetter, ac_service.TYPESETTER_LATE)
+            ac_service.resolve_for_role(self.article, "eo", ac_service.TYPESETTER_LATE)
+
             return proofing_assignment
 
 
@@ -824,6 +849,16 @@ class AuthorSendsCorrections:
             self._update_state()
             context = self._get_message_context()
             self._log_operation(context=context)
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # Author sent corrections: clear proofing late ACs.
+            # No TYPESETTER_LATE upsert: the new assignment is created in this
+            # same run() with a future due date; time-based ACs are created
+            # only by the evaluator (nightly rebuild).
+            ac_service.resolve_for_role(self.article, "eo", ac_service.AUTHOR_PROOFING_LATE)
+
             return assignment
 
 
@@ -1439,6 +1474,21 @@ class ReadyForPublication:
                 raise ValueError("Paper not yet ready for publication. For assistance, contact the EO.")
             self._update_state()
             self._log_operation()
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # Paper moved to RFP: clear typesetter and proofing late ACs
+            ac_service.resolve_for_role(self.workflow.article, "eo", ac_service.TYPESETTER_LATE)
+            ac_service.resolve_for_role(self.workflow.article, "eo", ac_service.AUTHOR_PROOFING_LATE)
+
+            # Evaluate RFP-specific ACs. MISSING_* codes are event-based (the
+            # nightly rebuild skips them), so entry to RFP is their creation
+            # point; HandleEOSendBackToTypesetter resolves them on the way back.
+            evaluator = ac_service.ACStateEvaluator(state=self.workflow.state_value, article=self.workflow.article)
+            evaluator._evaluate_code(ac_service.MISSING_SOCIAL_MEDIA)
+            evaluator._evaluate_code(ac_service.MISSING_ENGLISH_CONTENT)
+
         return self.workflow
 
 
@@ -1503,6 +1553,14 @@ class HandleEOSendBackToTypesetter:
             self._update_state()
             self._create_typesetting_assignment()
             self._log_operation()
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # EO sends back to typesetter: clear RFP ACs
+            ac_service.resolve_for_role(self.workflow.article, "eo", ac_service.MISSING_SOCIAL_MEDIA)
+            ac_service.resolve_for_role(self.workflow.article, "eo", ac_service.MISSING_ENGLISH_CONTENT)
+
             return self.workflow
 
 

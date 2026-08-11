@@ -3,7 +3,6 @@
 A condition function should tell if the condition is true by returning an explanatory string. This string can be shown
 to the user and should describe the situation. The idea here is to tell the user why the article / assignment requires
 attention.
-
 """
 
 import datetime
@@ -39,23 +38,15 @@ Account = get_user_model()
 
 
 def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
-    """
-    Tell if a reviewer is late for the current article.
+    """Tell if a reviewer is late for the current article.
 
-    Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3 and
-    Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2 reminders are checked.
+    For editor: fires when REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3 or
+    REVIEWER_SHOULD_WRITE_REVIEW_2 has been sent (at or before now).
+    For EO/director: same reminders but must have been sent at least 5 days ago.
 
-    Editor's attention condition is triggered when the reminder has been sent,
-    EO's / director's attention condition is triggered 5 days after the reminder has been sent.
-
-    This is equal to:
-    - editor: 5 days after the review due date
-    - eo/director: 10 days after the review due date
-
-    Only assignments with date due in the past are considered, to ignore reminders sent before a due date postponement.
+    Only assignments with date_due in the past are considered.
     """
     now_ = timezone.now()
-
     time_threshold = now_ if for_editor else now_ - datetime.timedelta(days=5)
 
     reminder_checks = [
@@ -67,8 +58,6 @@ def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
     ]
 
     review_round = article.current_review_round_object()
-    # Note that relying on reminders alone is not enough, because the RA due-date could have been postponed
-    # after reminders have been already sent
     review_assignments = (
         WorkflowReviewAssignment.objects.by_current_round(article=article, review_round=review_round)
         .filter(date_due__lt=timezone.localtime(now_).date())
@@ -85,33 +74,27 @@ def reviewer_is_late(article: Article, for_editor: bool = False) -> str:
 
 
 def editor_is_late(article: Article) -> str:
-    """
-    Tell if a editor is late for the current article.
+    """Tell if an editor is late for the current article.
 
-    Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3 is checked.
-
-    EO's / director's attention condition is triggered 10 days after the reminder has been sent.
-
-    This is equal to:
-    - eo/director: 11 days after the submission date
-
+    Fires when EDITOR_SHOULD_MAKE_DECISION_3 has been sent at least 3 days ago.
     Only articles in review are considered.
     """
     if article.stage not in REVIEW_ACCESSIBLE_STAGES:
         return ""
-    now_ = timezone.now()
 
-    time_threshold = now_ - datetime.timedelta(days=3)
+    try:
+        assignment = WjsEditorAssignment.objects.get_current(article)
+    except WjsEditorAssignment.DoesNotExist:
+        return ""
+    if not assignment:
+        return ""
 
-    assignment = WjsEditorAssignment.objects.get_current(article)
-
-    all_reminders = Reminder.objects.filter(
+    cut_off_date = timezone.localtime(timezone.now()).date() - datetime.timedelta(days=3)
+    if Reminder.objects.filter(
+        code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
+        date_sent__date__lt=cut_off_date,
         object_id=assignment.pk,
         content_type=ContentType.objects.get_for_model(assignment),
-    ).order_by("date_due")
-
-    if all_reminders.filter(
-        code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3, date_sent__lte=time_threshold
     ).exists():
         return "Editor has not yet taken a decision"
     return ""
@@ -209,31 +192,32 @@ def needs_assignment(article: Article) -> str:
 
 
 def needs_assignment_all_editorreminders_sent(article: Article) -> str:
-    """Tell if the paper need a review assignment.
+    """Tell if the paper needs a review assignment (EO/director escalated view).
 
-    See above `needs_assignment()`.
-
-    Also, take into consideration reminders to editor.
-    They should all have been sent.
+    Fires when EDITOR_SHOULD_SELECT_REVIEWER_3 has been sent at least 5 days ago
+    and no valid review assignments exist.
     """
     review_round = article.current_review_round_object()
     review_assignments = WorkflowReviewAssignment.objects.valid(article, review_round)
     if review_assignments.exists():
         return ""
 
-    editor_assignment = WjsEditorAssignment.objects.get_current(article)
+    try:
+        editor_assignment = WjsEditorAssignment.objects.get_current(article)
+    except WjsEditorAssignment.DoesNotExist:
+        return ""
+    if not editor_assignment:
+        return ""
+
     last_reminder_sent = Reminder.objects.filter(
         code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3.value,
         date_sent__date__lte=timezone.now() - datetime.timedelta(days=5),
-        disabled=False,
         object_id=editor_assignment.id,
         content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
     )
-
     if last_reminder_sent.exists():
         return "Review process not yet started/restarted"
-    else:
-        return ""
+    return ""
 
 
 def all_assignments_completed(article: Article) -> str:
@@ -294,7 +278,11 @@ def has_unread_message(article: Article, recipient: Account) -> str:
 
 
 def article_has_old_unread_message(
-    article: Article, recipient: Account | None = None, *, exclude_aus_and_revs: bool = True
+    article: Article,
+    recipient: Account | None = None,
+    *,
+    exclude_aus_and_revs: bool = True,
+    late_after_days: int | None = None,
 ) -> str:
     """
     Tell if there is any message left unread for a long time.
@@ -306,6 +294,10 @@ def article_has_old_unread_message(
     :param recipient: the recipient of the message;
     :param exclude_aus_and_revs: if True, ignore messages to the authors or to the reviewers of the paper. Note that an
         editor thad does I-will-review is still considered an editor, not a reviewer.
+    :param late_after_days: if given, use this number of days as the threshold for
+        considering a message "old". If ``None`` (the default), the threshold is
+        inferred from the recipient's role: ``WJS_UNREAD_MESSAGES_LATE_AFTER_FOR_EO``
+        for EO users, ``WJS_UNREAD_MESSAGES_LATE_AFTER`` otherwise.
 
     """
     messages = Message.objects.filter(
@@ -315,7 +307,9 @@ def article_has_old_unread_message(
     ).exclude(
         message_type=Message.MessageTypes.NOTE,
     )
-    if recipient and has_eo_role(recipient):
+    if late_after_days is not None:
+        days = late_after_days
+    elif recipient and has_eo_role(recipient):
         days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER_FOR_EO
     else:
         days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
@@ -363,7 +357,11 @@ def one_review_assignment_late(article: Article) -> str:
 
 def editor_as_reviewer_is_late(article: Article) -> str:
     """Tell if the article has the editor as reviewer and the editor is "late" with the review."""
-    if editor_assignment := WjsEditorAssignment.objects.get_current(article):
+    try:
+        editor_assignment = WjsEditorAssignment.objects.get_current(article)
+    except WjsEditorAssignment.DoesNotExist:
+        return ""
+    if editor_assignment:
         editor = editor_assignment.editor
     else:
         return ""
@@ -392,8 +390,11 @@ def user_can_be_assigned_as_reviewer(workflow: ArticleWorkflow, user: Account) -
 
 
 def any_reviewer_is_late_after_reminder(article: Article) -> str:
-    """Tell if the all reviewer's reminder for a specific condition has expired for more than a set number of days."""
-    # new review round is started.
+    """Tell if reviewers stayed inactive even after extended waiting period (editor view).
+
+    Fires when REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3 or REVIEWER_SHOULD_WRITE_REVIEW_2
+    has been sent at least WJS_REMINDER_LATE_AFTER days ago for a pending, overdue assignment.
+    """
     watched_reminders = (
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3.value,
         Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2.value,
@@ -411,15 +412,13 @@ def any_reviewer_is_late_after_reminder(article: Article) -> str:
     expired_reminders = Reminder.objects.filter(
         code__in=watched_reminders,
         date_sent__date__lt=cut_off_date,
-        disabled=False,
         object_id__in=pending_review_assignments.values_list("pk", flat=True),
         content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
     )
 
     if expired_reminders.exists():
         return "Reviewer does not respond. Please take action"
-    else:
-        return ""
+    return ""
 
 
 def author_revision_is_late(article: Article) -> str:
@@ -445,10 +444,11 @@ def author_revision_is_late(article: Article) -> str:
 
 
 def author_revision_is_late_all_reminders_sent(article: Article, late_after_days: int = 1) -> str:
-    """Tell if the author is late in submitting a revision.
+    """Tell if the author is late in submitting a revision (editor/EO view).
 
-    This is intended for Editor (late_after_days=1) or EO (late_after_days=2).
-    NB: if the a.c. string should be different, this needs refactoring!
+    Fires when the post-due-date reminder (MAJOR_REVISION_2 or MINOR_REVISION_2)
+    was sent at least late_after_days days ago.
+    Editor: late_after_days=1. EO: late_after_days=2.
     """
     late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
@@ -461,27 +461,19 @@ def author_revision_is_late_all_reminders_sent(article: Article, late_after_days
     )
     if revision_request := late_revision_request.first():
         watched_reminders = (
-            {
-                Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2,
-            }
+            {Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2}
             if revision_request.type == ArticleWorkflow.Decisions.MAJOR_REVISION
-            else {
-                Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2,
-            }
+            else {Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2}
         )
-        cut_off_date = timezone.localtime(timezone.now()).date() - timezone.timedelta(
-            days=late_after_days,
-        )
+        cut_off_date = timezone.localtime(timezone.now()).date() - timezone.timedelta(days=late_after_days)
         expired_reminders = Reminder.objects.filter(
             code__in=watched_reminders,
             date_sent__date__lt=cut_off_date,
-            disabled=False,
             object_id=revision_request.id,
             content_type=ContentType.objects.get_for_model(revision_request),
         )
-
         if expired_reminders.exists():
-            expected = late_revision_request.first().date_due
+            expected = revision_request.date_due
             days_late = (timezone.localtime(timezone.now()).date() - expected).days
             return f"Revision is {days_late} days late. Pls consider reminding author"
 
@@ -506,11 +498,11 @@ def author_technicalrevision_is_late(article: Article) -> str:
 
 
 def author_technicalrevision_is_late_all_reminders_sent(article: Article, late_after_days: int = 1) -> str:
-    """
-    Tell if the author is late in submitting a technical revision.
+    """Tell if the author is late in submitting a technical revision (editor/EO view).
 
-    "Late" means that the author has not yet set metadata after the last reminder.
-    This is intended for Editor (late_after_days=1) or EO (late_after_days=2).
+    Fires when AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2 was sent at least
+    late_after_days days ago.
+    Editor: late_after_days=1. EO: late_after_days=2.
     """
     late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
@@ -519,20 +511,13 @@ def author_technicalrevision_is_late_all_reminders_sent(article: Article, late_a
         type__in=(ArticleWorkflow.Decisions.TECHNICAL_REVISION,),
     )
     if revision_request := late_revision_request.first():
-        watched_reminders = {
-            Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2,
-        }
-        cut_off_date = timezone.localtime(timezone.now()).date() - timezone.timedelta(
-            days=late_after_days,
-        )
+        cut_off_date = timezone.localtime(timezone.now()).date() - timezone.timedelta(days=late_after_days)
         expired_reminders = Reminder.objects.filter(
-            code__in=watched_reminders,
+            code__in={Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2},
             date_sent__date__lt=cut_off_date,
-            disabled=False,
             object_id=revision_request.id,
             content_type=ContentType.objects.get_for_model(revision_request),
         )
-
         if expired_reminders.exists():
             return "Author has not updated metadata"
     return ""
@@ -637,18 +622,27 @@ def reviewer_report_is_late(article: Article) -> str:
         return ""
 
 
-def is_typesetter_late(assignment: TypesettingAssignment) -> str:
-    """Tell if the typesetter is late with the assignment."""
-    if timezone.now().date() >= assignment.due:
-        return f"Typesetter is {(timezone.now().date() - assignment.due).days} days late"
+def is_typesetter_late(assignment: TypesettingAssignment, for_typesetter: bool = False) -> str:
+    """Tell if the typesetter is late with the assignment.
+
+    With for_typesetter=True the message addresses the typesetter directly
+    (the AC is shown to the typesetter themselves).
+    """
+    if not assignment or not assignment.due:
+        return ""
+    today = timezone.now().date()
+    if today >= assignment.due:
+        days = (today - assignment.due).days
+        if for_typesetter:
+            return f"You are {days} days late"
+        return f"Typesetter is {days} days late"
     else:
         return ""
 
 
-# For some reason TypesettingAssignment.due is datetime.date, while GalleyProofing.due is datetime.datetime.
 def is_author_proofing_late(assignment: GalleyProofing) -> str:
     """Tell if the author is late with the proofing assignment."""
-    if assignment and timezone.now() >= assignment.due:
+    if assignment and assignment.due and timezone.now() >= assignment.due:
         return (
             f"Proofing is late by {(timezone.now() - assignment.due).days} days."
             f" Was expected by {assignment.due.strftime('%F')}."

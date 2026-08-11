@@ -15,6 +15,7 @@ from submission import models as submission_models
 
 from wjs.jcom_profile.models import JCOMProfile
 
+from ..ac_service import ACStateEvaluator
 from ..logic import AssignToReviewer, SubmitReview
 from ..models import WjsEditorAssignment, WorkflowReviewAssignment
 from ..plugin_settings import SHORT_NAME
@@ -41,6 +42,13 @@ def get_next_workflow(journal: Journal) -> WorkflowElement:
         .order_by("order")
         .first()
     )
+
+
+def attention_conditions_rebuild(article):
+    """Rebuild all materialized ACs for the given article using evaluate_all()."""
+    article.articleworkflow.refresh_from_db()
+    state = article.articleworkflow.state
+    ACStateEvaluator(state=state, article=article).evaluate_all()
 
 
 def _create_review_assignment(

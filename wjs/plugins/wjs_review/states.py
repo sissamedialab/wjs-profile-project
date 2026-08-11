@@ -1,4 +1,25 @@
-"""Workflow states for the review process and their actions."""
+"""Workflow states for the review process and their actions.
+
+
+Materialized Attention Conditions (#2602):
+    The on-the-fly AC dispatcher (BaseState.article_requires_attention) and all
+    article_requires_{role}_attention methods have been removed. ACs are now
+    pre-computed and stored in the AttentionCondition DB table.
+
+    State classes themselves are preserved: they still define article_actions
+    and other state-specific behavior unrelated to ACs.
+
+    For the replacement, see:
+      - ac_service.py: AC service API and ACStateEvaluator
+      - conditions.py: refactored condition functions (decoupled from reminders)
+      - logic.py / logic__production.py: explicit ac_service calls at DML points
+      - rebuild_attention_conditions: daily recomputation management command
+
+    See also:
+      - 260318-SISSA-Specifications-for-attention-conditions.md
+      - 260401-SISSA-Optimize-attention-conditions-DRAFT.md
+
+"""
 
 # TODO: verify if these state classes can be used as choices for django-fsm workflow
 
@@ -9,17 +30,15 @@ from typing import Callable, Optional, Type
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.translation import gettext as _
 from faker.utils.text import slugify
 from review.models import ReviewAssignment
-from submission.models import Article
 from typesetting.models import GalleyProofing
 
 from wjs.jcom_profile import permissions as base_permissions
 
-from . import communication_utils, conditions, permissions
-from .models import ArticleWorkflow, PastEditorAssignment, can_be_set_rfp_wrapper
+from . import conditions, permissions
+from .models import ArticleWorkflow, can_be_set_rfp_wrapper
 
 Account = get_user_model()
 
@@ -621,43 +640,6 @@ class BaseState:
     )
 
     @classmethod
-    def has_unread_message(cls, article: Article, user: Account) -> str:
-        """
-        Check whether there is an unread message in the given article for the specified user.
-
-        This check is automatically triggered if a article_requires_<role>_attention is defined in the state class
-        (even a noop that just return an empty string).
-        This allow to exclude states and/or roles.
-
-        :param article: The article object being checked for unread messages.
-        :type article: Article
-        :param user: The user object for whom the unread message condition is evaluated.
-        :type user: Account
-        :return: An attention flag string if unread messages are present, otherwise an empty string.
-        :rtype: str
-        """
-        if attention_flag := conditions.has_unread_message(article, recipient=user):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_attention(cls, article: Article, user: Account) -> str:
-        """Dispatch the request to per-user functions.
-
-        An article, in a certain state, requires attention from a certain role in certain conditions. For instance: an
-        article assigned to an editor, but without andy reviewers requires immediate attention by the editor, but
-        requires attention by EO/director only when all automatic reminders to the editor have been sent.
-
-        """
-        role = communication_utils.role_for_article(article, user).lower()
-        # Since this method will be called by a "child" class, here `cls` will refer to that class (the real state)
-        if func := getattr(cls, f"article_requires_{role}_attention", None):
-            if attention_flag := func(article=article, user=user):
-                return attention_flag
-            return cls.has_unread_message(article, user)
-        return ""
-
-    @classmethod
     def get_state_class(cls, workflow: ArticleWorkflow) -> Type["BaseState"]:
         return globals()[workflow.state]
 
@@ -667,6 +649,45 @@ class BaseState:
             if action.name == name:
                 return action
         return None
+
+    @classmethod
+    def article_requires_attention(cls, *, article, user):
+        """Return the highest-priority active AC message for (article, user).
+
+        Delegates to the materialized AttentionCondition table.
+        Returns empty string if no active AC exists.
+        """
+        from .models import AttentionCondition
+
+        ac = (
+            AttentionCondition.objects.filter(
+                article=article,
+                user=user,
+                status=AttentionCondition.Status.ACTIVE,
+            )
+            .order_by("priority", "created_at")
+            .first()
+        )
+        return ac.message if ac else ""
+
+    @classmethod
+    def article_requires_eo_attention(cls, article, user=None):
+        """Return the highest-priority active AC for EO users on the article.
+
+        If *user* is provided, returns ACs for that specific user only.
+        Otherwise returns ACs for all EO users (first match by priority).
+        """
+        from .models import AttentionCondition
+
+        qs = AttentionCondition.objects.filter(
+            article=article,
+            status=AttentionCondition.Status.ACTIVE,
+        )
+        if user is not None:
+            qs = qs.filter(user=user)
+
+        ac = qs.order_by("priority", "created_at").first()
+        return ac.message if ac else ""
 
 
 class EditorToBeSelected(BaseState):
@@ -680,26 +701,6 @@ class EditorToBeSelected(BaseState):
             view_name="wjs_assign_editor",
         ),
     )
-
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
-        # If a paper is in this state we can assume that there are no "live" assignments (WjsEditorAssignments), so we
-        # need to check only for past assignments.
-        if (
-            latest_editor_assignment := PastEditorAssignment.objects.filter(article=article)
-            .order_by("date_unassigned")
-            .last()
-        ):
-            waiting_days = (timezone.now() - latest_editor_assignment.date_unassigned).days
-        elif article.date_submitted:
-            waiting_days = (timezone.now() - article.date_submitted).days
-        else:
-            waiting_days = "N/A"
-        return f"Editor has not been selected for {waiting_days} days"
-
-    @classmethod
-    def article_requires_director_attention(cls, article: Article, **kwargs) -> str:
-        return "Editor should be selected"
 
 
 class EditorSelected(BaseState):
@@ -751,7 +752,7 @@ class EditorSelected(BaseState):
         ArticleAction(
             permission=permissions.is_article_editor,
             name="deems not suitable",
-            label="Not suitable",
+            label="Not suitable for JCOM",
             view_name="wjs_article_decision",
             querystring_params={"decision": "not_suitable"},
         ),
@@ -845,72 +846,6 @@ class EditorSelected(BaseState):
         ),
     )
 
-    @classmethod
-    def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Rifle through the situations that require attention.
-
-        Return True as soon as one is found.
-        This can be use to highlight a paper that requires some action.
-        """
-        if attention_flag := conditions.reviewer_is_late(article, for_editor=True):
-            return attention_flag
-        if attention_flag := conditions.needs_assignment(article):
-            return attention_flag
-        if attention_flag := conditions.all_assignments_completed(article):
-            return attention_flag
-        if attention_flag := conditions.editor_as_reviewer_is_late(article):
-            return attention_flag
-        if attention_flag := conditions.any_reviewer_is_late_after_reminder(article):
-            return attention_flag
-        # The `conditions.one_review_assignment_late(article)` is more invasive: it reports all late assignments, not
-        # just the editors'
-        return ""
-
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
-        """
-        Tell if the article requires attention by the EO.
-        """
-        if attention_flag := conditions.needs_assignment_all_editorreminders_sent(article):
-            return attention_flag
-        if attention_flag := conditions.reviewer_is_late(article):
-            return attention_flag
-        if attention_flag := conditions.editor_is_late(article):
-            return attention_flag
-        if attention_flag := conditions.article_has_old_unread_message(article, recipient=user):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_director_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Tell if the article requires attention by the directors.
-        """
-        if attention_flag := conditions.needs_assignment_all_editorreminders_sent(article):
-            return attention_flag
-        if attention_flag := conditions.reviewer_is_late(article):
-            return attention_flag
-        if attention_flag := conditions.editor_is_late(article):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Rifle through the situations that require attention.
-        """
-        return ""
-
-    @classmethod
-    def article_requires_reviewer_attention(cls, article: Article, **kwargs) -> str:
-        """Rifle through the situations that require attention."""
-        if attention_flag := conditions.reviewer_acceptdecline_is_late(article):
-            return attention_flag
-        if attention_flag := conditions.reviewer_report_is_late(article):
-            return attention_flag
-        return ""
-
 
 class Submitted(BaseState):
     """Submitted"""
@@ -932,10 +867,6 @@ class IncompleteSubmission(BaseState):
             custom_get_url=get_resume_submission_url,
         ),
     ) + BaseState.article_actions
-
-    @classmethod
-    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        return "Partial submission to be completed or withdrawn"
 
 
 class NotSuitable(BaseState):
@@ -1008,57 +939,6 @@ class ToBeRevised(BaseState):
         ),
     ) + BaseState.article_actions
 
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
-        if attention_flag := conditions.author_revision_is_late_all_reminders_sent(
-            article,
-            late_after_days=2,  # FIXME: add a setting similar to settings.WJS_REMINDER_LATE_AFTER
-        ):
-            return attention_flag
-        if attention_flag := conditions.author_technicalrevision_is_late_all_reminders_sent(
-            article,
-            late_after_days=2,
-        ):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_editor_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Rifle through the situations that require attention.
-        """
-        if attention_flag := conditions.author_revision_is_late_all_reminders_sent(
-            article,
-            late_after_days=1,
-        ):
-            return attention_flag
-        if attention_flag := conditions.author_technicalrevision_is_late_all_reminders_sent(
-            article,
-            late_after_days=1,
-        ):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Rifle through the situations that require attention.
-        """
-        if attention_flag := conditions.author_revision_is_late(article):
-            return attention_flag
-        if attention_flag := conditions.author_technicalrevision_is_late(article):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_reviewer_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Rifle through the situations that require attention.
-        """
-        if attention_flag := conditions.reviewer_report_is_late(article):
-            return attention_flag
-        return ""
-
 
 class Rejected(BaseState):
     """Rejected"""
@@ -1095,17 +975,6 @@ class UnderAppeal(BaseState):
         ),
     ) + BaseState.article_actions
 
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
-        if attention_flag := conditions.author_appealsubmission_is_late(article):
-            # To be fixed in specs#1029
-            return attention_flag + ". Withdraw?"
-        return ""
-
-    @classmethod
-    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        return "Appeal to submit"
-
 
 class PaperMightHaveIssues(BaseState):
     """Paper might have issues"""
@@ -1133,11 +1002,6 @@ class PaperMightHaveIssues(BaseState):
         ),
     ) + BaseState.article_actions
 
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
-        """Papers in this state always require attention by EO."""
-        return "Submission to be checked"
-
 
 class ReadyForTypesetter(BaseState):
     """
@@ -1163,11 +1027,6 @@ class ReadyForTypesetter(BaseState):
             custom_get_url=lambda action, workflow, user: get_article_issue_tracker_url(workflow, repo="rogne"),
         ),
     ) + BaseState.article_buttons
-
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
-        """Trigger automatic attention conditions (like has_unread_message)."""
-        return ""
 
 
 class TypesetterSelected(BaseState):
@@ -1287,32 +1146,6 @@ class TypesetterSelected(BaseState):
         ),
     )
 
-    @classmethod
-    def article_requires_typesetter_attention(cls, article: Article, user: Account, **kwargs) -> str:
-        """
-        Tell if the article requires attention by the typesetter.
-        """
-        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
-        if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
-        """
-        Tell if the article requires attention by the EO.
-        """
-        typesetting_assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
-        if attention_flag := conditions.is_typesetter_late(typesetting_assignment):
-            return attention_flag
-        if attention_flag := conditions.article_has_old_unread_message(article, recipient=user):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        return ""
-
 
 class Proofreading(BaseState):
     """
@@ -1393,33 +1226,6 @@ class Proofreading(BaseState):
         ),
     ) + BaseState.article_buttons
 
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, user: Account, **kwargs) -> str:
-        """
-        Tell if the article requires attention by the EO.
-        """
-        assignment = (
-            GalleyProofing.objects.filter(
-                round__article=article,
-                proofreader=article.correspondence_author,
-            )
-            .order_by("round__round_number")
-            .last()
-        )
-        if attention_flag := conditions.is_author_proofing_late(assignment):
-            return attention_flag
-        if attention_flag := conditions.article_has_old_unread_message(article, recipient=user):
-            return attention_flag
-        return ""
-
-    @classmethod
-    def article_requires_author_attention(cls, article: Article, **kwargs) -> str:
-        return ""
-
-    @classmethod
-    def article_requires_typesetter_attention(cls, article: Article, **kwargs) -> str:
-        return ""
-
 
 class ReadyForPublication(BaseState):
     """
@@ -1456,29 +1262,6 @@ class ReadyForPublication(BaseState):
             view_name="wjs_draft_article_page",
         ),
     ) + BaseState.article_actions
-
-    @classmethod
-    def article_requires_eo_attention(cls, article: Article, **kwargs) -> str:
-        """
-        Tell if the article requires attention by the EO.
-        """
-        # refs https://gitlab.sissamedialab.it/wjs/specs/-/work_items/1470
-        issue = article.issue
-        if issue and issue.issueparameters:
-            batch_publish = issue.issueparameters.batch_publish
-        else:
-            batch_publish = False
-        if conditions.journal_requires_social_media_files(article.journal):
-            if (not article.meta_image or not article.articleworkflow.social_media_short_description) and (
-                not batch_publish
-            ):
-                return "Missing image and/or short description for social media"
-
-            if conditions.journal_requires_english_content(article.journal):
-                if not article.title_en or not article.abstract_en:
-                    return "Missing English translation of title or abstract"
-
-        return ""
 
 
 class PublicationInProgress(BaseState):

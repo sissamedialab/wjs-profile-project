@@ -2448,6 +2448,99 @@ class Reminder(models.Model):
         )
 
 
+class AttentionCondition(models.Model):
+    """Materialized attention condition for an article-user pair.
+
+    This model implements the materialized AC architecture described in:
+      - 260211-SISSA-Analyse-a-different-approach-to-attention-conditions.md
+      - 260318-SISSA-Specifications-for-attention-conditions.md
+      - 260401-SISSA-Optimize-attention-conditions-DRAFT.md
+
+    ACs are pre-computed and stored here rather than computed on the fly.
+    The unique_together on (article, user, code) provides a stable
+    deduplication key. The (user, status) index is the hot path for
+    "give me all active ACs for the current user".
+
+    Future extensions anticipated by the design:
+      - New Issue 2: EO-configurable AC parameters
+      - New Issue 7: Manual per-paper custom alerts (source=MANUAL)
+    """
+
+    class SourceType(models.TextChoices):
+        AUTOMATIC = "automatic", _("Automatic")
+        MANUAL = "manual", _("Manual")
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", _("Active")
+        RESOLVED = "resolved", _("Resolved")
+        EXPIRED = "expired", _("Expired")
+        SUPPRESSED = "suppressed", _("Suppressed")
+
+    article = models.ForeignKey(
+        Article,
+        on_delete=models.CASCADE,
+        related_name="attention_conditions",
+    )
+    user = models.ForeignKey(
+        Account,
+        on_delete=models.CASCADE,
+        related_name="attention_conditions",
+    )
+    code = models.CharField(
+        max_length=64,
+        help_text=_("Stable functional code identifying the condition type."),
+    )
+    source = models.CharField(
+        max_length=16,
+        choices=SourceType.choices,
+        default=SourceType.AUTOMATIC,
+    )
+    message = models.CharField(
+        max_length=512,
+        blank=True,
+        default="",
+        help_text=_("Human-readable description shown to the user."),
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+    priority = models.IntegerField(
+        default=99,
+        help_text=_(
+            "Display priority: lower number = higher priority. "
+            "Derived from the original check order in "
+            "article_requires_{role}_attention methods."
+        ),
+    )
+
+    valid_from = models.DateTimeField(
+        default=timezone.now,
+        help_text=_("When this AC becomes visible."),
+    )
+    valid_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("When this AC expires (null = never)."),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Attention condition")
+        verbose_name_plural = _("Attention conditions")
+        unique_together = ("article", "user", "code")
+        indexes = [
+            models.Index(fields=["user", "status"], name="ac_user_status_idx"),
+            models.Index(fields=["article", "status"], name="ac_article_status_idx"),
+        ]
+        ordering = ["priority", "created_at"]
+
+    def __str__(self) -> str:
+        return f"AC[{self.code}] for {self.user} on article {self.article_id}: {self.message[:50]}"
+
+
 class LatexPreamble(models.Model):
     """Templates to generate 'preambolo automatico' to be included in files to typeset"""
 
