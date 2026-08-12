@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.0.25] - 2026-08-12
+
+- [specs#3005: Handle warning when changing profile URL](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3005) — fix(js): fix warning altert js to work properly with TinyMCE (!1462)
+- [wjs-profile-project#285: When looking reminders, check the sent date, but also the due date for disabled reminders](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/285) — feat: materialized attention condition (!1341)
+- [wjs-profile-project#287: Verify that ACs for AUTHOR_PROOFING_LATE for authors are resolved (if they exist)](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/287) — feat: materialized attention condition (!1341)
+- [specs#2621: Ensure that JQuant authors don't see the link "send short description and image for social media"](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2621) — feat: materialized attention condition (!1341)
+- [specs#2764: test attention conditions performance with import stress test database](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2764) — feat: materialized attention condition (!1341)
+- [specs#2823: When looking reminders, check the sent date, but also the due date for disabled reminders](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2823) — feat: materialized attention condition (!1341)
+- [specs#2824: Verify if we can move the local imports of ac_service (& co.) at the top of the modules](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2824) — feat: materialized attention condition (!1341)
+- [wjs-profile-project#284: Drop article_requires_attention() methods from states module and adapt tests](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/284) — feat: materialized attention condition (!1341)
+- [specs#2822: Drop article_requires_attention() methods from states module and adapt tests](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2822) — feat: materialized attention condition (!1341)
+- [wjs-profile-project#286: Verify if we can move the local imports of ac_service (& co.) at the top of the modules](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/286) — feat: materialized attention condition (!1341)
+- [specs#2825: Remove creation of ACs for AUTHOR_PROOFING_LATE for **authors**](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2825) — feat: materialized attention condition (!1341)
+- [wjs-profile-project#288: Verify that AC MISSING_SOCIAL_MEDIA & co. are created early on for the author to act on them](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/288) — feat: materialized attention condition (!1341)
+- [specs#2826: Verify that AC MISSING_SOCIAL_MEDIA & co. are created early on for the author to act on them](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2826) — feat: materialized attention condition (!1341)
+- No linked issue — feat(a11y): add a11y review fixes (!1375)
+- [specs#2877: Generate custom pubid for erratum / addendum](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2877) — Pubid and EID for JQuant and JCAP (!1460)
+- [specs#2304: Compute pubid for JQUANT](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2304) — Pubid and EID for JQuant and JCAP (!1460)
+- [specs#2756: Ensure that "section code" for JQuant is correctly used/ignored in eid, pubid, how-to-cite](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2756) — Pubid and EID for JQuant and JCAP (!1460)
+
 ## [2.0.24] - 2026-08-06
 
 - [wjs-profile-project#204: As developer I want to investigate why pytest 8.4 breaks our tests setup](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/204) — fix: port test suite to pytest 9 and latest pytest-django (!1458)
