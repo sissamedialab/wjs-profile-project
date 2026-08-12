@@ -71,7 +71,7 @@ from wjs.jcom_profile.mixins import HtmxMixin, PaginatedViewMixin
 from wjs.jcom_profile.models import IssueParameters
 from wjs.jcom_profile.utils import get_eo_user
 
-from . import permissions
+from . import ac_service, permissions
 from .communication_utils import get_messages_related_to_me, group_messages_by_version
 from .conversion import LatexReportConvertService
 from .filters import (
@@ -344,10 +344,28 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
         return base_qs.distinct().order_by(*self.get_ordering())
 
     def get_context_data(self, **kwargs):
-        """Add the filterset."""
+        """Add the filterset and prefetched attention conditions."""
         context = super().get_context_data(**kwargs)
         if self.request.user.is_authenticated:
             prefetch_related_objects([self.request.user], "groups")
+
+            # -- Prefetch materialized attention conditions for the current user --
+            # Build a dict article_id -> message (highest priority AC per article)
+            # and attach it to each workflow object so the template filter
+            # can look it up in O(1) instead of making N queries.
+            user_acs_qs = ac_service.AttentionCondition.objects.filter(
+                user=self.request.user,
+                status=ac_service.AttentionCondition.Status.ACTIVE,
+            ).order_by("article_id", "priority", "created_at")
+
+            acs_dict: dict[int, str] = {}
+            for ac in user_acs_qs:
+                if ac.article_id not in acs_dict:
+                    acs_dict[ac.article_id] = ac.message
+
+            for workflow in context.get("workflows", []):
+                workflow._prefetched_acs = acs_dict
+
         context["filter"] = self.filterset
         context["ordering_value"] = self._get_ordering_value()
         return context
@@ -2719,6 +2737,16 @@ class ToggleMessageReadView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
 
         """
         self.object = form.save()
+
+        # Re-evaluate attention conditions for the article, so that unread
+        # message ACs are updated immediately (not only by the nightly rebuild).
+        article = self.object.message.target
+        if isinstance(article, Article) and hasattr(article, "articleworkflow"):
+            ac_service.ACStateEvaluator(
+                state=article.articleworkflow.state_value,
+                article=article,
+            ).evaluate_all()
+
         return self.render_to_response(self.get_context_data(form=form, message=self.object.message))
 
 
@@ -2753,6 +2781,16 @@ class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateVi
         I.e. do not redirect anywhere.
         """
         self.object = form.save()
+
+        # Re-evaluate attention conditions for the article, so that unread
+        # message ACs are updated immediately (not only by the nightly rebuild).
+        article = self.object.target
+        if isinstance(article, Article) and hasattr(article, "articleworkflow"):
+            ac_service.ACStateEvaluator(
+                state=article.articleworkflow.state_value,
+                article=article,
+            ).evaluate_all()
+
         return self.render_to_response(self.get_context_data(form=form, message=self.object))
 
 

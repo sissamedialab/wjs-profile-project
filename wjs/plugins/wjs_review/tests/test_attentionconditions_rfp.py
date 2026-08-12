@@ -3,6 +3,7 @@ from plugins.wjs_review import states
 from submission.models import Article
 
 from ..models import ArticleWorkflow
+from .test_helpers import attention_conditions_rebuild
 
 
 @pytest.mark.parametrize("batch_publish", (True, False))
@@ -20,6 +21,7 @@ def test_article_requires_eo_attention_missing_image_and_missing_description(
     assert rfp_article.issue.issueparameters.batch_publish == batch_publish
 
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
+    attention_conditions_rebuild(rfp_article)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
     if batch_publish:
@@ -48,6 +50,7 @@ def test_article_requires_eo_attention_image_ok_but_missing_description(
     assert rfp_article.issue.issueparameters.batch_publish == batch_publish
 
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
+    attention_conditions_rebuild(rfp_article)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
     if batch_publish:
@@ -77,6 +80,7 @@ def test_article_requires_eo_attention_description_ok_but_missing_image(
     assert rfp_article.issue.issueparameters.batch_publish == batch_publish
 
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
+    attention_conditions_rebuild(rfp_article)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
     if batch_publish:
@@ -118,6 +122,7 @@ def test_article_requires_eo_attention_for_missing_title_or_abstract(
     rfp_article.articleworkflow.save()
 
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
+    attention_conditions_rebuild(rfp_article)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
     if expected_attention_condition:
@@ -136,6 +141,7 @@ def test_article_requires_eo_attention_journal_without_social_media_files(rfp_ar
     params.save()
 
     rpf_state_class = getattr(states, rfp_article.articleworkflow.state)
+    attention_conditions_rebuild(rfp_article)
     attention_condition = rpf_state_class.article_requires_attention(article=rfp_article, user=eo_user)
 
     assert attention_condition == ""

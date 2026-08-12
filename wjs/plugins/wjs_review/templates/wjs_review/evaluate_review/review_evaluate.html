@@ -13,7 +13,7 @@
   {% bootstrap_form_errors form %}
   <div class="row">
     <div class="col-sm-12">
-      <h3 class="page-title">{{ view.title }}</h3>
+      <h1 class="fs-3">{{ view.title }}</h1>
     </div>
   </div>
   {% include "wjs_review/evaluate_review/elements/info.html" %}
@@ -21,18 +21,18 @@
     <div class="col-lg-9 col-md-7">
         <div class="card border border-1">
           <div class="card-head d-flex align-items-center px-2 py-2 pb-1 border-bottom">
-            <h6>
+            <h2 class="fs-4">
               <span class="badge {{ article_classes.section_css }}">{{ assignment.article.section.name }}</span>
-            </h6>
-            <h4 class="ms-2"> - {{ assignment.article.pk }}</h4>
+            </h2>
+            <h2 class="fs-4 ms-2"> - {{ assignment.article.pk }}</h2>
           </div>
           <div class="card-body px-2 py-2">
             <div class="title-area mb-3">
-              <h5>{% translate "Title" %}</h5>
+              <h3 class="fs-5">{% translate "Title" %}</h3>
               {{ assignment.article.title }}
             </div>
             <div class="title-area mb-3">
-              <h5>{% translate "Abstract" %}</h5>
+              <h3 class="fs-5">{% translate "Abstract" %}</h3>
               {{ assignment.article.abstract|safe }}
             </div>
             {% csrf_token %}
@@ -60,7 +60,7 @@
       <div class="card border border-1">
         <div class="card-head text-center px-2 py-2 pb-1 border-bottom">
           <div class="title-area mb-3">
-              <h5><strong>{{ editor_message_title }}</strong></h5>
+              <h3 class="fs-5"><strong>{{ editor_message_title }}</strong></h3>
           </div>
         </div>
         <div class="card-body px-2 py-2">
@@ -70,7 +70,7 @@
            <br><br>
            {% with modal_id="editor_invite_modal" modal_target="#editor_invite_modal" modal_content=assignment.workflowreviewassignment.editor_invite_message.body %}
               {% bootstrap_button content=editor_message_label button_class="btn-link" data_bs_toggle="modal" data_bs_target=modal_target %}
-              {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_message_title modal_body=modal_content|safe %}
+              {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_message_title modal_body=modal_content|safe modal_title_tag=4 %}
            {% endwith %}
         </div>
       </div>

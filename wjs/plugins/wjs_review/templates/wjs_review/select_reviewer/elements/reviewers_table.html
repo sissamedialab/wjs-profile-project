@@ -11,7 +11,7 @@
   <div class="card">
     <div class="card-body">
       <form name="search-reviewer-form" hx-get="{{ search_reviewer }}" hx-trigger="submit" hx-target="#select-reviewer-table">
-        <h5>{% translate "Find reviewer" %}</h5>
+        <h2>{% translate "Find reviewer" %}</h2>
         <div class="d-flex justify-content-between align-items-start">
           <div class="d-flex gap-2 align-items-start">
             {% bootstrap_field search_form.search show_label=False %}

@@ -54,8 +54,10 @@
         {
           prefix: "recipientsFS",
           formTemplate: $("#recipients_formset_template").contents()[0],
-          addText: "<span class=\"btn btn-secondary\" >{% translate "Add a recipient" %} <i class=\"bi bi-person-fill-add\"></i></span>",
-          deleteText: "<span class=\"btn btn-outline-secondary rounded-0 rounded-end\" ><i class=\"bi bi-x-circle-fill\"></i></span>",
+          addCssClass: "add-row btn btn-secondary",
+          addText: "{% translate "Add a recipient" %} <i class=\"bi bi-person-fill-add\"></i>",
+          deleteCssClass: "delete-row btn btn-outline-secondary rounded-0 rounded-end",
+          deleteText: "<i class=\"bi bi-x-circle-fill\"></i>",
           added: added_callback,
           removed: removed_callback,
         });
@@ -75,7 +77,7 @@
   <div class="container mb-3">
     <div class="row">
       <div class="col-sm-12">
-        <h1 class="page-title">{{ view.title }}</h1>
+        <h1 class="fw-bold fs-3">{{ view.title }}</h1>
       </div>
     </div>
   </div>
@@ -83,7 +85,7 @@
     <div class="container mb-3">
       <div class="card mb-3">
         <div class="card-body">
-          <h5 class="card-title">{% translate "Message will be forwarded to" %}: {{ forward }}</h5>
+          <h2 class="card-title">{% translate "Message will be forwarded to" %}: {{ forward }}</h2>
           <div class="card-text">
             <p>{{ introduction }}</p>
           </div>

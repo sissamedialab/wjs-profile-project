@@ -3,6 +3,22 @@
 Most logic is encapsulated into dataclasses that take the necessary data structures upon creation and perform their
 action in a method named "run()".
 
+
+Materialized Attention Conditions (#2602):
+    Logic classes in this module now call ac_service to maintain the materialized
+    AttentionCondition table. Each call is a single line, placed at the point where
+    the business event occurs (e.g., editor assigned, reviewer accepted, decision made).
+
+    This follows the explicit-API approach recommended in
+    260401-SISSA-Optimize-attention-conditions-DRAFT.md (see Matteo's note):
+      - Explicit calls are self-documenting and easy to trace
+      - Exception handling is already in place in logic classes
+      - No hidden signal-based behavior
+
+    For the full list of AC codes and their triggers, see ac_service.py.
+    For the specification of each AC, see
+    260318-SISSA-Specifications-for-attention-conditions.md.
+
 """
 
 import dataclasses
@@ -443,6 +459,12 @@ class BaseAssignToEditor:
             flag_as_read_by_eo=True,
         )
 
+    # -------------------------------------------------------------------
+    # AC hooks in this class:
+    #   - On assign: resolve EDITOR_NOT_SELECTED for director; upsert for EO
+    #     (the AC message includes the waiting days, matching the old
+    #     EditorToBeSelected.article_requires_eo_attention behavior)
+    # -------------------------------------------------------------------
     def run(self) -> WjsEditorAssignment:
         with transaction.atomic():
             assignment = self._assign_editor()
@@ -453,6 +475,14 @@ class BaseAssignToEditor:
             if not select_reviewers_reminders:
                 self._create_editor_should_make_decision_reminders_maybe(assignment)
             self._delete_director_reminders(assignment)
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # Editor assigned: clear "editor not selected" for all
+            ac_service.resolve_for_role(self.article, "director", ac_service.EDITOR_NOT_SELECTED)
+            ac_service.resolve_for_role(self.article, "eo", ac_service.EDITOR_NOT_SELECTED)
+
         return assignment
 
 
@@ -793,8 +823,7 @@ class AssignToReviewer:
         with transaction.atomic():
             if self._reviewer_already_assigned():
                 raise IntegrityError("Double request detected")
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValueError(_("Transition conditions not met"))
             self._ensure_reviewer()
             # We save the assignment here because it's used by _get_message_context() to create the context
@@ -810,6 +839,15 @@ class AssignToReviewer:
             else:
                 self._create_reviewevaluate_reminders()
             self._delete_editor_reminders()
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # Reviewer assigned: clear "needs assignment" for editor
+            ac_service.resolve_for_role(self.workflow.article, "editor", ac_service.NEEDS_ASSIGNMENT)
+            # Also clear escalated versions for EO/director
+            ac_service.resolve_for_role(self.workflow.article, "eo", ac_service.NEEDS_ASSIGNMENT_ESCALATED)
+            ac_service.resolve_for_role(self.workflow.article, "director", ac_service.NEEDS_ASSIGNMENT_ESCALATED)
+
         return self.assignment
 
 
@@ -1170,18 +1208,49 @@ class EvaluateReview:
 
     def run(self) -> Optional[bool]:
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValidationError(_("Transition conditions not met"))
             if self.token:
                 self._activate_invitation(self.token)
             self._save_date_due()
             if self.check_postpone_due_date_too_far_in_the_future():
                 self._handle_postpone_too_far_in_the_future()
+
+            result = None
             if self.form_data.get("reviewer_decision") == "1":
-                return self._handle_accept()
+                result = self._handle_accept()
+            elif self.form_data.get("reviewer_decision") == "0":
+                result = self._handle_decline()
+
+            # -- Materialized AC updates --
+            from . import ac_service, conditions
+
+            article = self.assignment.article
+            reviewer = self.assignment.reviewer
+
+            if self.form_data.get("reviewer_decision") in {"1", "0"}:
+                # Reviewer accepted or declined: clear their pending-invitation AC
+                ac_service.resolve_ac(article, reviewer, ac_service.REVIEWER_INVITATION_PENDING)
+                # The editor/EO/director "reviewer late" ACs aggregate over all
+                # reviewers: re-evaluate them instead of blind-resolving (another
+                # reviewer may still be late).
+                evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state_value, article=article)
+                evaluator._evaluate_code(ac_service.REVIEWER_LATE)
+                evaluator._evaluate_code(ac_service.REVIEWER_LATE_ESCALATED)
+                evaluator._evaluate_code(ac_service.REVIEWER_INACTIVE)
             if self.form_data.get("reviewer_decision") == "0":
-                return self._handle_decline()
+                if conditions.needs_assignment(article):
+                    ac_service.upsert_for_role(
+                        article,
+                        "editor",
+                        ac_service.NEEDS_ASSIGNMENT,
+                        "Review process should start/restart",
+                        priority=ac_service.get_ac_priority(
+                            article.articleworkflow.state_value, "editor", ac_service.NEEDS_ASSIGNMENT
+                        ),
+                    )
+
+            return result
 
 
 @dataclasses.dataclass
@@ -1281,8 +1350,7 @@ class InviteReviewer:
 
     def run(self) -> JCOMProfile:
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValidationError(_("Invitation conditions not met"))
             user = self._get_or_create_user(self.form_data["email"])
             self._assign_reviewer(user)
@@ -1482,6 +1550,44 @@ class SubmitReview:
             self._log_operation()
             self._delete_reviewreport_reminders()
             self._create_editor_should_make_decision_reminders_maybe()
+
+            # -- Materialized AC updates --
+            from . import ac_service, conditions
+
+            article = self.assignment.article
+            reviewer = self.assignment.reviewer
+
+            # Reviewer completed: clear their own pending/overdue ACs in a single query
+            ac_service.resolve_ac_batch(
+                article,
+                reviewer,
+                [
+                    ac_service.REVIEWER_INVITATION_PENDING,
+                    ac_service.REVIEWER_REPORT_OVERDUE,
+                ],
+            )
+            # The editor/EO/director "reviewer late" ACs aggregate over all
+            # reviewers: re-evaluate them instead of blind-resolving (another
+            # reviewer may still be late).
+            evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state_value, article=article)
+            evaluator._evaluate_code(ac_service.REVIEWER_LATE)
+            evaluator._evaluate_code(ac_service.REVIEWER_LATE_ESCALATED)
+            evaluator._evaluate_code(ac_service.REVIEWER_INACTIVE)
+
+            # Check if all assignments are now completed -> notify editor
+            if conditions.all_assignments_completed(article):
+                ac_service.upsert_for_role(
+                    article,
+                    "editor",
+                    ac_service.REVIEWS_COMPLETED,
+                    "Review(s) completed. Decision should be made",
+                    priority=ac_service.get_ac_priority(
+                        article.articleworkflow.state_value, "editor", ac_service.REVIEWS_COMPLETED
+                    ),
+                )
+            else:
+                ac_service.resolve_for_role(article, "editor", ac_service.REVIEWS_COMPLETED)
+
             return assignment
 
 
@@ -2175,6 +2281,38 @@ class AuthorHandleRevision:
             self._delete_author_reminders()
             self._create_editor_should_select_reviewer_reminders()
             self._log_operation()
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            article = self.revision.article
+            # Author submitted revision: clear all their late ACs
+            ac_service.resolve_for_role_batch(
+                article,
+                "author",
+                [
+                    ac_service.AUTHOR_REVISION_LATE,
+                    ac_service.AUTHOR_METADATA_LATE,
+                ],
+            )
+            # Also clear escalated views for editor/EO
+            ac_service.resolve_for_role_batch(
+                article,
+                "editor",
+                [
+                    ac_service.AUTHOR_REVISION_LATE_ESCALATED,
+                    ac_service.AUTHOR_METADATA_LATE_ESCALATED,
+                ],
+            )
+            ac_service.resolve_for_role_batch(
+                article,
+                "eo",
+                [
+                    ac_service.AUTHOR_REVISION_LATE_ESCALATED,
+                    ac_service.AUTHOR_METADATA_LATE_ESCALATED,
+                ],
+            )
+
             return self.revision
 
 
@@ -2242,10 +2380,45 @@ class DeselectReviewer:
 
     def run(self) -> bool:
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValueError(_("Transition conditions not met"))
             success = self._withdraw_assignment()
+
+            # -- Materialized AC updates --
+            from . import ac_service, conditions
+
+            article = self.assignment.article
+            reviewer = self.assignment.reviewer
+
+            # Reviewer deselected: clear their own pending/overdue ACs in a single query
+            ac_service.resolve_ac_batch(
+                article,
+                reviewer,
+                [
+                    ac_service.REVIEWER_INVITATION_PENDING,
+                    ac_service.REVIEWER_REPORT_OVERDUE,
+                ],
+            )
+            # The editor/EO/director "reviewer late" ACs aggregate over all
+            # reviewers: re-evaluate them instead of blind-resolving (removing
+            # the late reviewer is exactly what may clear the editor's flag).
+            evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state_value, article=article)
+            evaluator._evaluate_code(ac_service.REVIEWER_LATE)
+            evaluator._evaluate_code(ac_service.REVIEWER_LATE_ESCALATED)
+            evaluator._evaluate_code(ac_service.REVIEWER_INACTIVE)
+
+            # Re-evaluate: does the article now need assignment?
+            if conditions.needs_assignment(article):
+                ac_service.upsert_for_role(
+                    article,
+                    "editor",
+                    ac_service.NEEDS_ASSIGNMENT,
+                    "Review process should start/restart",
+                    priority=ac_service.get_ac_priority(
+                        article.articleworkflow.state_value, "editor", ac_service.NEEDS_ASSIGNMENT
+                    ),
+                )
+
             return success
 
 
@@ -2306,8 +2479,7 @@ class WithdrawIncompleteReviews:
         return review_withdraw_message, review_withdraw_subject
 
     def run(self) -> list[WorkflowReviewAssignment]:
-        conditions = self.check_conditions()
-        if not conditions:
+        if not self.check_conditions():
             raise ValueError(_("Transition conditions not met"))
         assignments = []
         with transaction.atomic():
@@ -2926,6 +3098,15 @@ class HandleDecision:
         self.workflow.article.submission_data.feedback_uuid = None
         self.workflow.article.submission_data.save()
 
+    # -------------------------------------------------------------------
+    # AC hooks in this class:
+    #   - On any decision: resolve the ACs scoped to the state the article is
+    #     leaving, for ALL users (state change invalidates those conditions).
+    #     The daily task or next event-driven call will evaluate ACs for the
+    #     new state.
+    #   - This is the most impactful AC hook point: every state transition goes
+    #     through HandleDecision.
+    # -------------------------------------------------------------------
     def run(self) -> EditorDecision:
         with transaction.atomic():
             # Lock the workflow row and re-read its current state, to serialize concurrent decisions
@@ -2935,6 +3116,7 @@ class HandleDecision:
             # violating the unique constraint on (workflow, review_round, decision).
             self.workflow = ArticleWorkflow.objects.select_for_update().get(pk=self.workflow.pk)
             self.check_conditions()
+            initial_state = self.workflow.state
             decision = self._store_decision()
             self._handle_latex_pdf(decision)
             self._mark_send_review_file()
@@ -2943,6 +3125,19 @@ class HandleDecision:
                 getattr(self, handler)(decision)
                 self._delete_editor_reminders()
             self._delete_author_submission_log_files()
+
+            # -- Materialized AC updates --
+            # State transition: the previous state's ACs no longer apply, for
+            # ANY user (deciding editor, EO, director, leftover reviewer rows).
+            # The state map is the source of truth for what was in scope.
+            # HAS_UNREAD_MESSAGE is not state-scoped and correctly survives.
+            from . import ac_service
+
+            ac_service.resolve_all_for_article(
+                self.workflow.article,
+                codes=ac_service.ACStateEvaluator.STATE_AC_MAP.get(initial_state, ()),
+            )
+
             return decision
 
 
@@ -3069,8 +3264,7 @@ class PostponeRevisionRequestDueDate:
 
     def run(self):
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValidationError(_("Decision conditions not met"))
             context = self._get_message_context(self.original_due_date)
             self._save_date_due()
@@ -3317,6 +3511,18 @@ class HandleMessage:
                 self.message.attachments.add(attachment)
             self.message.emit_notification()
 
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # New message sent: create HAS_UNREAD_MESSAGE for the recipient
+            ac_service.upsert_ac(
+                self.message.target,
+                recipient,
+                ac_service.HAS_UNREAD_MESSAGE,
+                "You have unread messages",
+                priority=99,
+            )
+
 
 @dataclasses.dataclass
 class AdminActions:
@@ -3403,12 +3609,22 @@ class AdminActions:
 
     def run(self) -> Article:
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValidationError(_("Decision conditions not met"))
             handler = self._decision_handlers.get(self.decision, None)
             if handler:
                 workflow = getattr(self, handler)()
+
+            # -- Materialized AC updates --
+            # State may have changed (e.g., queued for assignment): evaluate
+            # ACs for the current state.
+            from .ac_service import ACStateEvaluator
+
+            ACStateEvaluator(
+                state=workflow.state_value,
+                article=workflow.article,
+            ).evaluate_all()
+
             return workflow
 
 
@@ -3540,8 +3756,7 @@ class PostponeReviewerDueDate:
 
     def run(self):
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValueError(_("Conditions not met"))
             self._save_reviewer_date_due()
             if self._report_postponed_far_future_date():
@@ -3594,10 +3809,62 @@ class BaseDeassignEditor:
 
     def run(self):
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValueError(_("Transition conditions not met"))
-            return self._delete_assignment()
+            result = self._delete_assignment()
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            article = self.assignment.article
+            # Editor deassigned: create EDITOR_NOT_SELECTED for EO and director
+            ac_service.upsert_for_role(
+                article,
+                "eo",
+                ac_service.EDITOR_NOT_SELECTED,
+                "Editor has not been selected",
+                priority=ac_service.get_ac_priority(
+                    article.articleworkflow.state_value, "eo", ac_service.EDITOR_NOT_SELECTED
+                ),
+            )
+            ac_service.upsert_for_role(
+                article,
+                "director",
+                ac_service.EDITOR_NOT_SELECTED,
+                "Editor should be selected",
+                priority=ac_service.get_ac_priority(
+                    article.articleworkflow.state_value, "director", ac_service.EDITOR_NOT_SELECTED
+                ),
+            )
+            # Clear the deassigned editor's own ACs. NB: resolve by explicit
+            # user, not by role: _delete_assignment() has already removed the
+            # assignment, so self.editor no longer holds the editor role.
+            ac_service.resolve_ac_batch(
+                article,
+                self.editor,
+                [
+                    ac_service.REVIEWER_LATE,
+                    ac_service.NEEDS_ASSIGNMENT,
+                    ac_service.REVIEWS_COMPLETED,
+                    ac_service.EDITOR_REVIEW_OVERDUE,
+                    ac_service.REVIEWER_INACTIVE,
+                ],
+            )
+            # The EO/director ACs about THIS editor being late no longer apply.
+            # (REVIEWER_LATE_ESCALATED stays: it is about the reviewers, who may
+            # still be assigned.)
+            ac_service.resolve_for_role_batch(
+                article,
+                "eo",
+                [ac_service.EDITOR_IS_LATE, ac_service.NEEDS_ASSIGNMENT_ESCALATED],
+            )
+            ac_service.resolve_for_role_batch(
+                article,
+                "director",
+                [ac_service.EDITOR_IS_LATE, ac_service.NEEDS_ASSIGNMENT_ESCALATED],
+            )
+
+            return result
 
 
 @dataclasses.dataclass
@@ -3928,13 +4195,21 @@ class OpenAppeal:
 
     def run(self):
         with transaction.atomic():
-            conditions = self.check_conditions()
-            if not conditions:
+            if not self.check_conditions():
                 raise ValueError(_("Transition conditions not met"))
             if not self._is_current_editor(self.article, self.new_editor):
                 self.update_editor()
             self._handle_decision()
             self._log_author()
+
+            # -- Materialized AC updates --
+            # Article is now in UnderAppeal state: evaluate ACs for the new state.
+            from .ac_service import ACStateEvaluator
+
+            ACStateEvaluator(
+                state="UnderAppeal",
+                article=self.article,
+            ).evaluate_all()
 
 
 @dataclasses.dataclass
@@ -4062,8 +4337,7 @@ class WithdrawPreprint:
 
     def run(self):
         with transaction.atomic():
-            conditions = self._check_conditions()
-            if not conditions:
+            if not self._check_conditions():
                 raise ValueError(_("Transition conditions not met"))
             self._close_review_assignments()
             # handler initialized before state update
@@ -4074,6 +4348,13 @@ class WithdrawPreprint:
             if assignment := self._get_typesetting_assignment():
                 self._log_typesetter(assignment)
             handler.run()
+
+            # -- Materialized AC updates --
+            # Article withdrawn: resolve all active ACs.
+            from . import ac_service
+
+            ac_service.resolve_all_for_article(self.workflow.article)
+
             return
 
 

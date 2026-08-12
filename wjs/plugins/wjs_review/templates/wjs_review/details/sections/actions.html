@@ -4,16 +4,16 @@
 {% endif %}
 {% if pending_proofs_version %}
   <div id="production" class="card border border-1 mb-4">
-    <h2 class="card-header fw-bolder fs-5">{% translate "Production" %}</h2>
+    <h2 class="card-header fw-bolder fs-4">{% translate "Production" %}</h2>
     <div class="card-body">
-      {% include "wjs_review/details/elements/production_galleyproofing.html" with version=pending_proofs_version %}
+      {% include "wjs_review/details/elements/production_galleyproofing.html" with version=pending_proofs_version heading_level=3 %}
     </div>
   </div>
 {% endif %}
 {% get_article_actions workflow "" as actions %}
 {% get_article_buttons workflow "" as buttons %}
 <div class="card border border-1 mb-4">
-  <h2 class="card-header fw-bolder fs-5">{% translate "Actions" %}</h2>
+  <h2 class="card-header fw-bolder fs-4">{% translate "Actions" %}</h2>
   {% if actions %}
     <div class="card-body">
       <ul class="nav flex-column nav--colored-dot">

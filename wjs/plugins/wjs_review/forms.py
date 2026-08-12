@@ -39,7 +39,7 @@ from wjs.jcom_profile.models import WjsMiniHTMLFormField, WjsSimpleBleach
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
-from . import communication_utils, conditions
+from . import ac_service, communication_utils, conditions
 from .communication_utils import MESSAGE_TYPE_ICONS
 from .logic import (
     AssignToEditor,
@@ -1191,11 +1191,32 @@ class MessageForm(forms.ModelForm):
         return instance
 
 
+# ---------------------------------------------------------------------------
+# AC updates for HAS_UNREAD_MESSAGE and OLD_UNREAD_MESSAGES are handled
+# inline in save().
+#
+# TODO (New Issue 6, 260318-SISSA-Specifications-for-attention-conditions.md):
+#   Refactor to use a logic class for message read-status updates, following
+#   the pattern used by HandleMessage. This would centralize AC updates.
+# ---------------------------------------------------------------------------
+
+
 class ToggleMessageReadForm(forms.ModelForm):
 
     class Meta:
         model = MessageRecipients
         fields = ["read"]
+
+    def save(self, commit: bool = True) -> MessageRecipients:
+        """Toggle read status and re-evaluate HAS_UNREAD_MESSAGE for the user."""
+        instance = super().save(commit=commit)
+        # Re-evaluate HAS_UNREAD_MESSAGE: if the user has no remaining unread
+        # messages on the article, resolve the AC.
+        if isinstance(instance.message.target, Article):
+            article = instance.message.target
+            if not conditions._has_unread_message(article, instance.recipient):
+                ac_service.resolve_ac(article, instance.recipient, ac_service.HAS_UNREAD_MESSAGE)
+        return instance
 
 
 class ToggleMessageReadByEOForm(forms.ModelForm):
@@ -1213,6 +1234,17 @@ class ToggleMessageReadByEOForm(forms.ModelForm):
             message=instance,
             recipient=get_eo_user(instance.target),
         ).update(read=instance.read_by_eo)
+
+        # -- Materialized AC updates --
+        # Message marked as read by EO: re-evaluate OLD_UNREAD_MESSAGES
+        # and HAS_UNREAD_MESSAGE for the EO user.
+        if isinstance(instance.target, Article):
+            article = instance.target
+            eo_user = get_eo_user(article)
+            if not conditions._has_unread_message(article, eo_user):
+                ac_service.resolve_for_role(article, "eo", ac_service.OLD_UNREAD_MESSAGES)
+                ac_service.resolve_ac(article, eo_user, ac_service.HAS_UNREAD_MESSAGE)
+
         return self.instance
 
 
@@ -1618,6 +1650,17 @@ class TimelineFilterForm(forms.Form):
     )
 
 
+# ---------------------------------------------------------------------------
+# AC updates for MISSING_SOCIAL_MEDIA and MISSING_ENGLISH_CONTENT are handled
+# inline in save().
+#
+# Note: Article.meta_image is also writable via core ArticleMetaImageForm
+# (janeway/src/core/forms/forms.py). That path is handled by a monkey-patch
+# in apps.py. Django admin is not used in production and is covered by the
+# daily rebuild_attention_conditions task.
+# ---------------------------------------------------------------------------
+
+
 class ArticleExtraInformationUpdateForm(forms.ModelForm):
     social_media_image = forms.ImageField(
         required=False,
@@ -1685,6 +1728,18 @@ class ArticleExtraInformationUpdateForm(forms.ModelForm):
             instance.article.title_en = self.cleaned_data["english_title"]
             instance.article.abstract_en = self.cleaned_data["english_abstract"]
             instance.article.save()
+
+        # -- Materialized AC updates --
+        # Re-evaluate MISSING_SOCIAL_MEDIA and MISSING_ENGLISH_CONTENT after
+        # the fields that determine them have been updated.
+        article = instance.article
+        if article.articleworkflow.state == "ReadyForPublication":
+            from .ac_service import ACStateEvaluator
+
+            evaluator = ACStateEvaluator(state="ReadyForPublication", article=article)
+            evaluator._evaluate_code(ac_service.MISSING_SOCIAL_MEDIA)
+            evaluator._evaluate_code(ac_service.MISSING_ENGLISH_CONTENT)
+
         return instance
 
 
@@ -2080,6 +2135,17 @@ class EditorDeclinesAssignmentForm(forms.Form):
         return self.instance
 
 
+# ---------------------------------------------------------------------------
+# AC updates for time-based ACs affected by reminder enable/disable are
+# handled inline in save() via evaluate_time_based().
+#
+# TODO (New Issue 10, 260318-SISSA-Specifications-for-attention-conditions.md):
+#   Refactor to use a logic class for reminder enable/disable, following the
+#   pattern used by other DML operations (e.g., BaseAssignToEditor). This would
+#   centralize AC updates and make the write path consistent.
+# ---------------------------------------------------------------------------
+
+
 class ToggleDisableRemindersForm(forms.ModelForm):
     class Meta:
         model = Reminder
@@ -2088,7 +2154,24 @@ class ToggleDisableRemindersForm(forms.ModelForm):
     def save(self, commit=True):
         self.instance.refresh_from_db()
         self.instance.disabled = not self.instance.disabled
-        return super().save(commit=commit)
+        instance = super().save(commit=commit)
+
+        # -- Materialized AC updates --
+        # Re-evaluate time-based ACs for the article. NB: condition functions
+        # currently ignore Reminder.disabled (they only check date_sent), so
+        # the toggle itself cannot change any AC: this is just an opportunistic
+        # refresh. If "late" becomes due-date-aware for disabled reminders
+        # (see the reminders-vs-late issue), this hook becomes effective.
+        article = instance.get_related_article()
+        if article and hasattr(article, "articleworkflow"):
+            from .ac_service import ACStateEvaluator
+
+            ACStateEvaluator(
+                state=article.articleworkflow.state_value,
+                article=article,
+            ).evaluate_time_based()
+
+        return instance
 
 
 class EditorRevisionRequestForm(forms.ModelForm):

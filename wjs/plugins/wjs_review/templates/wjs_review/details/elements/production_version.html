@@ -1,29 +1,29 @@
 {% load django_bootstrap5 i18n wjs_review %}
 <div class="accordion-item">
-  <h2 class="accordion-header" id="production-{{ version.number }}">
+  <h3 class="accordion-header" id="production-{{ version.number }}">
     <button class="accordion-button {% if not version.latest %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-production-{{ version.number }}"
             aria-expanded="{% if version.latest %} true{% else %}false{% endif %}" aria-controls="collapse-production-{{ version.number }}">
       {% translate "Version" %} {{ version.number }}
     </button>
-  </h2>
+  </h3>
   <div id="collapse-production-{{ version.number }}" class="accordion-collapse collapse{% if version.latest or version == pending_proofs_version %} show{% endif %}" aria-labelledby="production-{{ version.number }}">
     <div class="accordion-body d-flex flex-column gap-2">
       {% if version.has_typesetter_files or version.has_proofing_files_or_notes %}
-        <h5>
+        <h4>
           {% translate "Version files" %}
-        </h5>
+        </h4>
         <div class="d-flex flex-column gap-2">
           {% if workflow|is_user_article_typesetter:request.user or workflow|is_user_article_supervisor:request.user %}
             {% include "wjs_review/details/elements/production_typesetting.html" %}
             <hr>
-            {% include "wjs_review/details/elements/production_galleyproofing.html" %}
+            {% include "wjs_review/details/elements/production_galleyproofing.html" with heading_level=5 %}
           {% endif %}
           {% if workflow|is_user_article_author:request.user and version.has_proofing_files_or_notes %}
-            {% include "wjs_review/details/elements/production_galleyproofing.html" %}
+            {% include "wjs_review/details/elements/production_galleyproofing.html" with heading_level=5 %}
           {% endif %}
         </div>
       {% else %}
-        <h6>{% translate "No file uploaded yet" %}</h6>
+        <h4>{% translate "No file uploaded yet" %}</h4>
       {% endif %}
     </div>
   </div>

@@ -15,10 +15,10 @@
 </script>
 
 <div id="messages-list">
-  <div class="container mb-3">
-    <div class="d-flex justify-content-between">
-      <h1 class="page-title">{{ view.title }}</h1>
-      <form id="id_filter_form" class="mb-4" hx-get="{{ filter_url }}" hx-target="#messages-list">
+  <div class="container mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <h1 class="fw-bold fs-3 mb-0">{{ view.title }}</h1>
+      <form id="id_filter_form" hx-get="{{ filter_url }}" hx-target="#messages-list">
         <div class="d-flex justify-content-end">
           {% bootstrap_field filter.form.actor_recipients show_label=False wrapper_class="me-3" addon_before='<i class="bi bi-funnel"></i>' %}
           {% bootstrap_field filter.form.type show_label=False wrapper_class="me-3" %}
@@ -31,7 +31,7 @@
   </div>
   {% regroup messages_list by date as messages_by_day %}
   {% for by_day in messages_by_day %}
-    <h2 class="text-center"><b>{{ by_day.grouper }}</b></h2>
+    <h2 class="text-center fs-4"><b>{{ by_day.grouper }}</b></h2>
     {% for message in by_day.list %}
       {% include "wjs_review/article_messages/elements/message.html" %}
     {% endfor %}

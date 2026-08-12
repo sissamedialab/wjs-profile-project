@@ -9,8 +9,15 @@
     this toggles the value inside the checkbox before the submit is triggered
   {% endcomment %}
   <form name="form-toggle-{{ message.pk }}" autocomplete="off" hx-target="#read-toggle-{{ message.pk }}-{{ user.id }}" hx-post="{{ toggle_read_url }}" hx-trigger="change" hx-swap="outerHTML">
-    {% bootstrap_field form.read wrapper_class="d-none" %}
-    <label class="btn btn-sm {% if form.read.value %}ybtn-secondary{% else %}btn-success text-white{% endif %}" for="{{ form.read.auto_id }}">
+    <div class="d-none" aria-hidden="true">
+      {{ form.read }}
+    </div>
+    <label class="btn btn-sm {% if form.read.value %}btn-success{% else %}btn-danger text-white{% endif %}"
+           for="{{ form.read.auto_id }}"
+           role="checkbox"
+           aria-checked="{% if message.read %}true{% else %}false{% endif %}"
+           tabindex="0"
+           onkeydown="if(event.key===' '){event.preventDefault();this.click();}">
       {% if form.read.value %}
         <i class="bi bi-envelope-fill"></i> Mark as unread
       {% else %}

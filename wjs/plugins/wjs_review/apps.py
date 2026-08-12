@@ -1,4 +1,7 @@
 from django.apps import AppConfig
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class WjsReviewConfig(AppConfig):
@@ -8,10 +11,15 @@ class WjsReviewConfig(AppConfig):
     verbose_name = "WJS Review plugin"
 
     def ready(self):
-        """Monkeypatch AccountQuerySet / AccountManager."""
+        """Monkeypatch AccountQuerySet / AccountManager and ArticleMetaImageForm."""
         from core.models import AccountManager, AccountQuerySet
 
         from . import signals, users  # noqa: F401
+
+        # Monkeypatch ArticleMetaImageForm.save to re-evaluate MISSING_SOCIAL_MEDIA
+        # after the meta_image field is updated. This form lives in Janeway core
+        # and cannot be modified directly.
+        self._patch_article_meta_image_form()
 
         # Monkeypatch AccountQuerySet / AccountManager to add custom method
         # We have to do both classes to be able to use the function both as
@@ -62,6 +70,39 @@ class WjsReviewConfig(AppConfig):
         AccountQuerySet.annotate_ordering_score = users.annotate_ordering_score
 
         self.register_events()
+
+    @staticmethod
+    def _patch_article_meta_image_form() -> None:
+        """Monkey-patch ArticleMetaImageForm.save to re-evaluate MISSING_SOCIAL_MEDIA.
+
+        ArticleMetaImageForm lives in Janeway core (core/forms/forms.py) and
+        cannot be modified from wjs-profile-project. This patch adds AC
+        re-evaluation after the meta_image field is saved.
+        """
+        # These imports cannot live at module level: apps.py is loaded while
+        # Django is still building the app registry, before models are ready.
+        from core.forms.forms import ArticleMetaImageForm
+
+        from .ac_service import MISSING_SOCIAL_MEDIA, ACStateEvaluator
+        from .models import ArticleWorkflow
+
+        _original_save = ArticleMetaImageForm.save
+
+        def _patched_save(self, commit=True):
+            article = _original_save(self, commit)
+            if not hasattr(article, "articleworkflow"):
+                logger.error(
+                    f"Article {article.id} has no ArticleWorkflow."
+                    " Did you forget to run `create_workflows_for_past_articles` after an import?",
+                )
+                return article
+            if article.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION:
+                ACStateEvaluator(state=article.articleworkflow.state, article=article)._evaluate_code(
+                    MISSING_SOCIAL_MEDIA,
+                )
+            return article
+
+        ArticleMetaImageForm.save = _patched_save
 
     def register_events(self):
         """Register our function in Janeway's events logic."""
