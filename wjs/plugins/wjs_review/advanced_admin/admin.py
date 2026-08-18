@@ -1,8 +1,15 @@
+from django import forms
 from django.apps import apps
 from django.contrib import admin
-from django.http import HttpRequest
+from django.db.models import Q
+from django.db.models.functions import Lower
+from django.http import HttpRequest, HttpResponseRedirect
+from django.shortcuts import render
+from django.urls import path, reverse
+from submission.models import Article, FrozenAuthor
 from wjs.advanced_admin.admin import advanced_admin_site
 
+from ..ac_service import evaluate_blacklisted_author
 from .forms import WorkflowReviewAssignmentForm
 
 WjsSection = apps.get_model("wjs_review", "WjsSection")
@@ -278,3 +285,153 @@ class EditorDecisionAdmin(admin.ModelAdmin):
         :rtype: str
         """
         return obj.get_decision_display()
+
+
+# -- Blacklisted author emails --
+
+BlacklistedAuthorEmail = apps.get_model("wjs_review", "BlacklistedAuthorEmail")
+
+
+class BlacklistedEmailBulkForm(forms.Form):
+    """Form for bulk-adding blacklisted emails via a textarea."""
+
+    emails = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 20, "cols": 80}),
+        help_text=(
+            "One email per line. Optionally append a note after a comma, "
+            'e.g. "bad.author@example.com, Reason for blacklist".'
+        ),
+        required=True,
+    )
+
+
+@admin.register(BlacklistedAuthorEmail, site=advanced_admin_site)
+class BlacklistedAuthorEmailAdmin(admin.ModelAdmin):
+    """Admin interface for managing blacklisted author emails.
+
+    Supports individual CRUD and a custom admin action for bulk loading
+    a list of emails (one per line, optionally with a note after a comma).
+    """
+
+    list_display = ["email", "note", "created_at"]
+    search_fields = ["email", "note"]
+    list_filter = ["created_at"]
+    ordering = ("email",)
+    change_list_template = "admin/wjs_review/blacklisted_authoremail/change_list.html"
+
+    def get_urls(self):
+        """Add a custom URL for the bulk-add view."""
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "bulk-add/",
+                self.admin_site.admin_view(self.bulk_add_view),
+                name="blacklisted_authoremail_bulk_add",
+            ),
+        ]
+        return custom_urls + urls
+
+    @staticmethod
+    def _reevaluate_articles_for_emails(emails: list[str]) -> None:
+        """Re-evaluate the blacklisted-author AC for articles matching the given emails.
+
+        Finds all articles that have a FrozenAuthor whose email (frozen or
+        linked account) matches any of the given emails, then calls
+        :func:`ac_service.evaluate_blacklisted_author` for each.
+
+        This ensures that when the EO adds or removes a blacklisted email via
+        the admin, the attention conditions on existing articles are updated
+        immediately—not only at the next nightly rebuild.
+
+        See issue #2980.
+        """
+        emails_lower = [e.lower() for e in emails if e]
+        if not emails_lower:
+            return
+        article_ids = (
+            FrozenAuthor.objects.annotate(
+                lower_frozen_email=Lower("frozen_email"),
+                lower_author_email=Lower("author__email"),
+            )
+            .filter(Q(lower_frozen_email__in=emails_lower) | Q(lower_author_email__in=emails_lower))
+            .values_list("article_id", flat=True)
+            .distinct()
+        )
+        for article in Article.objects.filter(id__in=article_ids):
+            evaluate_blacklisted_author(article)
+
+    def save_model(self, request, obj, form, change):
+        """After saving a BlacklistedAuthorEmail, re-evaluate affected articles."""
+        super().save_model(request, obj, form, change)
+        self._reevaluate_articles_for_emails([obj.email])
+
+    def delete_model(self, request, obj):
+        """After deleting a BlacklistedAuthorEmail, re-evaluate affected articles.
+
+        The re-evaluation will resolve the AC on articles that no longer have
+        a matching blacklisted email.
+        """
+        email = obj.email
+        super().delete_model(request, obj)
+        self._reevaluate_articles_for_emails([email])
+
+    def delete_queryset(self, request, queryset):
+        """Bulk delete: re-evaluate affected articles after deletion."""
+        emails = list(queryset.values_list("email", flat=True))
+        super().delete_queryset(request, queryset)
+        self._reevaluate_articles_for_emails(emails)
+
+    def bulk_add_view(self, request: HttpRequest):
+        """Custom view for bulk-adding emails via a textarea."""
+        if request.method == "POST":
+            form = BlacklistedEmailBulkForm(request.POST)
+            if form.is_valid():
+                emails_text = form.cleaned_data["emails"]
+                added = 0
+                skipped = 0
+                processed_emails: list[str] = []
+                for line in emails_text.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Split email and optional note on the first comma
+                    if "," in line:
+                        email, note = line.split(",", 1)
+                        email = email.strip().lower()
+                        note = note.strip()
+                    else:
+                        email = line.lower()
+                        note = ""
+                    obj, created = BlacklistedAuthorEmail.objects.get_or_create(
+                        email=email,
+                        defaults={"note": note},
+                    )
+                    if created:
+                        added += 1
+                    else:
+                        skipped += 1
+                    processed_emails.append(email)
+                # Re-evaluate affected articles immediately.
+                self._reevaluate_articles_for_emails(processed_emails)
+                self.message_user(
+                    request,
+                    f"Bulk import complete: {added} added, {skipped} already existed.",
+                )
+                return HttpResponseRedirect(reverse("admin:blacklisted_authoremail_changelist"))
+        else:
+            form = BlacklistedEmailBulkForm()
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Bulk add blacklisted author emails",
+            "form": form,
+            "opts": self.model._meta,
+            "has_change_permission": True,
+            "has_view_permission": True,
+        }
+        return render(request, "admin/wjs_review/blacklisted_authoremail/bulk_add.html", context)
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["title"] = "Blacklisted author emails"
+        return super().changelist_view(request, extra_context=extra_context)
