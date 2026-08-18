@@ -43,7 +43,7 @@
             <th colspan="3">{% translate "License" %}</th>
           </tr>
           <tr>
-            <td colspan="3">{{ article.license|default:"-" }}</td>
+            <td colspan="3">{% if article.license %}{{ article.license.name }}{% else %}-{% endif %}</td>
           </tr>
           <tr>
             <th colspan="3">{% translate "Copyright" %}</th>
