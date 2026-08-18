@@ -3,9 +3,41 @@ from pathlib import Path
 from wjs.defaults.settings import *  # noqa
 
 DEBUG=True
-Q_CLUSTER["sync"] = False
-Q_CLUSTER["retry"] = 320
-Q_CLUSTER["timeout"] = 300
+
+# Redis DB layout on this machine (see also CACHES below).
+# Beware: `cache.clear()` (django_redis) issues a raw FLUSHDB, so anything sharing a DB with
+# the "default" cache is destroyed along with it. Keep the three concerns on separate DBs:
+# - {{ redis_db }} - this instance's cache; the ONLY DB that ever gets flushed
+# - 10  - task queues of *all* instances; sharing is safe because django-q namespaces the queue
+#         key by Q_CLUSTER["name"] -> "django_q:{{ full_name }}:q"
+# - 11  - sessions of *all* instances; sharing is safe thanks to the per-instance KEY_PREFIX
+# - 0   - channels of *all* instances; sharing is safe thanks to the per-instance prefix
+#         (see CHANNEL_LAYERS below)
+Q_CLUSTER = {
+    "name": "{{ full_name }}",
+    "label": "Task WJS {{ full_name }}",
+    "workers": 1,
+    "sync": False,
+    "redis": "redis://localhost:6379/10",
+    "retry": 330,
+    "timeout": 300,
+}
+
+# Override the inherited CHANNEL_LAYERS only to set a per-instance prefix: all instances share
+# Redis DB 0 here, and the group names we use (e.g. "group_{feedback_ws_name}", see
+# wjs/channels/consumers.py) are not unique across instances, so without this a WebSocket message
+# sent by one instance would be delivered to clients connected to another.
+# The trailing ":" keeps one instance's keys from being a prefix of another's (t1 vs t10), which
+# matters for the wildcard delete in RedisChannelLayer.flush().
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+            "prefix": "asgi-{{ full_name }}:",
+        },
+    },
+}
 
 USE_X_FORWARDED_PORT = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -40,16 +72,21 @@ EMAIL_PORT = 1025
 EMAIL_USE_TLS = False
 
 CACHES = {
+    # This instance owns DB {{ redis_db }} outright: `cache.clear()` FLUSHDBs it, and that is fine
+    # as long as nothing else lives here. Do not point the queue or the sessions at it.
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
+        "LOCATION": "redis://127.0.0.1:6379/{{ redis_db }}",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
     },
+    # Sessions must survive a `cache.clear()`, hence a separate DB. It is shared with the other
+    # instances, so KEY_PREFIX is what keeps them apart.
     "session": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/2",
+        "LOCATION": "redis://127.0.0.1:6379/11",
+        "KEY_PREFIX": "{{ full_name }}",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
@@ -58,3 +95,95 @@ CACHES = {
 
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "session"
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "root": {
+        "level": "DEBUG",  # credo che debba essere <= del livello dell'handler più basso
+        "handlers": ["console", "log_file"],
+    },
+    "formatters": {
+        "default": {
+            "format": "%(levelname)s %(asctime)s %(module)s P:%(process)d T:%(thread)d %(message)s",
+        },
+        "coloured": {
+            "()": "colorlog.ColoredFormatter",
+            "format": "%(log_color)s%(levelname)s %(asctime)s M:%(module)s: %(message)s",
+            "log_colors": {
+                "DEBUG": "cyan",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red,bg_white",
+            },
+        },
+    },
+    "handlers": {
+        "console": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "formatter": "coloured",
+            "stream": "ext://sys.stdout",
+        },
+        "log_file": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "maxBytes": 1024 * 1024 * 100,  # 50 MB
+            "backupCount": 3,
+            "filename": os.path.join(BASE_DIR, "..", "logs", "janeway-debug.log"),
+            "formatter": "coloured"
+        },
+    },
+    # to ge the logger names, add "%(name)s" to the formatter
+    "loggers": {
+        "django.db.backends": {
+            "level": "WARNING",
+            "handlers": ["console", "log_file"],
+            "propagate": False,
+        },
+        "daphne.http_protocol": {
+            "level": "WARNING",
+        },
+        "parso.python.diff": {
+            "level": "WARNING",
+        },
+        "parso.cache": {
+            "level": "WARNING",
+        },
+        "asyncio": {
+            "level": "WARNING",
+        },
+        "core.include_urls": {
+            "level": "WARNING",
+        },
+        "urllib3.connectionpool": {
+            "level": "WARNING",
+        },
+        # pdfminer is very verbose (disturbingly so when running an "import_from_wjapp")
+        "pdfminer.psparser": {
+            "level": "WARNING",
+        },
+        "pdfminer.pdfparser": {
+            "level": "WARNING",
+        },
+        "pdfminer.cmapdb": {
+            "level": "WARNING",
+        },
+        "pdfminer.pdfinterp": {
+            "level": "WARNING",
+        },
+        "pdfminer.pdfdocument": {
+            "level": "WARNING",
+        },
+        "pdfminer.pdfpage": {
+            "level": "WARNING",
+        },
+        "pdfminer.pdffont": {
+            "level": "WARNING",
+        },
+        "pdfminer.encodingdb": {
+            "level": "WARNING",
+        },
+    },
+}
