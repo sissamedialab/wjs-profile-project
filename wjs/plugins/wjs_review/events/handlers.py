@@ -379,8 +379,22 @@ def send_access_mode_special_requirements_notification_(**kwargs) -> None:
 
 
 def clear_cache(**kwargs) -> None:
-    """Clear Django cache."""
-    django_cache.clear()
+    """Drop the Django cache, so that the just-published article shows up on the site.
+
+    Use `delete_pattern()` rather than `clear()`: the latter maps onto a raw FLUSHDB, which
+    ignores KEY_PREFIX and wipes the whole Redis DB, including keys that belong to whatever
+    else happens to share it (task queue, sessions, ...). `delete_pattern()` is scoped to this
+    cache's key prefix and version.
+
+    The pattern cannot be any narrower than "*": Janeway caches through
+    `utils.function_cache.cache`, whose keys are bare sha1 digests with no namespace, so there
+    is no way to match only the entries that a publication invalidates.
+    """
+    if hasattr(django_cache, "delete_pattern"):
+        django_cache.delete_pattern("*", itersize=65_536)
+    else:
+        # Not a Redis backend (e.g. LocMemCache, used by the test settings).
+        django_cache.clear()
 
 
 def assign_issue_as_primary(article, issue, user):

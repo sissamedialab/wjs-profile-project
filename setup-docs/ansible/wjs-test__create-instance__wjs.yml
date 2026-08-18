@@ -7,7 +7,16 @@
 #
 # Call as
 #  export POSTGRES_PASSWORD="***"
-# ansible-playbook wjs-test__create-instance__wjs.yml wjs-test__create-instance__root.yml  -e instance="aaa"
+# ansible-playbook wjs-test__create-instance__wjs.yml wjs-test__create-instance__root.yml  -e instance=t3 -e redis=3
+#
+# For "redis", use
+# - t1 --> 1
+# - t2 --> 2
+# - t3 --> 3
+# - t4 --> 4
+# - t5 --> 5
+# - dev --> 13
+# - pp --> 14
 #
 # NB: check the postgres password on the remote .pgpass!
 #
@@ -26,6 +35,7 @@
     wjs_user_id: 1000
     postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('cambiami-please', true) }}"
     instance_name: "{{ instance | default('aaa') }}"
+    redis_db: "{{ redis }}"
     suffix: "{{ ('-') + instance_name if (instance_name)  else ('') }}"
     full_name: "janeway{{ suffix }}"
     workon_home: /home/wjs/.virtualenvs/
@@ -35,6 +45,20 @@
     ansible_ssh_common_args: "-o ForwardAgent=yes"
 
   tasks:
+    - name: Check that redis_db is usable
+      # DB 10 holds the task queues and DB 11 the sessions (both shared between instances),
+      # DB 0 is used by channels. The instance cache must have a DB to itself, because
+      # `cache.clear()` flushes the whole DB. See config/django_settings.py.j2.
+      # Redis serves DBs 0..15 unless "databases" is raised in redis.conf.
+      assert:
+        that:
+          - redis_db | int(-1) >= 1
+          - redis_db | int(-1) <= 15
+          - redis_db | int(-1) not in [10, 11]
+        fail_msg: >-
+          redis_db is "{{ redis_db }}": pass a free DB index with -e redis=N
+          (1..15, excluding 10 and 11).
+
     - name: Clone Janeway repo
       # See also wjs-setup-user.yml
       # Note that to clone a private repo we need
