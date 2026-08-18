@@ -146,7 +146,7 @@ class Command(BaseCommand):
                 licence, __ = Licence.objects.get_or_create(
                     journal=journal, short_name=data["licence"], defaults={"name": data["licence"]}
                 )
-                user_selectable = access_mode_code in ["open-access", "subscription"]
+                user_selectable = access_mode_code in ["open-access", "subscription", "open-access-paid"]
                 access_mode, __ = AccessMode.objects.get_or_create(
                     code=access_mode_code,
                     defaults={"name": access_modes[access_mode_code], "user_selectable": user_selectable},
