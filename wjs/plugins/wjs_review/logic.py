@@ -42,7 +42,7 @@ from channels.layers import get_channel_layer
 # There are many "File" classes; I'll use core_models.File in typehints for clarity.
 from core import files as core_files
 from core import models as core_models
-from core.models import AccountRole, Role, SupplementaryFile
+from core.models import AccountRole, ControlledAffiliation, Role, SupplementaryFile
 from dateutil.parser import parse
 from django import forms
 from django.conf import settings
@@ -1915,8 +1915,10 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
             self.revision.authors_contributions = authors_contributions
         if owner := self.revision_storage.data.get("owner"):
             self.article.owner_id = owner
-        if affiliation_country := self.revision_storage.data.get("affiliation_country"):
-            self.article.submission_data.affiliation_country_id = affiliation_country
+        if affiliation_pk := self.revision_storage.data.get("affiliation_pk"):
+            affiliation = ControlledAffiliation.objects.get(pk=affiliation_pk)
+            if affiliation_country := affiliation.organization.country:
+                self.article.submission_data.affiliation_country = affiliation_country
 
         FrozenAuthor.objects.filter(article=self.article).delete()
         article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage).order_by(
