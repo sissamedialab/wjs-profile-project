@@ -43,6 +43,9 @@
     python: "{{ venv_root }}/bin/python"
     pip: "{{ venv_root }}/bin/pip"
     ansible_ssh_common_args: "-o ForwardAgent=yes"
+    # Third-party Janeway plugin, cloned into src/plugins (see below)
+    hydra_repo: git@gitlab.sissamedialab.it:wjs/hydra.git
+    hydra_version: wjs-production
 
   tasks:
     - name: Check that redis_db is usable
@@ -211,6 +214,16 @@
         owner: wjs
         group: wjs
 
+    # Hydra is a third-party Janeway plugin (linking of articles across and within
+    # journals). It is not distributed as a python package, so we clone it directly
+    # into src/plugins, where Janeway picks it up (see core.plugin_installed_apps).
+    # The "install_plugins" call below (no arguments) registers it in the DB.
+    - name: Clone the hydra plugin
+      git:
+        repo: "{{ hydra_repo }}"
+        dest: "/home/wjs/{{ full_name }}/src/plugins/hydra"
+        version: "{{ hydra_version }}"
+        accept_hostkey: true
 
     - name: Setup the system
       command: "{{ item }}"

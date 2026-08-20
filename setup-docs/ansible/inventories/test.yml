@@ -1,0 +1,30 @@
+# Test / staging inventory. This is the DEFAULT one (see .envrc).
+#
+# Production lives in a separate file that is NOT loaded by default, so no
+# amount of mistyping a host pattern here can reach a production machine.
+# See inventories/prod.yml.
+#
+# The "janeway" group is the environment-agnostic entry point: playbooks that
+# are meant to run on both test and production target "hosts: janeway".
+# Playbooks that only ever make sense on a throw-away machine (create/delete
+# instance, mailpit, ...) keep targeting "hosts: test" on purpose.
+
+janeway:
+  children:
+    test:
+
+test:
+  hosts:
+    wjs-test:
+      # ansible_user: root
+      ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+      ansible_python_interpreter: /usr/bin/python3.11
+
+# Machine used for the one-off import/setup playbooks (wjs-setup*.yml).
+# Deliberately not a child of "janeway": those playbooks are not meant to be
+# re-run against a live instance.
+import:
+  hosts:
+    griffo.medialab.sissa.it:
+      # ansible_user: root
+      ansible_python_interpreter: /usr/bin/python3.13

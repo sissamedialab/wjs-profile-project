@@ -16,8 +16,6 @@ from django.utils.timezone import now
 from django.utils.translation import gettext as _
 from django_bleach.forms import BleachField as BleachFormField
 from journal.models import Issue, Journal
-from sortedm2m.fields import SortedManyToManyField
-from submission.models import Article
 from tinymce.widgets import TinyMCE
 
 from .constants import CAREER_STAGES, GENDER_CHOICES, PROFESSIONS
@@ -347,24 +345,6 @@ class Recipient(models.Model):
             return self.user.email
         else:
             return self.email
-
-
-class Genealogy(models.Model):
-    """Maintain relations of type parent/children between articles."""
-
-    parent = models.OneToOneField(
-        Article,
-        verbose_name=_("Introduction"),
-        on_delete=models.CASCADE,
-        related_name="genealogy",
-    )
-    children = SortedManyToManyField(
-        Article,
-        related_name="ancestors",
-    )
-
-    def __str__(self):
-        return f"Genealogy: article {self.parent} has {self.children.count()} kids"
 
 
 class Newsletter(models.Model):

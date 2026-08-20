@@ -63,6 +63,33 @@ In order for this to work you have to install `sudo apt install inotify-tools`.
 
 Installin plugins is handled by `link_plugins` management command which links plugins in janeway directory (if not present already) and run the plugin installation process if not linked yet.
 
+#### Third-party plugins: hydra
+
+[Hydra](https://gitlab.sissamedialab.it/wjs/hydra) links articles to each other
+(errata, addenda, commentary sets, translations, …) and journals to each other. It
+replaces the `Genealogy` model that used to live in `wjs.jcom_profile`.
+
+Hydra is **not** a python package, so `link_plugins` does not know about it: it must be
+cloned directly into Janeway's `src/plugins`, where Janeway picks it up automatically
+(see `core.plugin_installed_apps.load_plugin_apps`):
+
+```shell
+cd path/to/janeway/src/plugins
+git clone https://gitlab.sissamedialab.it/wjs/hydra.git
+cd ..
+python manage.py install_plugins hydra
+python manage.py migrate
+```
+
+This is done for you by:
+
+- `setup_environment` (CI and the local docker-compose environment); the repo and the ref
+  are overridable via the `HYDRA_REPO` and `HYDRA_REF` environment variables, see
+  `.gitlab-ci-run-tests.yml`
+- `setup-docs/ansible/wjs-test__create-instance__wjs.yml` when creating a test instance
+- `setup-docs/ansible/scripts/deploy.sh` for updates, via `deploy-<instance>-hydra`
+  (e.g. `deploy-dev-hydra`, `deploy-t3-hydra:0123abc`)
+
 ### Running CI-CD like setup
 
 To run CI-CD like setup, you can use the enclosed `docker-compose-test-local.yml` docker-compose file which mount

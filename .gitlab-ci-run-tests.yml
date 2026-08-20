@@ -2,6 +2,10 @@
   tags:
     - fast-test
   stage: test
+  # In order to change the janeway image used, either
+  # - git push -o ci.variable="JANEWAY_VERSION=abc123" ...
+  # - Build → Pipelines → New pipeline, add variable and run
+  #   https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/pipelines/new
   image: registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:${JANEWAY_VERSION}
 
   # NB: Must match with test_settings.DATABASES
@@ -14,6 +18,11 @@
     DJANGO_SETTINGS_MODULE: core.cicd_test_settings
     # used by `manage.py ...`:
     JANEWAY_SETTINGS_MODULE: core.cicd_settings
+    # Hydra is a third-party Janeway plugin (article/journal linking): `setup_environment`
+    # clones it into src/plugins. The job token needs wjs/hydra to allow this project in its
+    # "CI/CD job token allowlist" (Settings > CI/CD > Job token permissions).
+    HYDRA_REPO: "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.sissamedialab.it/wjs/hydra.git"
+    HYDRA_REF: "wjs-production"
     # Use the following after force-pushes:
     GIT_STRATEGY: clone
     # see e.g.:

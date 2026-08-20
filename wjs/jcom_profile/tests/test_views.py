@@ -519,3 +519,22 @@ def test_set_notify_hijack_normal_user(
         assert response.status_code == 302
         assert response["Location"].startswith("/JCOM/login/")
         assert "silent_hijack" not in client.session
+
+
+@pytest.mark.xfail
+@pytest.mark.django_db
+def test_admin_cannot_login(journal, admin):
+    """Background study.
+
+    Sembra che l'account admin (dalla fixture conftest.admin) non
+    riesca ad autenticarsi...
+
+    """
+    client = Client()
+    admin.jcomprofile.gdpr_checkbox = True
+    admin.jcomprofile.save()
+    client.force_login(admin)
+    response = client.get("/")
+    ru = response.wsgi_request.user
+    assert ru is not None
+    assert ru.is_authenticated
