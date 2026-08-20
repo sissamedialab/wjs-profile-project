@@ -23,7 +23,7 @@
 #
 # where
 # - <INSTANCE> is one of: prod pp dev t1 t2 t3 t4 t5
-# - <PACKAGE>  is one of: janeway profile submission themes search
+# - <PACKAGE>  is one of: janeway hydra profile submission themes search
 # - <SHA> is a commit SHA (or tag), required for t1-t5, forbidden elsewhere
 #
 # The deploy matrix is:
@@ -32,6 +32,9 @@
 # - dev: janeway is `git pull`ed from the wjs-develop branch (only);
 #   the other packages are pip-installed from git at wjs-develop
 # - t1-t5: like dev, but the caller must provide the commit SHA to deploy
+#
+# `hydra` is special: it is a Janeway plugin that is not distributed as a python
+# package, so it is `git pull`ed into src/plugins like janeway itself.
 #
 # Examples:
 # - deploy-pp-janeway --> deploy Janeway on the pre-production instance
@@ -58,7 +61,7 @@ function parse_command() {
     # Don't be too generous with the pattern here: watch out for sh injections!
     # Remember Bobby Tables https://xkcd.com/327/
     # ([[:alnum:]_] is enough for a SHA or a tag, and REF is only ever used quoted)
-    if [[ "$1" =~ ^deploy-(prod|pp|dev|t[1-5])-(janeway|profile|submission|themes|search)(:([[:alnum:]_]+))?$ ]]; then
+    if [[ "$1" =~ ^deploy-(prod|pp|dev|t[1-5])-(janeway|hydra|profile|submission|themes|search)(:([[:alnum:]_]+))?$ ]]; then
         INSTANCE="${BASH_REMATCH[1]}"
         PACKAGE="${BASH_REMATCH[2]}"
         REF="${BASH_REMATCH[4]}"
@@ -124,6 +127,8 @@ function set_instance_variables() {
     PIP="${VENV_BIN}/pip"
     PYTHON="${VENV_BIN}/python"
     MANAGE_DIR="${JANEWAY_ROOT}/src"
+    # Janeway plugins that are not python packages live inside the Janeway checkout
+    HYDRA_ROOT="${MANAGE_DIR}/plugins/hydra"
 }
 
 function set_package_variables() {
@@ -185,6 +190,20 @@ function deploy_janeway() {
     manage_setup
 }
 
+function deploy_hydra() {
+    # Hydra is a Janeway plugin, not a python package: it is cloned into
+    # ${MANAGE_DIR}/plugins, where Janeway finds it (see core.plugin_installed_apps).
+    # For prod/pp, GIT_REF is wjs-production; for dev it is wjs-develop; for t1-t5 it
+    # is the SHA given by the caller.
+    echo "Deploying hydra at ${GIT_REF} into ${HYDRA_ROOT}"
+    cd "$HYDRA_ROOT"
+    git pull --ff-only "https://${DEPLOY_TOKEN_USER}:${DEPLOY_TOKEN_PASSWORD}@${GITLAB_HOST}/wjs/hydra.git" "$GIT_REF"
+
+    cd "$MANAGE_DIR"
+    "$PYTHON" -mmanage install_plugins hydra
+    manage_setup
+}
+
 function deploy_package() {
     if [[ "$MODE" == "git" ]]; then
         echo "Installing ${PIP_NAME} from ${REPO} at ${GIT_REF}"
@@ -207,6 +226,8 @@ function main() {
     set_instance_variables
     if [[ "$PACKAGE" == "janeway" ]]; then
         deploy_janeway
+    elif [[ "$PACKAGE" == "hydra" ]]; then
+        deploy_hydra
     else
         set_package_variables
         deploy_package

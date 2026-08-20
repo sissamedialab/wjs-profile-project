@@ -31,7 +31,7 @@ from submission import models as submission_models
 from submission.models import FrozenAuthor, Keyword, Section
 from utils.logger import get_logger
 
-from . import forms
+from . import article_links, forms
 from . import permissions
 from . import permissions as base_permissions
 from .drupal_redirect_views import (  # noqa F401
@@ -824,9 +824,7 @@ class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
         )
 
         if self.exclude_children:
-            articles = articles.exclude(
-                ancestors__isnull=False,
-            )
+            articles = article_links.exclude_children(articles)
 
         if search_term:
             # if text search is used, articles are already ordered
