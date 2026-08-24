@@ -43,6 +43,7 @@
     python: "{{ venv_root }}/bin/python"
     pip: "{{ venv_root }}/bin/pip"
     ansible_ssh_common_args: "-o ForwardAgent=yes"
+    janeway_version: "{{ janeway | default('wjs-develop') }}"
     # Third-party Janeway plugin, cloned into src/plugins (see below)
     hydra_repo: git@gitlab.sissamedialab.it:wjs/hydra.git
     hydra_version: wjs-production
@@ -71,7 +72,7 @@
       git:
         repo: git@gitlab.sissamedialab.it:wjs/janeway.git
         dest: "/home/wjs/{{ full_name }}"
-        version: wjs-production
+        version: "{{ janeway_version }}"
         accept_hostkey: true
 
     - name: Create virtual env
