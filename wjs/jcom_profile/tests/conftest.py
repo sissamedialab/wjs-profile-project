@@ -71,23 +71,22 @@ random.seed(42)
 USERNAME = "user"
 JOURNAL_CODE = "JCOM"
 
-EXTRAFIELDS_FRAGMENTS = [
-    # Profession - a <select>
-    '<select name="profession"',
-    '<label class="control-label s12 ">Profession</label>',
-    # GDPR - a checkbox
-    # NB: this <input> has slightly different layouts in the profile form and in the
-    # registration form:
-    # - <input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox" />
-    # - <input type="checkbox" name="gdpr_checkbox" id="id_gdpr_checkbox" checked />
-    '<input type="checkbox" name="gdpr_checkbox" required id="id_gdpr_checkbox"',
-]
-
-EXTRAFIELDS_FRAGMENTS_JOURNAL = EXTRAFIELDS_FRAGMENTS + [
-    'privacy">Privacy Policy</a></span>',
-]
-EXTRAFIELDS_FRAGMENTS_PRESS = EXTRAFIELDS_FRAGMENTS + [
-    'privacy/">Privacy Policy</a></span>',
+# The fields that WJS adds to Janeway's forms, as XPath expressions.
+#
+# NB: these are deliberately structural. Asserting on raw HTML fragments ties the test
+# to whichever theme happens to render the page (the widgets carry materialize classes
+# under JCOM-theme and bootstrap5 ones under wjs-bootstrap), and the layout differs
+# between the profile form and the registration form anyway (only the latter marks the
+# GDPR checkbox `required`).
+EXTRAFIELDS_XPATHS = [
+    # Profession - a <select>, with its own label
+    "//select[@name='profession']",
+    "//label[contains(normalize-space(), 'Profession')]",
+    # GDPR - a checkbox whose label links to the privacy policy.
+    # We look for the link inside the label (the footer has one too), and we don't
+    # pin the href: it is /page-privacy on a journal and /page-privacy/ on the press.
+    "//input[@type='checkbox' and @name='gdpr_checkbox']",
+    "//label[@for='id_gdpr_checkbox']//a[contains(@href, 'privacy')]",
 ]
 
 ASSIGNMENT_PARAMETERS_LINK = (
@@ -425,8 +424,11 @@ def press(install_jcom_theme):
 
 
 def set_jcom_theme(journal):
-    """Set the journal's theme to JCOM-theme."""
-    theme = "JCOM-theme"
+    """Set the journal's theme to the theme that JCOM* journals use in production.
+
+    NB: this is wjs-bootstrap; JCOM-theme is stale and on its way out.
+    """
+    theme = "wjs-bootstrap"
     theme_setting = Setting.objects.get(name="journal_theme")
     setting_handler.save_setting(theme_setting.group.name, theme_setting.name, journal, theme)
     base_theme = "material"

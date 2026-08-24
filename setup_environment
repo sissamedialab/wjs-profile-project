@@ -25,6 +25,20 @@ cd /janeway/src/plugins && for p in `ls -1d ${CI_PROJECT_DIR}/wjs/plugins/wjs*`;
 cd /janeway/src/plugins && for p in `ls -1d /usr/local/lib/python3.11/site-packages/wjs/plugins/wjs*`; do ln -s $p; done
 cd /janeway/src
 
+info "Cloning third-party plugins..."
+# Hydra (linking of articles across and within journals) is not distributed as a
+# python package, so we clone it at a pinned ref. Any directory in src/plugins is
+# automatically added to INSTALLED_APPS by Janeway (see core.plugin_installed_apps),
+# and the `install_plugins` call below registers it in the DB.
+# Keep in sync with setup-docs/ansible/wjs-test__create-instance__wjs.yml and
+# setup-docs/ansible/scripts/deploy.sh
+HYDRA_REPO=${HYDRA_REPO:-https://gitlab.sissamedialab.it/wjs/hydra.git}
+HYDRA_REF=${HYDRA_REF:-wjs-production}
+rm -rf /janeway/src/plugins/hydra
+git clone --quiet "${HYDRA_REPO}" /janeway/src/plugins/hydra
+git -C /janeway/src/plugins/hydra checkout --quiet "${HYDRA_REF}"
+cd /janeway/src
+
 info "Copying settings modules..."
 cp ${CI_PROJECT_DIR}/cicd_* core
 

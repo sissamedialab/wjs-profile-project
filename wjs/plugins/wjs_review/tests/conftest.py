@@ -33,13 +33,13 @@ from events import logic as events_logic
 from identifiers.models import Identifier
 from journal.models import Issue, Journal
 from PIL import Image
+from plugins.hydra.models import LinkedArticle, LinkType
 from review import models as review_models
 from submission.models import Article, Section
 from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils import setting_handler
 from utils.install import update_settings
 
-from wjs.jcom_profile.models import Genealogy
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from ..events import ReviewEvent
@@ -374,8 +374,11 @@ def _assigned_to_typesetter_article_with_parent(
         title="Parent article",
         journal=article.journal,
     )
-    Genealogy.objects.create(parent=parent_article)
-    parent_article.genealogy.children.add(article)
+    LinkedArticle.objects.create(
+        from_article=parent_article,
+        to_article=article,
+        relationship=LinkType.COMMENTARY,
+    )
 
     parent_article.articleworkflow.latex_desc = "parent article desc"
     parent_article.articleworkflow.save()
@@ -862,13 +865,14 @@ def mock_jcomassistant_post():
 def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
     """Create an automatic preamble for JCOM."""
     preamble_text = """
-    {% load wjs_tex %}
+    {% load wjs_tags wjs_tex %}
     {% with article.title as title %}
     {% with article.date_accepted|date:"Y-m-d" as date_accepted %}
     {% with journal.code as journal %}
     {% with article.section.wjssection.pubid_and_tex_sectioncode as type_code %}
     {% with article.articleworkflow.latex_desc as latex_desc %}
-    {% with article.ancestors.first.parent.articleworkflow.latex_desc as latex_desc_parent %}
+    {% with article|article_parent as parent_article %}
+    {% with parent_article.articleworkflow.latex_desc as latex_desc_parent %}
     {% with article.primary_issue.issueparameters.latex_fragment as latex_desc_issue %}
     \\article{{{ title }}}
     \\accepted{{{ date_accepted }}}
@@ -877,6 +881,7 @@ def jcom_automatic_preamble(journal: journal_models.Journal):  # noqa
     \\latex_desc{{{ latex_desc }}}
     \\latex_desc_parent{{{ latex_desc_parent }}}
     \\subheader{{{ latex_desc_issue }}}
+    {% endwith %}
     {% endwith %}
     {% endwith %}
     {% endwith %}

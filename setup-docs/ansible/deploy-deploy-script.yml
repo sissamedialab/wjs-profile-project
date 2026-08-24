@@ -1,17 +1,38 @@
-# Deploy the deploy script (to deploy-2026.sh)
+# Deploy the deploy script (installed as /home/wjs/deploy.sh)
 #
-# Call as
+# Runs against both test and production; production is opt-in only (see
+# inventories/prod.yml and tasks/assert-production-opt-in.yml).
+#
+# The tokens come from the environment, in both cases:
 #  export DEPLOY_TOKEN_USER=***
 #  export DEPLOY_TOKEN_PASSWORD=***
-# ansible-playbook deploy-deploy-script.yml
+#
+# Test:
+#   ansible-playbook deploy-deploy-script.yml
+#
+# Production (note the explicit inventory and confirmation):
+#   ansible-playbook -i inventories/prod.yml deploy-deploy-script.yml -e confirm=PROD
+#
+# NB: the sshd ForceCommand of the deploy key must point to /home/wjs/deploy.sh.
+# That lives in the wjs user's authorized_keys and is *not* managed here, so a
+# change of destination path has to be paired with a manual edit on every machine.
 ---
 - name: Deploy the deploy script
-  hosts: test
+  hosts: janeway
   remote_user: wjs
+  # One machine at a time, and stop at the first failure rather than leaving the
+  # fleet with a half-updated deploy procedure.
+  serial: 1
+  any_errors_fatal: true
   vars:
     # default=undef() makes the playbook fail if the environment variable is not set
     DEPLOY_TOKEN_USER: "{{ lookup('env', 'DEPLOY_TOKEN_USER', default=undef()) }}"
     DEPLOY_TOKEN_PASSWORD: "{{ lookup('env', 'DEPLOY_TOKEN_PASSWORD', default=undef()) }}"
+
+  pre_tasks:
+
+    - name: Guard against unintended production runs
+      import_tasks: tasks/assert-production-opt-in.yml
 
   tasks:
 
@@ -20,21 +41,21 @@
       # to validate it as a shell script otherwise.
       ansible.builtin.copy:
         src: scripts/deploy.sh
-        dest: /home/wjs/deploy-2026.sh
+        dest: /home/wjs/deploy.sh
         owner: wjs
         group: wjs
         mode: '0755'
 
     - name: Set user to access the repo
       ansible.builtin.replace:
-        path: /home/wjs/deploy-2026.sh
+        path: /home/wjs/deploy.sh
         regexp: '^DEPLOY_TOKEN_USER=\*\*\*$'
         replace: "DEPLOY_TOKEN_USER={{ DEPLOY_TOKEN_USER }}"
       no_log: true
 
     - name: Set password to access the repo
       ansible.builtin.replace:
-        path: /home/wjs/deploy-2026.sh
+        path: /home/wjs/deploy.sh
         regexp: '^DEPLOY_TOKEN_PASSWORD=\*\*\*$'
         replace: "DEPLOY_TOKEN_PASSWORD={{ DEPLOY_TOKEN_PASSWORD }}"
       no_log: true

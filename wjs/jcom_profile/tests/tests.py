@@ -1,5 +1,6 @@
 """Tests (first attempt)."""
 
+import lxml.html
 import pytest
 from core.models import Account
 from django.test import Client
@@ -7,10 +8,7 @@ from journal.models import Journal
 
 from wjs.jcom_profile.forms import JCOMRegistrationForm
 from wjs.jcom_profile.models import JCOMProfile
-from wjs.jcom_profile.tests.conftest import (
-    EXTRAFIELDS_FRAGMENTS_JOURNAL,
-    EXTRAFIELDS_FRAGMENTS_PRESS,
-)
+from wjs.jcom_profile.tests.conftest import EXTRAFIELDS_XPATHS
 
 
 class TestJCOMProfileProfessionModelTests:
@@ -67,36 +65,39 @@ class TestJCOMProfileURLs:
         expected_register_link = f'/{journal.code}/plugins/register/step/1/"> Register'
         assert expected_register_link in response.content.decode()
 
-    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_JOURNAL)
+    @pytest.mark.parametrize("xpath", EXTRAFIELDS_XPATHS)
     @pytest.mark.django_db
-    def test_journal_registration_form_has_extrafields(self, journal, fragment):
+    def test_journal_registration_form_has_extrafields(self, journal, xpath):
         """The extra fields must appear in the **journal** registration form."""
         client = Client()
         response = client.get(f"/{journal.code}/register/step/1/")
-        assert fragment in response.content.decode()
+        html = lxml.html.fromstring(response.content.decode())
+        assert html.xpath(xpath)
 
     @pytest.mark.xfail
-    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_JOURNAL)
+    @pytest.mark.parametrize("xpath", EXTRAFIELDS_XPATHS)
     @pytest.mark.django_db
-    def test_journal_user_profile_form_has_extrafields(self, admin, journal, fragment):
+    def test_journal_user_profile_form_has_extrafields(self, admin, journal, xpath):
         """The extra fields must appear in the **journal** user profile form."""
         client = Client()
         client.force_login(admin)
         response = client.get(f"/{journal.code}/profile/")
 
         assert response.status_code == 200
-        assert fragment in response.content.decode()
+        html = lxml.html.fromstring(response.content.decode())
+        assert html.xpath(xpath)
 
     @pytest.mark.xfail
-    @pytest.mark.parametrize("fragment", EXTRAFIELDS_FRAGMENTS_PRESS)
+    @pytest.mark.parametrize("xpath", EXTRAFIELDS_XPATHS)
     @pytest.mark.django_db
-    def test_press_user_profile_form_has_extrafields(self, admin, press, fragment):
+    def test_press_user_profile_form_has_extrafields(self, admin, press, xpath):
         """The extra fields must appear in the **press** user profile form."""
         # The press "theme" is managed by INSTALLATION_BASE_THEME.
         client = Client()
         client.force_login(admin)
         response = client.get("/profile/")
-        assert fragment in response.content.decode()
+        html = lxml.html.fromstring(response.content.decode())
+        assert html.xpath(xpath)
 
 
 class TestJCOMWIP:

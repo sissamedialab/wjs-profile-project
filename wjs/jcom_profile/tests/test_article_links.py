@@ -4,40 +4,82 @@ In JCOM, Articles in section "commentary" can either be "introductory"
 or "invited". The invited ones are said to be children of the
 introductory one.
 
+The relations are stored by the hydra plugin; see
+`wjs.jcom_profile.article_links` for how WJS reads them.
+
 """
 
 import pytest
+from plugins.hydra.models import LinkedArticle, LinkType
 from submission import models as submission_models
 
+from wjs.jcom_profile import article_links
 from wjs.jcom_profile.factories import yesterday
-from wjs.jcom_profile.models import Genealogy
 
 
-class TestGenealogyModel:
+def link(parent, child, order=0, relationship=LinkType.COMMENTARY):
+    """Make `child` hang from `parent`."""
+    return LinkedArticle.objects.create(
+        from_article=parent,
+        to_article=child,
+        relationship=relationship,
+        order=order,
+    )
+
+
+@pytest.mark.django_db
+class TestArticleLinks:
     """Test adding, removing, reordering relations."""
 
-    @pytest.mark.django_db
     def test_add_and_delete(self, journal, article_factory):
         """Set one or more articles as children of another one."""
         parent = article_factory(title="I am the parent", journal=journal)
         c1 = article_factory(title="Child One", journal=journal)
         c2 = article_factory(title="Child Two", journal=journal)
 
-        genealogy = Genealogy.objects.create(parent=parent)
-        assert parent.genealogy == genealogy
-
-        parent.genealogy.children.add(c1)
-        parent.genealogy.children.add(c2)
-        assert genealogy.children.count() == 2
-        assert genealogy.children.first() == c1
+        link(parent, c1, order=1)
+        link(parent, c2, order=2)
+        assert list(article_links.children(parent)) == [c1, c2]
+        assert article_links.parent(c1) == parent
 
         c1.delete()
-        assert genealogy.children.count() == 1
-        assert genealogy.children.first() == c2
+        assert list(article_links.children(parent)) == [c2]
 
         c3 = article_factory(title="Child Three", journal=journal)
-        parent.genealogy.children.add(c3)
-        assert genealogy.children.last() == c3
+        link(parent, c3, order=3)
+        assert list(article_links.children(parent)) == [c2, c3]
+
+    def test_children_are_ordered(self, journal, article_factory):
+        """Children come in the order given by `LinkedArticle.order`, not by pk."""
+        parent = article_factory(title="I am the parent", journal=journal)
+        first = article_factory(title="Shown first", journal=journal)
+        second = article_factory(title="Shown second", journal=journal)
+
+        # NB: the article created last is the one that must be shown first
+        link(parent, second, order=2)
+        link(parent, first, order=1)
+
+        assert list(article_links.children(parent)) == [first, second]
+
+    def test_translations_are_not_children(self, journal, article_factory):
+        """A translation is a peer of the original paper, not a child of it."""
+        original = article_factory(title="Original", journal=journal)
+        translation = article_factory(title="Translation", journal=journal)
+
+        link(original, translation, relationship=LinkType.TRANSLATION)
+
+        assert not article_links.children(original).exists()
+        assert article_links.parent(translation) is None
+
+    def test_erratum_is_a_child(self, journal, article_factory):
+        """An erratum hangs from the paper that it corrects."""
+        paper = article_factory(title="Paper", journal=journal)
+        erratum = article_factory(title="Erratum to: Paper", journal=journal)
+
+        link(paper, erratum, relationship=LinkType.ERRATUM)
+
+        assert list(article_links.children(paper)) == [erratum]
+        assert article_links.parent(erratum) == paper
 
 
 @pytest.fixture
@@ -89,8 +131,7 @@ def related_and_not_related_articles(
     c.keywords.add(keyword_factory())
     c.authors.add(author_c)
     c.snapshot_authors()
-    genealogy = Genealogy.objects.create(parent=p)
-    genealogy.children.add(c)
+    link(p, c)
     fb_issue.journal = journal
     fb_issue.articles.add(a)
     fb_issue.articles.add(p)

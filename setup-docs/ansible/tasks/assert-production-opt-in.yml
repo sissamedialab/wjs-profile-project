@@ -1,0 +1,25 @@
+# Shared production guard.
+#
+# Import it at the top of any play that is allowed to target production:
+#
+#   pre_tasks:
+#     - name: Guard against unintended production runs
+#       import_tasks: tasks/assert-production-opt-in.yml
+#
+# Only hosts carrying is_production=true (i.e. the "prod" group of
+# inventories/prod.yml) are affected; on every other host this is a no-op, so
+# it is safe to import unconditionally.
+#
+# The check runs per host rather than run_once, so a mixed inventory still
+# guards each production machine individually.
+---
+- name: Production runs require an explicit opt-in
+  assert:
+    that:
+      - confirm | default('') == 'PROD'
+    fail_msg: >-
+      {{ inventory_hostname }} is a PRODUCTION host.
+      Re-run with -e confirm=PROD if that is really what you want
+      (and consider --check --diff first).
+    success_msg: "Production opt-in confirmed for {{ inventory_hostname }}."
+  when: is_production | default(false)

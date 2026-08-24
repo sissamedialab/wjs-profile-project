@@ -30,7 +30,7 @@ from submission.models import Article, FrozenAuthor, Keyword, Section
 from typesetting.models import GalleyProofing
 from utils import setting_handler
 
-from wjs.jcom_profile import constants
+from wjs.jcom_profile import article_links, constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
@@ -579,7 +579,7 @@ def test_automatic_preamble_generation(
         f"\\journal{{{journal.code}}}",
         f"\\doc_type{{{article.section.wjssection.pubid_and_tex_sectioncode}}}",
         f"\\latex_desc{{{article.articleworkflow.latex_desc}}}",
-        f"\\latex_desc_parent{{{article.ancestors.first().parent.articleworkflow.latex_desc}}}",
+        f"\\latex_desc_parent{{{article_links.parent(article).articleworkflow.latex_desc}}}",
     )
     for piece in expected_preamble_pieces:
         assert piece in rendered_preamble

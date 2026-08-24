@@ -1,14 +1,27 @@
-# Maintenance mode setup.
+# Maintenance mode setup, for both test and production.
 # Just provide the necessary files. This playbook does not enable the maintenance mode.
 # For that, please connect to the machine and run:
 # a2ensite wjs-maintenance && systemctl reload apache2.service
 #
 # Once done, disable maintenance mode:
 # a2dissite wjs-maintenance && systemctl reload apache2.service
+#
+# Test instance:
+#   ansible-playbook maintenance-mode.yml -e instance="t4"
+#
+# Production (opt-in only, see inventories/prod.yml):
+#   ansible-playbook -i inventories/prod.yml maintenance-mode.yml -e confirm=PROD
+#
+# This used to be two near-identical playbooks (maintenance-mode.yml and
+# maintenance-mode-prod.yml). The task logic is now shared; the only real
+# difference between the environments is the vhost file and the file-name
+# prefix, both selected below. The two Apache configs stay separate files
+# because the hostname schemes have nothing in common
+# (journals.sissamedialab.it / *.sissa.it vs wjs-test-<instance>-*.wjapp.it).
 
 ---
 - name: Provide maintenance mode setup
-  hosts: test
+  hosts: janeway
   remote_user: root
   become: yes
   vars:
@@ -17,16 +30,31 @@
     #   -e "instance_name=dev instance_venv_name=janeway-dev"
     # Note: don't use the save name for the CL variable and for the yml variable
     instance_name: "{{ instance | default('test', true) }}"
+    # Production serves a single set of journals, so its vhost and its
+    # maintenance pages are unprefixed; test instances are namespaced by
+    # instance name so several can coexist on wjs-test.
+    maint_prefix: "{{ '' if is_production | default(false) else instance_name ~ '-' }}"
+    maint_vhost_src: >-
+      {{ 'apache/wjs-prod-maintenance.conf'
+         if is_production | default(false)
+         else 'apache/wjs-test-maintenance.conf.j2' }}
+
+  pre_tasks:
+
+    - name: Guard against unintended production runs
+      import_tasks: tasks/assert-production-opt-in.yml
 
   tasks:
 
     - name: Render and copy Apache virtualhost configuration
-      # Note that the template file in "src" is called "wjs-test..."
-      # because it's a template for the "wjs-test.ud" machine.
+      # Note that the template file for the test environment is called
+      # "wjs-test..." because it's a template for the "wjs-test.ud" machine.
       # Don't confuse with the "test" instance 🙂
+      # The production config has no Jinja placeholders; going through the
+      # template module anyway keeps this a single task.
       template:
-        src: apache/wjs-test-maintenance.conf.j2
-        dest: /etc/apache2/sites-available/wjs-{{ instance_name }}-maintenance.conf
+        src: "{{ maint_vhost_src }}"
+        dest: "/etc/apache2/sites-available/wjs-{{ maint_prefix }}maintenance.conf"
         owner: root
         group: root
         mode: '0644'
@@ -41,10 +69,10 @@
 
     - name: Create maintenance pages
       # Note that the file names must agree with DocumentRoot and ErrorDocument
-      # defined in wjs-test-maintenance.conf.j2
+      # defined in the vhost config selected above.
       template:
         src: apache/maintenance-page.html.j2
-        dest: /var/www/maint-pages/{{ instance_name }}-{{ journal | lower }}.maintenance.html
+        dest: /var/www/maint-pages/{{ maint_prefix }}{{ journal | lower }}.maintenance.html
         owner: www-data
         group: www-data
         mode: '0644'

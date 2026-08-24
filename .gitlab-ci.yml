@@ -49,6 +49,33 @@ Pre-commit:
     - .run-pre-commit
 
 
+# Standalone job: this tests scripts/release.sh itself (a bash tool, unrelated
+# to the Janeway/pytest app under test), so it does not extend .run-tests —
+# it needs none of that template's Janeway image, Postgres service, or
+# Django settings, only git/jq/glab/pre-commit on PATH.
+Run release script tests:
+  stage: test
+  tags:
+    - fast-test
+  # Always run, except for tags, which have already been tested on the
+  # commit that was tagged (same convention as "Run tests"/"Pre-commit").
+  except:
+    - tags
+  variables:
+    GIT_STRATEGY: clone
+    GLAB_VERSION: "1.112.0"
+  before_script:
+    # jq/pre-commit/glab are required by scripts/release.sh's own preflight
+    # check, and scripts/tests/test_preflight.sh asserts all of them resolve
+    # on PATH — so they must be real, working binaries, not stubs.
+    - apt-get update && apt-get install -y --no-install-recommends jq curl ca-certificates
+    - curl -sSL -o /tmp/glab.deb "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_amd64.deb"
+    - dpkg -i /tmp/glab.deb
+    - pip install --no-cache-dir pre-commit
+  script:
+    - bash scripts/tests/run_tests.sh
+
+
 Upload package:
   only:
     - tags

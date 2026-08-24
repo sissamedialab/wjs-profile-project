@@ -1,0 +1,29 @@
+# PRODUCTION inventory.
+#
+# This file is NOT loaded by default: .envrc points ANSIBLE_INVENTORY at
+# inventories/test.yml. Reaching a host listed below therefore takes two
+# deliberate steps:
+#
+#   1. select this inventory      -i inventories/prod.yml
+#   2. confirm the intention      -e confirm=PROD
+#
+# Step 2 is enforced by tasks/assert-production-opt-in.yml, which every
+# production-capable playbook imports in its pre_tasks. It keys off the
+# is_production flag set below, so adding a host to this group is enough to
+# put it behind the guard.
+#
+# Do a --check --diff run before the real one.
+
+janeway:
+  children:
+    prod:
+
+prod:
+  vars:
+    is_production: true
+  hosts:
+    wjs-prod:
+      ansible_python_interpreter: /usr/bin/python3.11
+    # Add further production machines here, one per line, e.g.:
+    # wjs-prod-2:
+    #   ansible_python_interpreter: /usr/bin/python3.11

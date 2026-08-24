@@ -12,7 +12,7 @@ Add here an example URL (when applicable) that brings to the page subject of the
 
 *
 
-## Issues Items [URL]:
+## Issues Items [Reference syntax <repository>#number]:
 
 *
 *

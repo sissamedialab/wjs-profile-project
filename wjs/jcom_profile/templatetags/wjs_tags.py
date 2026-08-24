@@ -16,6 +16,7 @@ from journal.models import Issue
 from submission.models import Article
 
 from wjs.defaults import settings
+from wjs.jcom_profile import article_links
 from wjs.jcom_profile.permissions import has_eo_or_director_role, has_eo_role
 from wjs.jcom_profile.utils import citation_name
 
@@ -64,18 +65,34 @@ def concat(base_string, suffix):
 
 @register.filter
 def article_has_children(article):
-    """Return if article has children articles (commentary items)."""
-    try:
-        return article.genealogy.children.exists()
-    except AttributeError:
-        return False
+    """Return if article has children articles (commentary items, errata,...)."""
+    return article_links.children(article).exists()
+
+
+@register.filter
+def article_children(article):
+    """Return the articles hanging from the given one (commentary items, errata,...).
+
+    They come in their editorial order, so that they can be listed or `regroup`ed as-is.
+    """
+    return article_links.children(article)
+
+
+@register.filter
+def article_parent(article):
+    """Return the article that the given one hangs from (or None).
+
+    This is the introductory paper of a commentary set, the paper that an erratum
+    corrects, etc.
+    """
+    return article_links.parent(article)
 
 
 @register.filter
 def has_attr(obj, attr):
     """Return True is the given object has the given attribute.
 
-    Example usage: {% if article|has_attr:"genealogy" %}
+    Example usage: {% if article|has_attr:"articleworkflow" %}
     """
     return hasattr(obj, attr)
 
