@@ -2,9 +2,10 @@
 
 # This file is a template of the deploy procedure.
 #
-# WARNING: editing this file has no effect. The modified file must be
-# manually installed to the destination servers by someone with access
-# to the server.
+# WARNING: editing this file has no effect until it is installed on the
+# destination servers. That is what setup-docs/ansible/deploy-deploy-script.yml
+# does: it copies this file to /home/wjs/deploy.sh and fills in the two token
+# placeholders below.
 #
 # The idea is:
 # - the WJS group on gitlab has a private key
@@ -13,6 +14,9 @@
 #   see:
 #       https://serverfault.com/a/749484 and https://serverfault.com/a/803873
 #       http://man.openbsd.org/OpenBSD-current/man5/sshd_config.5#ForceCommand
+# - that copy is /home/wjs/deploy.sh. The authorized_keys entry naming it is edited
+#   by hand - no playbook owns it - so moving the copy elsewhere means editing
+#   authorized_keys on every machine
 #
 # This file cannot be part of the deploy procedure for security reasons :)
 #
