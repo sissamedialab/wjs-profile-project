@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.26] - 2026-08-24
+
+- [specs#2969: Delete old deploy script](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2969) — Fix name of deploy script (!1468)
+- [specs#2889: Revise workflow](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2889) — Test instances default wjs-develop (!1469)
+- [specs#2879: Integrate hydra in wjs](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2879) — Integrate hydra (!1461)
+- [specs#3045: Review latex preamble wrt errata](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3045) — Integrate hydra (!1461)
+- [specs#3032: Simplify wjs_customization.article.wjs_filter_children_articles()](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3032) — Integrate hydra (!1461)
+- [specs#3060: Check CI jobs that build Janeway image used for tests](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3060) — Integrate hydra (!1461)
+- [specs#2782: Check Open Access Mode behaviour](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2782) — Use key "affiliation_pk" from revision storage data (!1464)
+- [wjs-help#190: revision submission errror (dev - 4220)](https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/190) — Use key "affiliation_pk" from revision storage data (!1464)
+- [specs#2954: Fundings delete does not work](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2954) — fix: fix JCAP settings (!1443)
+- [specs#2042: JCAP / JHEP Submissions tests](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2042) — fix: fix JCAP settings (!1443)
+- [specs#2931: Create skill to manage releases and changelog](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2931) — feat: add release.sh automation, Claude Code project rules, and CI test job (!1441)
+- [wjs-profile-project#293: Align templates with djlint rules](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/293) — feat: add release.sh automation, Claude Code project rules, and CI test job (!1441)
+- [specs#123: Access to copy of JCOM Drupal (belwe)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/123) — feat: add release.sh automation, Claude Code project rules, and CI test job (!1441)
+- [specs#2952: Verify yakunin connection in t2](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2952) — Fix redis overlap on wjs-test instances (!1459)
+- [specs#3003: When a paper is published, cache is cleared and roles cache is cleared also](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3003) — Fix redis overlap on wjs-test instances (!1459)
+
 ## [2.0.25] - 2026-08-12
 
 - [specs#3005: Handle warning when changing profile URL](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3005) — fix(js): fix warning altert js to work properly with TinyMCE (!1462)
