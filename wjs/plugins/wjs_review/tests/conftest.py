@@ -42,6 +42,7 @@ from utils.install import update_settings
 
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
+from .. import ac_service
 from ..events import ReviewEvent
 from ..logic import (
     AssignToEditor,
@@ -57,6 +58,7 @@ from ..logic import (
 )
 from ..models import (
     ArticleWorkflow,
+    AttentionCondition,
     EditorRevisionRequest,
     LatexPreamble,
     Message,
@@ -101,6 +103,9 @@ def cleanup_notifications_side_effects():
     """Clean up messages and notifications."""
     mail.outbox = []
     Message.objects.all().delete()
+    # Creating a message also creates the recipient's HAS_UNREAD_MESSAGE attention condition:
+    # drop it too, or the fixtures would leave behind an AC without any message to read.
+    AttentionCondition.objects.filter(code=ac_service.HAS_UNREAD_MESSAGE).delete()
 
 
 @pytest.fixture

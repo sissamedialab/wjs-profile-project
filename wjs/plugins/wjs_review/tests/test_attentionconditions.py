@@ -2,15 +2,22 @@
 
 import datetime
 from datetime import timedelta
+from typing import Callable
 
 import freezegun
 import pytest
-from django.conf import settings
+from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
+from django.core.management import call_command
 from django.http import HttpRequest
+from django.test import Client
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.timezone import localtime, now
-from plugins.wjs_review import conditions, states
+from journal.models import Journal
+from plugins.wjs_review import ac_service, communication_utils, conditions, states
+from plugins.wjs_review.ac_service import ACStateEvaluator
+from plugins.wjs_review.forms import ToggleMessageReadByEOForm, ToggleMessageReadForm
 from plugins.wjs_review.logic import (
     AssignToReviewer,
     AuthorHandleRevisionObsolete,
@@ -21,6 +28,7 @@ from plugins.wjs_review.logic import (
 )
 from plugins.wjs_review.models import (
     ArticleWorkflow,
+    AttentionCondition,
     EditorRevisionRequest,
     Message,
     MessageRecipients,
@@ -34,11 +42,14 @@ from review.models import ReviewForm
 from submission.models import Article
 from typesetting.models import GalleyProofing
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.utils import get_eo_user
 
-from .conftest import _assign_article
-from .test_helpers import _create_review_assignment, attention_conditions_rebuild
+from .test_helpers import (
+    attention_condition_ignoring_unread,
+    attention_conditions_rebuild,
+)
 
 
 @pytest.mark.skipif("not config.getoption('--run-academic')")
@@ -142,28 +153,27 @@ def test_author_revision_is_late(
     assert all_reminders.count() == reminders.count()
     reminders_count = reminders.count()
 
-    state_cls = getattr(states, workflow.state)
     expected = localtime(expected).date()
 
     # author has a.c., but editor and eo don't, because reminders are not yet sent
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
     )
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=section_editor) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     # all reminders sent today, same a before
     updated = reminders.update(date_sent=now())
     assert updated == reminders_count
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
     )
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=section_editor) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     # all reminders sent yesterday, same as before
     # NB: using `all_reminders` because we set the date_sent above
@@ -171,40 +181,40 @@ def test_author_revision_is_late(
     assert updated == reminders_count
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
     )
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=section_editor) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     # all reminders sent more than 1 day ago, also editor has a.c.
     updated = all_reminders.update(date_sent=now() - timezone.timedelta(2))
     assert updated == reminders_count
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
     )
     assert (
-        state_cls.article_requires_attention(article=article, user=section_editor)
+        attention_condition_ignoring_unread(article=article, user=section_editor)
         == f"Revision is {days_past} days late. Pls consider reminding author"
     )
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     # all reminders sent more than two days ago, even EO has a.c.
     updated = all_reminders.update(date_sent=now() - timezone.timedelta(3))
     assert updated == reminders_count
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == f"The revision request is {days_past} days late (was expected by {expected})"
     )
     assert (
-        state_cls.article_requires_attention(article=article, user=section_editor)
+        attention_condition_ignoring_unread(article=article, user=section_editor)
         == f"Revision is {days_past} days late. Pls consider reminding author"
     )
     assert (
-        state_cls.article_requires_attention(article=article, user=eo)
+        attention_condition_ignoring_unread(article=article, user=eo)
         == f"Revision is {days_past} days late. Pls consider reminding author"
     )
 
@@ -269,61 +279,60 @@ def test_author_technicalrevision_is_late(
     assert reminders.exists()
     assert all_reminders.count() == reminders.count()
 
-    state_cls = getattr(states, workflow.state)
     expected = expected.date()
 
     # author has a.c., but editor and eo don't, because reminders are not yet sent
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
     )
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=section_editor) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     # all reminders sent today, same a before
     reminders.update(date_sent=now())
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
     )
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=section_editor) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     # all reminders sent yesterday, same as before
     all_reminders.update(date_sent=now() - timezone.timedelta(1))
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
     )
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=section_editor) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     # all reminders sent more than 1 day ago, also editor has a.c.
     all_reminders.update(date_sent=now() - timezone.timedelta(2))
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
     )
     assert (
-        state_cls.article_requires_attention(article=article, user=section_editor) == "Author has not updated metadata"
+        attention_condition_ignoring_unread(article=article, user=section_editor) == "Author has not updated metadata"
     )
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     # all reminders sent more than two days ago, even EO has a.c.
     all_reminders.update(date_sent=now() - timezone.timedelta(3))
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=author)
+        attention_condition_ignoring_unread(article=article, user=author)
         == "Editor allowed metadata update. Please take action"
     )
     assert (
-        state_cls.article_requires_attention(article=article, user=section_editor) == "Author has not updated metadata"
+        attention_condition_ignoring_unread(article=article, user=section_editor) == "Author has not updated metadata"
     )
-    assert state_cls.article_requires_attention(article=article, user=eo) == "Author has not updated metadata"
+    assert attention_condition_ignoring_unread(article=article, user=eo) == "Author has not updated metadata"
 
 
 @pytest.mark.django_db
@@ -560,16 +569,14 @@ def test_reviewer_is_late(
     assert assignment.date_accepted is None
     assert assignment.date_due > timezone.now().date()
 
-    state_cls = getattr(states, workflow.state)
-
     attention_conditions_rebuild(article)
-    assert state_cls.article_requires_attention(article=article, user=reviewer) == ""
+    assert attention_condition_ignoring_unread(article=article, user=reviewer) == ""
 
     # accept/decline overdue
     assignment.date_due = localtime(timezone.now()).date() - timezone.timedelta(days=1)
     assignment.save()
     attention_conditions_rebuild(article)
-    assert state_cls.article_requires_attention(article=article, user=reviewer) == "Invite to be accepted/declined"
+    assert attention_condition_ignoring_unread(article=article, user=reviewer) == "Invite to be accepted/declined"
 
     all_reminders = Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(assignment),
@@ -589,10 +596,10 @@ def test_reviewer_is_late(
 
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=section_editor)
+        attention_condition_ignoring_unread(article=article, user=section_editor)
         == "Reviewer has not yet answered the invitation"
     )
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
 
     for reminder in reminders_list:
         reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
@@ -600,8 +607,7 @@ def test_reviewer_is_late(
 
     attention_conditions_rebuild(article)
     assert (
-        state_cls.article_requires_attention(article=article, user=eo)
-        == "Reviewer has not yet answered the invitation"
+        attention_condition_ignoring_unread(article=article, user=eo) == "Reviewer has not yet answered the invitation"
     )
     # report overdue
     EvaluateReview(
@@ -617,7 +623,7 @@ def test_reviewer_is_late(
         token="",
     ).run()
     attention_conditions_rebuild(article)
-    assert state_cls.article_requires_attention(article=article, user=reviewer) == "Review is overdue"
+    assert attention_condition_ignoring_unread(article=article, user=reviewer) == "Review is overdue"
 
     reminders = all_reminders.filter(
         date_sent__isnull=True,
@@ -631,17 +637,18 @@ def test_reviewer_is_late(
         reminder.save()
 
     attention_conditions_rebuild(article)
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == "Reviewer is late"
-    # EO gets "You have unread messages" because the message "reviewer accepted invite" from reviewer to editor
-    # is not marked "read-by-eo"
-    assert state_cls.article_requires_attention(article=article, user=eo) == "You have unread messages"
+    assert attention_condition_ignoring_unread(article=article, user=section_editor) == "Reviewer is late"
+    # EO has no reviewer-related a.c. yet, but they do have unread messages, because the message
+    # "reviewer accepted invite" from reviewer to editor is not marked "read-by-eo"
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
+    assert conditions.has_unread_message(article, recipient=eo) == "You have unread messages"
 
     for reminder in reminders_list:
         reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
         reminder.save()
 
     attention_conditions_rebuild(article)
-    assert state_cls.article_requires_attention(article=article, user=eo) == "Reviewer is late"
+    assert attention_condition_ignoring_unread(article=article, user=eo) == "Reviewer is late"
 
     form_data = {
         "date_due": assignment.date_due + datetime.timedelta(days=3),
@@ -658,8 +665,8 @@ def test_reviewer_is_late(
     Message.objects.update(read_by_eo=True)
     MessageRecipients.objects.update(read=True)
     attention_conditions_rebuild(article)
-    assert state_cls.article_requires_attention(article=article, user=eo) == ""
-    assert state_cls.article_requires_attention(article=article, user=section_editor) == ""
+    assert attention_condition_ignoring_unread(article=article, user=eo) == ""
+    assert attention_condition_ignoring_unread(article=article, user=section_editor) == ""
 
 
 @pytest.mark.django_db
@@ -738,162 +745,475 @@ def test_editor_first_assignment_is_late(
     assert "10 days" in message
 
 
+# ---------------------------------------------------------------------------
+# HAS_UNREAD_MESSAGE: the materialized AC of unread messages
+# ---------------------------------------------------------------------------
+
+
+def _unread_message_acs(article: Article, user: JCOMProfile):
+    """Return the HAS_UNREAD_MESSAGE attention conditions of a user for an article (any status)."""
+    return AttentionCondition.objects.filter(
+        article=article,
+        user=user,
+        code=ac_service.HAS_UNREAD_MESSAGE,
+    )
+
+
+def _send_message(article: Article, actor: JCOMProfile, recipient: JCOMProfile) -> Message:
+    """Create a message from actor to recipient, the way the business logic does."""
+    return communication_utils.log_operation(
+        article=article,
+        message_subject="Subject",
+        message_body="Body",
+        actor=actor,
+        recipients=[recipient],
+    )
+
+
+def _flag_message(message: Message, recipient: JCOMProfile, *, read: bool) -> None:
+    """Flag a message as read/unread for one recipient, the way the toggle view does."""
+    instance = MessageRecipients.objects.get(message=message, recipient=recipient)
+    form = ToggleMessageReadForm(data={"read": "on"} if read else {}, instance=instance)
+    assert form.is_valid(), f"Unexpected form errors: {form.errors}"
+    form.save()
+
+
 @pytest.mark.django_db
-def test_old_unread_messages_excludes_aus(
-    eo_user: JCOMProfile,
-    normal_user: JCOMProfile,
-    article: Article,
-    assigned_article: Article,
-):
-    """
-    Test conditions.article_has_old_unread_message().
-
-    It can be forced to ignore messages from an article's author or reviewer.
-
-    Here we will setup two articles with different authors.
-
-    The editor of the second article is the author of the first, and has unread messages both for the first and for the
-    second article.
-
-    All messages are set with read_by_eo=True so that we can ignore that.
-
-    """
+def test_new_message_creates_unread_message_ac(assigned_article: Article, normal_user: JCOMProfile):
+    """The recipient of a new message gets one HAS_UNREAD_MESSAGE AC (and one only)."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    actor = normal_user.janeway_account
+    # Drop the fixture's own messages/ACs, so that we look only at what we create here
     Message.objects.all().delete()
-    article1 = article
-    article2 = assigned_article
+    AttentionCondition.objects.all().delete()
 
-    # The first article:
-    # - the unread message is for the author of the article, it should be ignored!
-    # - the author is the editor of the second article
-    editor2 = WjsEditorAssignment.objects.get_current(article2).editor
-    author1 = editor2
-    assert editor2 != normal_user
-    article1.correspondence_author = author1
-    article.save()
-    article.authors.set([author1])  # ⇦ Important!
-    long_ago = timezone.localtime(
-        timezone.now() - timezone.timedelta(settings.WJS_UNREAD_MESSAGES_LATE_AFTER + 1),
-    )
-    m1 = Message.objects.create(
-        actor=normal_user,
-        content_type=ContentType.objects.get_for_model(Article),
-        object_id=article1.pk,
-        read_by_eo=True,
-        created=long_ago,
-    )
-    m1.recipients.add(author1)  # ⇦ Important!
-    assert MessageRecipients.objects.get(message=m1, recipient=author1).read is False
-    assert conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=False, recipient=normal_user)
-    assert not conditions.article_has_old_unread_message(
-        article1, exclude_aus_and_revs=True, recipient=normal_user
-    )  # 🌟
-    assert not conditions.article_has_old_unread_message(article1, recipient=eo_user)
+    _send_message(article, actor, editor)
 
-    # The second article:
-    # - the unread message is for the editor, it should be kept!
-    author2 = article2.correspondence_author
-    assert author2 != author1
-    assert author2 != normal_user
-    assert author2 != editor2
-    article2.authors.set([author2])  # ⇦ Important!
-    m2 = Message.objects.create(
-        actor=normal_user,
-        content_type=ContentType.objects.get_for_model(Article),
-        object_id=article2.pk,
-        read_by_eo=True,
-        created=long_ago,
-    )
-    m2.recipients.add(editor2)  # ⇦ Important!
-    assert MessageRecipients.objects.get(message=m2, recipient=editor2).read is False
-    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=False, recipient=normal_user)
-    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=True, recipient=normal_user)  # 🌟
-    assert not conditions.article_has_old_unread_message(article2, recipient=eo_user)
+    acs = _unread_message_acs(article, editor)
+    assert acs.count() == 1, "The recipient of a new message should have one HAS_UNREAD_MESSAGE AC"
+    assert acs.get().status == AttentionCondition.Status.ACTIVE, "The AC of a new message should be active"
+    assert not _unread_message_acs(article, actor).exists(), "The actor of a message has nothing to read"
 
-    # The AW manager with_unread_messages does not exclude authors or reviewers
-    qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user)
-    assert qs.count() == 0
-    qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user, other_users_messages=True)
-    assert qs.count() == ArticleWorkflow.objects.all().count()
+    # A second message does not add a second AC: one per (article, user) is enough
+    _send_message(article, actor, editor)
+    assert _unread_message_acs(article, editor).count() == 1, "A second message should not create a second AC"
+    assert _unread_message_acs(article, editor).get().status == AttentionCondition.Status.ACTIVE
 
 
 @pytest.mark.django_db
-def test_with_unread_messages_excludes_revs(
+def test_unread_message_ac_is_resolved_only_when_nothing_is_left_unread(
+    assigned_article: Article,
+    normal_user: JCOMProfile,
+):
+    """The AC is resolved when the recipient has no other unread message, and comes back if flagged unread."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    actor = normal_user.janeway_account
+    Message.objects.all().delete()
+    AttentionCondition.objects.all().delete()
+
+    m1 = _send_message(article, actor, editor)
+    m2 = _send_message(article, actor, editor)
+    assert _unread_message_acs(article, editor).get().status == AttentionCondition.Status.ACTIVE
+
+    _flag_message(m1, editor, read=True)
+    assert (
+        _unread_message_acs(article, editor).get().status == AttentionCondition.Status.ACTIVE
+    ), "The AC should survive: one message is still unread"
+
+    _flag_message(m2, editor, read=True)
+    assert (
+        _unread_message_acs(article, editor).get().status == AttentionCondition.Status.RESOLVED
+    ), "The AC should be resolved: no message is left unread"
+
+    _flag_message(m2, editor, read=False)
+    assert (
+        _unread_message_acs(article, editor).get().status == AttentionCondition.Status.ACTIVE
+    ), "The AC should come back when a message is flagged as unread again"
+
+
+def _create_eo_human(create_jcom_user: Callable, eo_group: Group, journal: Journal) -> JCOMProfile:
+    """Create an EO person: a member of the EO group, enrolled in the journal."""
+    eo_human = create_jcom_user("eo_human")
+    eo_human.groups.add(eo_group)
+    eo_human.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    return eo_human
+
+
+def _displayed_attention_condition(article: Article, user: JCOMProfile) -> str:
+    """Return the AC that the given user sees for the article, through the display path."""
+    return getattr(states, article.articleworkflow.state).article_requires_attention(article=article, user=user)
+
+
+def _flag_message_read_by_eo(message: Message, *, read: bool) -> None:
+    """Flag a message as read/unread by EO, the way the toggle view does."""
+    form = ToggleMessageReadByEOForm(data={"read_by_eo": "on"} if read else {}, instance=message)
+    assert form.is_valid(), f"Unexpected form errors: {form.errors}"
+    form.save()
+
+
+@pytest.mark.django_db
+def test_new_message_creates_unread_message_ac_for_eo(
+    assigned_article: Article,
     eo_user: JCOMProfile,
     normal_user: JCOMProfile,
-    article: Article,
+    create_jcom_user: Callable,
+    eo_group: Group,
+    journal: Journal,
+):
+    """The editorial office gets one AC, on the EO system user, and every EO person sees it."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    eo_system_user = eo_user.janeway_account
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    Message.objects.all().delete()
+    AttentionCondition.objects.all().delete()
+
+    message = communication_utils.log_operation(
+        article=article,
+        message_subject="Subject",
+        message_body="Body",
+        actor=normal_user.janeway_account,
+        recipients=[editor],
+        flag_as_read_by_eo=False,
+    )
+    assert not message.read_by_eo
+
+    # One AC only, on the EO system user: it belongs to the office, not to its members
+    acs = _unread_message_acs(article, eo_system_user)
+    assert acs.count() == 1, "The EO system user should have one HAS_UNREAD_MESSAGE AC"
+    assert acs.get().status == AttentionCondition.Status.ACTIVE, "The EO system user's AC should be active"
+    assert not _unread_message_acs(article, eo_human.janeway_account).exists(), "EO people share the office's AC"
+
+    # ... and every EO person sees it
+    for eo in (eo_system_user, eo_human.janeway_account):
+        assert (
+            _displayed_attention_condition(article, eo) == "You have unread messages"
+        ), f"{eo} should see the editorial office's AC"
+
+    # Flagging the message as read-by-eo clears it for all of EO
+    _flag_message_read_by_eo(message, read=True)
+    assert (
+        _unread_message_acs(article, eo_system_user).get().status == AttentionCondition.Status.RESOLVED
+    ), "The office's AC should be resolved once the message is read by EO"
+    for eo in (eo_system_user, eo_human.janeway_account):
+        assert _displayed_attention_condition(article, eo) == "", f"{eo} should see no unread-messages AC any more"
+
+    # ... and it comes back if the message is flagged as unread again
+    _flag_message_read_by_eo(message, read=False)
+    assert (
+        _unread_message_acs(article, eo_system_user).get().status == AttentionCondition.Status.ACTIVE
+    ), "The office's AC should come back when the message is flagged as unread by EO"
+    for eo in (eo_system_user, eo_human.janeway_account):
+        assert _displayed_attention_condition(article, eo) == "You have unread messages", f"{eo} should see it again"
+
+
+@pytest.mark.django_db
+def test_read_by_eo_clears_the_ac_of_an_eo_person_who_is_also_a_recipient(
     assigned_article: Article,
+    eo_user: JCOMProfile,  # noqa: ARG001
+    normal_user: JCOMProfile,
+    create_jcom_user: Callable,
+    eo_group: Group,
+    journal: Journal,
+):
+    """An EO person reads through the office's AC: read-by-eo clears it even if their own row is unread."""
+    article = assigned_article
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    Message.objects.all().delete()
+    AttentionCondition.objects.all().delete()
+
+    message = communication_utils.log_operation(
+        article=article,
+        message_subject="Subject",
+        message_body="Body",
+        actor=normal_user.janeway_account,
+        recipients=[eo_human.janeway_account],
+        flag_as_read_by_eo=False,
+    )
+    assert (
+        MessageRecipients.objects.get(message=message, recipient=eo_human.janeway_account).read is False
+    ), "The message is unread for this EO person"
+    assert _displayed_attention_condition(article, eo_human.janeway_account) == "You have unread messages"
+    assert not _unread_message_acs(article, eo_human.janeway_account).exists(), "EO people have no personal AC"
+
+    _flag_message_read_by_eo(message, read=True)
+
+    assert (
+        MessageRecipients.objects.get(message=message, recipient=eo_human.janeway_account).read is False
+    ), "Their own row is still unread..."
+    assert (
+        _displayed_attention_condition(article, eo_human.janeway_account) == ""
+    ), "...but read-by-eo clears the AC for them too"
+
+
+@pytest.mark.django_db
+def test_populate_resolves_a_personal_unread_message_ac_of_an_eo_person(
+    assigned_article: Article,
+    eo_user: JCOMProfile,  # noqa: ARG001
+    normal_user: JCOMProfile,
+    create_jcom_user: Callable,
+    eo_group: Group,
+    journal: Journal,
+):
+    """EO people share the office's AC: a personal leftover of theirs is resolved by the populate command."""
+    article = assigned_article
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    Message.objects.all().delete()
+    AttentionCondition.objects.all().delete()
+    # A personal AC as older versions used to write it for each EO person
+    ac_service.upsert_ac(article, eo_human.janeway_account, ac_service.HAS_UNREAD_MESSAGE, "You have unread messages")
+
+    call_command("populate_attention_conditions", verbosity=0)
+
+    assert (
+        _unread_message_acs(article, eo_human.janeway_account).get().status == AttentionCondition.Status.RESOLVED
+    ), "The personal AC of an EO person should be resolved: they share the office's one"
+
+
+@pytest.mark.django_db
+def test_eo_unread_message_ac_is_resolved_only_when_nothing_is_left_unread(
+    assigned_article: Article,
+    eo_user: JCOMProfile,
+    normal_user: JCOMProfile,
+):
+    """The EO AC survives as long as one message of the article is not flagged as read-by-eo."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    eo = eo_user.janeway_account
+    actor = normal_user.janeway_account
+    Message.objects.all().delete()
+    AttentionCondition.objects.all().delete()
+
+    messages = [
+        communication_utils.log_operation(
+            article=article,
+            message_subject=f"Subject {i}",
+            message_body="Body",
+            actor=actor,
+            recipients=[editor],
+            flag_as_read_by_eo=False,
+        )
+        for i in (1, 2)
+    ]
+    assert _unread_message_acs(article, eo).get().status == AttentionCondition.Status.ACTIVE
+
+    _flag_message_read_by_eo(messages[0], read=True)
+    assert (
+        _unread_message_acs(article, eo).get().status == AttentionCondition.Status.ACTIVE
+    ), "The AC should survive: one message is still to be read by EO"
+
+    _flag_message_read_by_eo(messages[1], read=True)
+    assert (
+        _unread_message_acs(article, eo).get().status == AttentionCondition.Status.RESOLVED
+    ), "The AC should be resolved: EO has read everything"
+
+
+@pytest.mark.django_db
+def test_flagging_a_message_read_preserves_the_other_acs(
+    client: Client,
+    assigned_article: Article,
+    reviewer: JCOMProfile,
+    normal_user: JCOMProfile,
     fake_request: HttpRequest,
-    section_editor: JCOMProfile,
-    review_settings,  # noqa: ANN001, ARG001
     review_form: ReviewForm,  # noqa: ARG001
 ):
-    """
-    Test conditions.article_has_old_unread_message().
+    """Flagging a message as read should not resolve the other attention conditions of the article.
 
-    Same as above, but test the exclusion of unread messages for the reviewer.
+    The toggle-read view re-evaluates the ACs of the article: it must do so for the FSM state
+    (ArticleWorkflow.state), not for the computed one (state_value). With the computed state, no AC
+    code matches the state and every time-based AC is resolved as if it were stale.
     """
-    article1 = article
-    article2 = assigned_article
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
 
-    # The first article:
-    # - the unread message is for the reviewer of the article, it should be ignored!
-    # - the reviewer is also the editor of the second article
-    editor1 = section_editor
-    _assign_article(fake_request=fake_request, article=article1, section_editor=editor1)
-    editor2 = WjsEditorAssignment.objects.get_current(article2).editor
-    ra1 = _create_review_assignment(
-        fake_request=fake_request,
-        reviewer_user=editor2.jcomprofile,
-        assigned_article=article1,
-    )
-    reviewer1 = ra1.reviewer
-    author1 = article1.correspondence_author
-    assert author1 != normal_user
-    assert author1 != editor1
-    assert author1 != reviewer1
-    article.authors.set([author1])  # ⇦ Important!
-    # ensure that eventual messages from the editor/reviewer assignments logic don't get in our way
+    # A reviewer that does not answer the invitation: this is the editor's "reviewer is late" AC
+    fake_request.user = editor
+    assignment = AssignToReviewer(
+        workflow=article.articleworkflow,
+        reviewer=reviewer.janeway_account,
+        editor=editor,
+        form_data={
+            "acceptance_due_date": localtime(timezone.now() + timezone.timedelta(1)).strftime("%Y-%m-%d"),
+            "message": "random message",
+            "author_note_visible": False,
+        },
+        request=fake_request,
+    ).run()
+    assignment.date_due = localtime(timezone.now()).date() - timezone.timedelta(days=1)
+    assignment.save()
+    for reminder in Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(assignment),
+        object_id=assignment.id,
+    ):
+        reminder.date_sent = localtime(timezone.now()).date() - timezone.timedelta(days=3)
+        reminder.save()
+    attention_conditions_rebuild(article)
+    reviewer_late_ac = AttentionCondition.objects.get(article=article, user=editor, code=ac_service.REVIEWER_LATE)
+    assert reviewer_late_ac.status == AttentionCondition.Status.ACTIVE, "The reviewer-is-late AC should be active"
+
+    # Drop the messages of the setup above, so that the editor has only one message to read
     Message.objects.all().delete()
-    long_ago = timezone.localtime(
-        timezone.now() - timezone.timedelta(settings.WJS_UNREAD_MESSAGES_LATE_AFTER + 1),
+    _unread_message_acs(article, editor).delete()
+    message = _send_message(article, normal_user.janeway_account, editor)
+    recipient_row = MessageRecipients.objects.get(message=message, recipient=editor)
+
+    client.force_login(editor)
+    response = client.post(
+        reverse("wjs_message_toggle_read", args=(message.pk, editor.pk)),
+        data={f"toggle-{recipient_row.pk}-read": "on"},
     )
-    m1 = Message.objects.create(
-        actor=normal_user,
-        content_type=ContentType.objects.get_for_model(Article),
-        object_id=article1.pk,
-        read_by_eo=True,
-        created=long_ago,
-    )
-    m1.recipients.add(reviewer1)  # ⇦ Important!
-    assert MessageRecipients.objects.get(message=m1, recipient=reviewer1).read is False
-    assert conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=False)
-    assert not conditions.article_has_old_unread_message(article1, exclude_aus_and_revs=True)  # 🌟
+    assert response.status_code == 200
 
-    # The second article:
-    # - the unread message is for the editor, it should be kept!
-    author2 = article2.correspondence_author
-    assert author2 != author1
-    assert author2 != normal_user
-    assert author2 != editor2
-    assert author2 != reviewer1
-    article2.authors.set([author2])  # ⇦ Important!
-    m2 = Message.objects.create(
-        actor=normal_user,
-        content_type=ContentType.objects.get_for_model(Article),
-        object_id=article2.pk,
-        read_by_eo=True,
-        created=long_ago,
-    )
-    m2.recipients.add(editor2)  # ⇦ Important!
-    assert MessageRecipients.objects.get(message=m2, recipient=editor2).read is False
-    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=False)
-    assert conditions.article_has_old_unread_message(article2, exclude_aus_and_revs=True)  # 🌟
-
-    # Check the AW manager also
-    qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user)
-    assert qs.count() == 0
-    qs = ArticleWorkflow.objects.with_unread_messages(user=eo_user, other_users_messages=True)
-    assert qs.count() == len([article1, article2])
+    reviewer_late_ac.refresh_from_db()
+    assert (
+        reviewer_late_ac.status == AttentionCondition.Status.ACTIVE
+    ), "Flagging a message as read should not resolve the reviewer-is-late AC"
+    assert (
+        _unread_message_acs(article, editor).get().status == AttentionCondition.Status.RESOLVED
+    ), "The editor has read their only message: the unread-messages AC should be resolved"
 
 
-# TODO: write test for exclusions of both authors and reviewers
+@pytest.mark.django_db
+def test_populate_covers_unread_messages_in_any_state_for_any_recipient(
+    assigned_article: Article,
+    normal_user: JCOMProfile,
+    eo_user: JCOMProfile,
+):
+    """The populate command heals the unread-message AC where the per-state evaluator cannot see it.
+
+    I.e. in a state with no AC of its own (here: Accepted) and for a recipient that holds no role
+    on the article (here: normal_user). The daily rebuild, on the contrary, leaves this AC alone:
+    it is event-driven, and a drift should stay visible.
+    """
+    article = assigned_article
+    workflow = article.articleworkflow
+    workflow.state = ArticleWorkflow.ReviewStates.ACCEPTED
+    workflow.save()
+    assert workflow.state not in ACStateEvaluator.STATE_AC_MAP, "This state should have no AC of its own"
+    Message.objects.all().delete()
+    AttentionCondition.objects.all().delete()
+
+    # A message to somebody with no role on the article: the event path creates the AC...
+    message = _send_message(article, eo_user.janeway_account, normal_user.janeway_account)
+    assert _unread_message_acs(article, normal_user.janeway_account).count() == 1
+
+    # ... the daily rebuild does not bring it back if it goes missing ...
+    AttentionCondition.objects.all().delete()
+    call_command("rebuild_attention_conditions", verbosity=0)
+    assert not _unread_message_acs(
+        article, normal_user.janeway_account
+    ).exists(), "The daily rebuild should leave the unread-message AC alone"
+
+    # ... but the populate command does (e.g. after messages created by the import)
+    call_command("populate_attention_conditions", verbosity=0)
+    acs = _unread_message_acs(article, normal_user.janeway_account)
+    assert acs.count() == 1, "populate should create the AC whatever the state and the role"
+    assert acs.get().status == AttentionCondition.Status.ACTIVE
+
+    # populate also resolves an AC left behind by a message that is gone
+    message.delete()
+    call_command("populate_attention_conditions", verbosity=0)
+    assert (
+        _unread_message_acs(article, normal_user.janeway_account).get().status == AttentionCondition.Status.RESOLVED
+    ), "populate should resolve an AC whose messages are gone"
+
+
+@pytest.mark.django_db
+def test_attention_conditions_page_is_for_eo_only(
+    client: Client,
+    assigned_article: Article,
+    eo_user: JCOMProfile,
+    normal_user: JCOMProfile,
+    create_jcom_user: Callable,
+    eo_group: Group,
+    journal: Journal,
+):
+    """The page listing all the ACs of an article is available to EO, and to EO only."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    url = reverse("wjs-article-attention-conditions", args=(article.articleworkflow.pk,))
+
+    for forbidden_user in (editor, normal_user.janeway_account, article.correspondence_author):
+        client.force_login(forbidden_user)
+        assert client.get(url).status_code == 403, f"{forbidden_user} should not see the attention conditions"
+
+    client.force_login(eo_human.janeway_account)
+    assert client.get(url).status_code == 200, "EO should see the attention conditions"
+
+
+@pytest.mark.django_db
+def test_attention_conditions_page_groups_per_user_and_orders_per_status(
+    client: Client,
+    assigned_article: Article,
+    normal_user: JCOMProfile,
+    create_jcom_user: Callable,
+    eo_group: Group,
+    journal: Journal,
+):
+    """The page shows the ACs of every user, active ones first and then by priority."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    author = article.correspondence_author
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    AttentionCondition.objects.all().delete()
+    # For the editor: one resolved AC and two active ones, the second more urgent than the first
+    resolved = ac_service.upsert_ac(article, editor, ac_service.REVIEWS_COMPLETED, "Reviews completed", priority=20)
+    ac_service.resolve_ac(article, editor, ac_service.REVIEWS_COMPLETED)
+    less_urgent = ac_service.upsert_ac(article, editor, ac_service.NEEDS_ASSIGNMENT, "Needs assignment", priority=20)
+    more_urgent = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late", priority=10)
+    # ... and one for the author, to check the grouping
+    author_ac = ac_service.upsert_ac(article, author, ac_service.AUTHOR_REVISION_LATE, "Revision is late", priority=10)
+
+    client.force_login(eo_human.janeway_account)
+    response = client.get(reverse("wjs-article-attention-conditions", args=(article.articleworkflow.pk,)))
+    assert response.status_code == 200
+
+    groups = dict(response.context["attention_conditions_per_user"])
+    assert set(groups) == {editor, author}, "The ACs should be grouped per user"
+    assert groups[author] == [author_ac], "The author's group should hold the author's AC"
+    assert groups[editor] == [
+        more_urgent,
+        less_urgent,
+        resolved,
+    ], "Active ACs come first, most urgent first, and resolved ones last"
+
+
+@pytest.mark.django_db
+def test_unread_message_ac_priority_is_low_for_users_and_high_for_eo(
+    assigned_article: Article,
+    eo_user: JCOMProfile,
+    normal_user: JCOMProfile,
+    create_jcom_user: Callable,
+    eo_group: Group,
+    journal: Journal,
+):
+    """Unread messages come last for the people working on the paper, and first for the editorial office."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    eo_system_user = eo_user.janeway_account
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    Message.objects.all().delete()
+    AttentionCondition.objects.all().delete()
+
+    # Everybody has something to read...
+    _send_message(article, normal_user.janeway_account, editor)
+    # ... and something the workflow expects of them
+    ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late", priority=10)
+    ac_service.upsert_ac(article, eo_system_user, ac_service.EDITOR_IS_LATE, "Editor is late", priority=10)
+
+    assert (
+        _unread_message_acs(article, editor).get().priority == ac_service.HAS_UNREAD_MESSAGE_PRIORITY
+    ), "The editor's unread-messages AC should have the lowest priority"
+    assert (
+        _unread_message_acs(article, eo_system_user).get().priority == ac_service.HAS_UNREAD_MESSAGE_PRIORITY_FOR_EO
+    ), "The editorial office's unread-messages AC should have the highest priority"
+
+    assert (
+        _displayed_attention_condition(article, editor) == "Reviewer is late"
+    ), "What the workflow expects comes first for the editor"
+    assert (
+        _displayed_attention_condition(article, eo_human.janeway_account) == "You have unread messages"
+    ), "Messages come first for EO"

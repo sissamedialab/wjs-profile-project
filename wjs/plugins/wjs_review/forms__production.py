@@ -143,6 +143,12 @@ class WriteToTypMessageForm(forms.Form):
 
         message.emit_notification()
 
+        # -- Materialized AC updates --
+        # New message: the recipients that are left with an unread message get HAS_UNREAD_MESSAGE.
+        from . import ac_service
+
+        ac_service.sync_unread_message_acs_for_message(message)
+
         return message
 
 

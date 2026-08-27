@@ -41,22 +41,27 @@ Future extensions anticipated by this design:
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
+from submission.models import Article
 from typesetting.models import GalleyProofing, TypesettingAssignment
 
 from wjs.jcom_profile import constants
+from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import get_eo_user
 
 from . import conditions
-from .models import AttentionCondition, PastEditorAssignment, WjsEditorAssignment
+from .models import (
+    AttentionCondition,
+    Message,
+    MessageRecipients,
+    PastEditorAssignment,
+    WjsEditorAssignment,
+)
 from .role_cache import get_or_refresh_role_cache_entry
-
-if TYPE_CHECKING:
-    from submission.models import Article
 
 Account = get_user_model()
 
@@ -141,16 +146,25 @@ TYPESETTER_LATE = "typesetter_late"
 AUTHOR_PROOFING_LATE = "author_proofing_late"
 """EO: the author is late proofreading."""
 
-OLD_UNREAD_MESSAGES = "old_unread_messages"
-"""Non-EO roles: there are messages left unread for a long time."""
-
-OLD_UNREAD_MESSAGES_FOR_EO = "old_unread_messages_for_eo"
-"""EO: there are messages left unread for a long time."""
-
-# -- Fallback --
+# -- Any state, any role --
 
 HAS_UNREAD_MESSAGE = "has_unread_message"
 """Any role: the user has unread messages on the article."""
+
+HAS_UNREAD_MESSAGE_PRIORITY = 99
+"""Display priority of HAS_UNREAD_MESSAGE for everybody but EO.
+
+For an editor, an author or a reviewer, having something to read matters less
+than what the workflow expects of them, so this AC stays at the bottom: the
+codes mapped in STATE_ROLE_AC_MAP get 10, 20, 30... via get_ac_priority(), and
+lower means higher priority.
+"""
+
+HAS_UNREAD_MESSAGE_PRIORITY_FOR_EO = 1
+"""Display priority of HAS_UNREAD_MESSAGE for the editorial office.
+
+Unread messages are what EO is there for, so their AC outranks every other one.
+"""
 
 # -- Classification: which ACs are time-based vs event-based --
 
@@ -169,8 +183,6 @@ TIME_BASED_AC_CODES: set[str] = {
     APPEAL_LATE,
     TYPESETTER_LATE,
     AUTHOR_PROOFING_LATE,
-    OLD_UNREAD_MESSAGES,
-    OLD_UNREAD_MESSAGES_FOR_EO,
 }
 """AC codes that depend on elapsed time and should be re-evaluated daily.
 
@@ -488,6 +500,199 @@ def resolve_ac_batch(article: Article, user: Account, codes: list[str]) -> None:
 
 
 # ============================================================================
+# HAS_UNREAD_MESSAGE -- event-driven write path
+# ============================================================================
+
+
+def unread_message_ac_owner(article: Article, user: Account) -> Account:
+    """Return the user that owns the unread-message AC of the given user.
+
+    Everybody owns their own, except EO people: they share a single AC, the one
+    of the EO system user. For EO, "unread" is a property of the article -- a
+    message not yet flagged ``read_by_eo``, whoever its recipient is -- rather
+    than of the person, so one AC per article is enough, and every EO user can
+    see it (see AttentionConditionQuerySet.visible_to).
+
+    Args:
+        article: The article the messages belong to.
+        user: The user to find the AC owner of.
+
+    Returns:
+        The EO system user for EO people, the given user otherwise.
+    """
+    if has_eo_role(user):
+        return get_eo_user(article)
+    return user
+
+
+def unread_message_ac_priority(user: Account) -> int:
+    """Return the display priority of the unread-message AC of the given user.
+
+    Top priority for the editorial office, whose job the messages are, lowest
+    for everybody else, for whom what the workflow expects comes first.
+
+    Args:
+        user: The user the AC belongs to.
+
+    Returns:
+        The priority (lower means higher priority).
+    """
+    if has_eo_role(user):
+        return HAS_UNREAD_MESSAGE_PRIORITY_FOR_EO
+    return HAS_UNREAD_MESSAGE_PRIORITY
+
+
+def sync_unread_message_ac(article: Article, recipient: Account) -> None:
+    """Create or resolve HAS_UNREAD_MESSAGE for one user.
+
+    Called whenever a message's read status can have changed for this user:
+    when a message is created (the user now has an unread message) and when a
+    message is flagged read/unread (the AC must go away only if *no other*
+    message is left unread).
+
+    The AC is written for the owner given by :py:func:`unread_message_ac_owner`,
+    i.e. on the EO system user's row for any EO person, with the priority given
+    by :py:func:`unread_message_ac_priority`. The row is unique per
+    (article, user, code), so calling this repeatedly never creates duplicates:
+    an already-existing AC is just refreshed.
+
+    Args:
+        article: The article the messages belong to.
+        recipient: The user whose unread-messages AC should be synced.
+    """
+    recipient = unread_message_ac_owner(article, recipient)
+    if ac_message := conditions.has_unread_message(article, recipient=recipient):
+        upsert_ac(
+            article,
+            recipient,
+            HAS_UNREAD_MESSAGE,
+            ac_message,
+            priority=unread_message_ac_priority(recipient),
+        )
+    else:
+        resolve_ac(article, recipient, HAS_UNREAD_MESSAGE)
+
+
+def sync_unread_message_ac_for_eo(article: Article) -> None:
+    """Create or resolve the editorial office's HAS_UNREAD_MESSAGE for an article.
+
+    EO cannot be handled as a plain recipient: for them "unread" also covers
+    every message of the article not yet flagged ``read_by_eo``, whoever the
+    recipient is (see ``conditions._has_unread_message``). So any message
+    written by anybody to anybody can give EO something to read, and the AC
+    belongs to the office as a whole: it lives on the EO system user's row,
+    which every EO user can see.
+
+    Args:
+        article: The article the messages belong to.
+    """
+    sync_unread_message_ac(article, get_eo_user(article))
+
+
+def sync_unread_message_acs_for_message(message: Message) -> None:
+    """Create or resolve HAS_UNREAD_MESSAGE for everybody concerned by a message.
+
+    That is: the recipients of the message, plus the editorial office
+    (see :py:func:`sync_unread_message_ac_for_eo`).
+
+    Messages that do not refer to an article (e.g. journal-wide messages) are
+    ignored, since ACs are per-article.
+
+    Args:
+        message: The message whose recipients should be synced.
+    """
+    article = message.target
+    if not isinstance(article, Article):
+        return
+    for recipient in message.recipients.all():
+        sync_unread_message_ac(article, recipient)
+    sync_unread_message_ac_for_eo(article)
+
+
+def rebuild_unread_message_acs() -> int:
+    """Re-evaluate HAS_UNREAD_MESSAGE for every (article, user) pair that may need it.
+
+    The event-driven path (:py:func:`sync_unread_message_acs_for_message` and
+    friends) is the normal writer of this AC; this is the safety net for what
+    events cannot see: messages created outside those paths (the wjapp import,
+    direct ORM writes) and messages deleted afterwards.
+
+    Unlike the other ACs, this one is neither state-scoped nor role-scoped: any
+    recipient of any message gets it, whatever the state of the article and
+    whatever role (if any) they hold on it. So the rebuild cannot iterate the
+    states of STATE_ROLE_AC_MAP and their current role holders, as the
+    evaluator does; it considers instead:
+
+    - the (article, user) pairs with at least one unread message,
+    - the pairs with an active AC, so that a stale one gets resolved,
+    - the EO system user of the articles carrying a message not flagged
+      read_by_eo, since that is what "unread" means for the editorial office.
+
+    Returns:
+        The number of (article, user) pairs re-evaluated.
+    """
+    content_type = ContentType.objects.get_for_model(Article)
+
+    # Pairs that may need the AC created...
+    pairs: set[tuple[int, int]] = set(
+        MessageRecipients.objects.filter(
+            read=False,
+            message__content_type=content_type,
+        )
+        .exclude(message__message_type=Message.MessageTypes.NOTE)
+        .values_list("message__object_id", "recipient_id")
+    )
+    # ...and pairs that may need it resolved.
+    pairs |= set(
+        AttentionCondition.objects.filter(
+            code=HAS_UNREAD_MESSAGE,
+            status=AttentionCondition.Status.ACTIVE,
+        ).values_list("article_id", "user_id")
+    )
+    # For EO, any message not yet flagged read-by-eo counts, whoever the recipient is.
+    eo_article_ids = set(
+        Message.objects.filter(
+            content_type=content_type,
+            read_by_eo=False,
+        )
+        .exclude(message_type=Message.MessageTypes.NOTE)
+        .values_list("object_id", flat=True)
+    )
+
+    # NB: a message's object_id has no FK constraint, so it can point to a deleted article.
+    articles = {
+        article.pk: article
+        for article in Article.objects.filter(
+            pk__in={article_id for article_id, _ in pairs} | eo_article_ids,
+        ).select_related("journal")
+    }
+    eo_user_per_journal: dict[int, Account] = {}
+    for article_id in eo_article_ids:
+        article = articles.get(article_id)
+        if not article:
+            continue
+        if article.journal_id not in eo_user_per_journal:
+            eo_user_per_journal[article.journal_id] = get_eo_user(article)
+        pairs.add((article_id, eo_user_per_journal[article.journal_id].pk))
+
+    accounts = {account.pk: account for account in Account.objects.filter(pk__in={user_id for _, user_id in pairs})}
+
+    count = 0
+    for article_id, user_id in pairs:
+        article = articles.get(article_id)
+        user = accounts.get(user_id)
+        if not article or not user:
+            continue
+        owner = unread_message_ac_owner(article, user)
+        if owner != user:
+            # EO people share the EO system user's AC: drop any personal leftover.
+            resolve_ac(article, user, HAS_UNREAD_MESSAGE)
+        sync_unread_message_ac(article, owner)
+        count += 1
+    return count
+
+
+# ============================================================================
 # ACStateEvaluator -- maps (state, role) to ordered AC code lists
 # ============================================================================
 
@@ -528,7 +733,6 @@ STATE_ROLE_AC_MAP: dict[tuple[str, str], list[str]] = {
         NEEDS_ASSIGNMENT_ESCALATED,
         REVIEWER_LATE_ESCALATED,
         EDITOR_IS_LATE,
-        OLD_UNREAD_MESSAGES_FOR_EO,
     ],
     ("EditorSelected", "director"): [NEEDS_ASSIGNMENT_ESCALATED, REVIEWER_LATE_ESCALATED, EDITOR_IS_LATE],
     ("EditorSelected", "reviewer"): [REVIEWER_INVITATION_PENDING, REVIEWER_REPORT_OVERDUE],
@@ -546,11 +750,9 @@ STATE_ROLE_AC_MAP: dict[tuple[str, str], list[str]] = {
     ("PaperMightHaveIssues", "eo"): [SUBMISSION_TO_CHECK],
     # -- TypesetterSelected --
     ("TypesetterSelected", "typesetter"): [TYPESETTER_LATE],
-    ("TypesetterSelected", "eo"): [TYPESETTER_LATE, OLD_UNREAD_MESSAGES_FOR_EO],
+    ("TypesetterSelected", "eo"): [TYPESETTER_LATE],
     # -- Proofreading --
-    ("Proofreading", "eo"): [AUTHOR_PROOFING_LATE, OLD_UNREAD_MESSAGES_FOR_EO],
-    # -- ReadyForTypesetter --
-    ("ReadyForTypesetter", "eo"): [OLD_UNREAD_MESSAGES_FOR_EO],
+    ("Proofreading", "eo"): [AUTHOR_PROOFING_LATE],
     # -- ReadyForPublication --
     ("ReadyForPublication", "eo"): [MISSING_SOCIAL_MEDIA, MISSING_ENGLISH_CONTENT],
 }
@@ -612,7 +814,7 @@ class ACStateEvaluator:
         self.article = article
         self.codes = self.STATE_AC_MAP.get(state, set())
 
-    def evaluate_all(self) -> None:
+    def evaluate_all(self, *, with_unread_messages: bool = True) -> None:
         """Evaluate all ACs relevant to the current state.
 
         For each AC code in the state's set, runs the corresponding condition
@@ -622,32 +824,35 @@ class ACStateEvaluator:
         with the passage of time). Event-based ACs are also re-evaluated to
         ensure consistency.
 
-        The fallback HAS_UNREAD_MESSAGE is always evaluated regardless of
-        whether the state has mapped AC codes, so that unread-message ACs
-        are resolved even in states with no other ACs.
+        HAS_UNREAD_MESSAGE is state-independent and evaluated whether or not the
+        state has mapped AC codes, so that unread-message ACs are resolved even
+        in states with no other ACs. Pass ``with_unread_messages=False`` to skip
+        it: the nightly rebuild does, since it covers that AC for every article
+        and every recipient via rebuild_unread_message_acs().
         """
         if self.codes:
             for code in self.codes:
                 self._evaluate_code(code)
 
-        # Evaluate the fallback HAS_UNREAD_MESSAGE for all roles in all states.
+        # Evaluate the state-independent HAS_UNREAD_MESSAGE for all roles.
         # This fixes New Issue 6 (unread messages not triggering ACs in
         # post-review states). See:
         # 260318-SISSA-Specifications-for-attention-conditions.md, New Issue 6.
-        self._evaluate_unread_messages()
+        if with_unread_messages:
+            self._evaluate_unread_messages()
 
         # Resolve stale time-based ACs that belong to a previous state.
         self._resolve_stale_time_based_acs()
 
-    def evaluate_time_based(self) -> None:
+    def evaluate_time_based(self, *, with_unread_messages: bool = True) -> None:
         """Evaluate only time-based ACs for the daily rebuild job.
 
         Unlike :meth:`evaluate_all`, this skips event-based ACs (e.g.,
         EDITOR_NOT_SELECTED, REVIEWS_COMPLETED) that fire immediately on
         user actions and don't need periodic re-evaluation.
 
-        The fallback HAS_UNREAD_MESSAGE is always evaluated regardless,
-        since it is time-sensitive (messages age).
+        HAS_UNREAD_MESSAGE is evaluated too, since it is time-sensitive
+        (messages age), unless ``with_unread_messages`` is False.
         """
         if self.codes:
             for code in self.codes:
@@ -655,7 +860,8 @@ class ACStateEvaluator:
                     self._evaluate_code(code)
 
         # HAS_UNREAD_MESSAGE is always time-sensitive.
-        self._evaluate_unread_messages()
+        if with_unread_messages:
+            self._evaluate_unread_messages()
 
         # Resolve stale time-based ACs that belong to a previous state.
         self._resolve_stale_time_based_acs()
@@ -948,38 +1154,6 @@ class ACStateEvaluator:
                 for role in roles:
                     self._resolve_for_role(role, AUTHOR_PROOFING_LATE)
 
-    def _evaluate_old_unread_messages(self, roles: list[str]) -> None:
-        """Non-EO roles: old unread messages (short threshold).
-
-        Uses ``WJS_UNREAD_MESSAGES_LATE_AFTER`` days as the threshold.
-        """
-        article = self.article
-        msg = conditions.article_has_old_unread_message(
-            article, late_after_days=settings.WJS_UNREAD_MESSAGES_LATE_AFTER
-        )
-        if msg:
-            for role in roles:
-                self._upsert_for_role(role, OLD_UNREAD_MESSAGES, msg)
-        else:
-            for role in roles:
-                self._resolve_for_role(role, OLD_UNREAD_MESSAGES)
-
-    def _evaluate_old_unread_messages_for_eo(self, roles: list[str]) -> None:
-        """EO: old unread messages (EO threshold, effectively never).
-
-        Uses ``WJS_UNREAD_MESSAGES_LATE_AFTER_FOR_EO`` days as the threshold.
-        """
-        article = self.article
-        msg = conditions.article_has_old_unread_message(
-            article, late_after_days=settings.WJS_UNREAD_MESSAGES_LATE_AFTER_FOR_EO
-        )
-        if msg:
-            for role in roles:
-                self._upsert_for_role(role, OLD_UNREAD_MESSAGES_FOR_EO, msg)
-        else:
-            for role in roles:
-                self._resolve_for_role(role, OLD_UNREAD_MESSAGES_FOR_EO)
-
     def _evaluate_incomplete_submission(self, roles: list[str]) -> None:
         """Author: incomplete submission."""
         for role in roles:
@@ -1023,15 +1197,15 @@ class ACStateEvaluator:
             self._resolve_for_role(role, MISSING_ENGLISH_CONTENT)
 
     def _evaluate_unread_messages(self) -> None:
-        """Evaluate HAS_UNREAD_MESSAGE fallback for all roles in all states.
+        """Evaluate HAS_UNREAD_MESSAGE for all roles in all states.
 
         This fixes New Issue 6: previously, unread messages would not create
         ACs for roles that had no explicit attention function in the current
         state. Now we evaluate this for all users who have any role on the
         article, regardless of state.
 
-        Priority 99: this is the fallback AC, always lowest priority so that
-        any specific AC takes precedence in the display.
+        Its display priority depends on the user, see
+        unread_message_ac_priority().
 
         See: 260318-SISSA-Specifications-for-attention-conditions.md, New Issue 6.
         """
@@ -1045,8 +1219,4 @@ class ACStateEvaluator:
                 pass
 
         for user in all_users:
-            msg = conditions.has_unread_message(article, recipient=user)
-            if msg:
-                upsert_ac(article, user, HAS_UNREAD_MESSAGE, msg, priority=99)
-            else:
-                resolve_ac(article, user, HAS_UNREAD_MESSAGE)
+            sync_unread_message_ac(article, user)

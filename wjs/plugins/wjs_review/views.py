@@ -1,7 +1,7 @@
 import dataclasses
 import datetime
 import json
-from itertools import chain
+from itertools import chain, groupby
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type, Union
 
 import django_filters
@@ -140,6 +140,7 @@ from .mixins import (
 )
 from .models import (
     ArticleWorkflow,
+    AttentionCondition,
     EditorDecision,
     EditorRevisionRequest,
     LatexPreamble,
@@ -353,10 +354,13 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
             # Build a dict article_id -> message (highest priority AC per article)
             # and attach it to each workflow object so the template filter
             # can look it up in O(1) instead of making N queries.
-            user_acs_qs = ac_service.AttentionCondition.objects.filter(
-                user=self.request.user,
-                status=ac_service.AttentionCondition.Status.ACTIVE,
-            ).order_by("article_id", "priority", "created_at")
+            # EO users see also the ACs of the editorial office as a whole,
+            # i.e. the ones of the EO system user (see visible_to).
+            user_acs_qs = (
+                ac_service.AttentionCondition.objects.active()
+                .visible_to(self.request.user, self.request.journal)
+                .order_by("article_id", "priority", "created_at")
+            )
 
             acs_dict: dict[int, str] = {}
             for ac in user_acs_qs:
@@ -2743,7 +2747,7 @@ class ToggleMessageReadView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
         article = self.object.message.target
         if isinstance(article, Article) and hasattr(article, "articleworkflow"):
             ac_service.ACStateEvaluator(
-                state=article.articleworkflow.state_value,
+                state=article.articleworkflow.state,
                 article=article,
             ).evaluate_all()
 
@@ -2787,7 +2791,7 @@ class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateVi
         article = self.object.target
         if isinstance(article, Article) and hasattr(article, "articleworkflow"):
             ac_service.ACStateEvaluator(
-                state=article.articleworkflow.state_value,
+                state=article.articleworkflow.state,
                 article=article,
             ).evaluate_all()
 
@@ -3277,6 +3281,58 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
             for reminder in reminders
         }
         context["toggle_reminder_forms"] = toggle_reminder_forms
+        return context
+
+
+class ArticleAttentionConditions(BaseRelatedViewsMixin, ListView):
+    """All attention conditions related to an article, grouped per user."""
+
+    title = _("Attention conditions")
+    model = AttentionCondition
+    template_name = "wjs_review/attention_conditions/article_attention_conditions.html"
+    context_object_name = "attention_conditions"
+
+    def load_initial(self, request, *args, **kwargs):
+        """Store a reference to the article for easier processing."""
+        super().load_initial(request, *args, **kwargs)
+        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Let's show the attention conditions to EO only."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    @property
+    def breadcrumbs(self) -> List["BreadcrumbItem"]:
+        from .custom_types import BreadcrumbItem
+
+        return [
+            BreadcrumbItem(
+                url=reverse("wjs_article_details", kwargs={"pk": self.workflow.pk}),
+                title=self.workflow,
+            ),
+            BreadcrumbItem(
+                url=self.request.path,
+                title=self.title,
+                current=True,
+            ),
+        ]
+
+    def get_queryset(self):
+        """Get all the ACs of the article, whatever their status, ready to be grouped per user."""
+        return (
+            super().get_queryset().filter(article=self.workflow.article).by_user_and_relevance().select_related("user")
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add the article and the ACs grouped per user to the context."""
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.workflow
+        context["article"] = self.workflow.article
+        # The queryset is ordered by user, so consecutive rows of the same user are one group
+        context["attention_conditions_per_user"] = [
+            (user, list(conditions_of_user))
+            for user, conditions_of_user in groupby(context["attention_conditions"], key=lambda ac: ac.user)
+        ]
         return context
 
 

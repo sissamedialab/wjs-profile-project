@@ -436,11 +436,9 @@ def article_requires_attention_tt(workflow: ArticleWorkflow, user: Account = Non
     from ..models import AttentionCondition
 
     ac = (
-        AttentionCondition.objects.filter(
-            article=workflow.article,
-            user=user,
-            status=AttentionCondition.Status.ACTIVE,
-        )
+        AttentionCondition.objects.active()
+        .filter(article=workflow.article)
+        .visible_to(user, workflow.article)
         .order_by("priority", "created_at")
         .first()
     )
