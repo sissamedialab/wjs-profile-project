@@ -263,6 +263,15 @@ def log_operation(
     MessageRecipients.objects.filter(message=message, recipient=actor).update(read=True)
     # Message to eo_user are considered read
     MessageRecipients.objects.filter(message=message, recipient=eo_user).update(read=True)
+
+    # -- Materialized AC updates --
+    # The recipients that are left with an unread message get HAS_UNREAD_MESSAGE.
+    # NB: local import to break the circular dependency
+    # communication_utils -> ac_service -> conditions -> logic -> communication_utils
+    from . import ac_service
+
+    ac_service.sync_unread_message_acs_for_message(message)
+
     message.emit_notification()
     if notify_actor and hijacking_actor:
         fake_request = create_fake_request(user=None, journal=article.journal)

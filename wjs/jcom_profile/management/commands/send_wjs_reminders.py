@@ -10,6 +10,7 @@ from django.utils import timezone
 
 # NB: explicit relative imports for plugins stuff does not work:
 #     e.g.: from ....plugins.wjs_review.models import Message
+from plugins.wjs_review import ac_service
 from plugins.wjs_review.models import Reminder
 from utils.logger import get_logger
 
@@ -63,6 +64,8 @@ class Command(BaseCommand):
                     message.save()
                     message.recipients.set([reminder.recipient])
                     message.emit_notification(from_email=reminder.get_from_email())
+                    # A reminder is a message: its recipient has something to read
+                    ac_service.sync_unread_message_acs_for_message(message)
                     reminder.date_sent = message.created
                     reminder.save()
             else:

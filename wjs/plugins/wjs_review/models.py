@@ -46,6 +46,7 @@ from wjs.jcom_profile.utils import render_template
 from . import permissions
 from .managers import (
     ArticleWorkflowQuerySet,
+    AttentionConditionQuerySet,
     WjsEditorAssignmentQuerySet,
     WorkflowReviewAssignmentQuerySet,
 )
@@ -2526,6 +2527,8 @@ class AttentionCondition(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = AttentionConditionQuerySet.as_manager()
 
     class Meta:
         verbose_name = _("Attention condition")

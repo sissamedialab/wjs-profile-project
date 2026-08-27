@@ -15,9 +15,9 @@ from submission import models as submission_models
 
 from wjs.jcom_profile.models import JCOMProfile
 
-from ..ac_service import ACStateEvaluator
+from ..ac_service import HAS_UNREAD_MESSAGE, ACStateEvaluator
 from ..logic import AssignToReviewer, SubmitReview
-from ..models import WjsEditorAssignment, WorkflowReviewAssignment
+from ..models import AttentionCondition, WjsEditorAssignment, WorkflowReviewAssignment
 from ..plugin_settings import SHORT_NAME
 from ..utils import get_report_form
 
@@ -49,6 +49,27 @@ def attention_conditions_rebuild(article):
     article.articleworkflow.refresh_from_db()
     state = article.articleworkflow.state
     ACStateEvaluator(state=state, article=article).evaluate_all()
+
+
+def attention_condition_ignoring_unread(article, user) -> str:
+    """Return the top-priority active AC message of a user, ignoring unread messages.
+
+    Same as BaseState.article_requires_attention, but blind to
+    HAS_UNREAD_MESSAGE: the fixtures create messages at every step, so a test
+    about another condition would read "You have unread messages" whenever that
+    other condition is not met. The unread-messages AC has its own tests.
+    """
+    ac = (
+        AttentionCondition.objects.filter(
+            article=article,
+            user=user,
+            status=AttentionCondition.Status.ACTIVE,
+        )
+        .exclude(code=HAS_UNREAD_MESSAGE)
+        .order_by("priority", "created_at")
+        .first()
+    )
+    return ac.message if ac else ""
 
 
 def _create_review_assignment(

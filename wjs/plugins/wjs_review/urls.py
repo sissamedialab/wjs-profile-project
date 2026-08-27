@@ -5,6 +5,7 @@ from .views import (
     AdminOpensAppealView,
     ArticleAdminDecision,
     ArticleAdminDispatchAssignment,
+    ArticleAttentionConditions,
     ArticleDecision,
     ArticleDetails,
     ArticleExtraInformationUpdateView,
@@ -263,6 +264,11 @@ urlpatterns = [
     # TODO: rethink naming of views.
     # For the messages we have messages/..., but for the reminders it is article/ID/reminders
     path("status/<int:pk>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),
+    path(
+        "status/<int:pk>/attention-conditions/",
+        ArticleAttentionConditions.as_view(),
+        name="wjs-article-attention-conditions",
+    ),
     path("status/<int:pk>/assignment_reminders/", ArticleReminders.as_view(), name="wjs_reminders_per_assignment"),
     path(
         "toggle_reminder/<int:reminder_id>/",

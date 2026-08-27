@@ -7,11 +7,16 @@ It complements the event-driven leg (explicit ac_service calls in logic classes)
 Design:
   - Scoped by ArticleWorkflow.state: only evaluates ACs relevant to each state.
     See ACStateEvaluator.STATE_AC_MAP in ac_service.py.
+  - HAS_UNREAD_MESSAGE is deliberately left alone: it is purely event-driven
+    (its message carries no elapsed time, so it never needs a refresh) and any
+    drift should stay visible rather than be silently healed every night. Use
+    populate_attention_conditions to rebuild it on purpose.
   - Idempotent: uses upsert_ac / resolve_ac which are safe to call repeatedly.
   - Provides the correctness floor: re-evaluates ALL ACs (time-based and
     event-based) for articles in active states, so a missed event-driven hook
     is corrected within 24h. NB: ACs left over from a previous state are NOT
-    healed (the evaluator only examines codes mapped to the current state).
+    healed (the evaluator only examines codes mapped to the current state),
+    with the exception of the time-based ones.
 
 Should be run via cron or a task scheduler (e.g., Celery, django-cron) once
 per day, preferably during low-traffic hours.
@@ -53,7 +58,8 @@ class Command(BaseCommand):
 
             for workflow in workflows:
                 evaluator = ACStateEvaluator(state=state_code, article=workflow.article)
-                evaluator.evaluate_all()
+                # NB: no unread messages here, see the note in the module docstring.
+                evaluator.evaluate_all(with_unread_messages=False)
                 total_articles += 1
 
         if verbosity:

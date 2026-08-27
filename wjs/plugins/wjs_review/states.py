@@ -594,6 +594,13 @@ class BaseState:
         ),
         ArticleButton(
             permission=permissions.has_eo_role_by_article,
+            name="check attention conditions",
+            tooltip="See all the attention conditions of this paper, per user",
+            label='Check attention conditions <i class="bi bi-exclamation-diamond"></i>',
+            view_name="wjs-article-attention-conditions",
+        ),
+        ArticleButton(
+            permission=permissions.has_eo_role_by_article,
             name="article manager",
             tooltip="Go to Janeway's Manager",
             label="Manage",
@@ -654,17 +661,17 @@ class BaseState:
     def article_requires_attention(cls, *, article, user):
         """Return the highest-priority active AC message for (article, user).
 
-        Delegates to the materialized AttentionCondition table.
+        Delegates to the materialized AttentionCondition table. EO users see
+        also the ACs of the editorial office as a whole, i.e. the ones of the
+        EO system user (see AttentionConditionQuerySet.visible_to).
         Returns empty string if no active AC exists.
         """
         from .models import AttentionCondition
 
         ac = (
-            AttentionCondition.objects.filter(
-                article=article,
-                user=user,
-                status=AttentionCondition.Status.ACTIVE,
-            )
+            AttentionCondition.objects.active()
+            .filter(article=article)
+            .visible_to(user, article)
             .order_by("priority", "created_at")
             .first()
         )
@@ -679,12 +686,9 @@ class BaseState:
         """
         from .models import AttentionCondition
 
-        qs = AttentionCondition.objects.filter(
-            article=article,
-            status=AttentionCondition.Status.ACTIVE,
-        )
+        qs = AttentionCondition.objects.active().filter(article=article)
         if user is not None:
-            qs = qs.filter(user=user)
+            qs = qs.visible_to(user, article)
 
         ac = qs.order_by("priority", "created_at").first()
         return ac.message if ac else ""

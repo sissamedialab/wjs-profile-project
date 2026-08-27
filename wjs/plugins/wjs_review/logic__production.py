@@ -270,14 +270,10 @@ class AssignTypesetter:
                 self.typesetter,
             ],
             verbosity=Message.MessageVerbosity.TIMELINE,
-            flag_as_read=False,
+            flag_as_read=self.is_user_typesetter(),
             flag_as_read_by_eo=True,
         )
         return message
-
-    def _mark_message_read(self, message: Message):
-        message.messagerecipients_set.filter(recipient=self.typesetter).update(read=True)
-        message.save()
 
     def save_supplementary_files_at_acceptance(self):
         """We have an archival model in ArticleWorkflow to save supplementary files at Typesetter acceptance."""
@@ -290,9 +286,7 @@ class AssignTypesetter:
             self.assignment = self._assign_typesetter()
             self._update_state()
             context = self._get_message_context()
-            message = self._log_operation(context=context)
-            if self.is_user_typesetter():
-                self._mark_message_read(message)
+            self._log_operation(context=context)
             self.save_supplementary_files_at_acceptance()
 
             # No AC update here: the assignment is created in this same run()
@@ -1485,7 +1479,7 @@ class ReadyForPublication:
             # Evaluate RFP-specific ACs. MISSING_* codes are event-based (the
             # nightly rebuild skips them), so entry to RFP is their creation
             # point; HandleEOSendBackToTypesetter resolves them on the way back.
-            evaluator = ac_service.ACStateEvaluator(state=self.workflow.state_value, article=self.workflow.article)
+            evaluator = ac_service.ACStateEvaluator(state=self.workflow.state, article=self.workflow.article)
             evaluator._evaluate_code(ac_service.MISSING_SOCIAL_MEDIA)
             evaluator._evaluate_code(ac_service.MISSING_ENGLISH_CONTENT)
 

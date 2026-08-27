@@ -16,7 +16,7 @@ References:
 """
 
 from django.core.management.base import BaseCommand
-from plugins.wjs_review.ac_service import ACStateEvaluator
+from plugins.wjs_review.ac_service import ACStateEvaluator, rebuild_unread_message_acs
 from plugins.wjs_review.models import ArticleWorkflow
 
 
@@ -46,8 +46,19 @@ class Command(BaseCommand):
 
             for workflow in workflows:
                 evaluator = ACStateEvaluator(state=state_code, article=workflow.article)
-                evaluator.evaluate_all()
+                # HAS_UNREAD_MESSAGE is handled by the separate pass below, which
+                # is not limited to these states nor to the current role holders.
+                evaluator.evaluate_all(with_unread_messages=False)
                 total_articles += 1
 
         if verbosity:
-            self.stdout.write(self.style.SUCCESS(f"Done. Populated ACs for {total_articles} articles."))
+            self.stdout.write("  Unread messages (any state, any recipient)...")
+        total_pairs = rebuild_unread_message_acs()
+
+        if verbosity:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Done. Populated ACs for {total_articles} articles"
+                    f" and {total_pairs} (article, user) pairs for unread messages."
+                ),
+            )

@@ -1,0 +1,54 @@
+{% extends "wjs_review/base/base.html" %}
+{% load i18n %}
+
+{% block content_wrapper %}
+  <div class="container mb-3">
+    <h1 class="fw-bold fs-3 mb-4">{{ view.title }}</h1>
+    {% for user, user_attention_conditions in attention_conditions_per_user %}
+      <h2 class="fs-5 mt-4">
+        {{ user }}
+      </h2>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th scope="col">{% translate "Code" %}</th>
+              <th scope="col">{% translate "Created" %}</th>
+              <th scope="col">{% translate "Message" %}</th>
+              <th scope="col">{% translate "Priority" %}</th>
+              <th scope="col">{% translate "Source" %}</th>
+              <th scope="col">{% translate "Status" %}</th>
+              <th scope="col">{% translate "Updated" %}</th>
+              <th scope="col">{% translate "Valid from" %}</th>
+              <th scope="col">{% translate "Valid until" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for attention_condition in user_attention_conditions %}
+              <tr>
+                <td><code>{{ attention_condition.code }}</code></td>
+                <td>{{ attention_condition.created_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ attention_condition.message }}</td>
+                <td>{{ attention_condition.priority }}</td>
+                <td>{{ attention_condition.source }}</td>
+                <td>
+                  {% if attention_condition.status == "active" %}
+                    <span class="badge text-bg-warning">{{ attention_condition.status }}</span>
+                  {% else %}
+                    <span class="badge text-bg-light">{{ attention_condition.status }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ attention_condition.updated_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ attention_condition.valid_from|date:"Y-m-d H:i" }}</td>
+                <td>{{ attention_condition.valid_until|date:"Y-m-d H:i"|default:"-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% empty %}
+      <p>{% translate "This paper has no attention condition." %}</p>
+    {% endfor %}
+  </div>
+  {% include "wjs_review/base/elements/back.html" with workflow=workflow use_div=True %}
+{% endblock content_wrapper %}
