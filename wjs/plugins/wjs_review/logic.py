@@ -1234,7 +1234,7 @@ class EvaluateReview:
                 # The editor/EO/director "reviewer late" ACs aggregate over all
                 # reviewers: re-evaluate them instead of blind-resolving (another
                 # reviewer may still be late).
-                evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state_value, article=article)
+                evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state, article=article)
                 evaluator._evaluate_code(ac_service.REVIEWER_LATE)
                 evaluator._evaluate_code(ac_service.REVIEWER_LATE_ESCALATED)
                 evaluator._evaluate_code(ac_service.REVIEWER_INACTIVE)
@@ -1246,7 +1246,7 @@ class EvaluateReview:
                         ac_service.NEEDS_ASSIGNMENT,
                         "Review process should start/restart",
                         priority=ac_service.get_ac_priority(
-                            article.articleworkflow.state_value, "editor", ac_service.NEEDS_ASSIGNMENT
+                            article.articleworkflow.state, "editor", ac_service.NEEDS_ASSIGNMENT
                         ),
                     )
 
@@ -1569,7 +1569,7 @@ class SubmitReview:
             # The editor/EO/director "reviewer late" ACs aggregate over all
             # reviewers: re-evaluate them instead of blind-resolving (another
             # reviewer may still be late).
-            evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state_value, article=article)
+            evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state, article=article)
             evaluator._evaluate_code(ac_service.REVIEWER_LATE)
             evaluator._evaluate_code(ac_service.REVIEWER_LATE_ESCALATED)
             evaluator._evaluate_code(ac_service.REVIEWER_INACTIVE)
@@ -1582,7 +1582,7 @@ class SubmitReview:
                     ac_service.REVIEWS_COMPLETED,
                     "Review(s) completed. Decision should be made",
                     priority=ac_service.get_ac_priority(
-                        article.articleworkflow.state_value, "editor", ac_service.REVIEWS_COMPLETED
+                        article.articleworkflow.state, "editor", ac_service.REVIEWS_COMPLETED
                     ),
                 )
             else:
@@ -2404,7 +2404,7 @@ class DeselectReviewer:
             # The editor/EO/director "reviewer late" ACs aggregate over all
             # reviewers: re-evaluate them instead of blind-resolving (removing
             # the late reviewer is exactly what may clear the editor's flag).
-            evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state_value, article=article)
+            evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state, article=article)
             evaluator._evaluate_code(ac_service.REVIEWER_LATE)
             evaluator._evaluate_code(ac_service.REVIEWER_LATE_ESCALATED)
             evaluator._evaluate_code(ac_service.REVIEWER_INACTIVE)
@@ -2417,7 +2417,7 @@ class DeselectReviewer:
                     ac_service.NEEDS_ASSIGNMENT,
                     "Review process should start/restart",
                     priority=ac_service.get_ac_priority(
-                        article.articleworkflow.state_value, "editor", ac_service.NEEDS_ASSIGNMENT
+                        article.articleworkflow.state, "editor", ac_service.NEEDS_ASSIGNMENT
                     ),
                 )
 
@@ -3517,13 +3517,7 @@ class HandleMessage:
             from . import ac_service
 
             # New message sent: create HAS_UNREAD_MESSAGE for the recipient
-            ac_service.upsert_ac(
-                self.message.target,
-                recipient,
-                ac_service.HAS_UNREAD_MESSAGE,
-                "You have unread messages",
-                priority=99,
-            )
+            ac_service.sync_unread_message_ac(self.message.target, recipient)
 
 
 @dataclasses.dataclass
@@ -3623,7 +3617,7 @@ class AdminActions:
             from .ac_service import ACStateEvaluator
 
             ACStateEvaluator(
-                state=workflow.state_value,
+                state=workflow.state,
                 article=workflow.article,
             ).evaluate_all()
 
@@ -3826,7 +3820,7 @@ class BaseDeassignEditor:
                 ac_service.EDITOR_NOT_SELECTED,
                 "Editor has not been selected",
                 priority=ac_service.get_ac_priority(
-                    article.articleworkflow.state_value, "eo", ac_service.EDITOR_NOT_SELECTED
+                    article.articleworkflow.state, "eo", ac_service.EDITOR_NOT_SELECTED
                 ),
             )
             ac_service.upsert_for_role(
@@ -3835,7 +3829,7 @@ class BaseDeassignEditor:
                 ac_service.EDITOR_NOT_SELECTED,
                 "Editor should be selected",
                 priority=ac_service.get_ac_priority(
-                    article.articleworkflow.state_value, "director", ac_service.EDITOR_NOT_SELECTED
+                    article.articleworkflow.state, "director", ac_service.EDITOR_NOT_SELECTED
                 ),
             )
             # Clear the deassigned editor's own ACs. NB: resolve by explicit

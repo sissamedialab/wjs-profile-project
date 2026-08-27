@@ -1,5 +1,5 @@
 import datetime
-from typing import TYPE_CHECKING, List, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
@@ -9,8 +9,11 @@ from review.models import ReviewRound
 from submission.models import Article
 
 from wjs.jcom_profile.permissions import has_eo_role
+from wjs.jcom_profile.utils import get_eo_user
 
 if TYPE_CHECKING:
+    from journal.models import Journal
+
     from .models import ArticleWorkflow, WjsEditorAssignment
 
 
@@ -266,3 +269,64 @@ class WorkflowReviewAssignmentQuerySet(models.QuerySet):
         :rtype: "WorkflowReviewAssignmentQuerySet"
         """
         return self.active().filter(is_complete=True)
+
+
+class AttentionConditionQuerySet(models.QuerySet):
+    def active(self) -> "AttentionConditionQuerySet":
+        """
+        Return the attention conditions that are still to be dealt with.
+
+        :return: the active attention conditions
+        :rtype: "AttentionConditionQuerySet"
+        """
+        from .models import AttentionCondition
+
+        return self.filter(status=AttentionCondition.Status.ACTIVE)
+
+    def by_user_and_relevance(self) -> "AttentionConditionQuerySet":
+        """
+        Order the attention conditions by user, then by relevance: active ones first, then by priority.
+
+        Used by the page that lists all the ACs of an article grouped per user: the ordering by user comes
+        first, so that the rows of one user are contiguous and can be grouped as they are read.
+
+        :return: the attention conditions, ordered by user and relevance
+        :rtype: "AttentionConditionQuerySet"
+        """
+        from .models import AttentionCondition
+
+        by_status = models.Case(
+            models.When(status=AttentionCondition.Status.ACTIVE, then=0),
+            models.When(status=AttentionCondition.Status.RESOLVED, then=1),
+            default=2,
+            output_field=models.IntegerField(),
+        )
+        return self.order_by(
+            "user__last_name",
+            "user__first_name",
+            "user_id",
+            by_status,
+            "priority",
+            "created_at",
+        )
+
+    def visible_to(self, user: Account, obj: Optional[Union[Article, "Journal"]]) -> "AttentionConditionQuerySet":
+        """
+        Return the attention conditions that the given user is entitled to see.
+
+        Everybody sees their own ACs. EO people see also the ACs of the EO system user: those belong to the
+        editorial office as a whole, not to one of its members (e.g. the unread-messages AC, which for EO
+        depends on the article's messages being flagged read_by_eo and not on who the recipient is).
+
+        :param user: the user looking at the attention conditions
+        :type user: Account
+        :param obj: the article or the journal the attention conditions refer to, to identify the EO system user;
+            when None (e.g. a press-level page, with no journal in the request) only the user's own ACs are returned
+        :type obj: Optional[Union[Article, "Journal"]]
+        :return: the attention conditions visible to the user
+        :rtype: "AttentionConditionQuerySet"
+        """
+        owners = [user]
+        if obj is not None and has_eo_role(user):
+            owners.append(get_eo_user(obj))
+        return self.filter(user__in=owners)

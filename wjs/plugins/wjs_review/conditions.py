@@ -14,7 +14,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
 from journal.models import Issue, Journal
-from plugins.wjs_review.models import MessageRecipients
 from submission.models import REVIEW_ACCESSIBLE_STAGES, Article
 from typesetting.models import GalleyProofing, TypesettingAssignment
 
@@ -274,66 +273,6 @@ def has_unread_message(article: Article, recipient: Account) -> str:
     """Tell if the recipient has any unread message for the current article."""
     if _has_unread_message(article, recipient):
         return "You have unread messages"
-    return ""
-
-
-def article_has_old_unread_message(
-    article: Article,
-    recipient: Account | None = None,
-    *,
-    exclude_aus_and_revs: bool = True,
-    late_after_days: int | None = None,
-) -> str:
-    """
-    Tell if there is any message left unread for a long time.
-
-    Please note that this function should be called only for EO/staff people, because it exposes the names of the
-    recipients with overdue messages.
-
-    :param article: the article in question;
-    :param recipient: the recipient of the message;
-    :param exclude_aus_and_revs: if True, ignore messages to the authors or to the reviewers of the paper. Note that an
-        editor thad does I-will-review is still considered an editor, not a reviewer.
-    :param late_after_days: if given, use this number of days as the threshold for
-        considering a message "old". If ``None`` (the default), the threshold is
-        inferred from the recipient's role: ``WJS_UNREAD_MESSAGES_LATE_AFTER_FOR_EO``
-        for EO users, ``WJS_UNREAD_MESSAGES_LATE_AFTER`` otherwise.
-
-    """
-    messages = Message.objects.filter(
-        content_type=ContentType.objects.get_for_model(Article),
-        object_id=article.id,
-        messagerecipients__read=False,
-    ).exclude(
-        message_type=Message.MessageTypes.NOTE,
-    )
-    if late_after_days is not None:
-        days = late_after_days
-    elif recipient and has_eo_role(recipient):
-        days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER_FOR_EO
-    else:
-        days = settings.WJS_UNREAD_MESSAGES_LATE_AFTER
-    oldest_acceptable_message_date = timezone.now() - timezone.timedelta(days=days)
-    messages = messages.filter(
-        created__lt=oldest_acceptable_message_date,
-    )
-    if exclude_aus_and_revs:
-        # ignore messages whose recipient is an author of the article
-        messages = messages.exclude(
-            messagerecipients__recipient__in=article.author_accounts.all().values_list("id"),
-        )
-        messages = messages.exclude(
-            messagerecipients__recipient__in=article.reviewassignment_set.all().values_list("reviewer__id"),
-        )
-
-    if messages.exists():
-        late_recipients = list(
-            MessageRecipients.objects.filter(message__in=messages)
-            .distinct()
-            .values_list("recipient__last_name", flat=True),
-        )
-        return f"Paper has unread messages: {', '.join(late_recipients)}"
-
     return ""
 
 

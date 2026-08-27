@@ -1188,12 +1188,17 @@ class MessageForm(forms.ModelForm):
                 instance.attachments.add(attachment)
             instance.emit_notification()
 
+            # -- Materialized AC updates --
+            # New message: the recipients that are left with an unread message
+            # get HAS_UNREAD_MESSAGE (notes are excluded, since they are always
+            # flagged as read above).
+            ac_service.sync_unread_message_acs_for_message(instance)
+
         return instance
 
 
 # ---------------------------------------------------------------------------
-# AC updates for HAS_UNREAD_MESSAGE and OLD_UNREAD_MESSAGES are handled
-# inline in save().
+# AC updates for HAS_UNREAD_MESSAGE are handled inline in save().
 #
 # TODO (New Issue 6, 260318-SISSA-Specifications-for-attention-conditions.md):
 #   Refactor to use a logic class for message read-status updates, following
@@ -1210,12 +1215,11 @@ class ToggleMessageReadForm(forms.ModelForm):
     def save(self, commit: bool = True) -> MessageRecipients:
         """Toggle read status and re-evaluate HAS_UNREAD_MESSAGE for the user."""
         instance = super().save(commit=commit)
-        # Re-evaluate HAS_UNREAD_MESSAGE: if the user has no remaining unread
-        # messages on the article, resolve the AC.
+        # Re-evaluate HAS_UNREAD_MESSAGE: the AC is resolved only if no message
+        # is left unread for this recipient, and comes back if the message is
+        # flagged as unread again.
         if isinstance(instance.message.target, Article):
-            article = instance.message.target
-            if not conditions._has_unread_message(article, instance.recipient):
-                ac_service.resolve_ac(article, instance.recipient, ac_service.HAS_UNREAD_MESSAGE)
+            ac_service.sync_unread_message_ac(instance.message.target, instance.recipient)
         return instance
 
 
@@ -1236,14 +1240,11 @@ class ToggleMessageReadByEOForm(forms.ModelForm):
         ).update(read=instance.read_by_eo)
 
         # -- Materialized AC updates --
-        # Message marked as read by EO: re-evaluate OLD_UNREAD_MESSAGES
-        # and HAS_UNREAD_MESSAGE for the EO user.
+        # Toggling read-by-eo changes what the editorial office has left to read
+        # on this article: re-evaluate its HAS_UNREAD_MESSAGE (the AC comes back
+        # if the message is flagged as unread again).
         if isinstance(instance.target, Article):
-            article = instance.target
-            eo_user = get_eo_user(article)
-            if not conditions._has_unread_message(article, eo_user):
-                ac_service.resolve_for_role(article, "eo", ac_service.OLD_UNREAD_MESSAGES)
-                ac_service.resolve_ac(article, eo_user, ac_service.HAS_UNREAD_MESSAGE)
+            ac_service.sync_unread_message_ac_for_eo(instance.target)
 
         return self.instance
 
@@ -1615,6 +1616,10 @@ class ForwardMessageForm(forms.ModelForm):
                 child_message=message,
                 relation_type=MessageThread.MessageRelation.FORWARD,
             )
+
+            # -- Materialized AC updates --
+            # The forwarded message is a new message for its recipient.
+            ac_service.sync_unread_message_acs_for_message(message)
 
             return message
 
@@ -2167,7 +2172,7 @@ class ToggleDisableRemindersForm(forms.ModelForm):
             from .ac_service import ACStateEvaluator
 
             ACStateEvaluator(
-                state=article.articleworkflow.state_value,
+                state=article.articleworkflow.state,
                 article=article,
             ).evaluate_time_based()
 
