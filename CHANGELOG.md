@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.27] - 2026-08-27
+
+- [wjs-help#204: problems with new AC](https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/204) — Fixes for ACs for unread messages (!1473)
+- [specs#3069: Check if it's possible to have HAS_UNREAD_MESSAGE AC with high priority for EO and low priority for others](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3069) — Fixes for ACs for unread messages (!1473)
+
 ## [2.0.26] - 2026-08-24
 
 - [specs#2969: Delete old deploy script](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2969) — Fix name of deploy script (!1468)
