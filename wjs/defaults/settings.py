@@ -170,6 +170,7 @@ WJS_REVIEW_CHECK_FUNCTIONS = {
 WJS_ARTICLE_ASSIGNMENT_FUNCTIONS = {
     None: "plugins.wjs_review.events.assignment.default_assign_editors_to_articles",
     "JCOM": "plugins.wjs_review.events.assignment.jcom_assign_editors_to_articles",
+    "JCOMAL": "plugins.wjs_review.events.assignment.jcom_assign_editors_to_articles",
 }
 
 WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS = {
