@@ -946,3 +946,42 @@ def get_final_decision_or_withdrawn_date(workflow: ArticleWorkflow) -> str:
     ).last():
         return decision.modified.strftime("%d-%b")
     return ""
+
+
+@register.simple_tag()
+def crossref_article_updates(article: Article) -> dict:
+    """
+    Return the editorially-significant relations (errata, addenda, ...) of the given article.
+
+    Hydra stores each relation as "the *to-article* is a relationship of the
+    *from-article*": an erratum is the *to-article* of an erratum relation whose
+    *from-article* is the paper being corrected.
+
+    The returned dict has two keys:
+
+    - corrected_by: relations whose from_article is the given article, i.e. the
+      updates (errata, addenda, ...) that correct *this* paper;
+    - update_of: relations whose to_article is the given article, i.e. *this*
+      paper is an update of the related from_article.
+
+    Only relations listed in hydra.models.CROSSREF_UPDATES are considered.
+    """
+    # Imported lazily: hydra is a Janeway plugin, and plugins are not importable
+    # while Django is still setting up the app registry.
+    try:
+        from plugins.hydra.models import (  # noqa: PLC0415
+            CROSSREF_UPDATES,
+            LinkedArticle,
+        )
+    except ImportError:
+        return {"corrected_by": [], "update_of": []}
+
+    corrected_by = LinkedArticle.objects.filter(
+        from_article=article,
+        relationship__in=CROSSREF_UPDATES,
+    ).select_related("to_article")
+    update_of = LinkedArticle.objects.filter(
+        to_article=article,
+        relationship__in=CROSSREF_UPDATES,
+    ).select_related("from_article")
+    return {"corrected_by": corrected_by, "update_of": update_of}

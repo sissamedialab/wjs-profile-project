@@ -17,6 +17,36 @@
         N.A.{% endif %}</td>
     </tr>
   {% endif %}
+  {% crossref_article_updates article as crossref_article_updates %}
+  {% if crossref_article_updates.corrected_by %}
+    <tr>
+      <th>{% translate "Corrected by" %}</th>
+      <td>
+        {% for relation in crossref_article_updates.corrected_by %}
+          {% if not forloop.first %},{% endif %}
+          {% if relation.to_article.articleworkflow %}
+            <a href="{% url "wjs_article_details" relation.to_article.articleworkflow.pk %}">{{ relation.to_article.title|safe }}</a>
+          {% else %}
+            {{ relation.to_article.title|safe }}
+          {% endif %}
+        {% endfor %}
+      </td>
+    </tr>
+  {% endif %}
+  {% for relation in crossref_article_updates.update_of %}
+    <tr>
+      <th>
+        {% blocktranslate with relation_label=relation.get_relationship_display %}{{ relation_label }} of{% endblocktranslate %}
+      </th>
+      <td>
+        {% if relation.from_article.articleworkflow %}
+          <a href="{% url "wjs_article_details" relation.from_article.articleworkflow.pk %}">{{ relation.from_article.title|safe }}</a>
+        {% else %}
+          {{ relation.from_article.title|safe }}
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
   {% if has_full_access %}
     <tr>
       <th>{% translate "Corresponding author" %}</th>
