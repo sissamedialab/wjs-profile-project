@@ -70,6 +70,7 @@ class Migration(migrations.Migration):
                             (3, "Other"),
                         ],
                         null=True,
+                        blank=True,
                     ),
                 ),
             ],

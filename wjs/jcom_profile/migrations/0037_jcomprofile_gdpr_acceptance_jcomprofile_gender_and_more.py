@@ -89,6 +89,7 @@ class Migration(migrations.Migration):
                     (3, "Other profession"),
                 ],
                 null=True,
+                blank=True,
             ),
         ),
         migrations.AlterField(

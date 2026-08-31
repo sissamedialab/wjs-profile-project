@@ -46,8 +46,8 @@ class JCOMProfile(Account):
     # Even if EO wants "profession" to be mandatory, we cannot set it
     # to `null=False` (i.e. `NOT NULL` at DB level) because we do not
     # have this data for most of our existing users.
-    profession = models.IntegerField(null=True, choices=PROFESSIONS)
-    career_stage = models.IntegerField(null=True, choices=CAREER_STAGES)
+    profession = models.IntegerField(null=True, choices=PROFESSIONS, blank=True)
+    career_stage = models.IntegerField(null=True, choices=CAREER_STAGES, blank=True)
     gdpr_checkbox = models.BooleanField(_("GDPR acceptance checkbox"), default=False)
     gdpr_acceptance = models.DateTimeField(_("GDPR acceptance date"), null=True, blank=True)
     invitation_token = models.CharField(_("Invitation token"), max_length=500, default="", blank=True)
