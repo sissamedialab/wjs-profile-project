@@ -4753,6 +4753,21 @@ class ConvertManuscriptToPdf:
             msg = _("The PDF file could not be generated. Please contact %s for assistance") % from_email
             self._report_error_via_ws(str(msg), log_url=log_url)
 
+        except core_models.File.DoesNotExist:
+            # The article (and its cascade-related files, including this logfile) can be deleted out from
+            # under this in-flight conversion, e.g. the author re-validates the same arXiv ID while still
+            # at current_step=0 (see handlers._run_conversion, which handles the same race when the article
+            # is already gone before run() starts). self.article is a cached_property, so a deletion that
+            # happens mid-run (e.g. during the Yakunin call above) doesn't surface as Article.DoesNotExist
+            # here; it only shows up later, when _save_yakunin_log tries to refresh the now-deleted logfile
+            # from the DB.
+            # Only treat this as the known benign race if the article is indeed gone: a logfile missing for
+            # any other reason (e.g. something else deleting File rows while the article is still alive) is
+            # a real bug and must not be silently swallowed.
+            if Article.objects.filter(pk=self.article_id).exists():
+                raise
+            logger.info(f"Logfile for article {self.article_id} vanished mid-conversion; skipping.")
+
         finally:
             if tmpdir:
                 shutil.rmtree(tmpdir)
