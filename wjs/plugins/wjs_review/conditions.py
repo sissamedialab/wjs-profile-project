@@ -715,6 +715,24 @@ def article_is_published_piecemeal(workflow: ArticleWorkflow) -> bool:
     return not issue_published_batch(workflow.article.primary_issue)
 
 
+def needs_extra_files(workflow: ArticleWorkflow, user: Account) -> bool:
+    """
+    Tell if the article needs extra files.
+
+    Article needs extra files if:
+    - journal is flagged as needing social media files
+    - article is in an issue published piecemeal
+
+    :param workflow: The workflow to check access to.
+    :type workflow: ArticleWorkflow
+    :param user: The user requesting the information. Not used but required by the condition function signature.
+    :type user: Account
+    :return True if the article needs extra files, False otherwise.
+    :rtype: bool
+    """
+    return journal_requires_social_media_files(workflow.article.journal) and article_is_published_piecemeal(workflow)
+
+
 def needs_article_data_for_social_media_without_translation(workflow: ArticleWorkflow, user: Account) -> bool:
     """
     Tell if the article needs social media data (short description and image) but no translations.
