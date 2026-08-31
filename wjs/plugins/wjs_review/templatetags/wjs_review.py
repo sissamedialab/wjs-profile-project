@@ -40,7 +40,10 @@ from wjs.jcom_profile.utils import get_eo_user
 
 from .. import communication_utils, permissions, states
 from ..communication_utils import MESSAGE_TYPE_ICONS
-from ..conditions import needs_article_data_for_social_media_without_translation
+from ..conditions import (
+    needs_article_data_for_social_media_without_translation,
+    needs_extra_files,
+)
 from ..custom_types import BootstrapButtonProps, ReviewAssignmentActionConfiguration
 from ..logic import (
     states_when_article_is_considered_in_production,
@@ -727,6 +730,21 @@ def article_needs_article_data_for_social_media_without_translation(article: Art
     :rtype: bool
     """
     return needs_article_data_for_social_media_without_translation(article.articleworkflow, user)
+
+
+@register.simple_tag()
+def article_needs_extra_files(article: Article, user: Account) -> bool:
+    """
+    Check if article needs extra files.
+
+    :param article: The article to check presence of extra files.
+    :type article: Article
+    :param user: Unused.
+    :type user: Account
+    :return True if the article needs extra files, False otherwise.
+    :rtype: bool
+    """
+    return needs_extra_files(article.articleworkflow, user)
 
 
 @register.simple_tag()
