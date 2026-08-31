@@ -8,6 +8,8 @@ from journal.models import Journal
 
 from wjs.jcom_profile.forms import JCOMRegistrationForm
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.profile.forms import WjsPersonalInfoForm
+from wjs.jcom_profile.templatetags.wjs_tags import is_field_available
 from wjs.jcom_profile.tests.conftest import EXTRAFIELDS_XPATHS
 
 
@@ -115,11 +117,53 @@ class TestJCOMWIP:
         form = JCOMRegistrationForm(journal=journal)
         assert form.fields.get("gdpr_checkbox").required
 
+    @pytest.mark.parametrize("profession", (True, False))
     @pytest.mark.django_db
-    def test_profile_form_field_profession_is_mandatory(self, journal: Journal):
+    def test_profile_form_field_profession_is_mandatory(self, profession, settings, user: Account, journal: Journal):
         """The field "profession" is mandatory in the profile form."""
+        if not profession:
+            settings.PROFILE_FIELDS[journal.code] = (
+                "first_name",
+                "middle_name",
+                "last_name",
+                "year_of_birth",
+            )
+        else:
+            settings.PROFILE_FIELDS[journal.code] = (
+                "first_name",
+                "middle_name",
+                "last_name",
+                "year_of_birth",
+                "profession",
+            )
         form = JCOMRegistrationForm(journal=journal)
-        assert form.fields.get("profession").required
+        assert form.fields.get("profession").required == is_field_available(journal, "profession")
+        form = WjsPersonalInfoForm(journal=journal, instance=user)
+        assert form.fields.get("profession").required == is_field_available(journal, "profession")
+
+    @pytest.mark.parametrize("profession", (True, False))
+    @pytest.mark.django_db
+    def test_profile_form_field_career_stage_is_mandatory(self, profession, settings, user: Account, journal: Journal):
+        """The field "career_stage" is mandatory in the profile form if enabled."""
+        if not profession:
+            settings.PROFILE_FIELDS[journal.code] = (
+                "first_name",
+                "middle_name",
+                "last_name",
+                "year_of_birth",
+            )
+        else:
+            settings.PROFILE_FIELDS[journal.code] = (
+                "first_name",
+                "middle_name",
+                "last_name",
+                "year_of_birth",
+                "career_stage",
+            )
+        form = JCOMRegistrationForm(journal=journal)
+        assert form.fields.get("career_stage").required == is_field_available(journal, "career_stage")
+        form = WjsPersonalInfoForm(journal=journal, instance=user)
+        assert form.fields.get("career_stage").required == is_field_available(journal, "career_stage")
 
     @pytest.mark.django_db
     def test_field_profession_label(self, user):
@@ -127,7 +171,7 @@ class TestJCOMWIP:
         # https://developer.mozilla.org/en-US/docs/Learn/Server-side/Django/Testing#models
         # TODO: what about translations?
         # TODO: what about Uppercase?
-        profile = JCOMProfile.objects.get(id=user.id)
+        profile = JCOMProfile.objects.get(pk=user.pk)
         field_label = profile._meta.get_field("profession").verbose_name
         expected_label = "profession"
         assert field_label == expected_label
