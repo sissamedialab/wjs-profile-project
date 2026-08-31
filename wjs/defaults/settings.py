@@ -587,5 +587,16 @@ SUBMISSION_ARTICLE_LANGUAGES = WJS_ARTICLE_LANGUAGES
 SUBMISSION_ENABLE_FREE_KEYWORD = False
 
 SUBMISSION_UNIQUENESS_CHECK = {
-    None: "plugins.wjs_review.unique_check.check_article_uniqueness_by_submission_status_and_section_in_all_journals_combined",  # noqa: ERA001, E501
+    None: "plugins.wjs_review.unique_check.check_article_uniqueness_by_submission_status_and_section_in_all_journals_combined",  # noqa: E501
+}
+
+# Overrides wjs-submission's DEFAULT_CORRESPONDENCE_AUTHOR_VALIDATION_FUNCTION: JCOM/JCOMAL/JCAP need
+# JCOMProfile fields (profession, biography, records_*), so their validators live here instead of in
+# wjs-submission, which must not depend on wjs.jcom_profile (see wjs-submission-project#30). This dict
+# fully replaces the default (no merging), so the `None` fallback is repeated here too.
+SUBMISSION_CORRESPONDENCE_AUTHOR_VALIDATION_FUNCTION = {
+    "JCAP": "wjs.jcom_profile.account_validation.jcap_correspondence_author_validation",
+    "JCOM": "wjs.jcom_profile.account_validation.jcom_correspondence_author_validation",
+    "JCOMAL": "wjs.jcom_profile.account_validation.jcom_correspondence_author_validation",
+    None: "plugins.wjs_submission.account_validation.default_correspondence_author_validation",
 }
