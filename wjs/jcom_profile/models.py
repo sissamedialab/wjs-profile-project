@@ -135,6 +135,8 @@ class JCOMProfile(Account):
         Retrieve the vacancy start and end dates from the journal's parameters and
         format them as a string. If the dates are not available, return an empty string.
 
+        Only intervals with no end / in the future are considered.
+
         :param journal: The journal object containing parameter details.
         :type journal: Journal
         :return: Formatted string of vacancy start and end dates, or an empty string
@@ -143,8 +145,15 @@ class JCOMProfile(Account):
         """
         try:
             params = self.parameters(journal)
-            if params.vacancy_start or params.vacancy_end:
-                return f"{params.vacancy_start or ''} - {params.vacancy_end or ''}".strip()
+            # check if the interval is completely past (in this case we ignore it)
+            future_interval = not params.vacancy_end or params.vacancy_end > timezone.localtime(now()).date()
+            if future_interval and (params.vacancy_start or params.vacancy_end):
+                dates = ""
+                if params.vacancy_start:
+                    dates = f"{dates} from {params.vacancy_start}"
+                if params.vacancy_end:
+                    dates = f"{dates} to {params.vacancy_end}"
+                return dates.strip()
         except AttributeError:
             pass
         return ""

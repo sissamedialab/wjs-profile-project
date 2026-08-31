@@ -125,7 +125,7 @@ def is_enabled_as_editor(user: Account, journal: Journal) -> bool:
 
 
 @register.filter
-def editor_vacancy_dates(user: Account, journal: Journal) -> str:
+def user_vacancy_dates(user: Account, journal: Journal) -> str:
     """
     Format editor vacancy dates for the specified journal if set.
 
