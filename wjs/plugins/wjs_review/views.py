@@ -69,6 +69,7 @@ from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.mixins import HtmxMixin, PaginatedViewMixin
 from wjs.jcom_profile.models import IssueParameters
+from wjs.jcom_profile.pagination import CountlessPaginator
 from wjs.jcom_profile.utils import get_eo_user
 
 from . import ac_service, permissions
@@ -2107,8 +2108,10 @@ class MarkAsReadForms:
         # - self.queryset returns the Messages
         # - the toggle form wants MessageRecipients (because the "read" flag is in the through-table)
         # This works because there is only one MessageRecipient for each Message-Recipient combination.
+        # We materialize the pks from the already-loaded page to avoid a subquery.
+        message_pks = [m.pk for m in self.queryset]
         messagerecipients_records = MessageRecipients.objects.filter(
-            message__in=self.queryset,
+            message_id__in=message_pks,
             recipient=self.request.user,
         )
         return {
@@ -2123,12 +2126,8 @@ class MarkAsReadForms:
         if base_permissions.has_eo_role(self.request.user):
             # The following is context to allow the EO to mark messages as read
             # TODO Refactor ArticleMessages to not create a form for each message. Issue 55
-            message_records = Message.objects.filter(
-                id__in=self.queryset,
-            )
-            return {
-                mr.id: ToggleMessageReadByEOForm(instance=mr, prefix=f"toggle-eo-{mr.pk}") for mr in message_records
-            }
+            # Use the already-loaded Message instances from the page instead of re-querying.
+            return {mr.id: ToggleMessageReadByEOForm(instance=mr, prefix=f"toggle-eo-{mr.pk}") for mr in self.queryset}
         return {}
 
 
@@ -2195,9 +2194,12 @@ class ArticleMessages(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         context["workflow"] = self.article.articleworkflow
         context["article"] = self.article
         context["messagetype_note"] = Message.MessageTypes.NOTE
-        forms_service = MarkAsReadForms(request=self.request, queryset=self.get_queryset())
+        # Use the already-filtered queryset from the FilterView context instead of re-querying.
+        forms_service = MarkAsReadForms(request=self.request, queryset=context["messages_list"])
         context["forms"] = forms_service.get_forms()
         context["eo_forms"] = forms_service.get_eo_forms()
+        # filter_url is used by the HTMX filter form in the template
+        context["filter_url"] = self.request.path
         return context
 
 
@@ -2242,10 +2244,26 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, Lis
         forms_service = MarkAsReadForms(request=self.request, queryset=context["messages_list"])
         context["forms"] = forms_service.get_forms()
         context["eo_forms"] = forms_service.get_eo_forms()
+        # filter_url is used by the HTMX filter form in the template
+        context["filter_url"] = self.request.path
         return context
 
+    def paginate_queryset(self, queryset, page_size):
+        """
+        Countless pagination: avoid running COUNT(*) on the filtered queryset
+        (which is expensive for the activity page) by using CountlessPaginator.
+        See wjs.jcom_profile.pagination for details.
+        """
+        page_number = self.request.GET.get("page") or 1
+        paginator = CountlessPaginator(queryset, page_size)
+        page_obj = paginator.get_page(page_number)
+        return (paginator, page_obj, page_obj.object_list, True)
+
     def get(self, request, *args, **kwargs):
-        # Calling the FilterView get() method and then the ListView get() method to both have filters and pagination
+        # Performance: avoid calling super().get() (ListView.get()) which would re-run
+        # get_queryset() and get_context_data(), causing the expensive query to execute
+        # up to 3 times. Instead, we build the filtered queryset once, paginate it once,
+        # and render directly.
         filterset_class = self.get_filterset_class()
         self.filterset = self.get_filterset(filterset_class)
 
@@ -2255,9 +2273,7 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, Lis
             self.object_list = self.filterset.queryset.none()
 
         context = self.get_context_data(filter=self.filterset, object_list=self.object_list)
-        response = super().get(request, *args, **kwargs)
-        response.context_data.update(context)
-        return response
+        return self.render_to_response(context)
 
 
 class MessageAttachmentDownloadView(AuthenticatedUserPassesTest, DetailView):
