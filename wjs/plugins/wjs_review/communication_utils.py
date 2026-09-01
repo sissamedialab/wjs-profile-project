@@ -91,13 +91,21 @@ def get_messages_related_to_me(
         logger.error(msg, stack_info=True)
         raise RuntimeError(msg)
 
+    # Exists subqueries that replace M2M joins (no fan-out, no distinct() needed).
+    # has_recipient: True if the current user is a recipient of this message
+    # has_any_recipient: True if this message has any recipient at all (used for "generic" messages)
+    has_recipient = Exists(MessageRecipients.objects.filter(message_id=OuterRef("pk"), recipient=user))
+    has_any_recipient = Exists(MessageRecipients.objects.filter(message_id=OuterRef("pk")))
+
     excluded = None
     if user.is_superuser or has_eo_role(user):
         # EO/staff have access to all the messages (excluding the generic users notes) + EO personal notes
+        # Use a subquery instead of Q(actor__groups__name=EO_GROUP) to avoid a JOIN that would cause fan-out
+        eo_users = Account.objects.filter(groups__name=EO_GROUP)
         by_current_user = Q(
             # - EO notes: notes created by any member of the EO group
             Q(message_type=Message.MessageTypes.NOTE)
-            & Q(actor__groups__name=EO_GROUP),
+            & Q(actor__in=eo_users),
         ) | Q(
             # - All non notes messages (pk__gt=0 is used to have an always true condition)
             ~Q(message_type=Message.MessageTypes.NOTE)
@@ -118,30 +126,37 @@ def get_messages_related_to_me(
         authored_articles = Article.objects.filter(authors=user).values_list("pk", flat=True)
         # We must use a negative Q syntax + filter (applied last at the end of the function) because using
         # exclude function creates wrong queries: we must then use a filter and NOT query
+        # _has_recipient annotation avoids the M2M JOIN on recipients
         excluded = ~Q(
             # Exclude all the authored articles
             Q(content_type=content_type)
             & Q(object_id__in=authored_articles)
             # Unless the director is recipient / actor
-            & ~Q(Q(recipients__in=[user]) | Q(actor=user))
+            & ~Q(actor=user)
+            & ~Q(_has_recipient=True)
         )
     else:
         # if they have some relation with me
-        by_current_user = Q(Q(recipients__in=[user]) | Q(actor=user))
-    # if they are "generic" messages
-    generic_message = Q(recipients__isnull=True)
+        # _has_recipient annotation avoids the M2M JOIN on recipients
+        by_current_user = Q(actor=user) | Q(_has_recipient=True)
+    # if they are "generic" messages (no recipients at all)
+    generic_message = Q(_has_any_recipient=False)
     messages = (
-        Message.objects.filter(by_article & Q(by_current_user | generic_message))
+        Message.objects.annotate(
+            _has_recipient=has_recipient,
+            _has_any_recipient=has_any_recipient,
+        )
+        .filter(by_article & Q(by_current_user | generic_message))
         # Hijack notifications are not shown in the timeline as they are a duplicate of the original message
         .exclude(message_type=Message.MessageTypes.HIJACK)
-        .distinct()  # because the same msg can have many recipients
         .annotate(read=Exists(_filter))
         .order_by("-created")
     )
     if excluded:
         # exclusion must be applied last to simplify the ORM work when building the query
         messages = messages.filter(excluded)
-    return messages
+    # select_related/prefetch_related eliminate N+1 queries during rendering
+    return messages.select_related("actor", "content_type").prefetch_related("recipients", "attachments", "target")
 
 
 def get_system_user(journal: Journal | None = None) -> Account:
