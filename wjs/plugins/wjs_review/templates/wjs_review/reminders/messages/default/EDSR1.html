@@ -1,0 +1,10 @@
+{% load fqdn %}
+Dear Dr. {{ recipient.full_name }},<br>
+<br>
+kindly select reviewer(s) as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+This preprint was assigned to you to handle as Editor in charge on {{ assigned }}.<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ journal.code }} Editorial Office

@@ -1,0 +1,10 @@
+{% load fqdn %}
+Dear Dr. {{ recipient.full_name }},<br>
+<br>
+This is to remind you that this {{ article.section.name }} needs to be assigned to reviewer(s) urgently.<br>
+<a href="{{ article.articleworkflow.url }}">Go to web page</a><br>
+<br>
+<br>
+Thank you very much and best regards,<br>
+<br>
+{{ journal.code }} Editorial Office

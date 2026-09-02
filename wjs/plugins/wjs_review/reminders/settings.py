@@ -12,11 +12,13 @@ import abc
 import dataclasses
 import datetime
 import inspect
+from functools import cached_property
 from typing import Any, Optional
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.template.loader import select_template
 from django.utils import formats, timezone
 from django.utils.timezone import localtime
 from django.utils.translation import gettext_lazy as _
@@ -64,25 +66,38 @@ class ReminderSetting:
 
     code: Reminder.ReminderCodes
     subject: str
-    body: str
     actor: str
     recipient: str
     days_after: int = dataclasses.field(default=0)
     """
     Number of days after the due date of the target object when the reminder should be sent.
     """
-    days_after_setting: Optional[str] = None
+    due_date_offset_setting: Optional[str] = None
     """
     Date due setting: if set, its value is added to days_after field: it's meant for reminders targeting objects
     which does not have a due date field. In this case we use a setting to determine the target due date, and
     the reminder is sent after days_after days from that date.
     """
-    days_after_setting_group: str = dataclasses.field(default="wjs_review")
+    due_date_offset_setting_group: str = dataclasses.field(default="wjs_review")
     clemency_days: int = 0
     flag_as_read: bool = True
     """Whether to automatically mark as "read" the Message that will be created when the reminder is sent."""
     flag_as_read_by_eo: bool = True
     extracontext: list = None
+    journal: str = None
+
+    @property
+    def body(self) -> str:
+        """The body of the reminder."""
+
+        template = select_template(
+            [
+                f"wjs_review/reminders/messages/{self.journal}/{self.code}.html",
+                f"wjs_review/reminders/messages/default/{self.code}.html",
+            ]
+        )
+
+        return template.template.source
 
     @classmethod
     def target_as_dict(cls, target):
@@ -165,10 +180,10 @@ class ReminderSetting:
         return render_template(self.body, context)
 
     def _get_date_base_setting(self, journal: Journal) -> Optional[int]:
-        if self.days_after_setting:
+        if self.due_date_offset_setting:
             return get_setting(
-                self.days_after_setting_group,
-                self.days_after_setting,
+                self.due_date_offset_setting_group,
+                self.due_date_offset_setting,
                 journal,
             ).processed_value
 
@@ -204,7 +219,15 @@ class ReminderSetting:
 class ReminderManager(abc.ABC):
     target: models.Model
     journal: Journal
-    reminders: dict[str, ReminderSetting]
+
+    @classmethod
+    @abc.abstractmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        raise NotImplementedError
+
+    @property
+    def reminders(self) -> dict[str, ReminderSetting]:
+        return self.get_reminders(journal_code=self.journal.code.lower())
 
     def __debug(self):
         """Tell who is creating a reminder.
@@ -257,155 +280,74 @@ class ReminderManager(abc.ABC):
 
     @classmethod
     def get_settings(cls, reminder: Reminder):
+        article = reminder.get_related_article()
+        if not article:
+            msg = f"Unknown article for reminder {reminder.pk} ({reminder.code})"
+            raise ValueError(msg)
         if cls == ReminderManager:
-            mgr = cls.get_manager(reminder)
+            mgr = cls.get_manager(reminder, article)
         else:
             mgr = cls
-        return mgr.reminders[reminder.code]
+
+        reminders = mgr.get_reminders(journal_code=article.journal.code.lower())
+        return reminders[reminder.code]
 
     @classmethod
-    def get_manager(cls, reminder: Reminder):
+    def get_manager(cls, reminder: Reminder, article: Article):
         for subcls in cls.__subclasses__():
-            if reminder.code in subcls.reminders:
+            if reminder.code in subcls.get_reminders(journal_code=article.journal.code.lower()):
                 return subcls
 
 
 class EditorShouldSelectReviewerReminderManager(ReminderManager):
     """Helper class to create and delete reminders for EditorShouldSelectReviewer."""
 
-    reminders = {
-        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1: ReminderSetting(
-            code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
-            subject=_("Reminder: reviewers to select"),
-            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
-<br>
-kindly select 2 reviewers as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
-<br>
-This preprint was assigned to you to handle as Editor in charge on {{ assigned }}.<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="editor",
-            days_after=0,
-            days_after_setting="default_editor_assign_reviewer_days",
-            extracontext=["assigned"],
-        ),
-        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2: ReminderSetting(
-            code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
-            subject=_("Reminder: reviewers to select urgently"),
-            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
-<br>
-This is to remind you that this {{ article.section.name }} needs to be assigned to 2 reviewers urgently.<br>
-<a href="{{ article.articleworkflow.url }}">Go to web page</a><br>
-<br>
-<br>
-Thank you very much and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="editor",
-            days_after=3,
-            days_after_setting="default_editor_assign_reviewer_days",
-        ),
-        Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3: ReminderSetting(
-            code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
-            subject=_("Reminder: editor's delay in selecting reviewers"),
-            body="""{%load fqdn %}Dear Editor-in-chief,<br>
-<br>
-This {{ article.section.name }} was assigned to {{ current_editor.full_name }} on {{ assigned }} but they have not yet selected any reviewer.<br>
-<br>
-Please either take action from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>. or let us know if you need help.<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="director",
-            days_after=5,
-            days_after_setting="default_editor_assign_reviewer_days",
-            flag_as_read=False,
-            extracontext=["current_editor", "assigned"],
-        ),
-    }
-
     def __init__(self, article: Article, editor: Account):
         self.target = WjsEditorAssignment.objects.get(
             article=article,
             editor=editor,
         )
         self.journal = article.journal
+
+    @classmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        return {
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1: ReminderSetting(
+                code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1,
+                subject=_("Reminder: reviewers to select"),
+                actor="EO",
+                recipient="editor",
+                days_after=0,
+                due_date_offset_setting="default_editor_assign_reviewer_days",
+                extracontext=["assigned"],
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2: ReminderSetting(
+                code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2,
+                subject=_("Reminder: reviewers to select urgently"),
+                actor="EO",
+                recipient="editor",
+                days_after=3,
+                due_date_offset_setting="default_editor_assign_reviewer_days",
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3: ReminderSetting(
+                code=Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3,
+                subject=_("Reminder: editor's delay in selecting reviewers"),
+                actor="EO",
+                recipient="director",
+                days_after=7,
+                due_date_offset_setting="default_editor_assign_reviewer_days",
+                flag_as_read=False,
+                extracontext=["current_editor", "assigned"],
+                journal=journal_code,
+            ),
+        }
 
 
 class EditorShouldMakeDecisionReminderManager(ReminderManager):
     """Helper class to create and delete reminders for EditorShouldMakeDecision."""
 
-    reminders = {
-        Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1: ReminderSetting(
-            code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
-            subject=_("Reminder: decision to make"),
-            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
-<br>
-You action is needed to either make a decision or contact another reviewer from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
-<br>
-We note that at least one reviewer's report is available.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="editor",
-            days_after=0,
-            days_after_setting="default_editor_make_decision_days",
-        ),
-        Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2: ReminderSetting(
-            code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2,
-            subject=_("Reminder: decision to make urgently"),
-            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
-<br>
-This is to remind you that your editor decision is needed urgently. If needed, kindly select another reviewer.<br>
-<br>
-Go to <a href="{{ article.articleworkflow.url }}">web page</a><br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="editor",
-            days_after=3,
-            days_after_setting="default_editor_make_decision_days",
-        ),
-        Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3: ReminderSetting(
-            code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
-            subject=_("Reminder: editor's delay in making decision"),
-            body="""{%load fqdn %}Dear Editor-in-chief,<br>
-<br>
-{{ current_editor.full_name }} has received at least one review but has neither made a decision nor selected additional reviewers.<br>
-<br>
-Please either step in or let us know what we should do from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="director",
-            days_after=5,
-            days_after_setting="default_editor_make_decision_days",
-            flag_as_read=False,
-            extracontext=["current_editor"],
-        ),
-    }
-
     def __init__(self, article: Article, editor: Account):
         self.target = WjsEditorAssignment.objects.get(
             article=article,
@@ -413,387 +355,234 @@ Thank you and best regards,<br>
         )
         self.journal = article.journal
 
+    @classmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        return {
+            Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1: ReminderSetting(
+                code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_1,
+                subject=_("Reminder: decision to make"),
+                actor="EO",
+                recipient="editor",
+                days_after=0,
+                due_date_offset_setting="default_editor_make_decision_days",
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2: ReminderSetting(
+                code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_2,
+                subject=_("Reminder: decision to make urgently"),
+                actor="EO",
+                recipient="editor",
+                days_after=3,
+                due_date_offset_setting="default_editor_make_decision_days",
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3: ReminderSetting(
+                code=Reminder.ReminderCodes.EDITOR_SHOULD_MAKE_DECISION_3,
+                subject=_("Reminder: editor's delay in making decision"),
+                actor="EO",
+                recipient="director",
+                days_after=7,
+                due_date_offset_setting="default_editor_make_decision_days",
+                flag_as_read=False,
+                extracontext=["current_editor"],
+                journal=journal_code,
+            ),
+        }
+
 
 class ReviewerShouldEvaluateAssignmentReminderManager(ReminderManager):
     """Helper class to create and delete reminders for ReviewerShouldEvaluateAssignment."""
 
-    reminders = {
-        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1: ReminderSetting(
-            code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
-            subject=_("Reminder: Accept/decline Editor's invite"),
-            body="""{%load fqdn %}{% load settings %}Dear colleague,<br>
-<br>
-This is to remind you that I need your feedback regarding the invite to review I sent you on {{ date_requested }}.<br>
-<p><b>{{ article.section.name }} to review:</b><br>
-{{ article.title }}
-</p>
-{% if reviewer.jcomprofile.invitation_token %}
-    {% external_journal_url journal 'wjs_evaluate_review' target.id reviewer.jcomprofile.invitation_token as fqdn_evaluate_review_url %}
-{% else %}
-    {% external_journal_url journal 'wjs_evaluate_review' target.id as fqdn_evaluate_review_url %}
-{% endif %}
-<p>
-    <b>Please <a href="{{ fqdn_evaluate_review_url }}?access_code={{ target.access_code }}">accept/decline this invite to review</a> as soon as possible.</b></p>
-</p>
-<p>
-{{ article.journal.name }} is a diamond open-access journal focusing on research in science communication.<br>
-Its scope is available <a href="{{ journal.site_url }}/site/about-jcom/#heading1">here</a>.
-<br><br>
-Its <a href="{{ journal.site_url }}/site/editorial-team/">editorial board</a> relies on the
-goodwill of reviewers to ensure the quality of the manuscripts it
-publishes and hopes that you will be able to help on this occasion.
-<br>
-More information about the Journal’s ethical policy is
-available <a href="{{ journal.site_url }}/site/about-jcom/#heading4">here</a>.
-<br><br>
-{% if journal|setting:"default_review_visibility" == "double-blind" %}
-It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
-{% endif %}
-All the necessary information and instructions to do the review are available <a href="{{ journal.site_url }}/site/reviewers/">here</a>.
-<br><br>
-If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
-<a href="{{ journal.site_url }}/site/authors/">here</a>.
-<br><br>
-Do not hesitate to contact the Editor in charge or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
-</p>
-Thank you and best regards,<br>
-<br>
-{{ current_editor.full_name }}<br>
-{{ journal.code }} Editor
-""",
-            actor="editor",
-            recipient="reviewer",
-            days_after=0,
-            extracontext=["date_requested", "current_editor"],
-        ),
-        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2: ReminderSetting(
-            code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
-            subject=_("Reminder: Accept/decline Editor's invite (urgent)"),
-            body="""{%load fqdn %}{% load settings %}Dear colleague,<br>
-<br>
-Unfortunately I have not yet received your feedback on whether or not you will review the {{ article.section.name }} I sent you on {{ date_requested }}.<br>
-<p><b>{{ article.section.name }} to review:</b><br>
-{{ article.title }}
-</p>
-{% if reviewer.jcomprofile.invitation_token %}
-    {% external_journal_url journal 'wjs_evaluate_review' target.id reviewer.jcomprofile.invitation_token as fqdn_evaluate_review_url %}
-{% else %}
-    {% external_journal_url journal 'wjs_evaluate_review' target.id as fqdn_evaluate_review_url %}
-{% endif %}
-<p>
-    <b>Please <a href="{{ fqdn_evaluate_review_url }}?access_code={{ target.access_code }}">accept/decline this invite to review</a> as soon as possible.</b>
-</p>
-<p>
-{{ article.journal.name }} is a diamond open-access journal focusing on research in science communication.<br>
-Its scope is available <a href="{{ journal.site_url }}/site/about-jcom/#heading1">here</a>.
-<br><br>
-Its <a href="{{ journal.site_url }}/site/editorial-team/">editorial board</a> relies on the
-goodwill of reviewers to ensure the quality of the manuscripts it
-publishes and hopes that you will be able to help on this occasion.
-<br>
-More information about the Journal’s ethical policy is
-available <a href="{{ journal.site_url }}/site/about-jcom/#heading4">here</a>.
-<br><br>
-{% if journal|setting:"default_review_visibility" == "double-blind" %}
-It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
-{% endif %}
-All the necessary information and instructions to do the review are available <a href="{{ journal.site_url }}/site/reviewers/">here</a>.
-<br><br>
-If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
-<a href="{{ journal.site_url }}/site/authors/">here</a>.
-<br><br>
-Do not hesitate to contact the Editor in charge or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
-</p>
-{{ current_editor.full_name }}<br>
-{{ journal.code }} Editor
-""",
-            actor="editor",
-            recipient="reviewer",
-            days_after=3,
-            extracontext=["date_requested", "current_editor"],
-        ),
-        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3: ReminderSetting(
-            code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
-            subject=_("Reviewer's delay in accepting invite"),
-            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
-<br>
-The reviewer {{ reviewer.full_name }} has not yet accepted/declined your invite to review this {{ article.section.name }}.<br>
-<br>
-You selected them on {{ date_requested }}.<br>
-<br>
-We would be grateful if you could step in (send a personal message, change reviewer, assign yourself as reviewer, etc.) from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="editor",
-            days_after=5,
-            flag_as_read=True,
-            extracontext=["date_requested", "reviewer"],
-        ),
-    }
-
     def __init__(self, assignment: WorkflowReviewAssignment):
         self.target = assignment
         self.journal = assignment.article.journal
+
+    @classmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        return {
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1: ReminderSetting(
+                code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+                subject=_("Reminder: Accept/decline Editor's invite"),
+                actor="editor",
+                recipient="reviewer",
+                days_after=0,
+                extracontext=["date_requested", "current_editor"],
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2: ReminderSetting(
+                code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+                subject=_("Reminder: Accept/decline Editor's invite (urgent)"),
+                actor="editor",
+                recipient="reviewer",
+                days_after=3,
+                extracontext=["date_requested", "current_editor"],
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3: ReminderSetting(
+                code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3,
+                subject=_("Reviewer's delay in accepting invite"),
+                actor="EO",
+                recipient="editor",
+                days_after=5,
+                flag_as_read=True,
+                extracontext=["date_requested", "reviewer"],
+                journal=journal_code,
+            ),
+        }
 
 
 class ReviewerShouldWriteReviewReminderManager(ReminderManager):
     """Helper class to create and delete reminders for ReviewerShouldWriteReview."""
 
-    reminders = {
-        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1: ReminderSetting(
-            code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
-            subject=_("Reminder: your review due date expires today"),
-            body="""{%load fqdn %}Dear colleague,<br>
-<br>
-We hope that you will be able to send us your review by the end of the day from this  <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
-<br>
-From the same page you can:
-<ul>
-<li> write to the Editor-in-charge  {{ current_editor }} if you need an extension of your review due date
-<li> decline to review this {{ article.section.name }} in case anything unexpected happened that makes it really impossible for you to fulfill your promise.
-</ul>
-Thank you very much in advance for your cooperation and kind regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="reviewer",
-            days_after=0,
-            clemency_days=2,
-            extracontext=["current_editor"],
-        ),
-        Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2: ReminderSetting(
-            code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2,
-            subject=_("Reminder: late review"),
-            body="""{%load fqdn %}Dear Dr. {{ recipient.full_name }},<br>
-<br>
-Unfortunately Dr. {{ reviewer.full_name }} has not yet sent us their review, despite our reminder.<br>
-<br>
-We would be grateful if you could send them a personal message and/or select another reviewer as soon as possible from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="editor",
-            days_after=5,
-            clemency_days=0,
-            flag_as_read=True,
-            extracontext=["reviewer"],
-        ),
-    }
-
     def __init__(self, assignment: WorkflowReviewAssignment):
         self.target = assignment
         self.journal = assignment.article.journal
+
+    @classmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        return {
+            Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1: ReminderSetting(
+                code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1,
+                subject=_("Reminder: your review due date expires today"),
+                actor="EO",
+                recipient="reviewer",
+                days_after=0,
+                clemency_days=2,
+                extracontext=["current_editor"],
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2: ReminderSetting(
+                code=Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2,
+                subject=_("Reminder: late review"),
+                actor="EO",
+                recipient="editor",
+                days_after=5,
+                clemency_days=0,
+                flag_as_read=True,
+                extracontext=["reviewer"],
+                journal=journal_code,
+            ),
+        }
 
 
 class AuthorShouldSubmitMajorRevisionReminderManager(ReminderManager):
     """Helper class to create and delete reminders for AuthorShouldSubmitMajorRevision."""
 
-    reminders = {
-        Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1: ReminderSetting(
-            code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1,
-            subject=_("Reminder: revision to submit soon"),
-            body="""{%load fqdn %}Dear Author,<br>
-<br>
-This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br>
-<br>
-In case you foresee a necessary delay [...]
-please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br>
-<br>
-Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editor in charge
-""",
-            actor="editor",
-            recipient="author",
-            days_after=-7,
-            flag_as_read=False,
-            extracontext=["date_due"],
-        ),
-        Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2: ReminderSetting(
-            code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2,
-            subject=_("Reminder: revision due date expires today"),
-            body="""{%load fqdn %}Dear Author,<br>
-<br>
-This is to remind you that your revised {{ article.section.name }}'s due date expires today. [...]
-<br>
-<br>
-Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br>
-<br>
-Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editor in charge
-""",
-            actor="editor",
-            recipient="author",
-            days_after=0,
-            flag_as_read=False,
-        ),
-    }
-
     def __init__(self, revision_request: EditorRevisionRequest):
         self.target = revision_request
         self.journal = revision_request.article.journal
+
+    @classmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        return {
+            Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1: ReminderSetting(
+                code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_1,
+                subject=_("Reminder: revision to submit soon"),
+                actor="editor",
+                recipient="author",
+                days_after=-7,
+                flag_as_read=False,
+                extracontext=["date_due"],
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2: ReminderSetting(
+                code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MAJOR_REVISION_2,
+                subject=_("Reminder: revision due date expires today"),
+                actor="editor",
+                recipient="author",
+                days_after=0,
+                flag_as_read=False,
+                journal=journal_code,
+            ),
+        }
 
 
 class AuthorShouldSubmitMinorRevisionReminderManager(ReminderManager):
     """Helper class to create and delete reminders for AuthorShouldSubmitMinorRevision."""
 
-    reminders = {
-        Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1: ReminderSetting(
-            code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1,
-            subject=_("Reminder: revision to submit soon"),
-            body="""{%load fqdn %}Dear Author,<br>
-<br>
-This is to remind you that your revised {{ article.section.name }}'s due date will expire on {{ date_due }}.<br>
-<br>
-In case you foresee a necessary delay [...]
-please contact me from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> to request an extension.<br>
-<br>
-Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editor in charge
-""",
-            actor="editor",
-            recipient="author",
-            days_after=-7,
-            flag_as_read=False,
-            extracontext=["date_due"],
-        ),
-        Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2: ReminderSetting(
-            code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2,
-            subject=_("Reminder: revision due date expires today"),
-            body="""{%load fqdn %}Dear Author,<br>
-<br>
-This is to remind you that your revised {{ article.section.name }}'s due date expires today. [...]
-<br>
-<br>
-Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br>
-<br>
-Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editor in charge
-""",
-            actor="editor",
-            recipient="author",
-            days_after=0,
-            flag_as_read=False,
-        ),
-    }
-
     def __init__(self, revision_request: EditorRevisionRequest):
         self.target = revision_request
         self.journal = revision_request.article.journal
+
+    @classmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        return {
+            Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1: ReminderSetting(
+                code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_1,
+                subject=_("Reminder: revision to submit soon"),
+                actor="editor",
+                recipient="author",
+                days_after=-7,
+                flag_as_read=False,
+                extracontext=["date_due"],
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2: ReminderSetting(
+                code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_MINOR_REVISION_2,
+                subject=_("Reminder: revision due date expires today"),
+                actor="editor",
+                recipient="author",
+                days_after=0,
+                flag_as_read=False,
+                journal=journal_code,
+            ),
+        }
 
 
 class AuthorShouldSubmitTechnicalRevisionReminderManager(ReminderManager):
     """Helper class to create and delete reminders for AuthorShouldSubmitTechnicalRevisionReminderManager."""
 
-    reminders = {
-        Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1: ReminderSetting(
-            code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1,
-            subject=_("Reminder: metadata to update"),
-            body="""{%load fqdn %}Dear Author,<br>
-<br>
-On {{ date_requested }} I allowed you to update your {{ article.section.name }} metadata.<br>
-<br>
-Please do so urgently from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editor in charge
-""",
-            actor="editor",
-            recipient="author",
-            days_after=0,
-            extracontext=["date_requested"],
-        ),
-        Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2: ReminderSetting(
-            code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2,
-            subject=_("Reminder: metadata to update urgently"),
-            body="""{%load fqdn %}Dear Author,<br>
-<br>
-Please update your {{ article.section.name }} metadata urgently from its <a href="{{ article.articleworkflow.url }}">web page</a>.<br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editor in charge
-""",
-            actor="editor",
-            recipient="author",
-            days_after=1,
-        ),
-    }
-
     def __init__(self, revision_request: EditorRevisionRequest):
         self.target = revision_request
         self.journal = revision_request.article.journal
+
+    @classmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        return {
+            Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1: ReminderSetting(
+                code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_1,
+                subject=_("Reminder: metadata to update"),
+                actor="editor",
+                recipient="author",
+                days_after=0,
+                extracontext=["date_requested"],
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2: ReminderSetting(
+                code=Reminder.ReminderCodes.AUTHOR_SHOULD_SUBMIT_TECHNICAL_REVISION_2,
+                subject=_("Reminder: metadata to update urgently"),
+                actor="editor",
+                recipient="author",
+                days_after=1,
+                journal=journal_code,
+            ),
+        }
 
 
 class DirectorShouldAssignEditorReminderManager(ReminderManager):
     """Helper class to create and delete reminders for DirectorShouldAssignEditorReminderManager."""
 
-    reminders = {
-        Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1: ReminderSetting(
-            code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1,
-            subject=_("Reminder: editor to select"),
-            body="""{%load fqdn %}Dear Editor-in-chief,<br>
-<br>
-This is to remind you that this {{ article.section.name }} needs to be assigned to an editor in charge as soon as possible.<br>
-<br>
-Go to <a href="{{ article.articleworkflow.url }}">web page</a><br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="director",
-            days_after=0,
-        ),
-        Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2: ReminderSetting(
-            code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2,
-            subject=_("Reminder: editor to select soon"),
-            body="""{%load fqdn %}Dear Editor-in-chief,<br>
-<br>
-This is another reminder to kindly ask you to assign this {{ article.section.name }} to an editor in charge as soon as possible.<br>
-<br>
-Go to <a href="{{ article.articleworkflow.url }}">web page</a><br>
-<br>
-<br>
-Thank you and best regards,<br>
-<br>
-{{ journal.code }} Editorial Office
-""",
-            actor="EO",
-            recipient="director",
-            days_after=3,
-        ),
-    }
-
     def __init__(self, article: Article):
         self.target = article
         self.journal = article.journal
+
+    @classmethod
+    def get_reminders(cls, journal_code) -> dict[str, ReminderSetting]:
+        return {
+            Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1: ReminderSetting(
+                code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_1,
+                subject=_("Reminder: editor to select"),
+                actor="EO",
+                recipient="director",
+                days_after=0,
+                journal=journal_code,
+            ),
+            Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2: ReminderSetting(
+                code=Reminder.ReminderCodes.DIRECTOR_SHOULD_ASSIGN_EDITOR_2,
+                subject=_("Reminder: editor to select soon"),
+                actor="EO",
+                recipient="director",
+                days_after=5,
+                journal=journal_code,
+            ),
+        }
