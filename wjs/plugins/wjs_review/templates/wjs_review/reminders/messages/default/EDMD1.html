@@ -1,0 +1,11 @@
+{% load fqdn %}
+Dear Dr. {{ recipient.full_name }},<br>
+<br>
+You action is needed to either make a decision or contact another reviewer from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+We note that at least one reviewer's report is available.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ journal.code }} Editorial Office

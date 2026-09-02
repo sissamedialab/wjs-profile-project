@@ -1,0 +1,14 @@
+{% load fqdn %}
+Dear Author,<br>
+<br>
+This is to remind you that your revised {{ article.section.name }}'s due date expires today. [...]
+<br>
+<br>
+Please either submit it by the end of the day or let me know from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a> if there are any problems.<br>
+<br>
+Please be aware that unsubmitted revisions with no communications from authors are withdrawn from the Journal.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ journal.code }} Editor-in-charge

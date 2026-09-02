@@ -1,0 +1,23 @@
+{% load fqdn %}
+{% load settings %}
+Dear colleague,<br>
+<br>
+Unfortunately I have not yet received your feedback on whether or not you will review the {{ article.section.name }} I sent you on {{ date_requested }}.<br>
+<p><b>{{ article.section.name }} to review:</b><br>
+{{ article.title }}
+</p>
+<p><b>Please
+{% if reviewer.jcomprofile.invitation_token %}
+            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id token=reviewer.jcomprofile.invitation_token %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+{% else %}
+            <a href="{{ base_url }}{% url 'wjs_evaluate_review' assignment_id=target.id %}?access_code={{ target.access_code }}">accept/decline this invite to review</a>
+{% endif %}
+            as soon as possible.</b></p>
+<p>
+{{ article.journal.name }} is a diamond open-access journal focusing on Quantum Science.<br>
+Its editorial board relies on the goodwill of reviewers to ensure the quality of the manuscripts it publishes and hopes that you will be able to help on this occasion.
+<br>
+Do not hesitate to contact the me or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
+</p>
+{{ current_editor.full_name }}<br>
+{{ journal.code }} Editor-in-charge

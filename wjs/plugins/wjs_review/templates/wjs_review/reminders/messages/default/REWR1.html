@@ -1,0 +1,13 @@
+{% load fqdn %}
+Dear colleague,<br>
+<br>
+We hope that you will be able to send us your review by the end of the day from this  <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+From the same page you can:
+<ul>
+  <li> write to the Editor-in-charge  {{ current_editor }} if you need an extension of your review due date</li>
+  <li> decline to review this {{ article.section.name }} in case anything unexpected happened that makes it really impossible for you to fulfill your promise.</li>
+</ul>
+Thank you very much in advance for your cooperation and kind regards,<br>
+<br>
+{{ journal.code }} Editorial Office

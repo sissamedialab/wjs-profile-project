@@ -3753,14 +3753,18 @@ def test_deassign_reviewer(
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(review_assignment),
         object_id=review_assignment.pk,
-        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        code__in=ReviewerShouldWriteReviewReminderManager.get_reminders(journal_code=fake_request.journal.code).keys(),
     ).exists()
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(review_assignment),
         object_id=review_assignment.pk,
-        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(
+            journal_code=fake_request.journal.code
+        ).keys(),
     ).exists()
-    assert Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
+    assert Reminder.objects.filter(
+        code__in=EditorShouldSelectReviewerReminderManager.get_reminders(journal_code=fake_request.journal.code).keys()
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -3846,18 +3850,26 @@ def test_deassign_reviewer_existing_assignment(
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(review_assignment),
         object_id=review_assignment.pk,
-        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        code__in=ReviewerShouldWriteReviewReminderManager.get_reminders(journal_code=fake_request.journal.code).keys(),
     ).exists()
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(review_assignment),
         object_id=review_assignment.pk,
-        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(
+            journal_code=fake_request.journal.code
+        ).keys(),
     ).exists()
     if extra_assignment_state == "declined":
-        assert Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
+        assert Reminder.objects.filter(
+            code__in=EditorShouldSelectReviewerReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys()
+        ).exists()
     else:
         assert not Reminder.objects.filter(
-            code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()
+            code__in=EditorShouldSelectReviewerReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys()
         ).exists()
 
 
@@ -3905,15 +3917,21 @@ def test_deassign_reviewer_no_editor(
         assert Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(review_assignment),
             object_id=review_assignment.pk,
-            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+            code__in=ReviewerShouldWriteReviewReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys(),
         ).exists()
     else:
         assert Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(review_assignment),
             object_id=review_assignment.pk,
-            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys(),
         ).exists()
-    assert not Reminder.objects.filter(code__in=EditorShouldSelectReviewerReminderManager.reminders.keys()).exists()
+    assert not Reminder.objects.filter(
+        code__in=EditorShouldSelectReviewerReminderManager.get_reminders(journal_code=fake_request.journal.code).keys()
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -3972,7 +3990,9 @@ def test_assign_different_editor(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(accepted_ra),
             object_id=accepted_ra.pk,
-            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+            code__in=ReviewerShouldWriteReviewReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys(),
         ).count()
         == 2
     )
@@ -3980,7 +4000,9 @@ def test_assign_different_editor(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(pending_ra),
             object_id=pending_ra.pk,
-            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys(),
         ).count()
         == 3
     )
@@ -4011,7 +4033,9 @@ def test_assign_different_editor(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(accepted_ra),
             object_id=accepted_ra.pk,
-            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+            code__in=ReviewerShouldWriteReviewReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys(),
             recipient=normal_user,
         ),
         1,
@@ -4020,7 +4044,9 @@ def test_assign_different_editor(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(accepted_ra),
             object_id=accepted_ra.pk,
-            code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+            code__in=ReviewerShouldWriteReviewReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys(),
             recipient=reviewer1,
         ),
         1,
@@ -4030,7 +4056,9 @@ def test_assign_different_editor(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(pending_ra),
             object_id=pending_ra.pk,
-            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys(),
             actor=normal_user,
         ),
         2,
@@ -4040,7 +4068,9 @@ def test_assign_different_editor(
         Reminder.objects.filter(
             content_type=ContentType.objects.get_for_model(pending_ra),
             object_id=pending_ra.pk,
-            code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+            code__in=ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(
+                journal_code=fake_request.journal.code
+            ).keys(),
             recipient=normal_user,
         ),
         1,
@@ -4049,26 +4079,30 @@ def test_assign_different_editor(
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(accepted_ra),
         object_id=accepted_ra.pk,
-        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        code__in=ReviewerShouldWriteReviewReminderManager.get_reminders(journal_code=fake_request.journal.code).keys(),
         recipient=current_editor,
     ).exists()
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(accepted_ra),
         object_id=accepted_ra.pk,
-        code__in=ReviewerShouldWriteReviewReminderManager.reminders.keys(),
+        code__in=ReviewerShouldWriteReviewReminderManager.get_reminders(journal_code=fake_request.journal.code).keys(),
         actor=current_editor,
     ).exists()
 
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(pending_ra),
         object_id=pending_ra.pk,
-        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(
+            journal_code=fake_request.journal.code
+        ).keys(),
         recipient=current_editor,
     ).exists()
     assert not Reminder.objects.filter(
         content_type=ContentType.objects.get_for_model(pending_ra),
         object_id=pending_ra.pk,
-        code__in=ReviewerShouldEvaluateAssignmentReminderManager.reminders.keys(),
+        code__in=ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(
+            journal_code=fake_request.journal.code
+        ).keys(),
         actor=current_editor,
     ).exists()
     assert Message.objects.count() == 6
