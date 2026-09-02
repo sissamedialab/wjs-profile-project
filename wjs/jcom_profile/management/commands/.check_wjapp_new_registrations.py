@@ -28,7 +28,7 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--mail-recipients",
-            default="wjs-support@medialab.sissa.it",
+            default="wjs-support@sissamedialab.it",
             help="Recipients of eventual notifications (comma-separated). Defaults to %(default)s",
         )
 

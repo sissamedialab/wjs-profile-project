@@ -55,7 +55,7 @@
 #   - (on your machine) logout from docker registry (just in case...):
 #     docker logout  registry.gitlab.sissamedialab.it
 #   - (on your machine) login to the registry:
-#     docker login -u gamboz@medialab.sissa.it registry.gitlab.sissamedialab.it
+#     docker login -u gamboz@sissamedialab.it registry.gitlab.sissamedialab.it
 #     NB: the username is useless; the important part is to use the PAT when asked for a password
 #   - (on your machine) try a pull (optional):
 #     docker pull registry.gitlab.sissamedialab.it/wjs/janeway/debian-python-git-janeway:develop

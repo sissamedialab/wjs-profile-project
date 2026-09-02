@@ -189,17 +189,17 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
 # Email addresses that must receive the notification when an article is published.
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
 WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {
-    None: ("j-social@medialab.sissa.it",),
-    "JCOM": ("j-social@medialab.sissa.it",),
-    "JCOMAL": ("j-social@medialab.sissa.it",),
+    None: ("jsocial@sissamedialab.it",),
+    "JCOM": ("jsocial@sissamedialab.it",),
+    "JCOMAL": ("jsocial@sissamedialab.it",),
 }
 
 # Press email addresses that must receive the notification when an article is published.
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
 WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_EMAILS = {
-    None: ("j_journals_press@medialab.sissa.it",),
-    "JCOM": ("j_journals_press@medialab.sissa.it",),
-    "JCOMAL": ("j_journals_press@medialab.sissa.it",),
+    None: ("jnews@sissamedialab.it",),
+    "JCOM": ("jnews@sissamedialab.it",),
+    "JCOMAL": ("jnews@sissamedialab.it",),
 }
 # Press email enabled flag
 WJS_ARTICLE_WITHDRAWN_PRESS_NOTIFICATION_ENABLED = {

@@ -195,7 +195,7 @@ class MuninProxy(LoginRequiredMixin, UserPassesTestMixin, View):
         server = kwargs["server"]
         image = kwargs["image"]
         img_url = (
-            "https://medialab.sissa.it/munin-cgi/munin-cgi-graph/ud.sissamedialab.it/"
+            "https://sissamedialab.it/munin-cgi/munin-cgi-graph/ud.sissamedialab.it/"
             f"{server}.ud.sissamedialab.it/{image}.png"
         )
 

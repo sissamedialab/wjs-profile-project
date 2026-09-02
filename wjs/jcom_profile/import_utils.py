@@ -71,7 +71,7 @@ JOURNALS_DATA = {
         "wjapp_url": getattr(
             settings,
             "WJAPP_JHEP_URL",
-            "https://robur.medialab.sissa.it/test-migration-jhep/jhep/services/jsonpublished",
+            "https://robur.sissamedialab.it/test-migration-jhep/jhep/services/jsonpublished",
         ),
         "wjapp_api_key": "WJAPP_JHEP_APIKEY",
         "section_order": {
@@ -85,7 +85,7 @@ JOURNALS_DATA = {
         "wjapp_url": getattr(
             settings,
             "WJAPP_JCAP_URL",
-            "https://robur.medialab.sissa.it/jcap-sissa/jcap/services/jsonpublished",
+            "https://robur.sissamedialab.it/jcap-sissa/jcap/services/jsonpublished",
         ),
         "wjapp_api_key": "WJAPP_JCAP_APIKEY",
         "section_order": {
