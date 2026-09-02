@@ -2309,7 +2309,7 @@ class Reminder(models.Model):
         From: Matteo Gamboz <no-reply@jcom.sissa.it>
         """
         # Reminder: get_setting() with journal=None returns the default value for that setting
-        # and the default value for "from_address" is sound (ATM it's "no-reply@medialab.sissa.it")
+        # and the default value for "from_address" is sound
         article = self.get_related_article()
         journal = article.journal if article else None
         email_part = get_setting("general", "from_address", journal).processed_value
