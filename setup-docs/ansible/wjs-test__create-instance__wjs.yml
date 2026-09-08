@@ -215,6 +215,16 @@
         owner: wjs
         group: wjs
 
+    - name: Manually install wjs-reviw plugin
+      # Keeping as a separate task, because there is probably some spurious dependency
+      # from wjs_submission that will probably be fixed in the future.
+      file:
+        src: "{{ venv_root }}/lib/python3.11/site-packages/wjs/plugins/wjs_review"
+        dest: "/home/wjs/{{ full_name }}/src/plugins/wjs_review"
+        state: link
+        owner: wjs
+        group: wjs
+
     # Hydra is a third-party Janeway plugin (linking of articles across and within
     # journals). It is not distributed as a python package, so we clone it directly
     # into src/plugins, where Janeway picks it up (see core.plugin_installed_apps).
