@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.0.28] - 2026-09-09
+
+- [specs#3099: Test erratum / addendum](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3099) — Manually link wjs_review plugin (!1491)
+- [specs#2977: 31 Jul feedback: JCAP settings and reminders for go-live](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2977) — Add Reminder body for JQuant (!1363)
+- [specs#2605: Update reminder text for JQuant](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2605) — Add Reminder body for JQuant (!1363)
+- [specs#2789: Change mail address from medialab.sissa.it to sissamedialab.it](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2789) — Replace @medialab.sissa with @sissamedialab (!1385)
+- [specs#2871: Update referernces to https://medialab.sissa.it/ to new domain](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2871) — Replace @medialab.sissa with @sissamedialab (!1385)
+- [specs#2805: Verify activity page performance with jhep / jcap database](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2805) — feat: improve activity page performance (!1463)
+- [specs#3006: Improve UX for selecting unavailable reviewers](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3006) — feature: show detailed information about reviewer availability in select reviewer page (!1475)
+- [specs#3088: Improve reviewer selection safety](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3088) — feature: show detailed information about reviewer availability in select reviewer page (!1475)
+- [specs#3089: Improve sorting of editors in editors list](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3089) — feature: show detailed information about reviewer availability in select reviewer page (!1475)
+- [specs#2918: JCAP corresponding author's required information](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2918) — refactor(account_validation): move jcom/jcap validators to wjs.jcom_profile (!1477)
+- [specs#3083: 28.8 feedback - JCAP (and other journals) entire flow](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3083) — refactor(account_validation): move jcom/jcap validators to wjs.jcom_profile (!1477)
+- [wjs-submission-project#30: Verify that wjs-submission does not depend from wjs-profile](https://gitlab.sissamedialab.it/wjs/wjs-submission-project/-/work_items/30) — refactor(account_validation): move jcom/jcap validators to wjs.jcom_profile (!1477)
+- [specs#3012: JCOMAL editor had workload 1 and was automatically selected](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3012) — fix: fix missing assignment setting for jcomal (!1481)
+- [wjs-help#156: JCOMAL: missing data on "extra" field in the "pending issue" section](https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/156) — fix jcomal missing extra data in pending issue (develop) (!1485)
+- [specs#3040: "Career stage" field is required regardless of the selected "Profession"](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3040) — fix: fix profession / career stage always required (!1482)
+- chore: ignore .worktrees/ directory
+
 ## [2.0.27] - 2026-08-27
 
 - [wjs-help#204: problems with new AC](https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/204) — Fixes for ACs for unread messages (!1473)
