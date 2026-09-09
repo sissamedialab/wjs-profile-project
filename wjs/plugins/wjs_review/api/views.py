@@ -5,13 +5,25 @@ from core import models as core_models
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.base import ContentFile
 from django.db.models import Count
+from django.db.models.functions import Lower
+from plugins.wjs_submission.models import Collaboration
 from rest_framework import status
+from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .const import TYPE_TO_MIME
-from .mixins import LoggedRequestMixin, PublishedArticleAccessMixin
-from .serializers import GalleyUploadSerializer
+from .const import (
+    COLLABORATIONS_EXPORT_VERSION,
+    PUBLIC_LISTING_DEFAULT,
+    PUBLIC_LISTING_FILTERS,
+    TYPE_TO_MIME,
+)
+from .mixins import (
+    EOOrTypesetterAccessMixin,
+    LoggedRequestMixin,
+    PublishedArticleAccessMixin,
+)
+from .serializers import CollaborationSerializer, GalleyUploadSerializer
 
 
 class ArticleZipDownloadView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
@@ -201,3 +213,72 @@ class ArticleGalleyView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView
         if sequence is not None:
             resp["Location"] += f"{sequence}/"
         return resp
+
+
+class CollaborationListView(LoggedRequestMixin, EOOrTypesetterAccessMixin, ListAPIView):
+    """
+    List all collaborations, with the same data as "tabellone.json".
+
+    The collaborations are ordered by short name and can be filtered by the "public_listing" query
+    parameter: "all" (the default) returns every collaboration, "true" only the ones approved
+    for public listing, "false" only the ones that are not.
+    """
+
+    serializer_class = CollaborationSerializer
+    #: The entry point lists every collaboration, so the result must not be split into pages.
+    pagination_class = None
+    # LOWER() because the database collation is byte-ordered (C.UTF-8): a plain ORDER BY would
+    # push every lowercase-initial short name (lpGBT, nEXO, sPHENIX, ...) past "ZEUS".
+    queryset = Collaboration.objects.order_by(Lower("short_name"), "short_name")
+
+    def get_public_listing(self) -> str:
+        """
+        Read the "public_listing" query parameter.
+
+        :return: The requested filter, lowercased, or the default one when the parameter is not given.
+        :rtype: str
+        """
+        return self.request.query_params.get("public_listing", PUBLIC_LISTING_DEFAULT).lower()
+
+    def get_queryset(self):
+        """
+        Select the collaborations to export, filtered as requested by "public_listing".
+
+        :return: The collaborations to serve.
+        :rtype: QuerySet
+        """
+        queryset = super().get_queryset()
+        wanted = PUBLIC_LISTING_FILTERS[self.get_public_listing()]
+        if wanted is not None:
+            queryset = queryset.filter(public_listing=wanted)
+        return queryset
+
+    def list(self, request, *args, **kwargs):  # noqa: A003 (DRF's own hook name)
+        """
+        Serve the collaborations wrapped in the same envelope as "tabellone.json".
+
+        :return: The versioned list of collaborations, or an error when "public_listing" is unknown.
+        :rtype: Response
+        """
+        if self.get_public_listing() not in PUBLIC_LISTING_FILTERS:
+            return Response(
+                {
+                    "error": {
+                        "code": "BAD_REQUEST",
+                        "message": "Invalid parameters.",
+                        "details": {
+                            "public_listing": {
+                                "expected": sorted(PUBLIC_LISTING_FILTERS),
+                                "got": request.query_params.get("public_listing"),
+                            }
+                        },
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload = {
+            "version": COLLABORATIONS_EXPORT_VERSION,
+            "collaborations": self.get_serializer(self.filter_queryset(self.get_queryset()), many=True).data,
+        }
+        return Response(payload, status=status.HTTP_200_OK)

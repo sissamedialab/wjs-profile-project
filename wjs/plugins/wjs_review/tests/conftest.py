@@ -83,12 +83,14 @@ TEST_FILES_EXTENSION = ".santaveronica"
 
 
 def pytest_addoption(parser):
-    """Allow for marking tests as "academic" and run them on demand only.
+    """Allow for marking tests as "academic" or "collaborations" and run them on demand only.
 
     Tests marked with:
     @pytest.mark.skipif("not config.getoption('--run-academic')")
     will be run only if pytest is invoked as
     pytest --run-academic ...
+
+    The same applies to --run-collaborations-api for the collaborations API tests.
     """
     # see also https://jwodder.github.io/kbits/posts/pytest-mark-off/#option-2-use-pytest-mark-skipif
     parser.addoption(
@@ -96,6 +98,12 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Run academic tests",
+    )
+    parser.addoption(
+        "--run-collaborations-api",
+        action="store_true",
+        default=False,
+        help="Run collaborations API tests",
     )
 
 
