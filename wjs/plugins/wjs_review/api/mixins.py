@@ -39,10 +39,14 @@ class LoggedRequestMixin:
             )
 
 
-class PublishedArticleAccessMixin:
+class EOOrTypesetterAccessMixin:
+    """Restrict an entry point to EO members and typesetters, as authenticated by their API token."""
+
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsEOOrTypesetterForArticle]
 
+
+class PublishedArticleAccessMixin(EOOrTypesetterAccessMixin):
     def get_article(self, request, pk: int):
         article = get_object_or_404(submission_models.Article, pk=pk, stage=submission_models.STAGE_PUBLISHED)
         self.check_object_permissions(request, article)
