@@ -5,6 +5,8 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import pycountry
 from core.models import Account
 from django import template
+from django.conf import settings as django_settings
+from django.core.cache import cache
 from django.forms import BoundField
 from django.template import Context, Template
 from django.utils import timezone
@@ -21,6 +23,8 @@ from wjs.jcom_profile.permissions import has_eo_or_director_role, has_eo_role
 from wjs.jcom_profile.utils import citation_name
 
 register = template.Library()
+
+IS_USER_EO_CACHE_TTL = getattr(django_settings, "IS_USER_EO_CACHE_TTL", 30)
 
 
 @register.filter
@@ -295,8 +299,21 @@ def get_issue_meta_image_url(issue):
 
 @register.filter
 def is_user_eo(user: Account) -> bool:
-    """Returns if user is part of the EO."""
-    return has_eo_role(user)
+    """
+    Returns if user is part of the EO.
+
+    Cached for a short time (IS_USER_EO_CACHE_TTL seconds) since this check is
+    often repeated several times per request (e.g. once per row in list views)
+    and EO membership changes are extremely rare.
+    """
+    if not user.is_authenticated:
+        return False
+    cache_key = f"is_user_eo:{user.pk}"
+    result = cache.get(cache_key)
+    if result is None:
+        result = has_eo_role(user)
+        cache.set(cache_key, result, IS_USER_EO_CACHE_TTL)
+    return result
 
 
 @register.simple_tag()

@@ -3,7 +3,7 @@
 # - for old uwsgi (in here)
 # - for daphne (in wjs-prod.conf)
 
-ServerAdmin wjs-sysadmin@medialab.sissa.it
+ServerAdmin wjs-sysadmin@sissamedialab.it
 
 <VirtualHost *:443>
     Define NAME journals

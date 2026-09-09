@@ -1,0 +1,10 @@
+{% load fqdn %}
+Dear Author,<br>
+<br>
+On {{ date_requested }} I allowed you to update your {{ article.section.name }} metadata.<br>
+<br>
+Please do so urgently from your <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ journal.code }} Editor-in-charge

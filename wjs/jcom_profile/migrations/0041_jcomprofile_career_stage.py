@@ -19,6 +19,7 @@ class Migration(migrations.Migration):
                     (3, "Permanent (tenured or indefinite contract)"),
                 ],
                 null=True,
+                blank=True,
             ),
         ),
     ]

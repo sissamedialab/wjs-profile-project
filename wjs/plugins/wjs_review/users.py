@@ -175,7 +175,7 @@ def annotate_is_reviewer_available(self, article: Article):
 
     This annotation is a mix of two conditions:
     - StaffWorkloadParameters exists for the current user and its no_vacancy value (annotated in annotate_vacancy)
-      is true: this is verified by by filtering the annotated queryset by no_vacancy and storing as annotation
+      is true: this is verified by filtering the annotated queryset by no_vacancy and storing as annotation
       the exists of the query (ie: a StaffWorkloadParameters exists for each user after filering by no_vacancy)
     - StaffWorkloadParameters does not exists (ie: the reviewer has never completed that section and we assume is
       available)
@@ -188,11 +188,8 @@ def annotate_is_reviewer_available(self, article: Article):
     """
 
     _base = StaffWorkloadParameters.objects.filter(journal=article.journal)
-    # we need two queryset for the different OuterRef netsing:
-    # - NegatedExpression needs a queryset with OuterRef to filter StaffWorkloadParameters on the current user row
-    # - annotate_vacancy has OuterRef embedded and we must not pass an additional one
     _nested_query = _base.filter(user=OuterRef("id"))
-    _parameters_without_vacancy = _base.annotate_vacancy().filter(no_vacancy=True)
+    _parameters_without_vacancy = _base.annotate_vacancy().filter(no_vacancy=True).filter(user=OuterRef("id"))
     return self.annotate(
         is_available_as_reviewer=Exists(_parameters_without_vacancy) | NegatedExpression(Exists(_nested_query)),
     )

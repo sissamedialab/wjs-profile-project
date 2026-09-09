@@ -1,0 +1,10 @@
+{% load fqdn %}
+Dear Director,<br>
+<br>
+This {{ article.section.name }} was assigned to {{ current_editor.full_name }} on {{ assigned }} but they have not yet selected any reviewer.<br>
+<br>
+Please either take action from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>. or let us know if we can be of help.<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ journal.code }} Editorial Office

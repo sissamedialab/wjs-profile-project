@@ -256,7 +256,7 @@ def test_editor_availability(
         )
     if vacancy_start:
         assert editor.jcomprofile.vacancy_dates(journal=article.journal).startswith(
-            params.vacancy_start.strftime("%Y-%m-%d")
+            f'from {params.vacancy_start.strftime("%Y-%m-%d")}'
         )
 
 

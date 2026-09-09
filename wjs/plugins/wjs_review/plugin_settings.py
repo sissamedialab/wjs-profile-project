@@ -2232,7 +2232,7 @@ class RemindersCSVWrapper:
         self.discovered_settings = []
         self.journal = []
 
-    def _get_setting_data(self, reminder_setting: "ReminderSetting"):
+    def _get_setting_data(self, reminder_setting: "ReminderSetting", journal: str):
         return {
             "reminder code": reminder_setting.code,
             "reminder": reminder_setting.code.label,
@@ -2241,15 +2241,19 @@ class RemindersCSVWrapper:
             "actor": reminder_setting.actor,
             "recipient": reminder_setting.recipient,
             "days_after": reminder_setting.days_after,
+            "journal": journal,
         }
 
     def export_reminders(self, journal: Journal):
         from .reminders.settings import ReminderManager
 
         if self.csv_writer:
-            for reminder_class in ReminderManager.__subclasses__():
-                for reminder_setting in reminder_class.reminders.values():
-                    self.csv_writer.writerow(self._get_setting_data(reminder_setting))
+            for journal in ["default", "jquant"]:
+                for reminder_class in ReminderManager.__subclasses__():
+                    for reminder_setting in reminder_class.get_reminders(journal).values():
+                        self.csv_writer.writerow(
+                            self._get_setting_data(reminder_setting=reminder_setting, journal=journal)
+                        )
 
 
 def export_reminders(journal: Journal):

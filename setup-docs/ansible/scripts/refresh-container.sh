@@ -17,7 +17,7 @@
 #
 # Email alias for user wjs must go to wjs-sysadmin
 # as root:
-# echo "wjs: wjs-sysadmin@medialab.sissa.it" >> /etc/aliases && newaliases
+# echo "wjs: wjs-sysadmin@sissamedialab.it" >> /etc/aliases && newaliases
 
 set -e
 

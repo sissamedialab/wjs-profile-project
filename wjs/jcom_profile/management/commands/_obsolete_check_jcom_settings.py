@@ -43,7 +43,7 @@ class Command(BaseCommand):
     def set_press_attributes(self):
         """Take care of the Press attibutes."""
         attributes = (
-            ("main_contact", "eo@medialab.sissa.it"),
+            ("main_contact", "eo@sissamedialab.it"),
             ("name", "SISSA Journals"),
         )
         press = Press.objects.get()
@@ -226,7 +226,7 @@ SETTINGS = {
         #
         # Crossref depositor email - The email of the depositor
         # for this journal on Crossref's system.
-        ("Identifiers", "crossref_email", "sysadmin@medialab.sissa.it"),
+        ("Identifiers", "crossref_email", "sysadmin@sissamedialab.it"),
         #
         # Crossref depositor name - The name of the depositor for
         # this journal on Crossref's system.
@@ -361,7 +361,7 @@ SETTINGS = {
   _paq.push(['trackPageView']);
   _paq.push(['enableLinkTracking']);
   (function() {
-    var u="https://medialab.sissa.it/analytics/";
+    var u="https://sissamedialab.it/analytics/";
     _paq.push(['setTrackerUrl', u+'matomo.php']);
     _paq.push(['setSiteId', '3']);
     var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
@@ -388,7 +388,7 @@ SETTINGS = {
         # External Privacy Policy URL - URL to an external
         # privacy-policy, linked from the footer. If blank, it
         # links to the Janeway CMS page: /site/privacy.
-        ("general", "privacy_policy_url", "https://medialab.sissa.it/en/privacy"),
+        ("general", "privacy_policy_url", "https://sissamedialab.it/en/privacy"),
         #
         # Publication Fees - Display of feeds for this
         # journal. Displayed on the About and the Submission
@@ -400,7 +400,7 @@ SETTINGS = {
         ("general", "publisher_name", "Sissa Medialab srl"),
         #
         # Publisher URL - URL of the Journal's Publisher.
-        ("general", "publisher_url", "https://medialab.sissa.it/en/"),
+        ("general", "publisher_url", "https://sissamedialab.it/en/"),
         #
         # Reader Publication Notification - Email sent readers
         # when new articles are published.
@@ -440,7 +440,7 @@ SETTINGS = {
         # ("general", "support_contact_message_for_staff", default is ok!),
         #
         # Support Email - Support email address for editors and staff users.
-        ("general", "support_email", "wjs-support@medialab.sissa.it"),
+        ("general", "support_email", "wjs-support@sissamedialab.it"),
         #
         # Suppress Citation Metrics - If enabled this will
         # suppress the citations counter on the article page. The
@@ -485,7 +485,7 @@ SETTINGS = {
         #
         # Crossref depositor email - The email of the depositor
         # for this journal on Crossref's system.
-        ("Identifiers", "crossref_email", "sysadmin@medialab.sissa.it"),
+        ("Identifiers", "crossref_email", "sysadmin@sissamedialab.it"),
         #
         # Crossref depositor name - The name of the depositor for
         # this journal on Crossref's system.
@@ -620,7 +620,7 @@ SETTINGS = {
   _paq.push(['trackPageView']);
   _paq.push(['enableLinkTracking']);
   (function() {
-    var u="https://medialab.sissa.it/analytics/";
+    var u="https://sissamedialab.it/analytics/";
     _paq.push(['setTrackerUrl', u+'matomo.php']);
     _paq.push(['setSiteId', '40']);
     var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
@@ -659,7 +659,7 @@ SETTINGS = {
         ("general", "publisher_name", "SISSA Medialab srl"),
         #
         # Publisher URL - URL of the Journal's Publisher.
-        ("general", "publisher_url", "https://medialab.sissa.it/en/"),
+        ("general", "publisher_url", "https://sissamedialab.it/en/"),
         #
         # Reader Publication Notification - Email sent readers
         # when new articles are published.
@@ -699,7 +699,7 @@ SETTINGS = {
         # ("general", "support_contact_message_for_staff", default is ok!),
         #
         # Support Email - Support email address for editors and staff users.
-        ("general", "support_email", "wjs-support@medialab.sissa.it"),
+        ("general", "support_email", "wjs-support@sissamedialab.it"),
         #
         # Suppress Citation Metrics - If enabled this will
         # suppress the citations counter on the article page. The

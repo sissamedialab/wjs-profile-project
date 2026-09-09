@@ -1,0 +1,39 @@
+{% load fqdn %}
+{% load settings %}
+Dear colleague,<br>
+<br>
+Unfortunately I have not yet received your feedback on whether or not you will review the {{ article.section.name }} I sent you on {{ date_requested }}.<br>
+<p><b>{{ article.section.name }} to review:</b><br>
+{{ article.title }}
+</p>
+{% if reviewer.jcomprofile.invitation_token %}
+    {% external_journal_url journal 'wjs_evaluate_review' target.id reviewer.jcomprofile.invitation_token as fqdn_evaluate_review_url %}
+{% else %}
+    {% external_journal_url journal 'wjs_evaluate_review' target.id as fqdn_evaluate_review_url %}
+{% endif %}
+<p>
+    <b>Please <a href="{{ fqdn_evaluate_review_url }}?access_code={{ target.access_code }}">accept/decline this invite to review</a> as soon as possible.</b>
+</p>
+<p>
+{{ article.journal.name }} is a diamond open-access journal focusing on research in science communication.<br>
+Its scope is available <a href="{{ journal.site_url }}/site/about-jcom/#heading1">here</a>.
+<br><br>
+Its <a href="{{ journal.site_url }}/site/editorial-team/">editorial board</a> relies on the
+goodwill of reviewers to ensure the quality of the manuscripts it
+publishes and hopes that you will be able to help on this occasion.
+<br>
+More information about the Journal’s ethical policy is
+available <a href="{{ journal.site_url }}/site/about-jcom/#heading4">here</a>.
+<br><br>
+{% if journal|setting:"default_review_visibility" == "double-blind" %}
+It is {{ journal.code }}'s policy that authors and reviewers remain anonymous to each other.<br>
+{% endif %}
+All the necessary information and instructions to do the review are available <a href="{{ journal.site_url }}/site/reviewers/">here</a>.
+<br><br>
+If you decide to cooperate with us, please keep in mind the specificities of this article type, which are explained
+<a href="{{ journal.site_url }}/site/authors/">here</a>.
+<br><br>
+Do not hesitate to contact the Editor in charge or the Editorial Office from this manuscript web page for any further information or assistance that you may need.
+</p>
+{{ current_editor.full_name }}<br>
+{{ journal.code }} Editor

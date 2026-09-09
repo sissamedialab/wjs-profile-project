@@ -1,0 +1,11 @@
+{% load fqdn %}
+Dear Director,<br>
+<br>
+{{ current_editor.full_name }} has received at least one review but has neither made a decision nor selected additional reviewers.<br>
+<br>
+Please either step in or let us know what we should do from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ journal.code }} Editorial Office

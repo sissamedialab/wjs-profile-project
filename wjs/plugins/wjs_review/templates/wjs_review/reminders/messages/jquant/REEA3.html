@@ -1,0 +1,13 @@
+{% load fqdn %}
+Dear Dr. {{ recipient.full_name }},<br>
+<br>
+The reviewer {{ reviewer.full_name }} has not yet accepted/declined your invite to review this {{ article.section.name }}.<br>
+<br>
+You selected them on {{ date_requested }}.<br>
+<br>
+We would be grateful if you could step in (send a personal message, change reviewer, assign yourself as reviewer, etc.) from this <a href="{{ article.articleworkflow.url }}">{{ article.section.name }} web page</a>.<br>
+<br>
+<br>
+Thank you and best regards,<br>
+<br>
+{{ journal.code }} Editorial Office

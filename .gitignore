@@ -35,3 +35,6 @@ tmp
 .DS_Store
 
 setup-docs/configs/**/*.csv
+
+# Git worktrees for isolated task work
+.worktrees/

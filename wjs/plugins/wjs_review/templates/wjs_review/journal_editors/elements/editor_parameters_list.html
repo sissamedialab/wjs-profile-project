@@ -4,7 +4,10 @@
   {% url "assignment_parameters" editor_pk=editor.pk as manage_url %}
   <tr>
     <td>
-      <strong>{{ editor.full_name }}</strong><br>{{ editor.affiliation }}
+      <strong>{{ editor.full_name }}</strong>
+      {% if editor.affiliation %}<br>{{ editor.affiliation }}{% endif %}
+      {% if editor|user_vacancy_dates:journal %}<br><span class="text-muted">{% translate "Unavailable" %} {{ editor|user_vacancy_dates:journal }}</span>{% endif %}
+      {% if not editor|is_enabled_as_editor:journal %}<br><span class="text-danger">{% translate "Permanently self disabled" %}</span>{% endif %}
     </td>
     <td>{% get_max_workload editor=editor journal=journal as max_workload %}{% if max_workload < 0 %}<span class="bg-warning">{% translate "Parameters not correctly set up! Click \"Update\" and then \"Submit\"." %}</span> {% endif %}{{ max_workload }}
 </td>

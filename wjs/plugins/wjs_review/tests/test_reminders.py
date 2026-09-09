@@ -92,8 +92,8 @@ def check_reminder_date(
         assert reminders.count() == len(codes)
         assert reminders.filter(code__in=codes).count() == len(codes)
     for code in codes:
-        offset_date = manager.reminders[code].days_after
-        date_by_settings = manager.reminders[code]._get_date_base_setting(journal)
+        offset_date = manager.get_reminders(journal_code=journal.code)[code].days_after
+        date_by_settings = manager.get_reminders(journal_code=journal.code)[code]._get_date_base_setting(journal)
         if date_by_settings:
             offset_date += date_by_settings
         if reminder := reminders.get(code=code):
@@ -291,13 +291,13 @@ def test_assign_reviewer_creates_reminders(
     assert list(reviewer_assignment.all_reminders().values_list("code", flat=True)) == ["REEA1", "REEA2", "REEA3"]
     assert list(reviewer_assignment.unsent_reminders().values_list("code", flat=True)) == ["REEA1", "REEA2", "REEA3"]
 
-    r_1_date = ReviewerShouldEvaluateAssignmentReminderManager.reminders[
+    r_1_date = ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(journal_code="default")[
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1
     ].days_after
-    r_2_date = ReviewerShouldEvaluateAssignmentReminderManager.reminders[
+    r_2_date = ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(journal_code="default")[
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2
     ].days_after
-    r_3_date = ReviewerShouldEvaluateAssignmentReminderManager.reminders[
+    r_3_date = ReviewerShouldEvaluateAssignmentReminderManager.get_reminders(journal_code="default")[
         Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_3
     ].days_after
     r_1 = Reminder.objects.get(code=Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1)
@@ -473,10 +473,10 @@ def test_reviewer_accepts__deletes_some_reminders(
         token="",
     )
 
-    r_1_date = ReviewerShouldWriteReviewReminderManager.reminders[
+    r_1_date = ReviewerShouldWriteReviewReminderManager.get_reminders(journal_code="default")[
         Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_1
     ].days_after
-    r_2_date = ReviewerShouldWriteReviewReminderManager.reminders[
+    r_2_date = ReviewerShouldWriteReviewReminderManager.get_reminders(journal_code="default")[
         Reminder.ReminderCodes.REVIEWER_SHOULD_WRITE_REVIEW_2
     ].days_after
 
@@ -556,6 +556,68 @@ def test_reminder_rendering_date(
         rendered_body = reminder_setting.get_rendered_body(reminder_obj.target)
         assert formatted_data in rendered_body
         assert not_expected_data_format not in rendered_body
+
+
+@pytest.mark.parametrize(
+    "code, in_body, not_in_body",
+    (
+        (
+            "JCOM",
+            "/site/about-jcom/#heading4",
+            "Quantum Science",
+        ),
+        (
+            "JQuant",
+            "Quantum Science",
+            "/site/about-jcom/#heading4",
+        ),
+    ),
+)
+@pytest.mark.django_db
+def test_reminder_rendering_body_per_journal(
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    normal_user: JCOMProfile,
+    assigned_article: submission_models.Article,
+    review_form: review_models.ReviewForm,  # Without this, quick_assign() fails!
+    code,
+    in_body,
+    not_in_body,
+):
+    """Reminder rendering function render template on base of journal."""
+    assigned_article.journal.code = code
+    assigned_article.journal.save()
+    service = AssignToReviewer(
+        workflow=assigned_article.articleworkflow,
+        reviewer=normal_user.janeway_account,
+        editor=section_editor.janeway_account,
+        form_data={
+            "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
+            "message": "random message",
+            "author_note_visible": False,
+        },
+        request=fake_request,
+    )
+    # Ugly hack: create_reminder needs a service already "half-run", because the target is one of the results of the
+    # processing (e.g. a WorkflowReviewAssignment). However, the `run()` method will call create_reminder itself.
+    service._ensure_reviewer()
+    service.assignment = service._assign_reviewer()
+
+    ReviewerShouldEvaluateAssignmentReminderManager(
+        assignment=service.assignment,
+    ).create()
+    assert isinstance(service.assignment.date_requested, datetime.datetime)
+
+    for code in (
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_1,
+        Reminder.ReminderCodes.REVIEWER_SHOULD_EVALUATE_ASSIGNMENT_2,
+    ):
+        reminder_obj = Reminder.objects.get(code=code)
+        reminder_setting = ReviewerShouldEvaluateAssignmentReminderManager.get_settings(reminder_obj)
+
+        rendered_body = reminder_setting.get_rendered_body(reminder_obj.target)
+        assert in_body in rendered_body
+        assert not_in_body not in rendered_body
 
 
 class TestReviewerDeclines:
@@ -1049,13 +1111,13 @@ def test_paper_assignment_create_reminders_for_editor(
     )
     create_date = timezone.localtime(timezone.now()).date()
     assert reminders.count() == 3
-    reminder_1 = EditorShouldSelectReviewerReminderManager.reminders[
+    reminder_1 = EditorShouldSelectReviewerReminderManager.get_reminders(journal_code="default")[
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_1
     ]
-    reminder_2 = EditorShouldSelectReviewerReminderManager.reminders[
+    reminder_2 = EditorShouldSelectReviewerReminderManager.get_reminders(journal_code="default")[
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_2
     ]
-    reminder_3 = EditorShouldSelectReviewerReminderManager.reminders[
+    reminder_3 = EditorShouldSelectReviewerReminderManager.get_reminders(journal_code="default")[
         Reminder.ReminderCodes.EDITOR_SHOULD_SELECT_REVIEWER_3
     ]
     r_1_days_after = reminder_1.days_after

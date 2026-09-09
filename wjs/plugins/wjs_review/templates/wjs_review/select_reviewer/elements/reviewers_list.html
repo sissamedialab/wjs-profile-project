@@ -14,26 +14,27 @@
     </td>
     <td>{{ user.email }}</td>
     <td>
-      {% if user.wjs_is_author %}{% translate "Author of this preprint" %}{% endif %}
-      {% if not user.is_available_as_reviewer %}{% translate "Unavailable as reviewer" %}{% endif %}
-      {% if not user.is_active %}{% translate "Unavailable as reviewer" %}{% endif %}
+      {% if user.wjs_is_author %}{% translate "Author of this preprint" %}<br>
+      {% elif user|user_vacancy_dates:journal %}<span class="text-muted">{% translate "Unavailable" %} {{ user|user_vacancy_dates:journal }}</span><br>
+      {% elif not user.is_available_as_reviewer %}{% translate "Permanently self disabled" %}<br>
+      {% elif not user.is_active %}{% translate "Unavailable as reviewer" %}<br>{% endif %}
       {% if user.wjs_is_active_reviewer %}
         {% if user.wjs_has_declined_current_review_round %}
-          {% translate "Declined/removed from current version" %}
+          {% translate "Declined/removed from current version" %}<br>
         {% elif user.wjs_has_currently_completed_review %}
-          {% translate "Review already available" %}
+          {% translate "Review already available" %}<br>
         {% else %}
-          {% translate "Already selected" %}
+          {% translate "Already selected" %}<br>
         {% endif %}
       {% else %}
         {# Show flags for previous rounds only if there is nothing for the current one. #}
         {% if user.wjs_is_last_round_reviewer %}
           {% if user.wjs_has_delined_the_previous_review_round %}
-            {% translate "Declined/removed from previous version" %}
+            {% translate "Declined/removed from previous version" %}<br>
           {% elif user.wjs_has_completed_review_in_the_previous_round %}
-            {% translate "Reviewed previous version" %}
+            {% translate "Reviewed previous version" %}<br>
           {% else %}
-            {% translate "Did not send requested review (previous version)" %}
+            {% translate "Did not send requested review (previous version)" %}<br>
           {% endif %}
         {% endif %}
       {% endif %}

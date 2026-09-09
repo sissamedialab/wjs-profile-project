@@ -71,9 +71,13 @@ class WjsPersonalInfoForm(EditAccountForm):
         if not is_field_available(self.journal, "profession"):
             self.fields["profession"].required = False
             self.fields["profession"].widget = forms.HiddenInput()
+        else:
+            self.fields["profession"].required = True
         if not is_field_available(self.journal, "career_stage"):
             self.fields["career_stage"].required = False
             self.fields["career_stage"].widget = forms.HiddenInput()
+        else:
+            self.fields["career_stage"].required = True
         if self.instance.jcomprofile.gdpr_acceptance:
             self.fields["gdpr_checkbox"].widget = forms.HiddenInput()
         else:

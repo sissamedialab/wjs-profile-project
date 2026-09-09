@@ -275,7 +275,7 @@ To confirm your email address, activate your subscription and select your topics
 <a href="{acceptance_url}" target="_blank">this link</a>
 </p>
 <p>
-By clicking the above link you are agreeing to our <a href="https://medialab.sissa.it/en/privacy">privacy policy</a>.
+By clicking the above link you are agreeing to our <a href="https://sissamedialab.it/en/privacy">privacy policy</a>.
 <br>
 You can unsubscribe at any time by using the link provided in every publication alert that you will receive.
 </p>
