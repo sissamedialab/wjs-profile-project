@@ -160,7 +160,7 @@ def test_api_collaborations_is_served_as_json(client: Client, eo_user: JCOMProfi
     assert "⚠" in content
 
 
-# @pytest.mark.skipif("not config.getoption('--run-collaborations-api')", reason="overkill")
+@pytest.mark.skipif("not config.getoption('--run-collaborations-api')", reason="overkill")
 @pytest.mark.django_db
 def test_api_collaborations_can_be_pretty_printed_on_request(client: Client, eo_user: JCOMProfile, collaborations):
     """A client that asks for an indented rendering gets a "tabellone.json"-like file."""

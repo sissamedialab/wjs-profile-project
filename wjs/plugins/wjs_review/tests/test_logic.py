@@ -30,11 +30,17 @@ from journal import models as journal_models
 from plugins.wjs_review.logic__production import reunite_divided_kwds
 from plugins.wjs_review.synctex.forms import (
     SyncAuthorsForm,
+    SyncCollaborationsForm,
     SyncKeywordsForm,
     SyncTitleAbstractForm,
 )
 from plugins.wjs_review.synctex.logic import MetadataFromTeX
-from plugins.wjs_submission.models import RevisionStorage
+from plugins.wjs_submission.models import (
+    ArticleCollaboration,
+    Collaboration,
+    CollaborationRelation,
+    RevisionStorage,
+)
 from plugins.wjs_submission.revision import RevisionStartConfirmView
 from plugins.wjs_submission.step8.views import SubmissionStep8View
 from review import models as review_models
@@ -4973,6 +4979,76 @@ def test_sync_texdb_lang(
         # changed
         assert article.title == article.title_es == new_title_es
         assert article.abstract == article.abstract_es == new_abstract_es
+
+
+@pytest.mark.django_db
+def test_sync_texdb_collaborations(
+    article: Article,
+):
+    """Sync the collaborations attached to an article: match on the name, relation from the TeX type."""
+    cms = Collaboration.objects.create(name="CMS collaboration")
+    atlas = Collaboration.objects.create(name="ATLAS collaboration")
+    # This one is attached to the article, but not present in the TeX: it must be detached.
+    belle = Collaboration.objects.create(name="Belle II collaboration")
+    ArticleCollaboration.objects.create(article=article, collaboration=belle, order=0)
+    ArticleCollaboration.objects.create(
+        article=article,
+        collaboration=cms,
+        order=1,
+        relation=CollaborationRelation.BY,
+    )
+
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        # The match on the name ignores case and surrounding spaces.
+        "collaborations": [" cms collaboration ", "ATLAS collaboration"],
+        "collaborations_type": "forthe",
+    }
+    form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+    assert [item.collaboration for item in form.collaborations_tex] == [cms, atlas]
+    assert form.relation_tex == CollaborationRelation.ON_BEHALF_OF
+    assert form.should_sync()
+    form.sync()
+
+    links = list(ArticleCollaboration.objects.filter(article=article).order_by("order"))
+    assert [link.collaboration for link in links] == [cms, atlas]
+    # The relation from the TeX applies to all the collaborations (also to the already attached one).
+    assert [link.relation for link in links] == [CollaborationRelation.ON_BEHALF_OF] * 2
+    # Nothing more to do now.
+    assert not SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"}).should_sync()
+
+    # Any other collaborations type maps to "by".
+    texdata.data["collaborations_type"] = "regular"
+    form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+    assert form.relation_tex == CollaborationRelation.BY
+    # Same collaborations, but a different relation: still out of sync.
+    assert form.should_sync()
+    form.sync()
+    links = list(ArticleCollaboration.objects.filter(article=article).order_by("order"))
+    assert [link.relation for link in links] == [CollaborationRelation.BY] * 2
+
+    # A collaboration that exists only in the TeX blocks the sync: it must be created by hand.
+    texdata.data = {"collaborations": ["LHCb collaboration"], "collaborations_type": "forthe"}
+    form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+    assert form.collaborations_tex[0].collaboration is None
+    assert not form.is_valid()
+    with pytest.raises(ValueError, match="No matching collaboration"):
+        form.sync()
+
+    # A missing TeX key blocks the sync...
+    for texdata.data in ({"collaborations": ["CMS collaboration"]}, {"collaborations_type": "forthe"}, {}):
+        form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+        assert not form.is_valid()
+        with pytest.raises(ValueError, match="Please check"):
+            form.sync()
+
+    # ...but an empty collaborations list is fine: syncing detaches all of them.
+    texdata.data = {"collaborations": [], "collaborations_type": ""}
+    form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+    assert form.collaborations_tex == []
+    assert form.should_sync()
+    form.sync()
+    assert not ArticleCollaboration.objects.filter(article=article).exists()
 
 
 @pytest.mark.django_db

@@ -16,6 +16,7 @@ from .forms import (
     SyncArxivForm,
     SyncAuthorsForm,
     SyncCasDasForm,
+    SyncCollaborationsForm,
     SyncFundingsForm,
     SyncKeywordsForm,
     SyncLanguageForm,
@@ -110,6 +111,7 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         context.update(self._get_context_data_keywords(texdata))
         context.update(self._get_context_data_fundings(texdata))
         context.update(self._get_context_data_authors(texdata))
+        context.update(self._get_context_data_collaborations(texdata))
         return context
 
     def _get_context_data_language(self, texdata: MetadataFromTeX) -> dict:
@@ -163,6 +165,11 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         form_authors = SyncAuthorsForm(texdata, data={"action": "sync_authors"})
         return form_authors.get_form_context_data()
 
+    def _get_context_data_collaborations(self, texdata: MetadataFromTeX) -> dict:
+        """Return context info related to the collaborations."""
+        form_collaborations = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+        return form_collaborations.get_form_context_data()
+
     def get_success_url(self):
         """Point back here."""
         return self.request.path
@@ -195,6 +202,8 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             self._post_fundings(request)
         elif action == "sync_authors":
             self._post_authors(request)
+        elif action == "sync_collaborations":
+            self._post_collaborations(request)
         else:
             messages.add_message(request, messages.ERROR, _("No se pol! Come te son rivà qua?!?"))
         return HttpResponseRedirect(self.get_success_url())
@@ -290,3 +299,13 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             messages.add_message(request, messages.ERROR, str(e))
         else:
             messages.add_message(request, messages.SUCCESS, _("Authors synchronized."))
+
+    def _post_collaborations(self, request):
+        """Synchronize the collaborations."""
+        form = SyncCollaborationsForm(self.get_texdata(), data=request.POST)
+        try:
+            form.sync()
+        except ValueError as e:
+            messages.add_message(request, messages.ERROR, str(e))
+        else:
+            messages.add_message(request, messages.SUCCESS, _("Collaborations synchronized."))

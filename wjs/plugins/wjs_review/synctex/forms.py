@@ -17,7 +17,12 @@ from django.utils.html import escape
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from identifiers.models import Identifier
-from plugins.wjs_submission.models import ArticleSubmission
+from plugins.wjs_submission.models import (
+    ArticleCollaboration,
+    ArticleSubmission,
+    Collaboration,
+    CollaborationRelation,
+)
 from plugins.wjs_submission.unique_check import check_article_unique
 from submission import models as submission_models
 from submission.models import Article
@@ -265,7 +270,7 @@ class SyncArxivForm(forms.Form):
         if not check_article_unique(
             response_content=response_content,
             journal=article.journal,
-            arxiv_article_id=article.pk,
+            article_id=article.pk,
         ):
             raise ValidationError(
                 f"An article with arXiv id '{self.tex_arxiv}' (or the same title and abstract) already exists!"
@@ -1150,4 +1155,118 @@ class SyncFundingsForm(forms.Form):
             "form_fundings": self,
             "fundings_tex": self.fundings_tex,
             "fundings_db": self.fundings_db,
+        }
+
+
+class SyncCollaborationsForm(forms.Form):
+    """
+    Form used to receive the green-light to synchronize the collaborations between TeX and DB.
+
+    The TeX describes the collaborations with two keys: ``collaborations`` (a list of collaboration
+    names) and ``collaborations_type`` (how the article relates to *all* of them). Each name is
+    matched against the DB ``Collaboration`` records (ignoring case and surrounding spaces) and the
+    type is mapped onto a ``CollaborationRelation``; syncing attaches the matched collaborations to
+    the article (in the TeX order, all with the mapped relation) and drops the other links.
+
+    The ``Collaboration`` records themselves are never created nor modified here: they are shared
+    between articles, so a collaboration that exists only in the TeX must be created by hand (and
+    the form does not validate until every TeX collaboration has a match).
+    """
+
+    action = forms.CharField(widget=forms.HiddenInput(), initial="sync_collaborations")
+
+    NO_MATCH_ERROR = _("No matching collaboration; please manually create one and retry!")
+
+    NAMES_KEY = "collaborations"
+    TYPE_KEY = "collaborations_type"
+    #: TeX collaboration types that mean "the article is written on behalf of the collaborations".
+    ON_BEHALF_OF_TYPES = ("forthe", "behalf")
+
+    @dataclass
+    class CollaborationStruct:
+        """A collaboration name extracted from the TeX and the DB Collaboration matching it (if any)."""
+
+        name: str
+        collaboration: Collaboration | None
+
+    def __init__(self, texdata, *args, **kwargs):
+        """Store the TeX data and match the TeX collaboration names onto the DB Collaborations."""
+        self.texdata = texdata
+        super().__init__(*args, **kwargs)
+        self.names_tex = texdata.data.get(self.NAMES_KEY) or []
+        self.type_tex = texdata.data.get(self.TYPE_KEY) or ""
+        self.relation_tex = self._map_relation(self.type_tex)
+        # NB: these are ArticleCollaboration (the through model), already ordered by "order".
+        self.collaborations_db = self.texdata.workflow.article.collaborations.all()
+        self.collaborations_tex = [
+            self.CollaborationStruct(name=name, collaboration=Collaboration.objects.by_name(name).first())
+            for name in self.names_tex
+        ]
+
+    @classmethod
+    def _map_relation(cls, type_tex: str) -> str:
+        """Map the TeX collaborations type onto the relation between the article and a collaboration."""
+        if type_tex in cls.ON_BEHALF_OF_TYPES:
+            return CollaborationRelation.ON_BEHALF_OF
+        return CollaborationRelation.BY
+
+    def clean(self):
+        """Ensure that the TeX describes the collaborations completely and that they all exist in the DB."""
+        cleaned_data = super().clean()
+        errors = []
+        # Both keys must be there: a missing one means that the TeX (or its parsing) is incomplete,
+        # and we would not know which relation to use (or for which collaborations).
+        errors.extend(
+            ValidationError(f"The TeX has no '{key}'. Please check!")
+            for key in (self.NAMES_KEY, self.TYPE_KEY)
+            if key not in self.texdata.data
+        )
+        errors.extend(
+            ValidationError(f"{self.NO_MATCH_ERROR} ({item.name})")
+            for item in self.collaborations_tex
+            if not item.collaboration
+        )
+        if errors:
+            raise ValidationError(errors)
+        return cleaned_data
+
+    def should_sync(self) -> bool:
+        """Tell if DB and TeX collaborations (or their relation with the article) are out of sync."""
+        return list(self.collaborations_db.values_list("relation", "collaboration_id")) != [
+            (self.relation_tex, item.collaboration.pk) for item in self.collaborations_tex if item.collaboration
+        ]
+
+    def sync(self):
+        """
+        Validate and persist the collaborations attached to the article.
+
+        Only the article-to-collaboration links are touched: the Collaboration records are left alone.
+
+        Raise:
+          ValueError: if the form does not validate or if saving fails.
+        """
+        if not self.is_valid():
+            raise ValueError(self.errors.as_text())
+        article = self.texdata.workflow.article
+        collaborations_tex = [item.collaboration for item in self.collaborations_tex]
+        try:
+            for order, collaboration in enumerate(collaborations_tex):
+                ArticleCollaboration.objects.update_or_create(
+                    article=article,
+                    collaboration=collaboration,
+                    defaults={"order": order, "relation": self.relation_tex},
+                )
+            ArticleCollaboration.objects.filter(article=article).exclude(
+                collaboration__in=collaborations_tex,
+            ).delete()
+        except Exception as e:  # noqa: BLE001 - surface any persistence failure as a ValueError
+            raise ValueError(str(e)) from e
+
+    def get_form_context_data(self) -> dict:
+        """Return collaborations-related context to be merged into the view's context."""
+        return {
+            "form_collaborations": self,
+            "collaborations_db": self.collaborations_db,
+            "collaborations_tex": self.collaborations_tex,
+            "relation_tex": self.relation_tex,
         }
