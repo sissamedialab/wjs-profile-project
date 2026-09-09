@@ -41,7 +41,6 @@
   <div class="container mb-3">
     <form method="post" action="{{ update_files_url }}" enctype="multipart/form-data">
       {% csrf_token %}
-      {% bootstrap_form_errors form type="non_fields" %}
       <div class="mb-3" id="error-messages">
       </div>
       <div id="proofing-notes">
