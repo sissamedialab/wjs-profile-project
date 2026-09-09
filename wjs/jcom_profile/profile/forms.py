@@ -155,7 +155,9 @@ class WjsEmailChangeForm(EditAccountForm):
 class WjsPasswordChangeForm(EditAccountForm):
     """Form used to change password."""
 
-    current_password = forms.CharField(widget=forms.PasswordInput, label=_("Current Password"), required=True)
+    current_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={"autocomplete": "off"}), label=_("Current Password"), required=True
+    )
     new_password_one = forms.CharField(widget=forms.PasswordInput, label=_("New Password"), required=True)
     new_password_two = forms.CharField(widget=forms.PasswordInput, label=_("Repeat New Password"), required=True)
 
