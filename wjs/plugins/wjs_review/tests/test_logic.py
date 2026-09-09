@@ -22,7 +22,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.urls import reverse
-from django.utils import timezone, translation
+from django.utils import formats, timezone, translation
 from django.utils.timezone import localtime, now
 from events import logic as events_logic
 from faker import Faker
@@ -3472,6 +3472,8 @@ def test_postpone_revision_due_date(
         object_id=editor_revision.pk,
     )
     reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
+    reminder_bodies = {r.code: r.message_body for r in reminders}
+    initial_rendered_due_date = formats.date_format(initial_date_due, settings.DATE_FORMAT)
     date_diff = form_data["date_due"] - initial_date_due
     if postpone_date < 1:
         with pytest.raises(ValidationError):
@@ -3492,6 +3494,16 @@ def test_postpone_revision_due_date(
         updated_reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
         for reminder in updated_reminder_dates.keys():
             assert updated_reminder_dates[reminder] == reminder_dates[reminder] + date_diff
+        # Some reminders include the due date in their body;
+        # here we test that, if the "old" body had the "old" due date,
+        # then the current/new body must have the new due date
+        new_rendered_due_date = formats.date_format(editor_revision.date_due, settings.DATE_FORMAT)
+        for reminder_obj in reminders:
+            reminder_obj.refresh_from_db()
+            if initial_rendered_due_date in reminder_bodies[reminder_obj.code]:
+                assert (
+                    new_rendered_due_date in reminder_obj.message_body
+                ), f"Reminder {reminder_obj.code} message_body was not re-rendered with the postponed due date"
 
 
 @pytest.mark.parametrize("actor_role", ("Reviewer", "Editor"))

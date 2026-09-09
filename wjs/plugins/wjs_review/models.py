@@ -2361,14 +2361,20 @@ class Reminder(models.Model):
 
         setting = ReminderManager.get_settings(self)
         new_date = setting.get_date_due(self.target, journal)
+        date_changed = False
         if self.date_sent:
             if isinstance(new_date, datetime.datetime):
                 new_date = localtime(new_date).date()
             if new_date - localtime(self.date_sent).date() > datetime.timedelta(days=self.clemency_days):
                 self.date_sent = None
                 self.date_due = new_date
+                date_changed = True
         else:
             self.date_due = new_date
+            date_changed = True
+        if date_changed:
+            self.message_subject = setting.get_rendered_subject(self.target)
+            self.message_body = setting.get_rendered_body(self.target)
         self.save()
 
     def update_recipient(self, account: Account):
