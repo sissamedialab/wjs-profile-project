@@ -3266,7 +3266,7 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
         if self.assignment:
             return qs.filter(
                 content_type=ContentType.objects.get_for_model(WorkflowReviewAssignment),
-                object_id=self.assignment.id,
+                object_id=self.assignment.pk,
             ).order_by("-date_due")
         review_assignments = WorkflowReviewAssignment.objects.filter(article=self.workflow.article).values_list("pk")
         reviewer_reminders = Q(
@@ -3278,12 +3278,16 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
             content_type=ContentType.objects.get_for_model(WjsEditorAssignment),
             object_id__in=editor_assignments,
         )
+        director_reminders = Q(
+            content_type=ContentType.objects.get_for_model(self.workflow.article),
+            object_id=self.workflow.article_id,
+        )
         revision_requests = EditorRevisionRequest.objects.filter(article=self.workflow.article).values_list("pk")
         author_reminders = Q(
             content_type=ContentType.objects.get_for_model(EditorRevisionRequest),
             object_id__in=revision_requests,
         )
-        result = qs.filter(editor_reminders | reviewer_reminders | author_reminders)
+        result = qs.filter(editor_reminders | reviewer_reminders | author_reminders | director_reminders)
         return result.order_by("-date_due")
 
     def get_context_data(self, **kwargs):
