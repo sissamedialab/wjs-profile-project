@@ -20,6 +20,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.utils.timezone import now
 from django.utils.translation import gettext as _
 from django.views.generic import ListView, TemplateView, UpdateView
@@ -41,7 +42,7 @@ from .drupal_redirect_views import (  # noqa F401
     JcomFileRedirect,
     JcomIssueRedirect,
 )
-from .mixins import HtmxMixin, PaginatedViewMixin
+from .mixins import HasJournalAdminRoleMixin, HtmxMixin, PaginatedViewMixin
 from .models import JCOMProfile, StaffWorkloadParameters
 from .permissions import get_hijacker, has_reviewer_role, has_section_editor_role
 from .profile.views import KeywordsHierarchyContextMixin, ProfilePersonalEditView
@@ -330,7 +331,7 @@ class ContributionLine:
         )
 
 
-class IMUStep1(TemplateView):
+class IMUStep1(HasJournalAdminRoleMixin, TemplateView):
     """Insert Many Users - first step.
 
     Manage the data file upload form.
@@ -480,8 +481,7 @@ imu_edit_formset_factory = modelformset_factory(
 )
 
 
-# TODO: protect me!
-class IMUStep2(TemplateView):
+class IMUStep2(HasJournalAdminRoleMixin, TemplateView):
     """Insert Many Users - second step.
 
     We should receive a "list" of users/contributions to process.
@@ -680,8 +680,7 @@ class IMUStep2(TemplateView):
         return article
 
 
-# TODO: protect me!
-class IMUStep3(TemplateView):
+class IMUStep3(HasJournalAdminRoleMixin, TemplateView):
     """Insert Many Users - last step.
 
     Edit existing accounts and redirect to special issue ? update / detail ?.
@@ -713,6 +712,7 @@ def issues(request):
     return render(request, template, context)
 
 
+@method_decorator(journal_decorators.frontend_enabled, name="dispatch")
 class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
     """
     A list of published articles that can be searched,

@@ -5,6 +5,7 @@ from datetime import date
 from itertools import combinations
 
 from core.models import Account
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.timezone import now
@@ -34,14 +35,11 @@ COUNTRIES = {
 }
 
 
-class IssuesForceGraph(TemplateView):
+class IssuesForceGraph(LoginRequiredMixin, TemplateView):
     """Display issues with DS3.js ForceGraph."""
 
     template_name = "experimental/journal/issues.html"
 
-    # TODO: how do I apply Janeway's function decorators to class-based views?
-    # @has_journal       from security.decorators
-    # @frontend_enabled  from journal.decorators
     def get_context_data(self, **kwargs):
         """Get the list of issues.
 
@@ -120,7 +118,7 @@ class Edge:
     weigth: int = 0
 
 
-class AuthorsForceGraph(TemplateView):
+class AuthorsForceGraph(LoginRequiredMixin, TemplateView):
     """Display authors with DS3.js ForceGraph."""
 
     template_name = "experimental/journal/authors_kg.html"
@@ -167,7 +165,7 @@ class AuthorsForceGraph(TemplateView):
         return context
 
 
-class AuthorsKeywordsForceGraph(TemplateView):
+class AuthorsKeywordsForceGraph(LoginRequiredMixin, TemplateView):
     """Display authors related to each other by kwds with DS3.js ForceGraph."""
 
     template_name = "experimental/journal/authors_kg.html"
@@ -215,7 +213,7 @@ class AuthorsKeywordsForceGraph(TemplateView):
         return context
 
 
-class ArticlesByKeywordForceGraph(TemplateView):
+class ArticlesByKeywordForceGraph(LoginRequiredMixin, TemplateView):
     """Display articles related to each other by kwds with DS3.js ForceGraph."""
 
     template_name = "experimental/journal/authors_kg.html"
