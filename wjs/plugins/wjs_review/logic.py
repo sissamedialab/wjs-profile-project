@@ -1859,7 +1859,10 @@ class PopulateRevisionSteps:
                 revision=self.revision,
                 revision_storage=self.revision_storage,
             ).run()
-        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
+        if self.revision_storage.revision_flow_type in {
+            RevisionStorage.RevisionFlowType.FULL,
+            RevisionStorage.RevisionFlowType.METADATA,
+        }:
             PopulateRevisionStep7(
                 article=self.article,
                 revision=self.revision,
@@ -1916,9 +1919,7 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
         if owner := self.revision_storage.data.get("owner"):
             self.article.owner_id = owner
         if affiliation_pk := self.revision_storage.data.get("affiliation_pk"):
-            affiliation = ControlledAffiliation.objects.get(pk=affiliation_pk)
-            if affiliation_country := affiliation.organization.country:
-                self.article.submission_data.affiliation_country = affiliation_country
+            self.article.submission_data.affiliation = ControlledAffiliation.objects.get(pk=affiliation_pk)
 
         FrozenAuthor.objects.filter(article=self.article).delete()
         article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage).order_by(
