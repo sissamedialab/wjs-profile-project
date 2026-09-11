@@ -45,6 +45,7 @@ from typing import Iterable
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db.models.functions import Lower
 from django.utils import timezone
 from submission.models import Article
 from typesetting.models import GalleyProofing, TypesettingAssignment
@@ -56,6 +57,7 @@ from wjs.jcom_profile.utils import get_eo_user
 from . import conditions
 from .models import (
     AttentionCondition,
+    BlacklistedAuthorEmail,
     Message,
     MessageRecipients,
     PastEditorAssignment,
@@ -92,6 +94,9 @@ INCOMPLETE_SUBMISSION = "incomplete_submission"
 
 SUBMISSION_TO_CHECK = "submission_to_check"
 """EO: the submission needs manual checking (PaperMightHaveIssues)."""
+
+BLACKLISTED_AUTHOR = "blacklisted_author"
+"""EO: at least one author's email is on the global blacklist."""
 
 MISSING_SOCIAL_MEDIA = "missing_social_media"
 """EO: social-media image or short description is missing."""
@@ -719,7 +724,7 @@ def rebuild_unread_message_acs() -> int:
 
 STATE_ROLE_AC_MAP: dict[tuple[str, str], list[str]] = {
     # -- EditorToBeSelected --
-    ("EditorToBeSelected", "eo"): [EDITOR_NOT_SELECTED],
+    ("EditorToBeSelected", "eo"): [EDITOR_NOT_SELECTED, BLACKLISTED_AUTHOR],
     ("EditorToBeSelected", "director"): [EDITOR_NOT_SELECTED],
     # -- EditorSelected --
     ("EditorSelected", "editor"): [
@@ -747,7 +752,7 @@ STATE_ROLE_AC_MAP: dict[tuple[str, str], list[str]] = {
     ("UnderAppeal", "author"): [APPEAL_TO_SUBMIT],
     ("UnderAppeal", "eo"): [APPEAL_LATE],
     # -- PaperMightHaveIssues --
-    ("PaperMightHaveIssues", "eo"): [SUBMISSION_TO_CHECK],
+    ("PaperMightHaveIssues", "eo"): [SUBMISSION_TO_CHECK, BLACKLISTED_AUTHOR],
     # -- TypesetterSelected --
     ("TypesetterSelected", "typesetter"): [TYPESETTER_LATE],
     ("TypesetterSelected", "eo"): [TYPESETTER_LATE],
@@ -1164,6 +1169,15 @@ class ACStateEvaluator:
         for role in roles:
             self._upsert_for_role(role, SUBMISSION_TO_CHECK, "Submission to be checked")
 
+    def _evaluate_blacklisted_author(self, roles: list[str]) -> None:
+        """EO: at least one author email is on the global blacklist.
+
+        Delegates to the shared helper :func:`evaluate_blacklisted_author`
+        so the logic is identical for the nightly rebuild, the submission
+        check function, and the revision path.
+        """
+        evaluate_blacklisted_author(self.article)
+
     def _evaluate_missing_social_media(self, roles: list[str]) -> None:
         """EO: social-media material missing."""
         article = self.article
@@ -1220,3 +1234,43 @@ class ACStateEvaluator:
 
         for user in all_users:
             sync_unread_message_ac(article, user)
+
+
+def evaluate_blacklisted_author(article: Article) -> None:
+    """Check article authors against the global blacklist and upsert/resolve the AC.
+
+    Shared helper used by the submission check, AuthorHandleRevision.run(),
+    and the nightly rebuild evaluator. Non-blocking: only flags the EO role.
+    """
+    # Gather author emails from FrozenAuthor records (the single source).
+    # For each FrozenAuthor: use frozen_email if set, otherwise author.email.
+    author_emails: set[str] = set()
+    for fa in article.frozenauthor_set.all():
+        if fa.frozen_email:
+            author_emails.add(fa.frozen_email.lower())
+        elif fa.author_id and fa.author.email:
+            author_emails.add(fa.author.email.lower())
+
+    if not author_emails:
+        resolve_for_role(article, "eo", BLACKLISTED_AUTHOR)
+        return
+
+    # Query blacklisted emails matching any author email (case-insensitive).
+    # Use Lower() to compare case-insensitively without requiring lowercase
+    # storage on either side.
+    emails_list = list(author_emails)
+    matching = list(
+        BlacklistedAuthorEmail.objects.annotate(lower_email=Lower("email"))
+        .filter(lower_email__in=emails_list)
+        .values_list("email", "note")
+    )
+
+    if not matching:
+        resolve_for_role(article, "eo", BLACKLISTED_AUTHOR)
+        return
+
+    # Build message: "Blacklisted author(s): email1, email2"
+    emails = [email for email, _ in matching]
+    message = "Blacklisted author(s): " + ", ".join(emails)
+
+    upsert_for_role(article, "eo", BLACKLISTED_AUTHOR, message, priority=90)

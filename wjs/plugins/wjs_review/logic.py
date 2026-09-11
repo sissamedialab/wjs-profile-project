@@ -2316,6 +2316,9 @@ class AuthorHandleRevision:
                 ],
             )
 
+            # Check for blacklisted authors (non-blocking, creates AC for EO)
+            ac_service.evaluate_blacklisted_author(article)
+
             return self.revision
 
 
