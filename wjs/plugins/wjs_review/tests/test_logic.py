@@ -86,6 +86,7 @@ from ..logic import (  # WithdrawPreprint,
     HandleDecision,
     HandleEditorDeclinesAssignment,
     InviteReviewer,
+    PopulateRevisionStep7,
     PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
     SubmitReview,
@@ -5182,22 +5183,29 @@ def test_rich_text_or_tex_validation(
     assert form.is_valid() == should_be_valid
 
 
-@pytest.mark.parametrize(
-    "special_request,special_request_updated", (("some message", True), ("some message", False), ("", False))
-)
+@pytest.mark.parametrize("special_request", ("some message", ""))
 @pytest.mark.django_db
 def test_submission_special_request(
-    article: Article, review_settings, special_request: str, special_request_updated: bool
+    article: Article,
+    review_settings,
+    special_request: str,
 ):
-    """If ArticleSubmission.special_request is set, a notification is sent to EO."""
+    """
+    On a first submission, a notification is sent to EO whenever a special request is set.
+
+    There is nothing to diff against on a first submission, so `modified` is derived from
+    whether a special request is present at all, mirroring CompleteSubmission.run().
+    """
     article.submission_data.special_request = special_request
-    article.submission_data.special_request_updated = special_request_updated
     article.submission_data.save()
     Message.objects.all().delete()
     events_logic.Events.raise_event(
-        SubmissionEvent.ON_ACCESS_MODE_SELECTION, article=article, submission_data=article.submission_data
+        SubmissionEvent.ON_ACCESS_MODE_SELECTION,
+        article=article,
+        submission_data=article.submission_data,
+        modified=bool(special_request),
     )
-    if special_request and special_request_updated:
+    if special_request:
         assert Message.objects.all().count() == 1
         message = Message.objects.all().get()
         assert "Access mode" in message.subject
@@ -5206,6 +5214,115 @@ def test_submission_special_request(
         assert message.actor == article.correspondence_author.janeway_account
     else:
         assert not Message.objects.all().exists()
+
+
+@pytest.mark.parametrize(
+    "special_request,modified",
+    (("some message", True), ("some message", False), ("", True), ("", False)),
+)
+@pytest.mark.django_db
+def test_submission_special_request_revision_status(
+    article: Article, review_settings, special_request: str, modified: bool
+):
+    """
+    A notification is sent to EO for a revision's special request only if it is new.
+
+    Both a special request being present *and* `modified` being True are required: an
+    unchanged special request must not re-trigger the notification on every revision
+    it survives untouched.
+    """
+    article.submission_data.special_request = special_request
+    article.submission_data.save()
+    Message.objects.all().delete()
+    events_logic.Events.raise_event(
+        SubmissionEvent.ON_ACCESS_MODE_SELECTION,
+        article=article,
+        submission_data=article.submission_data,
+        modified=modified,
+    )
+    if special_request and modified:
+        assert Message.objects.all().count() == 1
+        message = Message.objects.all().get()
+        assert "Access mode" in message.subject
+        if special_request:
+            assert special_request in message.body
+        assert list(message.recipients.all()) == [get_eo_user(article)]
+        assert message.actor == article.correspondence_author.janeway_account
+    else:
+        assert not Message.objects.all().exists()
+
+
+@pytest.mark.parametrize(
+    "storage_special_request,existing_special_request,expect_notification",
+    (
+        # empty revision_storage special_request: step is a no-op, nothing is notified
+        ("", "some message", False),
+        ("", "", False),
+        # populated revision_storage special_request, equal to the article's current one:
+        # nothing actually changed, so EO must not be re-notified on every revision that
+        # merely resubmits the same special request (regression: it used to be, see #3083)
+        ("some message", "some message", False),
+        # populated revision_storage special_request, different from the article's current one
+        ("some message", "a different message", True),
+        ("some message", "", True),
+    ),
+)
+@pytest.mark.django_db
+def test_populate_revision_step7_special_request(
+    editor_revision: EditorRevisionRequest,
+    review_settings,
+    storage_special_request: str,
+    existing_special_request: str,
+    expect_notification: bool,
+):
+    """
+    PopulateRevisionStep7 copies the special request from the revision storage to the article.
+
+    A notification to EO is triggered (via ON_ACCESS_MODE_SELECTION) only when the revision
+    storage carries a special request that actually differs from the article's current one;
+    resubmitting the same special request unchanged updates nothing and notifies no one.
+    """
+    article = editor_revision.article
+    article.submission_data.special_request = existing_special_request
+    article.submission_data.save()
+
+    revision_storage = RevisionStorage.objects.create(
+        article=article,
+        revision_flow_type=RevisionStorage.RevisionFlowType.FULL,
+        data={"special_request": storage_special_request},
+    )
+    Message.objects.all().delete()
+
+    PopulateRevisionStep7(
+        article=article,
+        revision=editor_revision,
+        revision_storage=revision_storage,
+    ).run()
+    # PopulateRevisionStep7 only mutates the in-memory instance; persisting it is the caller's
+    # responsibility (see AuthorHandleRevision._store_data), so do it here too before reloading.
+    article.submission_data.save()
+    article.submission_data.refresh_from_db()
+
+    if not storage_special_request:
+        # Nothing submitted in the revision: the article's special request is untouched and no
+        # notification is sent, regardless of what was there before.
+        assert article.submission_data.special_request == existing_special_request
+        assert not Message.objects.all().exists()
+        return
+
+    # A populated special request is always copied over, whether or not it actually changed.
+    assert article.submission_data.special_request == storage_special_request
+
+    if not expect_notification:
+        assert not Message.objects.all().exists()
+        return
+
+    assert Message.objects.all().count() == 1
+    message = Message.objects.all().get()
+    assert "Access mode" in message.subject
+    assert storage_special_request in message.body
+    assert list(message.recipients.all()) == [get_eo_user(article)]
+    assert message.actor.pk == article.correspondence_author.pk
 
 
 @pytest.mark.parametrize(
