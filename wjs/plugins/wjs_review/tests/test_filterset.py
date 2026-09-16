@@ -287,9 +287,8 @@ class TestListViews:
             created.add_account_role(role, journal)
         return created
 
-    @classmethod
     @pytest.fixture
-    def setup_data(cls, review_settings, create_jcom_user, create_submitted_articles, journal):
+    def setup_data(self, review_settings, create_jcom_user, create_submitted_articles, journal):
         """Create articles in random states."""
         articles = create_submitted_articles(journal, count=30)
         for article in articles:
@@ -301,7 +300,7 @@ class TestListViews:
         roles = ("section-editor", "eo", "director", "author", "reviewer")
         users = {}
         for role in roles:
-            users[role] = cls._create_user(create_jcom_user, journal, role)
+            users[role] = self._create_user(create_jcom_user, journal, role)
 
         article_qs = ArticleWorkflow.objects.all()
         for state_list in (

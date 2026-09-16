@@ -41,7 +41,7 @@ only for finer-grained display labels (`state_label`), never for `@transition` g
 `Decisions` (`models.py:415-436`, `TextChoices`) re-uses Janeway's `review.const.EditorialDecisions` values
 for the decisions that must interoperate with Janeway core (`minor_revisions`, `major_revisions`,
 `technical_revisions`, `open_appeal`) and adds WJS-only ones (`accept`, `reject`, `not_suitable`,
-`requires_resubmission`). `Decisions.decision_choices` (a `@classmethod @property`) filters out
+`requires_resubmission`). `Decisions.decision_choices` (a `@classmethod`) filters out
 `REQUIRES_RESUBMISSION`/`OPEN_APPEAL` for use in decision forms.
 
 ### `states.py` — state→action registry

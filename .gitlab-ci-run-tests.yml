@@ -31,7 +31,7 @@
     PYTHONPATH: ${CI_PROJECT_DIR}
 
   services:
-    - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:13.8
+    - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/postgres:17
       alias: db
       command: [
         "postgres",
