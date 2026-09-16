@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.1.0] - 2026-09-16
+
+- No linked issue — fix: minor fixes preventing installation from scratch (!1508)
+- [specs#2595: Migrate to Django 5.2](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2595) — Django 5.2 migration + pre-existing bug fix (!1478)
+- [specs#3147: Internal Server Error: /plugins/wjs-review-articles/eo/workon/  FieldError: Unsupported lookup 'country' for ForeignKey](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3147) — Bugfix/issue 3147  fix author country filter lookup (!1506)
+- [specs#3083: 28.8 feedback - JCAP (and other journals) entire flow](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3083) — fix(review): re-run step 8 checks and validation when authors submit a revision (!1492)
+- [specs#3072: Set autocomplete=off on current password field in profile](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3072) — feat: add autocomplete attribute to current password field (!1502)
+- [specs#107: As a manager I want to preserve the article metadata](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/107) — Restrict anonymous access to IMU, experimental, and article-list views (!1479)
+- [wjs-help#29: 1603: reminders for "editor to be selected" should be included in reminder schedule](https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/29) — fix: add missing content type to ArticleReminders.ArticleReminders (!1480)
+- [wjs-profile-project#294: Improve custom admin view form template](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/294) — feat: AC for blacklisted authors (!1466)
+- [specs#2980: As EO I want an attention condition when a submission includes at least one blacklisted author](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2980) — feat: AC for blacklisted authors (!1466)
+- [wjs-help#190: revision submission errror (dev - 4220)](https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/190) — fix(review): populate affiliation on revision and run step 7 for metadata revisions too (!1493)
+- [specs#2884: Sync collaboration tex<->db](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2884) — Sync collaborations (!1472)
+- [jcomassistant-project#42: Expose more metadata](https://gitlab.sissamedialab.it/wjs/jcomassistant-project/-/work_items/42) — Sync collaborations (!1472)
+- [specs#2971: Analyse how to sync collaboration between tex and db](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2971) — API entry point for typ to download tabellone (!1465)
+- [specs#3027: G10 GET collaborations list](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3027) — API entry point for typ to download tabellone (!1465)
+- [wjs-profile-project#295: Refactor API authorisation layer to use DRF permission classes](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/295) — API entry point for typ to download tabellone (!1465)
+- [specs#2851: Block failed API requests with fail2ban](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2851) — API entry point for typ to download tabellone (!1465)
+- [specs#2804: Add security reuirementes to Django REST framework endpoints to allow upload](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2804) — API entry point for typ to download tabellone (!1465)
+- [specs#3104: Internal Server Error: /plugins/wjs-review-articles/annotated_files/1628/](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3104) — annotated files: cannot delete files (!1496)
+- [wjs-help#209: "Change due date" for revisions should update reminder texts](https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/209) — Re-render reminder text when a revision due date is postponed (!1495)
+
 ## [2.0.28] - 2026-09-09
 
 - [specs#3099: Test erratum / addendum](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3099) — Manually link wjs_review plugin (!1491)
