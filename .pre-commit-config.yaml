@@ -55,10 +55,10 @@ repos:
               ^^wjs/jcom_profile/tests/
           )
   - repo: https://github.com/adamchainz/django-upgrade
-    rev: "1.18.0"
+    rev: "1.30.0"
     hooks:
       - id: django-upgrade
-        args: [--target-version, "4.2"]
+        args: [--target-version, "5.2"]
   - repo: https://github.com/Riverside-Healthcare/djLint
     rev: v1.34.1
     hooks:

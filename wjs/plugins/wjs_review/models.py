@@ -428,7 +428,6 @@ class ArticleWorkflow(TimeStampedModel):
         OPEN_APPEAL = EditorialDecisions.OPEN_APPEAL.value, _("Open appeal")
 
         @classmethod
-        @property
         def decision_choices(cls):
             return [
                 choice
