@@ -1,6 +1,5 @@
 from django.template.loader import render_to_string
 from django.utils.translation import gettext_lazy as _
-from plugins.wjs_review import communication_utils
 from utils.logger import get_logger
 
 from wjs.jcom_profile.models import StaffWorkloadParameters
@@ -23,6 +22,8 @@ def send_staff_assignment_change(staff_parameter: StaffWorkloadParameters):
     :type staff_parameter: StaffWorkloadParameters
     :return: None
     """
+    from plugins.wjs_review import communication_utils
+
     status = _("enabled") if staff_parameter.enabled else _("disabled")
     context = {
         "user": staff_parameter.user.full_name(),

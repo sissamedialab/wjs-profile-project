@@ -1,0 +1,9 @@
+{% extends "admin/change_list.html" %}
+{% load static %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{% url 'admin:blacklisted_authoremail_bulk_add' %}" class="addlink">Bulk add</a>
+  </li>
+  {{ block.super }}
+{% endblock object-tools-items %}

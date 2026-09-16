@@ -49,7 +49,7 @@ from plugins.wjs_review.logic__production import (
     HandleEOSendBackToTypesetter,
     ReadyForPublication,
     RequestProofs,
-    TypesetterUploadFiles,
+    TypesettedFilesUpload,
 )
 from plugins.wjs_review.models import (
     ArticleWorkflow,
@@ -6163,10 +6163,10 @@ class TYP_UPLOADS_FOR_PM(BaseActionManager):  # noqa N801
         with freezegun.freeze_time(
             rome_timezone.localize(typesetter_uploads_date),
         ):
-            TypesetterUploadFiles._check_file_condition = noop_true
-            TypesetterUploadFiles._look_for_queries_in_archive = noop_true
+            TypesettedFilesUpload._check_file_condition = noop_true
+            TypesettedFilesUpload._look_for_queries_in_archive = noop_true
 
-            article_with_file = TypesetterUploadFiles(
+            article_with_file = TypesettedFilesUpload(
                 typesetter=ta_assignment.typesetter,
                 request=fake_request,
                 assignment=ta_assignment,

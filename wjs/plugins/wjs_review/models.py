@@ -428,7 +428,6 @@ class ArticleWorkflow(TimeStampedModel):
         OPEN_APPEAL = EditorialDecisions.OPEN_APPEAL.value, _("Open appeal")
 
         @classmethod
-        @property
         def decision_choices(cls):
             return [
                 choice
@@ -2361,14 +2360,20 @@ class Reminder(models.Model):
 
         setting = ReminderManager.get_settings(self)
         new_date = setting.get_date_due(self.target, journal)
+        date_changed = False
         if self.date_sent:
             if isinstance(new_date, datetime.datetime):
                 new_date = localtime(new_date).date()
             if new_date - localtime(self.date_sent).date() > datetime.timedelta(days=self.clemency_days):
                 self.date_sent = None
                 self.date_due = new_date
+                date_changed = True
         else:
             self.date_due = new_date
+            date_changed = True
+        if date_changed:
+            self.message_subject = setting.get_rendered_subject(self.target)
+            self.message_body = setting.get_rendered_body(self.target)
         self.save()
 
     def update_recipient(self, account: Account):
@@ -2575,3 +2580,38 @@ class WjsSection(Section):
 
     class Meta:
         verbose_name = _("WJS Section")
+
+
+class BlacklistedAuthorEmail(models.Model):
+    """A globally blacklisted author email.
+
+    EO can maintain a list of emails of authors that require attention
+    when they appear in a submission's author list. This is a global list
+    (not journal-specific): it is mainly used to monitor authors who have
+    committed misconduct in the past and should be monitored across all
+    journals.
+
+    The optional `note` field allows the EO to record why the author was
+    blacklisted; this note is included in the attention condition message
+    so it is visible to the EO when reviewing the flagged submission.
+    """
+
+    email = models.EmailField(
+        unique=True,
+        help_text=_("The email address of the blacklisted author."),
+    )
+    note = models.TextField(
+        blank=True,
+        default="",
+        help_text=_("Optional note explaining why this author is blacklisted."),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["email"]
+        verbose_name = _("Blacklisted author email")
+        verbose_name_plural = _("Blacklisted author emails")
+
+    def __str__(self) -> str:  # noqa: PLR6301
+        return self.email

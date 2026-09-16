@@ -1,4 +1,5 @@
-{% load django_bootstrap5 i18n %}
+{% load django_bootstrap5 i18n settings %}
+{% setting_var request.journal 'enable_affiliation' as enable_affiliation %}
 <div class="accordion-item">
   <h3 class="accordion-header" id="heading-field-answers-{{ forloop.counter }}">
     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-field-answers-{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse-field-answers-{{ forloop.counter }}">
@@ -30,6 +31,14 @@
           </tr>
           <tr>
             <td colspan="3">{{ article.competing_interests|safe }}</td>
+          </tr>
+        {% endif %}
+        {% if enable_affiliation and article.submission_data.affiliation %}
+          <tr>
+            <th colspan="3">{% translate "Affiliation" %}</th>
+          </tr>
+          <tr>
+            <td colspan="3">{{ article.submission_data.affiliation }} ({{ article.submission_data.affiliation.organization.country }})</td>
           </tr>
         {% endif %}
         {% if article.submission_data.access_mode %}

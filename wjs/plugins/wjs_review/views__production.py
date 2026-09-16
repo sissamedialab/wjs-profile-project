@@ -424,20 +424,20 @@ class ListAnnotatedFilesView(HtmxMixin, BaseRelatedViewsMixin, UpdateView):
     def get_success_url(self):
         return reverse("wjs_article_details", kwargs={"pk": self.object.round.article.articleworkflow.pk})
 
-    def _send_corrections(self):
+    def _send_corrections(self, form):
         try:
             service = self.get_send_logic_instance()
             service.run()
-        except ValueError as e:
-            return False, {"errors": [e]}
-        return True, {}
+        except ValidationError as e:
+            form.add_error(None, e)
+            return False
+        return True
 
     def form_valid(self, form):
         """If the form is valid, save the associate model (the flag on the MessageRecipient).
 
         Then, just return a response with the flag template rendered. I.e. do not redirect anywhere.
         """
-        kwargs = {}
         try:
             form.save()
             redirect = False
@@ -445,13 +445,13 @@ class ListAnnotatedFilesView(HtmxMixin, BaseRelatedViewsMixin, UpdateView):
             form.add_error(None, e)
             redirect = False
         if form.cleaned_data["action"] == "send_corrections":
-            redirect, kwargs = self._send_corrections()
+            redirect = self._send_corrections(form)
         if redirect:
             messages.success(request=self.request, message=_("Corrections have been dispatched to the typesetter."))
             return HttpResponseRedirect(self.get_success_url())
         else:
-            self.kwargs.update(kwargs)
-            return self.get(self.request, *self.args, **self.kwargs)
+            context = self.get_context_data(form=form)
+            return self.render_to_response(context)
 
 
 class TogglePublishableFlagView(HtmxMixin, AuthenticatedUserPassesTest, View):

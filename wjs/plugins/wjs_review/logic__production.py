@@ -696,7 +696,14 @@ def check_annotated_file_conditions(user: Account, galleyproofing: GalleyProofin
         .order_by("round__round_number")
         .last()
     )
-    return article_author and check_state and last_galleyproofing
+    result = article_author and check_state and last_galleyproofing
+    if not result:
+        logger.warning(
+            f"Annotated file action denied for user {user} on galleyproofing {galleyproofing.pk}"
+            f" (article {article.pk}, state {article.articleworkflow.state}, stage {article.stage}):"
+            f" article_author={article_author}, check_state={check_state}, last_galleyproofing={last_galleyproofing}.",
+        )
+    return result
 
 
 @dataclasses.dataclass
@@ -721,7 +728,7 @@ class HandleCreateAnnotatedFile:
     def run(self):
         with transaction.atomic():
             if not check_annotated_file_conditions(self.user, self.galleyproofing):
-                raise ValueError("Cannot create files. Please contact the editorial office.")
+                raise ValidationError("Cannot create files. Please contact the editorial office.")
 
             file_instance = self._create_file_instance()
             file_instance.save()
@@ -742,7 +749,7 @@ class HandleDeleteAnnotatedFile:
     def run(self):
         with transaction.atomic():
             if not check_annotated_file_conditions(self.user, self.galleyproofing):
-                raise ValueError("Cannot delete files. Please contact the editorial office.")
+                raise ValidationError("Cannot delete files. Please contact the editorial office.")
             self.file = get_object_or_404(JanewayFile, pk=self.file_id)
             self.galleyproofing.annotated_files.remove(self.file)
             self.file.delete()
@@ -836,9 +843,9 @@ class AuthorSendsCorrections:
     def run(self) -> TypesettingAssignment:
         with transaction.atomic():
             if not self._check_conditions():
-                raise ValueError("Invalid state transition")
+                raise ValidationError("Invalid state transition")
             if not self._check_data_provided():
-                raise ValueError("Data not provided")
+                raise ValidationError("Data not provided")
             assignment = self._assign_typesetter()
             self._update_state()
             context = self._get_message_context()

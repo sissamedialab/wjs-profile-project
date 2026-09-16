@@ -4,6 +4,7 @@
 {% translate "Upload File" as upload_label %}
 {% url 'wjs_list_annotated_files' pk=object.pk as update_files_url %}
 <div class="mb-3">
+  {% bootstrap_form_errors form type="non_fields" %}
   <ul class="list-group mb-3">
     {% for file in galleyproofing.annotated_files.all %}
       <li class="list-group-item d-flex justify-content-between align-items-center">

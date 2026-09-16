@@ -2,7 +2,7 @@
 # docker-compose -f docker-compose-test-env.yml up --build --force-recreate
 services:
   db:
-    image: postgres:13.8
+    image: postgres:17
     restart: always
     # Must match with test_settings.DATABASES
     environment:

@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponseRedirect, QueryDict
 from django.test.client import Client
 from django.urls import reverse
+from django.utils import translation
 from django.utils.formats import date_format
 from django.utils.timezone import now
 from journal.models import Journal
@@ -143,6 +144,45 @@ def test_editor_requests_revision_date_due_is_in_the_right_range(
     response = client.post(url, post_data)
     assert response.status_code == 302
     assert response.url == reverse("wjs_article_details", args=(assigned_article.pk,))
+
+
+@pytest.mark.parametrize(
+    "decision,days_setting_name",
+    (
+        (ArticleWorkflow.Decisions.MAJOR_REVISION, "default_author_major_revision_days"),
+        (ArticleWorkflow.Decisions.MINOR_REVISION, "default_author_minor_revision_days"),
+    ),
+)
+@pytest.mark.django_db
+def test_editor_requests_revision_date_due_renders_iso_in_non_default_language(
+    client: Client,
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+    decision: ArticleWorkflow.Decisions,
+    days_setting_name: str,
+):
+    """
+    The date_due field's computed initial value must reach the browser as an ISO 8601 date.
+
+    Regression test: Django 5.0 removed USE_L10N (now always effectively True), so the
+    date_due DateInput (type="date") used to silently render in the active locale's date
+    format instead of ISO ("2026-09-15"). HTML5 <input type="date"> requires an exact ISO
+    value or the browser discards it, so editors using a non-English UI never saw the
+    revision due date pre-filled on the make-decision page, even though the value was
+    computed correctly (see test_editor_requests_revision_date_due_is_in_the_right_range
+    above).
+    """
+    url = reverse("wjs_article_decision", args=(assigned_article.pk,))
+    revision_days = get_setting(
+        setting_group_name="wjs_review",
+        setting_name=days_setting_name,
+        journal=assigned_article.journal,
+    ).processed_value
+    initial_date = now().date() + datetime.timedelta(days=revision_days)
+    client.force_login(section_editor.janeway_account)
+    with translation.override("fr"):
+        response = client.get(url, {"decision": decision.value})
+    assert f'value="{initial_date.isoformat()}"' in response.content.decode()
 
 
 @pytest.mark.django_db
@@ -446,6 +486,39 @@ def test_wjs_evaluate_review_date_due_initial_value(
     ).processed_value
     initial_date = now().date() + datetime.timedelta(days=default_review_days)
     assert response.context["form"].initial["date_due"] == initial_date
+
+
+@pytest.mark.django_db
+def test_wjs_evaluate_review_date_due_renders_iso_in_non_default_language(
+    client: Client,
+    review_assignment_invited_user: ReviewAssignment,
+    review_form: ReviewForm,
+):
+    """
+    The date_due field's computed initial value must reach the browser as an ISO 8601 date.
+
+    Regression test: Django 5.0 removed USE_L10N (now always effectively True), so the
+    date_due DateInput (type="date") used to silently render in the active locale's date
+    format (e.g. "15/09/2026" under fr/it/es, "15.09.2026" under de) instead of ISO
+    ("2026-09-15"). HTML5 <input type="date"> requires an exact ISO value or the browser
+    discards it, so reviewers using a non-English UI never saw the due date pre-filled on
+    the accept/decline invite page, even though the value was computed correctly (see
+    test_wjs_evaluate_review_date_due_initial_value above).
+    """
+    invited_user = review_assignment_invited_user.reviewer
+    url = reverse(
+        "wjs_evaluate_review", args=(review_assignment_invited_user.pk, invited_user.jcomprofile.invitation_token)
+    )
+    url = f"{url}?access_code={review_assignment_invited_user.access_code}"
+    default_review_days = get_setting(
+        setting_group_name="general",
+        setting_name="default_review_days",
+        journal=review_assignment_invited_user.article.journal,
+    ).processed_value
+    initial_date = now().date() + datetime.timedelta(days=default_review_days)
+    with translation.override("fr"):
+        response = client.get(url)
+    assert f'value="{initial_date.isoformat()}"' in response.content.decode()
 
 
 @pytest.mark.parametrize("accept_gdpr", (True, False))

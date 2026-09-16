@@ -1,7 +1,7 @@
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.template import Context
 
-from wjs.jcom_profile.permissions import has_any_journal_role
+from wjs.jcom_profile.permissions import has_admin_role, has_any_journal_role
 
 
 class HtmxMixin:
@@ -25,6 +25,20 @@ class HasJournalRoleMixin(UserPassesTestMixin):
     def test_func(self):
         try:
             return self.request.user.is_authenticated and has_any_journal_role(self.request.journal, self.request.user)
+        except AttributeError:
+            return False
+
+
+class HasJournalAdminRoleMixin(UserPassesTestMixin):
+    """
+    Mixin to check if user is logged in and as admin role role in journal.
+
+    This is the lowest level of access check on the journal staff pages.
+    """
+
+    def test_func(self):
+        try:
+            return has_admin_role(self.request.journal, self.request.user)
         except AttributeError:
             return False
 

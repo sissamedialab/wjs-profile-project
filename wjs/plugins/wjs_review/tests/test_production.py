@@ -410,6 +410,95 @@ def test_author_sends_corrections(
 
 
 @pytest.mark.django_db
+def test_send_corrections_denied_shows_form_error(
+    stage_proofing_article: Article,
+    client: Client,
+):
+    """A denied "send corrections" (e.g. stale page, state already moved on) must show a form error, not silence it."""
+    client.force_login(stage_proofing_article.correspondence_author)
+    galleyproofing = (
+        GalleyProofing.objects.filter(
+            round__article=stage_proofing_article,
+        )
+        .order_by("round__round_number")
+        .last()
+    )
+    url = reverse("wjs_list_annotated_files", kwargs={"pk": galleyproofing.pk})
+    # author_sends_corrections only transitions from PROOFREADING: move the workflow out of it.
+    stage_proofing_article.articleworkflow.state = ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+    stage_proofing_article.articleworkflow.save()
+
+    response = client.post(url, data={"action": "send_corrections", "notes": "Some notes"})
+
+    assert response.status_code == 200
+    assert not response.context["form"].is_valid()
+    assert "Invalid state transition" in str(response.context["form"].errors)
+
+
+@pytest.mark.django_db
+def test_delete_annotated_file_denied_does_not_crash(
+    stage_proofing_article: Article,
+    client: Client,
+):
+    """Deleting an annotated file when conditions are no longer met must not 500.
+
+    See check_annotated_file_conditions.
+    """
+    client.force_login(stage_proofing_article.correspondence_author)
+    galleyproofing = (
+        GalleyProofing.objects.filter(
+            round__article=stage_proofing_article,
+        )
+        .order_by("round__round_number")
+        .last()
+    )
+    url = reverse("wjs_list_annotated_files", kwargs={"pk": galleyproofing.pk})
+    # Move the article out of the proofing stage: check_annotated_file_conditions now denies the action.
+    stage_proofing_article.stage = submission_models.STAGE_TYPESETTING
+    stage_proofing_article.save()
+
+    response = client.post(url, data={"action": "delete_file", "file_to_delete": 1})
+
+    assert response.status_code == 200
+    assert not response.context["form"].is_valid()
+    assert "Cannot delete files" in str(response.context["form"].errors)
+
+
+@pytest.mark.django_db
+def test_delete_annotated_file_denied_shows_form_error_htmx(
+    stage_proofing_article: Article,
+    client: Client,
+):
+    """The Delete button posts via htmx: the denial error must be rendered in the swapped markup.
+
+    Unlike the plain-POST test above, this reproduces what the browser actually sends (HX-Request
+    header), which only renders the "#proofing-notes" partial instead of the full page.
+    """
+    client.force_login(stage_proofing_article.correspondence_author)
+    galleyproofing = (
+        GalleyProofing.objects.filter(
+            round__article=stage_proofing_article,
+        )
+        .order_by("round__round_number")
+        .last()
+    )
+    url = reverse("wjs_list_annotated_files", kwargs={"pk": galleyproofing.pk})
+    # Move the article out of the proofing stage: check_annotated_file_conditions now denies the action.
+    stage_proofing_article.stage = submission_models.STAGE_TYPESETTING
+    stage_proofing_article.save()
+
+    response = client.post(
+        url,
+        data={"action": "delete_file", "file_to_delete": 1},
+        HTTP_HX_REQUEST="true",
+    )
+
+    assert response.status_code == 200
+    assert not response.context["form"].is_valid()
+    assert "Cannot delete files" in response.content.decode()
+
+
+@pytest.mark.django_db
 def test_typ_marks_unpublishable(
     assigned_to_typesetter_article: Article,
     client: Client,

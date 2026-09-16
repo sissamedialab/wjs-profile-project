@@ -71,6 +71,7 @@ from plugins.wjs_submission.conversion import (
     report_yakunin_errors,
     report_yakunin_warnings,
 )
+from plugins.wjs_submission.events import SubmissionEvent
 from plugins.wjs_submission.models import (
     ArticleCollaboration,
     ArticleSubmission,
@@ -1859,7 +1860,10 @@ class PopulateRevisionSteps:
                 revision=self.revision,
                 revision_storage=self.revision_storage,
             ).run()
-        if self.revision_storage.revision_flow_type == RevisionStorage.RevisionFlowType.FULL:
+        if self.revision_storage.revision_flow_type in {
+            RevisionStorage.RevisionFlowType.FULL,
+            RevisionStorage.RevisionFlowType.METADATA,
+        }:
             PopulateRevisionStep7(
                 article=self.article,
                 revision=self.revision,
@@ -1916,9 +1920,7 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
         if owner := self.revision_storage.data.get("owner"):
             self.article.owner_id = owner
         if affiliation_pk := self.revision_storage.data.get("affiliation_pk"):
-            affiliation = ControlledAffiliation.objects.get(pk=affiliation_pk)
-            if affiliation_country := affiliation.organization.country:
-                self.article.submission_data.affiliation_country = affiliation_country
+            self.article.submission_data.affiliation = ControlledAffiliation.objects.get(pk=affiliation_pk)
 
         FrozenAuthor.objects.filter(article=self.article).delete()
         article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage).order_by(
@@ -1989,7 +1991,16 @@ class PopulateRevisionStep7(BasePopulateRevisionStep):
         if access_mode := self.revision_storage.data.get("access_mode"):
             self.article.submission_data.access_mode_id = access_mode
         if special_request := self.revision_storage.data.get("special_request"):
+            modified = (
+                self.revision_storage.data.get("special_request") != self.article.submission_data.special_request
+            )
             self.article.submission_data.special_request = special_request
+            events_logic.Events.raise_event(
+                SubmissionEvent.ON_ACCESS_MODE_SELECTION,
+                article=self.article,
+                submission_data=self.article.submission_data,
+                modified=modified,
+            )
 
         SubmissionArticleFunding.objects.filter(article=self.article).delete()
         fundings = RevisionSubmissionArticleFunding.objects.filter(revision_storage=self.revision_storage)
@@ -2038,11 +2049,14 @@ class AuthorHandleRevision:
         """
 
         if not self.revision_storage.data.get("submission_requirements"):
-            raise ValueError(
-                "Author did not confirm submission requirements: "
-                f"{self.article.submission_requirements=} / "
-                f"{self.revision_storage.data.get('submission_requirements')}",
-            )
+            if settings.DEBUG:
+                raise ValidationError(
+                    "Author did not confirm submission requirements: "
+                    f"{self.article.submission_requirements=} / "
+                    f"{self.revision_storage.data.get('submission_requirements')}",
+                )
+            else:
+                raise ValidationError("Author did not confirm submission requirements")
         if not self.article.submission_requirements:
             # Some article might not have the submission-requirements checked.
             # This looks like a business-logic flow: if the author does not agree with the journal
@@ -2314,6 +2328,9 @@ class AuthorHandleRevision:
                     ac_service.AUTHOR_METADATA_LATE_ESCALATED,
                 ],
             )
+
+            # Check for blacklisted authors (non-blocking, creates AC for EO)
+            ac_service.evaluate_blacklisted_author(article)
 
             return self.revision
 
@@ -5151,11 +5168,36 @@ class AccessModeSpecialRequestNotification:
     # TODO specs#2157: convert to submission-check and create attention condition
     submission_data: ArticleSubmission
 
-    def _check_conditions(self):
-        return self.submission_data.special_request and self.submission_data.special_request_updated
+    def _check_conditions(self, modified: bool) -> bool:
+        """
+        Check if the specified conditions are met.
+
+        A special request must be present *and* actually new/changed for this event.
+        `modified` distinguishes "still there, unchanged" from "just set": on first
+        submission there is nothing to compare against, so the caller passes whether
+        a special request is present at all (any special request present is new);
+        during a revision, the caller diffs the revision-submitted value against the
+        article's current one, so an unchanged special request does not re-trigger
+        the notification.
+
+        :param modified: Whether the special request is new for this event.
+        :type modified: bool
+        :return: True if a special request is present and it is new/changed; otherwise False.
+        :rtype: bool
+        """
+        return bool(self.submission_data.special_request) and modified
 
     def _send_notification(self):
-        """Log a message to the EO containing information about a special request related to access-mode."""
+        """
+        Send a notification related to the submission.
+
+        This method sends a pre-defined notification related to the submission data using
+        a special request. It uses templates from the application settings to render
+        the subject and body of the notification. The notification details are logged
+        for reference.
+
+        :raises RuntimeError: If the notification fails to render or send.
+        """
         from utils.management.commands.test_fire_event import create_fake_request
 
         fake_request = create_fake_request(user=None, journal=self.submission_data.article.journal)
@@ -5187,6 +5229,7 @@ class AccessModeSpecialRequestNotification:
             recipients=[get_eo_user(self.submission_data.article)],
         )
 
-    def run(self):
-        if self._check_conditions():
-            self._send_notification()
+    def run(self, modified: bool = False):
+        with transaction.atomic():
+            if self._check_conditions(modified):
+                self._send_notification()

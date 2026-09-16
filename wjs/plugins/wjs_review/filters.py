@@ -385,7 +385,7 @@ class WorkOnAPaperArticleWorkflowFilter(EOArticleWorkflowFilter):
         label=_("Title or Abstract"),
     )
     author_country = django_filters.CharFilter(
-        field_name="article__correspondence_author__country__name",
+        field_name="article__correspondence_author__controlledaffiliation__organization__locations__country__name",
         lookup_expr="icontains",
         label=_("Author's country"),
     )

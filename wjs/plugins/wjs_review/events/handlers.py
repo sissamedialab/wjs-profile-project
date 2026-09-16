@@ -374,8 +374,9 @@ def send_access_mode_special_requirements_notification_(**kwargs) -> None:
     Handle wjs_submission.events.SubmissionEvent.ON_ACCESS_MODE_SELECTION Event.
     """
     submission_data: ArticleSubmission = kwargs["submission_data"]
+    modified: bool = kwargs.get("modified", False)
 
-    AccessModeSpecialRequestNotification(submission_data).run()
+    AccessModeSpecialRequestNotification(submission_data).run(modified)
 
 
 def clear_cache(**kwargs) -> None:

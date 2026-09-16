@@ -22,7 +22,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.urls import reverse
-from django.utils import timezone, translation
+from django.utils import formats, timezone, translation
 from django.utils.timezone import localtime, now
 from events import logic as events_logic
 from faker import Faker
@@ -30,11 +30,17 @@ from journal import models as journal_models
 from plugins.wjs_review.logic__production import reunite_divided_kwds
 from plugins.wjs_review.synctex.forms import (
     SyncAuthorsForm,
+    SyncCollaborationsForm,
     SyncKeywordsForm,
     SyncTitleAbstractForm,
 )
 from plugins.wjs_review.synctex.logic import MetadataFromTeX
-from plugins.wjs_submission.models import RevisionStorage
+from plugins.wjs_submission.models import (
+    ArticleCollaboration,
+    Collaboration,
+    CollaborationRelation,
+    RevisionStorage,
+)
 from plugins.wjs_submission.revision import RevisionStartConfirmView
 from plugins.wjs_submission.step8.views import SubmissionStep8View
 from review import models as review_models
@@ -80,6 +86,7 @@ from ..logic import (  # WithdrawPreprint,
     HandleDecision,
     HandleEditorDeclinesAssignment,
     InviteReviewer,
+    PopulateRevisionStep7,
     PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
     SubmitReview,
@@ -3472,6 +3479,8 @@ def test_postpone_revision_due_date(
         object_id=editor_revision.pk,
     )
     reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
+    reminder_bodies = {r.code: r.message_body for r in reminders}
+    initial_rendered_due_date = formats.date_format(initial_date_due, settings.DATE_FORMAT)
     date_diff = form_data["date_due"] - initial_date_due
     if postpone_date < 1:
         with pytest.raises(ValidationError):
@@ -3492,6 +3501,16 @@ def test_postpone_revision_due_date(
         updated_reminder_dates = {r[0]: r[1] for r in reminders.values_list("code", "date_due")}
         for reminder in updated_reminder_dates.keys():
             assert updated_reminder_dates[reminder] == reminder_dates[reminder] + date_diff
+        # Some reminders include the due date in their body;
+        # here we test that, if the "old" body had the "old" due date,
+        # then the current/new body must have the new due date
+        new_rendered_due_date = formats.date_format(editor_revision.date_due, settings.DATE_FORMAT)
+        for reminder_obj in reminders:
+            reminder_obj.refresh_from_db()
+            if initial_rendered_due_date in reminder_bodies[reminder_obj.code]:
+                assert (
+                    new_rendered_due_date in reminder_obj.message_body
+                ), f"Reminder {reminder_obj.code} message_body was not re-rendered with the postponed due date"
 
 
 @pytest.mark.parametrize("actor_role", ("Reviewer", "Editor"))
@@ -4964,6 +4983,76 @@ def test_sync_texdb_lang(
 
 
 @pytest.mark.django_db
+def test_sync_texdb_collaborations(
+    article: Article,
+):
+    """Sync the collaborations attached to an article: match on the name, relation from the TeX type."""
+    cms = Collaboration.objects.create(name="CMS collaboration")
+    atlas = Collaboration.objects.create(name="ATLAS collaboration")
+    # This one is attached to the article, but not present in the TeX: it must be detached.
+    belle = Collaboration.objects.create(name="Belle II collaboration")
+    ArticleCollaboration.objects.create(article=article, collaboration=belle, order=0)
+    ArticleCollaboration.objects.create(
+        article=article,
+        collaboration=cms,
+        order=1,
+        relation=CollaborationRelation.BY,
+    )
+
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        # The match on the name ignores case and surrounding spaces.
+        "collaborations": [" cms collaboration ", "ATLAS collaboration"],
+        "collaborations_type": "forthe",
+    }
+    form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+    assert [item.collaboration for item in form.collaborations_tex] == [cms, atlas]
+    assert form.relation_tex == CollaborationRelation.ON_BEHALF_OF
+    assert form.should_sync()
+    form.sync()
+
+    links = list(ArticleCollaboration.objects.filter(article=article).order_by("order"))
+    assert [link.collaboration for link in links] == [cms, atlas]
+    # The relation from the TeX applies to all the collaborations (also to the already attached one).
+    assert [link.relation for link in links] == [CollaborationRelation.ON_BEHALF_OF] * 2
+    # Nothing more to do now.
+    assert not SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"}).should_sync()
+
+    # Any other collaborations type maps to "by".
+    texdata.data["collaborations_type"] = "regular"
+    form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+    assert form.relation_tex == CollaborationRelation.BY
+    # Same collaborations, but a different relation: still out of sync.
+    assert form.should_sync()
+    form.sync()
+    links = list(ArticleCollaboration.objects.filter(article=article).order_by("order"))
+    assert [link.relation for link in links] == [CollaborationRelation.BY] * 2
+
+    # A collaboration that exists only in the TeX blocks the sync: it must be created by hand.
+    texdata.data = {"collaborations": ["LHCb collaboration"], "collaborations_type": "forthe"}
+    form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+    assert form.collaborations_tex[0].collaboration is None
+    assert not form.is_valid()
+    with pytest.raises(ValueError, match="No matching collaboration"):
+        form.sync()
+
+    # A missing TeX key blocks the sync...
+    for texdata.data in ({"collaborations": ["CMS collaboration"]}, {"collaborations_type": "forthe"}, {}):
+        form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+        assert not form.is_valid()
+        with pytest.raises(ValueError, match="Please check"):
+            form.sync()
+
+    # ...but an empty collaborations list is fine: syncing detaches all of them.
+    texdata.data = {"collaborations": [], "collaborations_type": ""}
+    form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+    assert form.collaborations_tex == []
+    assert form.should_sync()
+    form.sync()
+    assert not ArticleCollaboration.objects.filter(article=article).exists()
+
+
+@pytest.mark.django_db
 def test_typesetting_rounds_and_assignments_with_files(
     article: Article,
     create_jcom_user: Callable[[Optional[str]], JCOMProfile],
@@ -5094,22 +5183,29 @@ def test_rich_text_or_tex_validation(
     assert form.is_valid() == should_be_valid
 
 
-@pytest.mark.parametrize(
-    "special_request,special_request_updated", (("some message", True), ("some message", False), ("", False))
-)
+@pytest.mark.parametrize("special_request", ("some message", ""))
 @pytest.mark.django_db
 def test_submission_special_request(
-    article: Article, review_settings, special_request: str, special_request_updated: bool
+    article: Article,
+    review_settings,
+    special_request: str,
 ):
-    """If ArticleSubmission.special_request is set, a notification is sent to EO."""
+    """
+    On a first submission, a notification is sent to EO whenever a special request is set.
+
+    There is nothing to diff against on a first submission, so `modified` is derived from
+    whether a special request is present at all, mirroring CompleteSubmission.run().
+    """
     article.submission_data.special_request = special_request
-    article.submission_data.special_request_updated = special_request_updated
     article.submission_data.save()
     Message.objects.all().delete()
     events_logic.Events.raise_event(
-        SubmissionEvent.ON_ACCESS_MODE_SELECTION, article=article, submission_data=article.submission_data
+        SubmissionEvent.ON_ACCESS_MODE_SELECTION,
+        article=article,
+        submission_data=article.submission_data,
+        modified=bool(special_request),
     )
-    if special_request and special_request_updated:
+    if special_request:
         assert Message.objects.all().count() == 1
         message = Message.objects.all().get()
         assert "Access mode" in message.subject
@@ -5118,6 +5214,115 @@ def test_submission_special_request(
         assert message.actor == article.correspondence_author.janeway_account
     else:
         assert not Message.objects.all().exists()
+
+
+@pytest.mark.parametrize(
+    "special_request,modified",
+    (("some message", True), ("some message", False), ("", True), ("", False)),
+)
+@pytest.mark.django_db
+def test_submission_special_request_revision_status(
+    article: Article, review_settings, special_request: str, modified: bool
+):
+    """
+    A notification is sent to EO for a revision's special request only if it is new.
+
+    Both a special request being present *and* `modified` being True are required: an
+    unchanged special request must not re-trigger the notification on every revision
+    it survives untouched.
+    """
+    article.submission_data.special_request = special_request
+    article.submission_data.save()
+    Message.objects.all().delete()
+    events_logic.Events.raise_event(
+        SubmissionEvent.ON_ACCESS_MODE_SELECTION,
+        article=article,
+        submission_data=article.submission_data,
+        modified=modified,
+    )
+    if special_request and modified:
+        assert Message.objects.all().count() == 1
+        message = Message.objects.all().get()
+        assert "Access mode" in message.subject
+        if special_request:
+            assert special_request in message.body
+        assert list(message.recipients.all()) == [get_eo_user(article)]
+        assert message.actor == article.correspondence_author.janeway_account
+    else:
+        assert not Message.objects.all().exists()
+
+
+@pytest.mark.parametrize(
+    "storage_special_request,existing_special_request,expect_notification",
+    (
+        # empty revision_storage special_request: step is a no-op, nothing is notified
+        ("", "some message", False),
+        ("", "", False),
+        # populated revision_storage special_request, equal to the article's current one:
+        # nothing actually changed, so EO must not be re-notified on every revision that
+        # merely resubmits the same special request (regression: it used to be, see #3083)
+        ("some message", "some message", False),
+        # populated revision_storage special_request, different from the article's current one
+        ("some message", "a different message", True),
+        ("some message", "", True),
+    ),
+)
+@pytest.mark.django_db
+def test_populate_revision_step7_special_request(
+    editor_revision: EditorRevisionRequest,
+    review_settings,
+    storage_special_request: str,
+    existing_special_request: str,
+    expect_notification: bool,
+):
+    """
+    PopulateRevisionStep7 copies the special request from the revision storage to the article.
+
+    A notification to EO is triggered (via ON_ACCESS_MODE_SELECTION) only when the revision
+    storage carries a special request that actually differs from the article's current one;
+    resubmitting the same special request unchanged updates nothing and notifies no one.
+    """
+    article = editor_revision.article
+    article.submission_data.special_request = existing_special_request
+    article.submission_data.save()
+
+    revision_storage = RevisionStorage.objects.create(
+        article=article,
+        revision_flow_type=RevisionStorage.RevisionFlowType.FULL,
+        data={"special_request": storage_special_request},
+    )
+    Message.objects.all().delete()
+
+    PopulateRevisionStep7(
+        article=article,
+        revision=editor_revision,
+        revision_storage=revision_storage,
+    ).run()
+    # PopulateRevisionStep7 only mutates the in-memory instance; persisting it is the caller's
+    # responsibility (see AuthorHandleRevision._store_data), so do it here too before reloading.
+    article.submission_data.save()
+    article.submission_data.refresh_from_db()
+
+    if not storage_special_request:
+        # Nothing submitted in the revision: the article's special request is untouched and no
+        # notification is sent, regardless of what was there before.
+        assert article.submission_data.special_request == existing_special_request
+        assert not Message.objects.all().exists()
+        return
+
+    # A populated special request is always copied over, whether or not it actually changed.
+    assert article.submission_data.special_request == storage_special_request
+
+    if not expect_notification:
+        assert not Message.objects.all().exists()
+        return
+
+    assert Message.objects.all().count() == 1
+    message = Message.objects.all().get()
+    assert "Access mode" in message.subject
+    assert storage_special_request in message.body
+    assert list(message.recipients.all()) == [get_eo_user(article)]
+    assert message.actor.pk == article.correspondence_author.pk
 
 
 @pytest.mark.parametrize(

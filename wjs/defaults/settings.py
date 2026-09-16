@@ -162,8 +162,10 @@ the registration process before first login: click here {}
 # Functions that check if a just-submitted article might have issues
 # that would require EO attention before editor assigment
 WJS_REVIEW_CHECK_FUNCTIONS = {
-    None: ("plugins.wjs_review.events.checks.always_accept",),
-    "JCOM": ("plugins.wjs_review.events.checks.always_accept",),
+    None: (
+        "plugins.wjs_review.events.checks.always_accept",
+        "plugins.wjs_review.events.checks.check_blacklisted_authors",
+    ),
 }
 
 # Functions that determine which editor is assigned to an article
