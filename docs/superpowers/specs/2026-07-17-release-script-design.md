@@ -39,6 +39,12 @@ repos, not just this one.
   the two push gates, matching the skill's current confirm-with-the-user
   behavior.
 - No GitLab Release object — tag-only.
+- **Added after implementation, at the user's request:** an optional
+  `--dry-run` flag that rehearses the release on a disposable `next-release`
+  branch and stops at the changelog, so the changelog (and "what's on
+  `wjs-develop` since the last release") can be reviewed without touching
+  `wjs-develop`/`wjs-production` — see *Dry-run mode* below. Normal use stays
+  flagless.
 - A `+suffix` local version marker (e.g. `2.0.16.dev1+ally1`, present in 3 of
   the 5 repos) is preserved unchanged through both the release version and
   the next dev version — treated as a permanent per-repo marker, not
@@ -77,8 +83,9 @@ repos, not just this one.
 ## Script structure
 
 Single file, `scripts/release.sh`, run from the repo root on any branch. No
-subcommands, no flags required for normal use. Bash + `git` + `glab` + `jq` +
-`pre-commit`; no Python/other runtime needed.
+subcommands, and no flags required for normal use — the only flags are the
+optional `--dry-run` (see below) and `-h`/`--help`. Bash + `git` + `glab` +
+`jq` + `pre-commit`; no Python/other runtime needed.
 
 ### Preflight
 
@@ -201,6 +208,48 @@ subcommands, no flags required for normal use. Bash + `git` + `glab` + `jq` +
     `git tag --points-at wjs-production`), prompt `y/n`, then
     `git push origin wjs-production wjs-develop` and `git push origin v<version>`.
 
+### Dry-run mode (`--dry-run`, post-implementation addition)
+
+`--dry-run` simulates the release on a **throwaway branch** and stops before
+anything irreversible. It exists for two things the real flow can't give you
+up front: reviewing the changelog section (and the develop→production merge)
+before committing to a release, and simply seeing what has reached
+`wjs-develop` since the last release.
+
+Sequence: preflight (identical to the real run) → `git fetch origin` and
+fast-forward `wjs-develop` + `wjs-production` (steps 1–2 above, always worth
+doing) → create the `next-release` branch from `wjs-production`, or
+**hard-reset** it to `wjs-production` if it already exists (so consecutive dry
+runs never stack) → merge `wjs-develop` into it (step 3's conflict handling,
+via the same `git_merge_or_skip`) → derive the release version (step 4) →
+build and prepend the changelog section (step 5) → bump `setup.cfg` (step 6's
+version edit) → commit it as `Release <version> (dry run)` → print the
+generated section, the local inspection hints, and the GitLab blob URL of the
+branch's `CHANGELOG.md`
+(`https://<host>/<project path>/-/blob/next-release/CHANGELOG.md?ref_type=heads`,
+built from `origin`) so the changelog can be read rendered rather than as a
+local diff — reachable only after `git push -f origin next-release`, which the
+same message spells out. Then stop, leaving the checkout on `next-release`.
+
+Deliberate differences from the real flow:
+
+- **Nothing beyond `next-release` is modified**: no tag (step 7), no
+  merge-back (step 8), no dev-version bump (step 9), no push gates
+  (steps 10–11). `wjs-develop` and `wjs-production` are left exactly where the
+  fast-forward put them.
+- **`pre-commit run --all-files` is not run** (unlike step 6). A dry run only
+  inspects the changelog and the merge; the reformatting pass is slow and
+  irrelevant to that — which is also why the dry-run commit is *not* a
+  faithful stand-in for the real release commit's content.
+- **The script itself never pushes** — but `next-release` *may* be
+  force-pushed by hand (the final message says how) purely to read the
+  changelog on GitLab; it is rebuilt from `wjs-production` on every dry run,
+  the script never reads it back, and it must never be merged.
+- The `(dry run)` suffix in the commit subject keeps it distinguishable from a
+  real `Release <version>` commit, so the resume check
+  (`release_already_prepared_locally`, which only ever inspects
+  `wjs-production`) can never mistake a dry run for an interrupted release.
+
 ### Idempotency / resumability summary
 
 Every step checks whether its effect is already present (tag exists, commit
@@ -238,6 +287,8 @@ and the resumed path.
 | Interrupted between the release commit and the tag | Resume is detected without needing the tag (via `setup.cfg`'s version at `HEAD`); the tag is (re-)created idempotently on the next run |
 | Cross-project issue linked from an MR (bare `#iid` relative ref) | Attributed to the issue's own project via its `web_url`, never mislabeled with this project's name |
 | Re-running after `CHANGELOG.md` already has this version's section | Refused with a clear message instead of stacking a duplicate section/commit |
+| `--dry-run` re-run with a `next-release` branch left over from a previous one | Hard-reset to `wjs-production` first, so sections/commits never stack |
+| `--dry-run` mistaken for a real release commit by the resume check | Impossible: the resume check only inspects `wjs-production`, and the dry-run commit is subject-suffixed `(dry run)` |
 
 ## Rollout / validation plan
 
