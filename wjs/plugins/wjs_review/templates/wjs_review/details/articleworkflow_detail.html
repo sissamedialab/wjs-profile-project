@@ -1,5 +1,5 @@
 {% extends "wjs_review/base/base.html" %}
-{% load django_bootstrap5 static wjs_permissions %}
+{% load django_bootstrap5 static wjs_permissions wjs_review %}
 
 {% block breadcrumbs %}{% endblock breadcrumbs %}
 
@@ -16,6 +16,11 @@
     <div class="container mb-3">
       <div class="row">
         <div class="col-sm-12 col-md-6">
+          {% with attention_flag=workflow|article_requires_attention_tt:request.user %}
+          {% if attention_flag %}
+            {% include "wjs_review/details/sections/attention.html" %}
+          {% endif %}
+          {% endwith %}
           {% include "wjs_review/details/sections/metadata.html" %}
           {% if production %}
             {% include "wjs_review/details/sections/production.html" %}
