@@ -14,7 +14,7 @@ These apply to every task below; do not re-derive them per task.
 
 - Single file: all logic lives in `scripts/release.sh`. Do not split into `lib/*.sh` — the file must be copyable verbatim into 4 sibling repos later.
 - No GitLab MCP tools, no Python — `git` + `glab` + `jq` + `pre-commit` only.
-- No subcommands/flags for normal use; the two push gates are the only prompts.
+- No subcommands, and no flags for normal use; the two push gates are the only prompts. The only flags are the optional `--dry-run` (Task 15) and `-h`/`--help`.
 - No GitLab Release object creation — tag-only (`git tag -a v<version>`).
 - No towncrier / changelog-fragment adoption.
 - Release commit message: exactly `Release <version>` — never `Release v<version>`, never "Bump version...".
@@ -30,7 +30,7 @@ These apply to every task below; do not re-derive them per task.
 
 ## File Structure
 
-- `scripts/release.sh` — the single shippable file. Sections, in order: version helpers → changelog formatting helpers → GitLab remote/auth helpers → GitLab data-fetch helpers (`related_issues` + description fallback) → changelog section builder → git-flow helpers → preflight → `main` → source-guard footer.
+- `scripts/release.sh` — the single shippable file. Sections, in order: version helpers → changelog formatting helpers → GitLab remote/auth helpers → GitLab data-fetch helpers (`related_issues` + description fallback) → changelog section builder → preflight → git-flow helpers → interactive push gates → dry run (Task 15) → `usage`/`main` → source-guard footer.
 - `scripts/tests/test_helpers.sh` — assertion primitives shared by every test file.
 - `scripts/tests/test_version.sh` — version parsing/bumping.
 - `scripts/tests/test_changelog_format.sh` — pure changelog formatting + `CHANGELOG.md` prepend logic.
@@ -42,6 +42,7 @@ These apply to every task below; do not re-derive them per task.
 - `scripts/tests/test_git_flow.sh` — fast-forward sync and merge-with-resumability, against real throwaway git sandboxes.
 - `scripts/tests/test_push_gates.sh` — the two interactive confirm+push steps, against a local bare-repo "origin".
 - `scripts/tests/test_full_pipeline.sh` — end-to-end run of `main` against a synthetic sandbox modeled on this repo's real `88b21b2d..6e549f08` range (fake `glab`, fake `pre-commit`, local bare "origin").
+- `scripts/tests/test_dry_run.sh` — Task 15: a full `--dry-run` run (twice, to prove the `next-release` reset) against the same synthetic sandbox `test_full_pipeline.sh` uses, plus `--help`/unknown-flag handling.
 - `scripts/tests/test_resume.sh` — Task 13/14: `main` run twice (`n` then `y`/`y`) against a bare-repo "origin" to prove a clean abort resumes instead of re-preparing the release, including the case where the tag itself is missing.
 - `scripts/tests/run_tests.sh` — runs every `test_*.sh`, aggregates pass/fail, non-zero exit if anything failed.
 
@@ -2022,6 +2023,170 @@ git commit -m "fix: harden changelog dedup, cross-project attribution, and idemp
 
 ---
 
+### Task 15: `--dry-run` — rehearse the release on a disposable `next-release` branch
+
+**Context:** the release flow only reveals its changelog once it has already merged `wjs-develop` into `wjs-production`, bumped the version and committed — i.e. after the point where backing out means resetting real branches. The user asked for a rehearsal mode: pull both branches (always a good idea), then do the merge + changelog on a throwaway branch and stop, so the changelog can be reviewed before releasing for real — and so "what has reached `wjs-develop` since the last release" is answerable at any time, not just at release time. See the design spec's *Dry-run mode* section for the full contract, including the deliberate differences from the real flow (no tag, no merge-back, no dev bump, no push, no `pre-commit`).
+
+**Files:**
+- Modify: `scripts/release.sh` (new `DRY_RUN_BRANCH` + `release_dry_run`, new `usage`, `main` argument parsing + dispatch, header comment)
+- Create: `scripts/tests/test_dry_run.sh`
+
+**Interfaces:**
+- Produces: `DRY_RUN_BRANCH` (module-level constant, `"next-release"`), `release_dry_run <host> <project_path> <group_prefix>` (rebuilds `next-release` from `wjs-production`, merges `wjs-develop`, prepends the changelog section, bumps `setup.cfg`, commits `Release <version> (dry run)`, prints the section plus the GitLab blob URL of the branch's `CHANGELOG.md`; leaves the checkout on `next-release`), `usage` (prints the flag help).
+- Changes existing behavior of: `main` (now parses `--dry-run` / `-h` / `--help`, rejects anything else with the usage text, and after the two `git_ff_branch` calls returns early through `release_dry_run` when `--dry-run` was given). Every step before that point — all four preflight checks, `git fetch origin`, both fast-forwards — is shared verbatim with the real run, so a dry run also validates the environment a real run needs.
+- Reuses unchanged: `git_merge_or_skip` (so a dry-run merge conflict gets the same stop-and-resolve message), `version_read_setup_cfg`/`version_release_from_dev`, `changelog_build_section`, `changelog_prepend_section`.
+
+- [ ] **Step 1: `DRY_RUN_BRANCH` + `release_dry_run`, inserted just before the entrypoint section**
+
+```bash
+# --- dry run -----------------------------------------------------------------
+
+DRY_RUN_BRANCH="next-release"
+
+release_dry_run() {
+  # release_dry_run - simulate the release on a throwaway branch, touching nothing else
+  #
+  # Rebuilds DRY_RUN_BRANCH ("next-release") from wjs-production, merges
+  # wjs-develop into it and writes the changelog section the next real release
+  # would write — then stops. Nothing is tagged, nothing is merged back,
+  # nothing is pushed, and neither wjs-develop nor wjs-production is modified:
+  # the whole simulation lives on next-release, which is disposable and gets
+  # hard-reset on every dry run.
+  #
+  # Serves two purposes: reviewing the changelog (and the merge) before
+  # releasing for real, and seeing what reached wjs-develop since the last
+  # release.
+  #
+  # Unlike the real flow this does NOT run `pre-commit run --all-files` (see
+  # main()'s release commit): a dry run only inspects the changelog and the
+  # merge, and the reformatting pass is both slow and irrelevant to that.
+  #
+  # Arguments:
+  #   $1 - GitLab hostname
+  #   $2 - full project path (e.g. "wjs/wjs-profile-project")
+  #   $3 - group prefix (e.g. "wjs"), for the description-regex fallback
+  # Returns:
+  #   0 on success (leaves the checkout on DRY_RUN_BRANCH)
+  #   1 if the merge conflicts or the changelog section cannot be written
+  local host="$1" project_path="$2" group_prefix="$3"
+  local prev_tag raw_version release_version section changelog_url
+
+  prev_tag="$(git describe --tags --abbrev=0 wjs-production)"
+
+  if git show-ref --verify --quiet "refs/heads/$DRY_RUN_BRANCH"; then
+    echo "release.sh: resetting existing '$DRY_RUN_BRANCH' to wjs-production (a previous dry run on it is discarded)"
+    git switch "$DRY_RUN_BRANCH"
+    git reset --hard wjs-production
+  else
+    git switch -c "$DRY_RUN_BRANCH" wjs-production
+  fi
+
+  git_merge_or_skip "$DRY_RUN_BRANCH" wjs-develop "Merge branch 'wjs-develop' into '${DRY_RUN_BRANCH}'" || return 1
+
+  raw_version="$(version_read_setup_cfg setup.cfg)"
+  release_version="$(version_release_from_dev "$raw_version")"
+
+  section="$(changelog_build_section "$host" "$project_path" "$group_prefix" "$prev_tag" wjs-develop "$release_version" "$(date +%F)")"
+  changelog_prepend_section CHANGELOG.md "$section" || return 1
+
+  sed -i "s/^version = .*/version = ${release_version}/" setup.cfg
+  git add -A
+  git commit -m "Release ${release_version} (dry run)"
+
+  echo
+  echo "--- dry run: the changelog section a real release would write ---"
+  printf '%s\n' "$section"
+  echo "--- end of section ---"
+  echo
+  echo "release.sh: dry run done — nothing tagged, nothing pushed, wjs-develop and wjs-production untouched."
+  echo "Simulated release ${release_version} is committed on '${DRY_RUN_BRANCH}' (now checked out). Inspect it with:"
+  echo "  git show ${DRY_RUN_BRANCH} -- CHANGELOG.md setup.cfg"
+  echo "  git log --oneline --first-parent ${prev_tag}..wjs-develop   # what reached wjs-develop since ${prev_tag}"
+  echo
+  # The URL is only reachable once the branch is on origin, hence the push line
+  # above it: the changelog is far easier to read rendered by GitLab than as a
+  # local diff, and pushing a disposable branch costs nothing. Force-push
+  # because every dry run rebuilds the branch from wjs-production.
+  changelog_url="https://${host}/${project_path}/-/blob/${DRY_RUN_BRANCH}/CHANGELOG.md?ref_type=heads"
+  echo "To read it rendered on GitLab, push the branch (git push -f origin ${DRY_RUN_BRANCH}), then open:"
+  echo "  ${changelog_url}"
+  echo
+  echo "Re-run without --dry-run for the real release; '${DRY_RUN_BRANCH}' is disposable and force-rebuilt every dry run — never merge it."
+}
+```
+
+- [ ] **Step 2: `usage` + argument parsing in `main`, and the dry-run dispatch**
+
+```bash
+usage() {
+  cat <<'USAGE'
+Usage: release.sh [--dry-run]
+
+Release wjs-develop -> wjs-production for a wjs-* Python package: merge,
+version bump, changelog from GitLab MRs/issues, tag, merge back, dev-version
+bump. Both pushes sit behind interactive y/n prompts.
+
+Options:
+  --dry-run   Simulate the release on the throwaway 'next-release' branch:
+              pull wjs-develop and wjs-production, rebuild 'next-release' from
+              wjs-production (hard-resetting it if it already exists), merge
+              wjs-develop into it, write the changelog section the real release
+              would write, and stop there. No tag, no merge back, no push, and
+              wjs-develop / wjs-production are left untouched.
+  -h, --help  Show this help.
+USAGE
+}
+
+main() {
+  local dry_run=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) dry_run=1 ;;
+      -h|--help) usage; return 0 ;;
+      *)
+        echo "release.sh: unknown option '$1'" >&2
+        usage >&2
+        return 1
+        ;;
+    esac
+    shift
+  done
+```
+
+…and, immediately after `git_ff_branch wjs-production || return 1` (before `local release_version`):
+
+```bash
+  if [[ "$dry_run" -eq 1 ]]; then
+    release_dry_run "$host" "$project_path" "$group_prefix" || return 1
+    return 0
+  fi
+```
+
+Also extend the file's header comment to mention `--dry-run`, so the contract is visible at the top of the single shippable file.
+
+- [ ] **Step 3: `scripts/tests/test_dry_run.sh`**
+
+Same sandbox recipe as `test_full_pipeline.sh` (bare repo as "origin", `url.<path>.insteadOf` so the fake GitLab remote resolves locally, fake `glab`), with two twists:
+
+- the fake `pre-commit` on `PATH` **exits 3 with an error message** — the dry run must never invoke it, so the test fails loudly if it ever starts to;
+- the run is repeated after leaving a stale commit on `next-release`, asserting the branch is hard-reset (the stale commit is gone, and `## [2.0.19]` appears exactly once, not stacked).
+
+Assertions: `--dry-run` exits 0 with no prompt on stdin; the checkout is left on `next-release`; `next-release`'s `CHANGELOG.md`/`setup.cfg`/commit subject carry the simulated release; the section is echoed to stdout, together with the `https://<host>/<project>/-/blob/next-release/CHANGELOG.md?ref_type=heads` link (host/project derived from the sandbox's `origin`) and the force-push line that makes it resolve; `wjs-develop` and `wjs-production` are byte-identical to before the run (`rev-parse` compare); no `v<version>` tag exists; neither `next-release` nor the tag reached the bare "origin"; `--help` documents `--dry-run`; an unknown flag fails.
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `bash scripts/tests/run_tests.sh`
+Expected: every block `N run, 0 failed`; overall exit code `0` (128 assertions total across the suite at this point, 20 of them from `test_dry_run.sh`).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add scripts/release.sh scripts/tests/test_dry_run.sh docs/superpowers/
+git commit -m "feat(release): add --dry-run to rehearse a release on next-release"
+```
+
+---
+
 ## Manual rollout (outside TDD scope — human-gated, per `.claude/rules/version-control.md` and the design's own rollout plan)
 
 These are **not** implementation tasks — they involve real, hard-to-reverse GitLab/git state and must be done by the user, not autonomously:
@@ -2046,6 +2211,7 @@ These are **not** implementation tasks — they involve real, hard-to-reverse Gi
 - Steps 10–11 (confirm + push gates) → Task 10, wired in Task 11.
 - Resume detection independent of the tag (`release_already_prepared_locally`) → introduced in Task 13, corrected in Task 14 to drop the tag requirement.
 - `+suffix` preservation, no-`v`-in-commit, "Release ..." wording, never-fabricate-URLs → asserted directly in Task 2/3/7/11 tests.
+- Dry-run mode (`--dry-run`, added to the spec after implementation) → Task 15.
 - Rollout/validation plan → the "Manual rollout" section above (explicitly kept out of the automated task list, since it involves live GitLab auth and irreversible pushes).
 - Out of scope per the design (towncrier, GitLab Release objects) → correctly absent from every task.
 
@@ -2053,4 +2219,4 @@ These are **not** implementation tasks — they involve real, hard-to-reverse Gi
 
 **Type consistency** — function names and signatures were cross-checked across tasks: `gitlab_related_issues_json` (Task 5) is consumed as-is by Task 7; `changelog_extract_issue_refs`/`changelog_resolve_issue_ref` (Task 6) match Task 7's fallback branch exactly; `git_merge_or_skip` (Task 9) is the only merge entrypoint `main` (Task 11) calls, for both directions; `CHANGELOG_FS` (Task 14) replaces every tab-separated `read`/`@tsv` introduced in Tasks 5 and 6, consistently, not just at one call site.
 
-**Post-implementation note:** Tasks 13 and 14 were not part of the original task sequence — they document fixes applied after Task 12's rollout-readiness point, found by a final whole-branch review (Task 13) and a later manual pass (Task 14). They're recorded here, after the fact, in the same task format as Tasks 1–12 so this document stays a complete and accurate build log of `scripts/release.sh` as it actually ships, not just as originally planned. Anyone re-deriving this script from scratch should implement Tasks 1–12 in order, then apply Task 13 and Task 14 as the corrections they are — do not skip them as "already superseded, therefore optional."
+**Post-implementation note:** Tasks 13, 14 and 15 were not part of the original task sequence — they document fixes applied after Task 12's rollout-readiness point, found by a final whole-branch review (Task 13) and a later manual pass (Task 14). Task 15 came later still, as a user-requested feature (the `--dry-run` rehearsal). They're recorded here, after the fact, in the same task format as Tasks 1–12 so this document stays a complete and accurate build log of `scripts/release.sh` as it actually ships, not just as originally planned. Anyone re-deriving this script from scratch should implement Tasks 1–12 in order, then apply Task 13 and Task 14 as the corrections they are — do not skip them as "already superseded, therefore optional" — and Task 15 as the additive feature it is.
