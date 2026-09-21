@@ -7,7 +7,6 @@
   {% endif %}
   {% include "wjs_review/details/elements/production_flags.html" %}
   <div class="d-flex align-items-center justify-content-between gap-2">
-    {% include "wjs_review/lists/elements/attention.html" %}
     {% if article.language and article.language != "eng" %}
       {% with lang_path="img/languages/"|concat:article.language|concat:".png" %}
         <img height="24" src="{% static lang_path %}" alt="{% translate "Flag for language" %} {{ article.language }}" title="{% translate "Article language" %}: {{ article.language }}" />

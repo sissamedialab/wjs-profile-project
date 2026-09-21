@@ -1,0 +1,23 @@
+{% load i18n %}
+<div class="accordion accordion-flush mb-4 card" id="attention">
+  <div class="accordion-item rounded-bottom p-0">
+    <h2 class="accordion-header bg-warning d-flex align-items-center justify-content-between" id="heading-attention">
+      <button class="accordion-button collapsed bg-warning fw-bolder fs-4 p-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-attention" aria-expanded="true" aria-controls="collapse-attention">
+        <span class="badge rounded-circle bg-warning text-dark p-2 fs-5 me-2"><i class="bi bi-exclamation-triangle"></i></span>
+        {% translate "Warning" %}
+      </button>
+    </h2>
+    <div id="collapse-attention" class="collapse" aria-labelledby="heading-attention" data-bs-parent="#attention">
+      <div class="accordion-body">
+        {% if attention_flag != "You have unread messages" %}
+          {{ attention_flag }}
+        {% else %}
+          <a class="d-flex justify-content-between text-decoration-none" href="{% url "wjs_article_messages" pk=workflow.pk %}">
+            {{ attention_flag }}
+            <i class="bi bi-box-arrow-up-right"></i>
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
