@@ -10,7 +10,7 @@
       <h2>{{ wjs_home_blocks_element.title_personal_area_unauth }}</h2>
       {{ wjs_home_blocks_element.content_personal_area_unauth|safe }}
       {% if wjs_home_blocks_element.show_login_in_personal_area %}
-      <a class="btn btn-outline-primary" href="{% url "core_login" %}">
+      <a class="btn btn-primary" href="{% url "core_login" %}">
         {% translate "Login" %}
         <span class="fs-4"><i class="bi bi-person-circle"></i></span>
       </a>
