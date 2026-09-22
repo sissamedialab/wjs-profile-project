@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -13,6 +14,10 @@ from ..mixins import AuthenticatedUserPassesTest
 from ..models import ArticleWorkflow
 from ..permissions import is_article_typesetter_or_eo
 from .forms import (
+    AuthorsMapper,
+    CreateCorrespondenceForm,
+    DeleteAuthorRecordForm,
+    OrphanAuthorRow,
     SyncArxivForm,
     SyncAuthorsForm,
     SyncCasDasForm,
@@ -28,6 +33,13 @@ from .logic import MetadataFromTeX
 
 if TYPE_CHECKING:
     from ..custom_types import BreadcrumbItem
+
+
+def _error_message(exception: Exception) -> str:
+    """Return the user-facing message of an exception raised by a sync form."""
+    if isinstance(exception, ValidationError):
+        return " ".join(exception.messages)
+    return str(exception)
 
 
 class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
@@ -161,9 +173,27 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         return form_fundings.get_form_context_data()
 
     def _get_context_data_authors(self, texdata: MetadataFromTeX) -> dict:
-        """Return context info related to the authors."""
-        form_authors = SyncAuthorsForm(texdata, data={"action": "sync_authors"})
-        return form_authors.get_form_context_data()
+        """
+        Return context info related to the authors.
+
+        The authors block has two sections: the authors of the paper that the TeX source does not
+        (surely) know about - each with its own delete/correspondence forms - and the authors of the
+        TeX source, from which the author records are rebuilt.
+        """
+        mapper = AuthorsMapper(texdata)
+        return {
+            "form_authors": SyncAuthorsForm(mapper),
+            "orphan_author_rows": [
+                OrphanAuthorRow(
+                    author_record=orphan,
+                    delete_form=DeleteAuthorRecordForm(mapper, author_record=orphan),
+                    correspondence_form=CreateCorrespondenceForm(mapper, author_record=orphan),
+                )
+                for orphan in mapper.orphan_authors
+            ],
+            "authors_errors_db": mapper.errors_db,
+            "authors_errors_tex": mapper.errors_tex,
+        }
 
     def _get_context_data_collaborations(self, texdata: MetadataFromTeX) -> dict:
         """Return context info related to the collaborations."""
@@ -204,6 +234,10 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             self._post_authors(request)
         elif action == "sync_collaborations":
             self._post_collaborations(request)
+        elif action == "delete_author_record":
+            self._post_delete_author_record(request)
+        elif action == "create_correspondence":
+            self._post_create_correspondence(request)
         else:
             messages.add_message(request, messages.ERROR, _("No se pol! Come te son rivà qua?!?"))
         return HttpResponseRedirect(self.get_success_url())
@@ -291,12 +325,12 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             messages.add_message(request, messages.SUCCESS, _("Fundings synchronized."))
 
     def _post_authors(self, request):
-        """Synchronize the authors."""
-        form = SyncAuthorsForm(self.get_texdata(), data=request.POST)
+        """Rebuild the author records of the paper from the TeX source."""
+        form = SyncAuthorsForm(AuthorsMapper(self.get_texdata()), data=request.POST)
         try:
             form.sync()
-        except ValueError as e:
-            messages.add_message(request, messages.ERROR, str(e))
+        except (ValueError, ValidationError) as e:
+            messages.add_message(request, messages.ERROR, _error_message(e))
         else:
             messages.add_message(request, messages.SUCCESS, _("Authors synchronized."))
 
@@ -309,3 +343,30 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
             messages.add_message(request, messages.ERROR, str(e))
         else:
             messages.add_message(request, messages.SUCCESS, _("Collaborations synchronized."))
+
+    def _post_delete_author_record(self, request):
+        """Remove one author record from the paper."""
+        form = DeleteAuthorRecordForm(AuthorsMapper(self.get_texdata()), data=request.POST)
+        try:
+            frozen_author = form.sync()
+        except (ValueError, ValidationError) as e:
+            messages.add_message(request, messages.ERROR, _error_message(e))
+        else:
+            messages.add_message(
+                request, messages.SUCCESS, _("%(author)s is not an author anymore.") % {"author": frozen_author}
+            )
+
+    def _post_create_correspondence(self, request):
+        """Map one author of the paper onto the email of one TeX author."""
+        form = CreateCorrespondenceForm(AuthorsMapper(self.get_texdata()), data=request.POST)
+        try:
+            correspondence = form.sync()
+        except (ValueError, ValidationError) as e:
+            messages.add_message(request, messages.ERROR, _error_message(e))
+        else:
+            messages.add_message(
+                request,
+                messages.SUCCESS,
+                _("%(account)s is now mapped onto %(email)s.")
+                % {"account": correspondence.account, "email": correspondence.email},
+            )

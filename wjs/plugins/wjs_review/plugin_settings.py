@@ -1950,7 +1950,7 @@ To retrieve the short description for the post, go to the <a href="{{ article.ar
             "value": """Dear {{ newaccount.full_name }},
 <br><br>
 We would like to inform you that the {{ article.section.name }} mentioned above
-has been automatically associated with your {{ article.journal.code }} profile.
+has been automatically associated with your name and will be attributed to you as co-author after publication.
 This association was made because the manuscript file, submitted by {{ article.owner.full_name }}
 on {{ article.date_submitted }}, lists you as a co-author.
 <br><br>

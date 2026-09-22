@@ -4,6 +4,7 @@ Utility functions related to the communication system.
 Keeping here also anything that we might want to test easily 🙂.
 """
 
+import dataclasses
 import datetime
 from typing import Optional, Union
 
@@ -38,6 +39,29 @@ MESSAGE_TYPE_ICONS = {
     Message.MessageTypes.USER: "bi-chat-square-text",
     None: "bi-funnel-fill",
 }
+
+
+@dataclasses.dataclass
+class UnregisteredRecipient:
+    """
+    Stand-in for the recipient of a notification that has no Account.
+
+    The notification machinery needs an email address to send the notification to and, in order to render
+    the header of the email, to know whether the recipient may see the list of the authors of the paper
+    (see Message._get_header_context): it cannot answer the latter with the usual permissions functions,
+    because they query the DB with the recipient, and this recipient does not exist in the DB.
+
+    Message.recipients can only point to accounts, so such a recipient is not stored on the message: it
+    receives the email, but it does not appear among the recipients of the message.
+    """
+
+    email: str
+    full_name: str = ""
+    may_see_authors: bool = False
+
+    def __str__(self):
+        """Show the name (or, lacking that, the email) of this recipient."""
+        return self.full_name or self.email
 
 
 def _user_has_eo_group(user: Account) -> bool:
@@ -221,6 +245,7 @@ def log_operation(
     hijacking_actor: Account | None = None,
     notify_actor: bool = False,
     recipients: list[Account] | None = None,
+    unregistered_recipients: list[UnregisteredRecipient] | None = None,
     message_type: Message.MessageTypes = Message.MessageTypes.SYSTEM,
     verbosity: Message.MessageVerbosity = Message.MessageVerbosity.FULL,
     flag_as_read: bool = False,
@@ -236,6 +261,8 @@ def log_operation(
     :param hijacking_actor: the hijacker of the message
     :param notify_actor: whether to notify the actor
     :param recipients: the recipients of the message
+    :param unregistered_recipients: recipients that have no Account (see UnregisteredRecipient): they are
+    notified by email, but they are not stored among the recipients of the message
     :param message_type: the type of the message
     :param flag_as_read: whether to flag the message as read for all recipients
     :param flag_as_read_by_eo: whether to flag the message as read by eo
@@ -287,7 +314,7 @@ def log_operation(
 
     ac_service.sync_unread_message_acs_for_message(message)
 
-    message.emit_notification()
+    message.emit_notification(unregistered_recipients=unregistered_recipients)
     if notify_actor and hijacking_actor:
         fake_request = create_fake_request(user=None, journal=article.journal)
         hijack_subject = render_template_from_setting(

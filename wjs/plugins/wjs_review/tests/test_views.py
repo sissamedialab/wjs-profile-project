@@ -9,6 +9,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponseRedirect, QueryDict
+from django.template.loader import render_to_string
 from django.test.client import Client
 from django.urls import reverse
 from django.utils import translation
@@ -1699,3 +1700,44 @@ def test_decision_form_decisioneditorreport(
     )
     assert form.is_valid(), form.errors
     assert form.cleaned_data["decision_editor_report"] == text_with_pesky_chars
+
+
+@pytest.mark.django_db
+def test_authors_accordion_shows_author_records(assigned_article: Article):
+    """
+    The "Authors" accordion of the status page shows the author records of the paper.
+
+    Author records are not necessarily linked to an account (the sync TeX/DB page can create such
+    records), so the accordion must not iterate on article.author_accounts.
+    """
+    owner = assigned_article.owner
+    owner.twitter = "@alice.bsky.social"
+    owner.save()
+    owner.snapshot_as_author(assigned_article)
+    unlinked_author = submission_models.FrozenAuthor.objects.create(
+        article=assigned_article,
+        author=None,
+        order=99,
+        first_name="Nobody",
+        last_name="Knows",
+        frozen_email="nobody@example.com",
+        frozen_biography="A biography from the TeX source.",
+    )
+
+    rendered = render_to_string(
+        "wjs_review/details/elements/metadata_authors.html",
+        {
+            "has_full_access": True,
+            "article": assigned_article,
+            "journal": assigned_article.journal,
+            "workflow": assigned_article.articleworkflow,
+        },
+    )
+    assert "Nobody Knows" in rendered, "The author record with no account is displayed"
+    assert f"modal-{unlinked_author.pk}" in rendered, "...with its own contacts modal"
+    assert "nobody@example.com" in rendered, "...showing the email of the author record"
+    assert "A biography from the TeX source." in rendered, "...and its biography"
+    assert owner.full_name() in rendered, "The author record of the owner is displayed too"
+    assert (
+        "https://bsky.app/profile/alice.bsky.social" in rendered
+    ), "The socials handle of an account is displayed as a bluesky URL"

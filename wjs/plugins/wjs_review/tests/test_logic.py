@@ -21,6 +21,7 @@ from django.core.files import File
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.forms import models as model_forms
 from django.http import HttpRequest
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import formats, timezone, translation
 from django.utils.timezone import localtime, now
@@ -29,6 +30,10 @@ from faker import Faker
 from journal import models as journal_models
 from plugins.wjs_review.logic__production import reunite_divided_kwds
 from plugins.wjs_review.synctex.forms import (
+    AuthorsMapper,
+    CreateCorrespondenceForm,
+    DeleteAuthorRecordForm,
+    OrphanAuthorRow,
     SyncAuthorsForm,
     SyncCollaborationsForm,
     SyncKeywordsForm,
@@ -50,7 +55,7 @@ from typesetting.models import TypesettingAssignment, TypesettingRound
 from utils import setting_handler
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.models import Correspondence, JCOMProfile
 from wjs.jcom_profile.utils import (
     generate_token,
     get_eo_user,
@@ -4770,19 +4775,30 @@ def test_sync_forms_enrichment(
     form_titleabstract = SyncTitleAbstractForm(texdata, data={"action": "sync_titleabstract"})
     assert form_titleabstract.tex_abstract == "a b"
 
-    form_authors = SyncAuthorsForm(texdata, data={"action": "sync_authors"})
+    mapper = AuthorsMapper(texdata)
     # Interesting fact: the system does not fail even if the authors are not ordered
     #                   but, of course, the order is not guaranteed
     assert set(
-        form_authors.authors_db.values_list("id", flat=True),
+        mapper.authors_db.values_list("author_id", flat=True),
     ) == set(
         article.author_accounts.all().values_list("id", flat=True),
-    )
-    assert len(form_authors.authors_errors) == 0
-    assert len(form_authors.authors_map) == 1
-    assert form_authors.authors_map[0].account_id == author.pk
-    assert not form_authors.authors_map[0].similar_accounts
-    assert not form_authors.authors_map[0].must_be_created
+    ), "The author records of the paper (and not its accounts) are the DB side of the mapping"
+    # The TeX lists only one of the two authors of this article
+    assert len(mapper.errors_db) == 1
+    assert "TeX and DB authors list differ" in str(mapper.errors_db[0])
+    assert len(mapper.authors_map) == 1
+    assert mapper.authors_map[0].account_id == author.pk
+    assert mapper.authors_map[0].is_sure_match
+    assert not mapper.authors_map[0].similar_accounts
+    assert not mapper.authors_map[0].must_be_created
+    # ...so the other author of the paper must be taken care of
+    assert len(mapper.orphan_authors) == 1
+    assert mapper.orphan_authors[0].account_id != author.pk
+    # One TeX author, surely mapped onto one account: one choice only, and it is selected
+    form_authors = SyncAuthorsForm(mapper)
+    assert len(form_authors.sections) == 1
+    assert len(form_authors.sections[0].rows) == 1
+    assert form_authors.fields["author_0"].initial == str(author.pk)
 
     form_keywords = SyncKeywordsForm(texdata, data={"action": "sync_keywords"})
     assert list(
@@ -4879,7 +4895,7 @@ def test_sync_texdb(
         "abstract": "new abstract",
         # We are going to keep only one kwd:
         "keywords": [new_keyword.word],
-        # We are going to drop the co-author and keep only one author:
+        # The authors are not synchronized in one go (see test_sync_texdb_authors):
         "authors_data": [
             {
                 "fullname": author.full_name(),
@@ -4896,15 +4912,402 @@ def test_sync_texdb(
     assert article.title == "new title"
     assert article.abstract == "new abstract"
 
-    form = SyncAuthorsForm(texdata, data={"action": "sync_authors"})
-    form.sync()
-    article.refresh_from_db()
-    assert set(article.author_accounts.all().values_list("id", flat=True)) == {author.pk}
-
     form = SyncKeywordsForm(texdata, data={"action": "sync_keywords"})
     form.sync()
     article.refresh_from_db()
     assert set(article.keywords.all().values_list("id", flat=True)) == {new_keyword.pk}
+
+
+def _texdata_two_authors(article, author):
+    """Return TeX data with two authors: the paper's owner and someone unknown to the DB."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": "",
+                "biography": "TeX biography",
+                "socials_handle": "@texhandle",
+            },
+            {
+                "fullname": "Nobody Knows Jr.",
+                "first_name": "Nobody",
+                "surname": "Knows",
+                "suffix": "Jr.",
+                "email": "nobody@example.com",
+                "orcid": "",
+            },
+        ],
+    }
+    return texdata
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors(
+    review_settings,
+    article_with_keywords: Article,
+    eo_user: JCOMProfile,
+):
+    """Delete the author records that the TeX does not know, then rebuild them from the TeX."""
+    article = article_with_keywords
+    author = article.owner
+    coauthor = article.author_accounts.exclude(id=author.id).get()
+    texdata = _texdata_two_authors(article, author)
+
+    mapper = AuthorsMapper(texdata)
+    # The owner is surely mapped (by email), the other TeX author is unknown to the DB, so the
+    # co-author of the paper must be taken care of.
+    assert [orphan.account_id for orphan in mapper.orphan_authors] == [coauthor.pk]
+    assert [tex_author.email for tex_author in mapper.unmatched_tex_authors] == ["nobody@example.com"]
+
+    # As long as there is an author to take care of, the author records cannot be rebuilt
+    sync_data = {"action": "sync_authors", "author_0": str(author.pk), "author_1": "new"}
+    form_authors = SyncAuthorsForm(mapper, data=sync_data)
+    assert not form_authors.can_sync()
+    assert form_authors.should_sync(), "The author records do not agree with the TeX source"
+    with pytest.raises(ValidationError):
+        form_authors.sync()
+
+    # The co-author is not an author of this paper: drop its author record
+    coauthor_record = submission_models.FrozenAuthor.objects.get(article=article, author=coauthor)
+    form_delete = DeleteAuthorRecordForm(
+        mapper,
+        data={"action": "delete_author_record", "author_record_id": coauthor_record.pk},
+    )
+    assert form_delete.sync().last_name == coauthor.last_name
+    assert coauthor not in article.author_accounts.all(), "The co-author is not an author anymore"
+
+    # Now the author records can be rebuilt from the TeX source
+    mapper = AuthorsMapper(texdata)
+    assert mapper.orphan_authors == []
+    form_authors = SyncAuthorsForm(mapper, data=sync_data)
+    assert form_authors.can_sync()
+    mail.outbox.clear()
+    form_authors.sync()
+
+    frozen_authors = list(article.frozen_authors())
+    assert [frozen_author.order for frozen_author in frozen_authors] == [0, 1], "The TeX order is kept"
+    assert [frozen_author.last_name for frozen_author in frozen_authors] == [author.last_name, "Knows"]
+    assert frozen_authors[0].author == author, "The mapped author record is linked to its account"
+    assert frozen_authors[0].frozen_biography == "TeX biography"
+    assert frozen_authors[1].author is None, 'The "new" author record is not linked to any account'
+    assert frozen_authors[1].name_suffix == "Jr.", "The suffix recognized in the TeX name is kept"
+    assert not SyncAuthorsForm(
+        AuthorsMapper(texdata),
+    ).should_sync(), "The author records now agree with the TeX source"
+
+    # The new co-author, that has no account, has been notified at the email of the TeX source...
+    assert [message.to for message in mail.outbox] == [["nobody@example.com"]]
+    assert not Account.objects.filter(email="nobody@example.com").exists(), "No account has been created"
+    # ...and the notification has been logged as a (read) message to the EO, so that it is not
+    # "generic", i.e. visible to anybody who can see the messages of the paper
+    notification = Message.objects.latest("created")
+    assert list(notification.recipients.all()) == [eo_user.janeway_account]
+    assert notification.messagerecipients_set.get().read
+    assert notification.read_by_eo
+    assert "Nobody Knows Jr." in notification.body, "The notification names the new co-author"
+
+    # Rebuilding the author records again does not notify the same co-author twice
+    mail.outbox.clear()
+    SyncAuthorsForm(AuthorsMapper(texdata), data=sync_data).sync()
+    assert mail.outbox == [], "Nobody is a new co-author anymore"
+    author.refresh_from_db()
+    assert author.twitter == "@texhandle", "The socials handle is stored onto the account"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors_correspondence(
+    article_with_keywords: Article,
+):
+    """Map an author of the paper onto the email of a TeX author, to make the match sure."""
+    article = article_with_keywords
+    author = article.owner
+    coauthor = article.author_accounts.exclude(id=author.id).get()
+    texdata = _texdata_two_authors(article, author)
+    mapper = AuthorsMapper(texdata)
+
+    coauthor_record = submission_models.FrozenAuthor.objects.get(article=article, author=coauthor)
+    form_correspondence = CreateCorrespondenceForm(
+        mapper,
+        data={
+            "action": "create_correspondence",
+            "author_record_id": coauthor_record.pk,
+            "email": "nobody@example.com",
+        },
+    )
+    correspondence = form_correspondence.sync()
+    assert correspondence.account == coauthor
+    assert correspondence.email == "nobody@example.com"
+    assert correspondence.source == "tex"
+    assert correspondence.user_cod == 1, "The user_cod is the order of the author in the TeX source"
+    assert correspondence.notes == article.articleworkflow.preprint_id
+
+    # The second TeX author is now surely mapped onto the co-author: nothing left to take care of
+    mapper = AuthorsMapper(texdata)
+    assert mapper.orphan_authors == []
+    assert mapper.authors_map[1].account_id == coauthor.pk
+    assert mapper.authors_map[1].is_sure_match
+
+    form_authors = SyncAuthorsForm(
+        mapper,
+        data={"action": "sync_authors", "author_0": str(author.pk), "author_1": str(coauthor.pk)},
+    )
+    assert form_authors.can_sync()
+    form_authors.sync()
+    frozen_authors = list(article.frozen_authors())
+    assert [frozen_author.author for frozen_author in frozen_authors] == [author, coauthor]
+    assert [frozen_author.last_name for frozen_author in frozen_authors] == [author.last_name, "Knows"]
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors_orphan_without_account(
+    article_with_keywords: Article,
+):
+    """An author record with no account that the TeX does not know must be taken care of, too."""
+    article = article_with_keywords
+    author = article.owner
+    coauthor = article.author_accounts.exclude(id=author.id).get()
+    submission_models.FrozenAuthor.objects.filter(article=article, author=coauthor).delete()
+    # An author record with no account, e.g. one created by a previous sync of an unknown TeX author
+    unlinked_record = submission_models.FrozenAuthor.objects.create(
+        article=article,
+        author=None,
+        order=9,
+        first_name="Nobody",
+        last_name="Knows",
+        frozen_email="nobody@example.com",
+    )
+    # The TeX knows only the owner of the paper
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": "",
+            },
+        ],
+    }
+
+    mapper = AuthorsMapper(texdata)
+    orphan = mapper.orphan_authors[0]
+    assert [record.pk for record in mapper.orphan_authors] == [unlinked_record.pk], "The record has no counterpart"
+    assert orphan.account_id is None
+    assert not SyncAuthorsForm(mapper).can_sync(), "The author records cannot be rebuilt until it is dealt with"
+    assert not CreateCorrespondenceForm(
+        mapper,
+        author_record=orphan,
+    ).is_usable, "There is no account to map onto a TeX email: the record can only be deleted"
+
+    DeleteAuthorRecordForm(
+        mapper,
+        data={"action": "delete_author_record", "author_record_id": unlinked_record.pk},
+    ).sync()
+    assert AuthorsMapper(texdata).orphan_authors == []
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors_candidate_orcid(
+    review_settings,
+    article_with_keywords: Article,
+    create_jcom_user: Callable,
+):
+    """Refuse a candidate whose orcid contradicts the TeX one."""
+    article = article_with_keywords
+    author = article.owner
+    coauthor = article.author_accounts.exclude(id=author.id).get()
+    # Get rid of the author that the TeX does not know, or the sync would be refused for that
+    submission_models.FrozenAuthor.objects.filter(article=article, author=coauthor).delete()
+
+    # Two accounts with the same name: the TeX author can only be matched by name, so they are
+    # both just candidates.
+    homonym_with_orcid = create_jcom_user("jane_one").janeway_account
+    homonym_with_orcid.first_name, homonym_with_orcid.last_name = "Jane", "Doe"
+    homonym_with_orcid.orcid = "0000-0001-1825-0097"
+    homonym_with_orcid.save()
+    homonym_without_orcid = create_jcom_user("jane_two").janeway_account
+    homonym_without_orcid.first_name, homonym_without_orcid.last_name = "Jane", "Doe"
+    homonym_without_orcid.orcid = ""
+    homonym_without_orcid.save()
+
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": "",
+            },
+            {
+                "fullname": "Jane Doe",
+                "first_name": "Jane",
+                "surname": "Doe",
+                "email": "jane@example.com",
+                "orcid": "0000-0002-1825-0097",
+            },
+        ],
+    }
+    mapper = AuthorsMapper(texdata)
+    assert mapper.orphan_authors == []
+    assert not mapper.authors_map[1].is_sure_match, "The TeX author is matched by name only"
+    assert len(mapper.authors_map[1].similar_accounts) == 2
+
+    # The candidate that declares another orcid is marked, and it cannot be selected
+    form_authors = SyncAuthorsForm(mapper)
+    conflicting_rows = [row for row in form_authors.sections[1].rows if row.orcid_conflict]
+    assert [row.db_author.pk for row in conflicting_rows] == [homonym_with_orcid.pk]
+    assert form_authors.fields["author_1"].widget.disabled_values == frozenset({str(homonym_with_orcid.pk)})
+    assert "disabled" in str(conflicting_rows[0].radio), "The radio of that candidate is disabled"
+
+    # The candidate declares another orcid: this is the wrong account
+    form_authors = SyncAuthorsForm(
+        mapper,
+        data={
+            "action": "sync_authors",
+            "author_0": str(author.pk),
+            "author_1": str(homonym_with_orcid.pk),
+        },
+    )
+    with pytest.raises(ValidationError, match="orcid"):
+        form_authors.sync()
+
+    # The other candidate has no orcid, so there is nothing contradicting the TeX
+    form_authors = SyncAuthorsForm(
+        mapper,
+        data={
+            "action": "sync_authors",
+            "author_0": str(author.pk),
+            "author_1": str(homonym_without_orcid.pk),
+        },
+    )
+    mail.outbox.clear()
+    form_authors.sync()
+    frozen_authors = list(article.frozen_authors())
+    assert [frozen_author.author for frozen_author in frozen_authors] == [author, homonym_without_orcid]
+
+    # The chosen account was not an author of this paper: it is a new co-author, and it is notified
+    # as usual, i.e. as a recipient of the message
+    assert [message.to for message in mail.outbox] == [[homonym_without_orcid.email]]
+    notification = Message.objects.latest("created")
+    assert list(notification.recipients.all()) == [homonym_without_orcid]
+    assert notification.read_by_eo
+
+    # Linking a candidate also maps it onto the TeX email, so that the next sync knows it for sure
+    correspondence = Correspondence.objects.get(account=homonym_without_orcid, source="tex")
+    assert correspondence.email == "jane@example.com"
+    assert correspondence.user_cod == 1
+    assert correspondence.notes == article.articleworkflow.preprint_id
+    assert AuthorsMapper(texdata).authors_map[1].is_sure_match, "The TeX author is now surely mapped"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors_sure_match_orcid(
+    article_with_keywords: Article,
+):
+    """Refuse a sure match that declares another orcid, and do not let it be selected."""
+    article = article_with_keywords
+    author = article.owner
+    coauthor = article.author_accounts.exclude(id=author.id).get()
+    # Get rid of the author that the TeX does not know, or the sync would be refused for that
+    submission_models.FrozenAuthor.objects.filter(article=article, author=coauthor).delete()
+    author.orcid = "0000-0001-1825-0097"
+    author.save()
+
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                # The email makes this a sure match, but the orcid contradicts the account
+                "email": author.email,
+                "orcid": "0000-0002-1825-0097",
+            },
+        ],
+    }
+    mapper = AuthorsMapper(texdata)
+    assert mapper.authors_map[0].is_sure_match
+
+    form_authors = SyncAuthorsForm(mapper)
+    row = form_authors.sections[0].rows[0]
+    assert row.orcid_conflict, "The orcid of the account is marked as contradicting the TeX one"
+    assert form_authors.fields["author_0"].widget.disabled_values == frozenset({str(author.pk)})
+    assert "disabled" in str(row.radio), "The only choice of this TeX author cannot be selected"
+
+    # ...so the update is refused, even though nothing can be selected
+    with pytest.raises(ValidationError, match="orcid"):
+        SyncAuthorsForm(mapper, data={"action": "sync_authors"}).sync()
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors_socials_handle(
+    article_with_keywords: Article,
+):
+    """Refuse to sync when the socials handle of the TeX is not a handle."""
+    article = article_with_keywords
+    author = article.owner
+    coauthor = article.author_accounts.exclude(id=author.id).get()
+    texdata = _texdata_two_authors(article, author)
+    texdata.data["authors_data"][0]["socials_handle"] = "texhandle"
+    # Get rid of the author that the TeX does not know, or the sync would be refused for that
+    submission_models.FrozenAuthor.objects.filter(article=article, author=coauthor).delete()
+
+    form_authors = SyncAuthorsForm(
+        AuthorsMapper(texdata),
+        data={"action": "sync_authors", "author_0": str(author.pk), "author_1": "new"},
+    )
+    assert form_authors.can_sync()
+    with pytest.raises(ValidationError, match="socials handle"):
+        form_authors.sync()
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors_template(
+    article_with_keywords: Article,
+):
+    """Display one section per TeX author, plus the section of the authors to take care of."""
+    article = article_with_keywords
+    author = article.owner
+    coauthor = article.author_accounts.exclude(id=author.id).get()
+    texdata = _texdata_two_authors(article, author)
+    mapper = AuthorsMapper(texdata)
+    rendered = render_to_string(
+        "wjs_review/sync_texdb/authors.html",
+        {
+            "form_authors": SyncAuthorsForm(mapper),
+            "orphan_author_rows": [
+                OrphanAuthorRow(
+                    author_record=orphan,
+                    delete_form=DeleteAuthorRecordForm(mapper, author_record=orphan),
+                    correspondence_form=CreateCorrespondenceForm(mapper, author_record=orphan),
+                )
+                for orphan in mapper.orphan_authors
+            ],
+            "authors_errors_db": mapper.errors_db,
+            "authors_errors_tex": mapper.errors_tex,
+            "update_label": "Update",
+        },
+    )
+    assert "TeX and DB authors list differ" in rendered, "The two authors lists differ"
+    coauthor_record = submission_models.FrozenAuthor.objects.get(article=article, author=coauthor)
+    assert f'value="{coauthor_record.pk}"' in rendered, "The record of the co-author must be taken care of"
+    assert "nobody@example.com" in rendered, "Its correspondence can use the unmatched TeX email"
+    assert "TeX biography" in rendered, "The TeX biography is displayed"
+    assert "@texhandle" in rendered, "The TeX socials handle is displayed"
+    assert 'name="author_0"' in rendered, "Each TeX author has its own radio group"
+    assert "A new author record will be created" in rendered, "The unknown TeX author gets a new record"
+    assert (
+        rendered.count("bi-envelope-plus") == 1
+    ), "Only the unknown TeX author would add (and notify) a new co-author"
+    assert "disabled" in rendered, "Updating is not possible while there are authors to take care of"
 
 
 @pytest.mark.django_db

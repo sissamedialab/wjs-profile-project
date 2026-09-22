@@ -232,6 +232,21 @@ def ensure_https(url: str):
 
 
 @register.filter
+def bluesky_url(handle: str) -> str:
+    """
+    Return the URL of a bluesky profile, given its handle.
+
+    The handles extracted from the TeX sources start with "@" (see the sync TeX/DB page), but the
+    field that stores them (Account.twitter) used to hold a full URL, so leave those alone.
+    """
+    if not handle:
+        return ""
+    if handle.startswith(("http://", "https://")):
+        return handle
+    return f"https://bsky.app/profile/{handle.lstrip('@')}"
+
+
+@register.filter
 def description(article):
     """Given an Article, returns the meta tag "description" value"""
     # Strip HTML tags and get at most 320 characters
