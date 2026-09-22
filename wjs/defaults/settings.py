@@ -402,6 +402,11 @@ YAKUNIN_CONFIG = """
 timeout_compilation = 131
 """
 
+PROCESS_BODY_FUNCTION = {
+    None: "wjs.jcom_profile.import_utils._process_body_wjapp",
+    "JQuant": "wjs.jcom_profile.import_utils._process_body_jquant",
+}
+
 # Useful in development: set this to the path of a file that mimics what Jcomassistant would generate.
 # See TypesetterTestsGalleyGeneration._mock_jcom_assistant_client()
 JCOMASSISTANT_MOCK_FILE = ""

@@ -1,5 +1,6 @@
 """Test some parts of the command that imports JCOM articles from Drupal."""
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -38,14 +39,13 @@ class TestImport:
 
         """
         body = """<html id="main_article" lang="en" xml:lang="en"><body><p class="noindent">ciao</p></body></html>"""
-        style = None
         lang = "eng"
 
         # Not sure why, but if this is at the top of the file, pytest
         # complains about missing access to the DB...
         from wjs.jcom_profile.import_utils import process_body
 
-        processed_body: bytes = process_body(body=body, style=style, lang=lang)
+        processed_body: bytes = process_body(body=body, journal="JCOM", lang=lang)
         processed_body_element = lxml.html.fromstring(processed_body)
         assert processed_body_element.tag == "div"
         expected_attributes = (("id", "main_article"), ("lang", "en"), ("xml:lang", "en"))
@@ -67,22 +67,66 @@ class TestImport:
         process_body() function, not only on the drop-html part.
 
         """
+        from wjs.jcom_profile.import_utils import process_body
+
         here = Path(os.path.abspath(__file__)).parent
         galley_1234 = here / "aux" / "326ef1f7-7246-4bd4-9087-002c208709ea.html"
         with open(galley_1234) as galley_file:
-            # Not sure why, but if this is at the top of the file, pytest
-            # complains about missing access to the DB...
-            from wjs.jcom_profile.import_utils import process_body
-
-            style = None
             lang = "eng"
-            processed_body: bytes = process_body(body=galley_file.read(), style=style, lang=lang)
+            processed_body: bytes = process_body(body=galley_file.read(), journal="JCOM", lang=lang)
 
         expected_result = here / "aux" / "326ef1f7-7246-4bd4-9087-002c208709ea__processed.html"
         with open(expected_result, "rb") as expected_result_file:
             expected_body = expected_result_file.read()
 
         assert processed_body == expected_body
+
+    @pytest.mark.django_db
+    def test_process_jquant_body_drops_html_real_galley(self, tmp_path):
+        """Test that tags <html> and <body> are droppend from the galley.
+
+        Use a real galley from article.id 1234 and compare with a known result.
+
+        NB: The result of this test depends on the complete
+        process_body() function, not only on the drop-html part.
+
+        """
+        import re
+
+        from wjs.jcom_profile.import_utils import process_body
+
+        here = Path(os.path.abspath(__file__)).parent
+        galley_1234 = here / "aux" / "jquant.html"
+        with open(galley_1234) as galley_file:
+            lang = "eng"
+            processed_body: bytes = process_body(body=galley_file.read(), journal="JQuant", lang=lang)
+
+        expected_result = here / "aux" / "jquant__processed.html"
+        with open(expected_result, "rb") as expected_result_file:
+            expected_body = expected_result_file.read()
+
+        # `expected_body` has no <head>/<meta charset> (drop_frontmatter() strips <head>), so
+        # lxml.html.fromstring() has no way to detect its encoding from raw bytes and falls back
+        # to Latin-1, mangling the file's literal UTF-8 characters. Decode explicitly instead.
+        expected_tree = lxml.html.fromstring(expected_body.decode("utf-8"))
+        processed_tree = lxml.html.fromstring(processed_body.decode("utf-8"))
+
+        expected_body = lxml.html.tostring(expected_tree, pretty_print=True)
+        processed_body = lxml.html.tostring(processed_tree, pretty_print=True)
+
+        # `pretty_print=True` re-indents `expected_body` (already pretty-printed on disk) and
+        # `processed_body` (freshly generated, compact) differently, so raw byte comparison is
+        # too strict. Collapse insignificant whitespace on both sides before comparing.
+        expected_body = re.sub(rb">\s+<", rb"><", expected_body)
+        processed_body = re.sub(rb">\s+<", rb"><", processed_body)
+
+        expected_body = re.sub(rb"\s+", rb" ", expected_body)
+        processed_body = re.sub(rb"\s+", rb" ", processed_body)
+
+        # comparing hashes is much faster that comparing large strings, as we lose diff, one might want to switch
+        # to full string comparison to have debug information
+        assert hashlib.sha256(expected_body).hexdigest() == hashlib.sha256(processed_body).hexdigest()
+        # assert expected_body == processed_body  # noqa: E800
 
     @pytest.mark.django_db
     @pytest.mark.parametrize(
@@ -213,11 +257,10 @@ e foi amplamente rebatida pela imprensa a partir de evid&#234;ncias cient&#237;f
     def test_process_body_does_not_add_spaces(self):
         """Test that process_body does introduction spurious spaces."""
         body = """<html id="main_article" lang="en" xml:lang="en"><body><p class="noindent">ciao [<a href="#">Name, 2000</a>] bel</p></body></html>"""  # noqa E501
-        style = "wjapp"  # important!
         lang = "eng"
         from wjs.jcom_profile.import_utils import process_body
 
-        processed_body: bytes = process_body(body=body, style=style, lang=lang)
+        processed_body: bytes = process_body(body=body, journal="JCOM", lang=lang)
         processed_body_element = lxml.html.fromstring(processed_body)
         assert processed_body_element.find(".//p").text_content() == "ciao [Name, 2000] bel"
 
@@ -226,11 +269,10 @@ e foi amplamente rebatida pela imprensa a partir de evid&#234;ncias cient&#237;f
         """Test that process_body does introduction spurious spaces, but they are maintained."""
         body = """<html id="main_article" lang="en" xml:lang="en"><body><p class="noindent">ciao [ <a href="#">Name, 2000</a>
         ] bel</p></body></html>"""  # noqa E501
-        style = "wjapp"  # important!
         lang = "eng"
         from wjs.jcom_profile.import_utils import process_body
 
-        processed_body: bytes = process_body(body=body, style=style, lang=lang)
+        processed_body: bytes = process_body(body=body, journal="JCOM", lang=lang)
         processed_body_element = lxml.html.fromstring(processed_body)
         assert processed_body_element.find(".//p").text_content() == "ciao [ Name, 2000\n        ] bel"
 

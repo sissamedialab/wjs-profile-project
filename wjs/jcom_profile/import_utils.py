@@ -11,6 +11,7 @@ import requests
 from core.models import Account, Country
 from django.conf import settings
 from django.db.models import OuterRef, QuerySet, Subquery
+from django.utils.module_loading import import_string
 from lxml.html import HtmlElement
 from submission import models as submission_models
 from submission.models import Article, ArticleAuthorOrder
@@ -384,9 +385,35 @@ def promote_headings(html: HtmlElement):
             heading.tag = f"h{level - 1}"
 
 
-def drop_toc(html: HtmlElement):
+def drop_tableofcontents(html: HtmlElement):
     """Drop the "manual" TOC present in Drupal body content."""
     tocs = html.find_class("tableofcontents")
+    if len(tocs) == 0:
+        logger.warning("No TOC in WRITEME!!!")
+        return
+
+    if len(tocs) > 1:
+        logger.error("Multiple TOCs in WRITEME!!!")
+
+    tocs[0].drop_tree()
+
+
+def drop_header(html: HtmlElement):
+    """Drop the header/front matter present in JQuant body content."""
+    headers = html.xpath(".//header")
+    if len(headers) == 0:
+        logger.warning("No header in HTML.")
+        return
+
+    if len(headers) > 1:
+        logger.error("Multiple headers in HTML.")
+
+    headers[0].drop_tree()
+
+
+def drop_toc(html: HtmlElement):
+    """Drop the "manual" TOC present in JQuant body content."""
+    tocs = html.find_class("toc")
     if len(tocs) == 0:
         logger.warning("No TOC in WRITEME!!!")
         return
@@ -549,8 +576,41 @@ def standalone_html_to_fragment(html_element: HtmlElement):
     html_element.find(".//body").drop_tag()
 
 
-def process_body(body: str, style=None, lang="eng") -> bytes:
+def standalone_jquant_html_to_fragment(html_element: HtmlElement) -> HtmlElement:
+    """Return the tree inside <body>, if present; otherwise return the original element."""
+    body_elements = html_element.xpath("//body")
+    if not body_elements:
+        logger.debug("No <body> tag found. Nothing to do.")
+        return html_element
+
+    fragment = lxml.html.Element("div")
+    body = body_elements[0]
+
+    fragment.text = body.text
+    body.text = None
+    for child in body:
+        fragment.append(child)
+
+    return fragment
+
+
+def process_body(body: str, journal, lang="eng") -> bytes:
     """Rewrite and adapt body / full-text HTML to match Janeway's expectations.
+
+    Take care of
+    - TOC (heading levels)
+    - how-to-cite
+
+    Images included in body are done elsewhere since they require an existing galley.
+    """
+    _process_function = import_string(
+        settings.PROCESS_BODY_FUNCTION.get(journal, settings.PROCESS_BODY_FUNCTION[None])
+    )
+    return _process_function(body, lang=lang)
+
+
+def _process_body_wjapp(body: str, lang="eng") -> bytes:
+    """Rewrite and adapt body / full-text HTML to match Janeway's expectations for wjapp styles HTML.
 
     Take care of
     - TOC (heading levels)
@@ -566,11 +626,32 @@ def process_body(body: str, style=None, lang="eng") -> bytes:
     html.set("id", "main_article")
     # - the headings that go in the toc must be h2-level, but Drupal has them at h3-level
     promote_headings(html)
-    drop_toc(html)
+    drop_tableofcontents(html)
     drop_how_to_cite(html, lang=lang)
-    if style == "wjapp":
-        drop_frontmatter(html)
-        remove_images_dimensions(html)
+    drop_frontmatter(html)
+    remove_images_dimensions(html)
+    return lxml.html.tostring(html)
+
+
+def _process_body_jquant(body: str, lang="eng") -> bytes:
+    """Rewrite and adapt body / full-text HTML to match Janeway's expectations for JQuant styles HTML.
+
+    Take care of
+    - TOC (heading levels)
+    - how-to-cite
+
+    Images included in body are done elsewhere since they require an existing galley.
+    """
+    html = standalone_jquant_html_to_fragment(lxml.html.fromstring(body))
+
+    # src/themes/material/assets/toc.js expects
+    # - the root element of the article must have id="main_article"
+    html.set("id", "main_article")
+    # - the headings that go in the toc must be h2-level, but Drupal has them at h3-level
+    promote_headings(html)
+    drop_toc(html)
+    drop_header(html)
+    remove_images_dimensions(html)
     return lxml.html.tostring(html)
 
 
