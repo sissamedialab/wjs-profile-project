@@ -309,6 +309,49 @@ WJAPP_JCAP_IMPORT_ARCHIVE_CURRENT_DEDUP = ""
 WJAPP_JCAP_IMPORT_ARCHIVE_OLD_DEDUP = ""
 WJAPP_JCAP_IMPORT_DEDUP_SCRIPT = ""
 
+# Jp-SGP bridge (issue #2949): lets a logged-in WJS user be redirected to Jp's "myPayments"
+# form, identified via a short-lived cookie, and lets Jp resolve a WJS account id to its SGP
+# code via the services/getSGPcodfpf.jsp endpoint. The URL path, cookie name and lack of any
+# token/auth check match what Jp already used/expected with the old wjapp system
+# (jp.identity_jsp), so Jp itself needs no changes.
+
+# Cookie shared between WJS and Jp to carry the WJS account id across the redirect
+# (jpbridge/views_mypayments.py). In production WJS and Jp live under the exact same
+# domain, so this is only meant for local/test setups that need a shared parent domain
+# across two different hosts, e.g. ".dev.local"; MyPaymentsView ignores this and always
+# uses None (same-host cookie) unless DEBUG is on, so it can't leak into a real deployment.
+WJS_COOKIE_DOMAIN = None
+# Cookie lifetime in seconds: it only needs to survive the redirect to Jp, so keep it short.
+WJS_IDENTITY_COOKIE_MAX_AGE = 300
+
+# Jp base URL to redirect to, one entry per journal code (jpbridge/views_mypayments.py).
+# JCOM and JCOMAL never have payments/Jp; the others point at the real production Jp.
+#
+# For local testing without a real Jp instance, override the journal(s) you're testing
+# in your personal settings to point at jpbridge/views_fake_jp.py's FakeJpView instead,
+# e.g. WJS_JP_URLS = {"JCAP": "http://jcap.local:8000/fake-jp/"} - this simulates the Jp
+# side of the flow end-to-end (reads the identity cookie, calls back
+# services/getSGPcodfpf.jsp) without needing a real Jp deployment.
+WJS_JP_URLS = {
+    "JCOM": None,
+    "JCOMAL": None,
+    "JQuant": None,
+    "JCAP": "https://jcap.sissa.it/jp/intro",
+    "JINST": "https://jinst.sissa.it/jp/intro",
+    "JSTAT": "https://jstat.sissa.it/jp/intro",
+    "JHEP": "https://jhep.sissa.it/jp/intro",
+}
+
+# MariaDB connection to the external "pagamenti" database that holds the `spedizioni` table
+# (used to check that a user's SGP code has been notified) and the `all_users` table
+# (used by the import_sgp_correspondence management command).
+PROD_DB_PAG_CONNECTION_PARAMS = {
+    "user": "",
+    "password": "",
+    "host": "",
+    "database": "",
+}
+
 NO_NOTIFICATION = False
 
 ENABLE_FULL_TEXT_SEARCH = True
