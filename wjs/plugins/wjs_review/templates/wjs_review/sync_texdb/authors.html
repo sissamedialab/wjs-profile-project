@@ -1,104 +1,195 @@
-{% load django_bootstrap5 i18n %}
-<div class="mb-3">
-  <div>
-    <div class="d-flex flex-row justify-content-between mb-3">
-      <div>
-        <p>{% translate "TeX - this the source of truth" %}:</p>
-        <ol>
-          {% for a in authors_tex %}
-            <li>
-              {{ a.first_name }} |
-              {{ a.surname }}
-              <br>
-              <span class="fw-light">
-                ({{ a.email }})
-              {{ a.orcid }}</span>
-            </li>
-          {% endfor %}
-        </ol>
+{% load i18n %}
+<style>
+  .sync-authors tr.actions-row > td { border-top: 0; padding-top: 0; }
+  .sync-authors td, .sync-authors th { vertical-align: top; }
+  .sync-authors .tex-warning { white-space: pre-line; }
+</style>
+<div class="sync-authors">
+  {% if orphan_author_rows %}
+    <h3 class="fs-6 fw-bolder">{% translate "Authors of the paper that the TeX source does not know" %}</h3>
+    <p>
+      {% translate "Either they are not authors of this paper (delete their author record), or the TeX source knows them with another email (create a correspondence). The authors cannot be updated until this list is empty." %}
+    </p>
+    {% if authors_errors_db %}
+      <div class="alert alert-warning" role="alert">
+        <ul class="mb-0">
+          {% for error in authors_errors_db %}<li>{{ error }}</li>{% endfor %}
+        </ul>
       </div>
-      <div>
-        <p>{% translate "proposed mapping" %}:</p>
-        <ol>
-          {% for a in authors_map %}
-            <li>
-              {{ a.first_name }} |
-              {{ a.last_name }}
-              {# mappings with must_be_created=True and those who have a warning do not have account_id #}
-              {% if a.account_id %}
-                <a href="{% url 'core_user_edit' user_id=a.account_id %}"
-                   class="text-decoration-none">{{ a.account_id }}</a>
+    {% endif %}
+    <table class="table table-sm mb-4">
+      <thead>
+        <tr class="small text-muted">
+          <th scope="col">{% translate "First name" %}</th>
+          <th scope="col">{% translate "Last name" %}</th>
+          <th scope="col">{% translate "Email" %}</th>
+          <th scope="col">{% translate "ORCID" %}</th>
+          <th scope="col">{% translate "Biography" %}</th>
+          <th scope="col">{% translate "Socials handle" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in orphan_author_rows %}
+          <tr>
+            <td>
+              {% if row.author_record.account_id %}
+                <a href="{% url 'core_user_edit' user_id=row.author_record.account_id %}"
+                   class="text-decoration-none"
+                   title="{{ row.author_record.account_id }}"
+                   target="_blank">{{ row.author_record.first_name }}</a>
+              {% else %}
+                {{ row.author_record.first_name }}
+                <div class="small text-muted">{% translate "no account" %}</div>
               {% endif %}
-              <br>
-              <span class="fw-light">
-                ({{ a.email }})
-              {{ a.orcid|default:"" }}</span>
-              {% if a.warning %}
-                <p>
-                  <span class="text-danger">{{ a.warning }}</span>
-                </p>
+            </td>
+            <td>{{ row.author_record.last_name }}</td>
+            <td>
+              {{ row.author_record.email }}
+              {% if row.author_record.institution or row.author_record.country %}
+                <div class="small text-muted">{{ row.author_record.institution }} {{ row.author_record.country }}</div>
               {% endif %}
-              {% if a.similar_accounts %}
-                <ul>
-                  {% for sa in a.similar_accounts %}
-                    <li>
-                      <a href="{% url 'core_user_edit' user_id=sa.pk %}"
-                         class="text-decoration-none"
-                         title="{{ sa.pk }}"
-                         target="_blank">{{ sa.first_name }} {{ sa.last_name }}</a>
-                      <span class="fw-light">({{ sa.email }})</span>
-                      {% if sa.country or sa.institution %}
-                        <br />
-                        <span>{{ sa.country }} <i class="bi bi-globe2"></i> {{ sa.institution }}</span>
-                      {% endif %}
-                      {% if sa.link_to_mapping %}
-                        <br />
-                        <a href="{{ sa.link_to_mapping }}" target="_blank">map</a>
-                      {% endif %}
-                    </li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-              {% if a.must_be_created %}
-                <p>
-                  <span class="text-danger">{% translate "A new account will be created and an email will be sent to the new user!" %}</span>
-                </p>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ol>
-      </div>
-      <div>⇨</div>
-      <div>
-        <p>{% translate "DB:" %}</p>
-        <ol>
-          {% for a in authors_db %}
-            <li>
-              {{ a.first_name }}
-              {{ a.last_name }}
-              <a href="{% url 'core_user_edit' user_id=a.id %}"
-                 class="text-decoration-none">{{ a.id }}</a>
-              <br>
-              <span class="fw-light">
-                ({{ a.email }})
-              {{ a.orcid|default:"" }}</span>
-            </li>
-          {% endfor %}
-        </ol>
-      </div>
+            </td>
+            <td>{{ row.author_record.orcid }}</td>
+            <td>
+              <textarea class="form-control form-control-sm" rows="2" readonly>{{ row.author_record.biography }}</textarea>
+            </td>
+            <td>{{ row.author_record.socials_handle }}</td>
+          </tr>
+          <tr class="actions-row">
+            <td colspan="6">
+              <div class="d-flex flex-row gap-4 align-items-start">
+                <form name="delete_author_record" method="post">
+                  {% csrf_token %}
+                  {{ row.delete_form.action }}
+                  {{ row.delete_form.author_record_id }}
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash"></i> {% translate "Delete" %}
+                  </button>
+                </form>
+                {% if row.correspondence_form.is_usable %}
+                  <form name="create_correspondence" method="post">
+                    {% csrf_token %}
+                    {{ row.correspondence_form.action }}
+                    {{ row.correspondence_form.author_record_id }}
+                    <div class="d-flex flex-row gap-3 align-items-start">
+                      <div>
+                        {% for radio in row.correspondence_form.email %}<div>{{ radio }}</div>{% endfor %}
+                      </div>
+                      <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-link"></i> {% translate "Create correspondence" %}
+                      </button>
+                    </div>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+  <h3 class="fs-6 fw-bolder">{% translate "Authors of the TeX source" %}</h3>
+  <p>
+    {% translate "The TeX source is the source of truth: updating drops every author record of the paper and creates a new one per TeX author, with the data of the TeX source. Choose the account that each new author record must be linked to." %}
+  </p>
+  {% if authors_errors_tex %}
+    <div class="alert alert-warning" role="alert">
+      <ul class="mb-0">
+        {% for error in authors_errors_tex %}<li>{{ error }}</li>{% endfor %}
+      </ul>
     </div>
-    <div>
-      {# NB: the authors-errors are registered as non-field form errors, so bootstrap_form shows them #}
-      <form name="sync_authors" method="post">
-        {% csrf_token %}
-        {% bootstrap_form form_authors %}
-        <button type="submit"
-                class="btn btn-primary"
-                value="1"
-                {% if form_authors.errors or not form_authors.should_sync %}disabled{% endif %}>
-          {{ update_label }}
-        </button>
-      </form>
-    </div>
-  </div>
+  {% endif %}
+  {% translate "An email will be sent to the new co-author. See settings add_coauthor_manually_*" as new_coauthor_title %}
+  {% translate "This orcid differs from the one of the TeX source: this account cannot be this author" as orcid_conflict_title %}
+  <form name="sync_authors" method="post">
+    {% csrf_token %}
+    {{ form_authors.action }}
+    {% for section in form_authors.sections %}
+      <div class="border rounded p-2 mb-4">
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr class="small text-muted">
+              <th scope="col" class="text-nowrap">
+                <span class="visually-hidden">{% translate "Use" %}</span>
+                {% if section.is_new_coauthor %}
+                  <span class="badge text-bg-warning" title="{{ new_coauthor_title }}">
+                    <i class="bi bi-envelope-plus"></i>
+                  </span>
+                {% endif %}
+              </th>
+              <th scope="col">{% translate "First name" %}</th>
+              <th scope="col">{% translate "Last name" %}</th>
+              <th scope="col">{% translate "Email" %}</th>
+              <th scope="col">{% translate "ORCID" %}</th>
+              <th scope="col">{% translate "Biography" %}</th>
+              <th scope="col">{% translate "Socials handle" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <span class="badge text-bg-primary">{% translate "TeX" %}</span>
+              </td>
+              <td>{{ section.tex_author.first_name }}</td>
+              <td>{{ section.tex_author.last_name }}</td>
+              <td>{{ section.tex_author.email }}</td>
+              <td>{{ section.tex_author.orcid }}</td>
+              <td>
+                <textarea class="form-control form-control-sm" rows="2" readonly>{{ section.tex_author.biography }}</textarea>
+              </td>
+              <td>{{ section.tex_author.socials_handle }}</td>
+            </tr>
+            {% for row in section.rows %}
+              <tr>
+                <td class="text-nowrap">
+                  {{ row.radio }}
+                  {% if row.db_author and section.mapping.warning %}
+                    <span class="badge text-bg-warning tex-warning" title="{{ section.mapping.warning }}">
+                      <i class="bi bi-exclamation-triangle"></i>
+                    </span>
+                  {% endif %}
+                </td>
+                {% if row.db_author %}
+                  <td>
+                    <a href="{% url 'core_user_edit' user_id=row.db_author.pk %}"
+                       class="text-decoration-none"
+                       title="{{ row.db_author.pk }}"
+                       target="_blank">{{ row.db_author.first_name }}</a>
+                  </td>
+                  <td>{{ row.db_author.last_name }}</td>
+                  <td>
+                    {{ row.db_author.email }}
+                    {% if row.db_author.institution or row.db_author.country %}
+                      <div class="small text-muted">{{ row.db_author.institution }} {{ row.db_author.country }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.orcid_conflict %}
+                      <span class="text-danger fw-bold" title="{{ orcid_conflict_title }}">{{ row.db_author.orcid }}</span>
+                    {% else %}
+                      {{ row.db_author.orcid }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    <textarea class="form-control form-control-sm" rows="2" readonly>{{ row.db_author.biography }}</textarea>
+                  </td>
+                  <td>{{ row.db_author.socials_handle }}</td>
+                {% else %}
+                  <td colspan="6" class="fst-italic">
+                    {% translate "A new author record will be created, not linked to any account." %}
+                  </td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+    <button type="submit"
+            class="btn btn-primary"
+            value="1"
+            {% if not form_authors.should_sync or not form_authors.can_sync %}disabled{% endif %}>
+      {{ update_label }}
+    </button>
+  </form>
 </div>
