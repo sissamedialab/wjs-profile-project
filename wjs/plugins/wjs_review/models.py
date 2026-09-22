@@ -1673,9 +1673,14 @@ class Message(TimeStampedModel):
             reply_url = self.journal.site_url(
                 reverse("wjs_message_reply", kwargs={"pk": workflow.pk, "original_message_pk": self.pk})
             )
-            show_authors = permissions.is_article_manager(workflow, recipient) or permissions.is_one_of_the_authors(
-                workflow, recipient
-            )
+            if isinstance(recipient, Account):
+                show_authors = permissions.is_article_manager(
+                    workflow, recipient
+                ) or permissions.is_one_of_the_authors(workflow, recipient)
+            else:
+                # The recipient has no account (see communication_utils.UnregisteredRecipient): it cannot be
+                # used in the permissions queries above (they query the DB with it), so it tells for itself.
+                show_authors = recipient.may_see_authors
             context["article"] = self.target
             context["show_authors"] = show_authors
             context["status_url"] = status_url
@@ -1718,12 +1723,16 @@ class Message(TimeStampedModel):
             "text": notification_body_text,
         }
 
-    def emit_notification(self, from_email: str | None = None):
+    def emit_notification(self, from_email: str | None = None, unregistered_recipients: list | None = None):
         """
         Send a notification.
 
         :param from_email: if it's None, the email from the setting general/from_address is used
         (which might be different from django setting DEFAULT_FROM_EMAIL).
+
+        :param unregistered_recipients: notify also these recipients, that have no Account (see
+        communication_utils.UnregisteredRecipient). Since Message.recipients can only point to
+        accounts, they receive the email but they are not recipients of the message.
 
         """
         if getattr(settings, "NO_NOTIFICATION", None):
@@ -1737,7 +1746,7 @@ class Message(TimeStampedModel):
         if not from_email:
             from_email = get_setting("general", "from_address", self.journal).processed_value
 
-        for recipient in self.recipients.all():
+        for recipient in [*self.recipients.all(), *(unregistered_recipients or [])]:
             body = self.render_message(recipient)
             subject = self.render_subject(recipient)
             send_mail(

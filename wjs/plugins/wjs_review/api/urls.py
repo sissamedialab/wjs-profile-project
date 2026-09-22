@@ -5,6 +5,7 @@ from .views import (
     ArticleGalleyView,
     ArticleZipDownloadView,
     CollaborationListView,
+    TypesetterPapersListView,
 )
 
 urlpatterns = [
@@ -16,5 +17,10 @@ urlpatterns = [
         "article/<int:pk>/galley/<str:file_type>/<int:sequence>/",
         ArticleGalleyView.as_view(),
         name="article-galley-seq",
+    ),
+    path(
+        "journal/<str:code>/typesetter/<int:typesetter_pk>/papers/",
+        TypesetterPapersListView.as_view(),
+        name="typesetter-papers",
     ),
 ]

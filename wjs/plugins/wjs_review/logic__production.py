@@ -1075,7 +1075,9 @@ class AttachGalleys:
         html_galley_text = open(html_galley_filename).read()
 
         galley_language = evince_language_from_filename_and_article(str(html_galley_filename), self.article)
-        processed_html_galley_as_bytes = process_body(html_galley_text, style="wjapp", lang=galley_language)
+        processed_html_galley_as_bytes = process_body(
+            html_galley_text, journal=self.article.journal.code, lang=galley_language
+        )
 
         name = "body.html"
         html_galley_file = File(BytesIO(processed_html_galley_as_bytes), name)

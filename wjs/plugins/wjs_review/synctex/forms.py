@@ -2,16 +2,17 @@
 
 import difflib
 import re
-from dataclasses import dataclass
-from urllib.parse import urlencode
+from dataclasses import dataclass, field
+from functools import cached_property
+from typing import TYPE_CHECKING
 
 import pycountry
 import requests
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.db.models import Case, IntegerField, OuterRef, QuerySet, Subquery, When
-from django.urls import reverse
+from django.db import transaction
+from django.db.models import Case, IntegerField, QuerySet, When
 from django.utils import translation
 from django.utils.html import escape
 from django.utils.text import slugify
@@ -33,7 +34,10 @@ from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
 from .. import communication_utils
 from ..logic__production import reunite_divided_kwds
-from ..models import Message
+from ..models import ArticleWorkflow, Message, MessageRecipients
+
+if TYPE_CHECKING:
+    from .logic import MetadataFromTeX
 
 Account = get_user_model()
 
@@ -641,86 +645,289 @@ class SyncKeywordsForm(forms.Form):
         return context
 
 
-class SyncAuthorsForm(forms.Form):
-    """
-    Form used to receive the green-light to synchronize the authors between TeX and DB.
+@dataclass
+class TexAuthor:
+    """An author as extracted from the TeX source."""
 
-    The mapping of the TeX authors onto DB accounts (and the related errors) is computed in
-    __init__; get_form_context_data() returns the data the view should merge into its template
-    context (the form itself included as ``form_authors``).
-    """
+    order: int
+    first_name: str
+    last_name: str
+    suffix: str
+    email: str
+    orcid: str
+    biography: str
+    socials_handle: str
 
-    action = forms.CharField(widget=forms.HiddenInput(), initial="sync_authors")
-
-    # TODO: refactor with data_extractor.Author (or drop?)
-    @dataclass
-    class SimilarAccount:
-        """Convenience."""
-
-        pk: int
-        last_name: str
-        first_name: str
-        email: str
-        orcid: str | None
-        country: str | None
-        institution: str | None
-        biography: str | None
-        link_to_mapping: str | None
-
-    @dataclass
-    class AuthorStruct:
-        """Convenience."""
-
-        last_name: str
-        first_name: str
-        email: str
-        orcid: str | None
-        extra_email: str | None
-        account_id: int | None
-        warning: str | None
-        similar_accounts: QuerySet[Account] | None = None
-        must_be_created: bool = False
-
-    def __init__(self, texdata, *args, **kwargs):
-        """Store the TeX data and compute the TeX/DB authors mapping."""
-        self.texdata = texdata
-        super().__init__(*args, **kwargs)
-        self.authors_tex = texdata.data.get("authors_data")
-        self.authors_db = self._get_db_authors()
-        self.authors_map = self._map_authors()
-        self.authors_errors = self._find_authors_errors()
-        # Register the problems as (non-field) form errors, so that the form does not validate.
-        for error in self.authors_errors:
-            self.add_error(None, error)
-
-    def _get_db_authors(self) -> QuerySet:
-        """
-        Get the article's authors.
-
-        Do not just use article.authors.all() because the order is not guaranteed.
-        """
-        article = self.texdata.workflow.article
-        subq = Subquery(
-            submission_models.FrozenAuthor.objects.filter(
-                article=article,
-                author__id=OuterRef("id"),
-            ).values_list("order"),
+    @classmethod
+    def from_payload(cls, order: int, data: dict) -> "TexAuthor":
+        """Build an instance from one item of jcomassistant's ``authors_data`` payload."""
+        return cls(
+            order=order,
+            first_name=data.get("first_name") or "",
+            last_name=data.get("surname") or "",
+            # jcomassistant recognizes the known suffixes (Jr., III, ...) of the author's fullname
+            suffix=data.get("suffix") or "",
+            email=data.get("email") or "",
+            orcid=data.get("orcid") or "",
+            # bibliography and socials are not used across all journals
+            biography=data.get("biography") or "",
+            socials_handle=data.get("socials_handle") or "",
         )
-        return article.author_accounts.all().annotate(order=subq).order_by("order")
 
-    def _map_authors(self) -> list["SyncAuthorsForm.AuthorStruct"]:
+    @property
+    def full_name(self) -> str:
+        """Return the name of this author (used to label the choices of a form)."""
+        return " ".join(filter(None, [self.first_name, self.last_name, self.suffix]))
+
+    def orcid_differs_from(self, db_author: "DBAuthor") -> bool:
         """
-        Use TeX data to retrieve Accounts from DB.
+        Tell if this author and the given account declare different orcids.
 
-        When no suitable account can be found, data suitable to create a new account is also prepared.
+        A missing orcid (on either side) is not a difference: there is nothing to contradict.
         """
-        authors_map = []
-        for tex_author in self.authors_tex:
-            accountstruct = self._find_corresponding_account(tex_author)
-            authors_map.append(accountstruct)
-        return authors_map
+        tex_orcid = self.orcid.strip()
+        db_orcid = (db_author.orcid or "").strip()
+        return bool(tex_orcid) and bool(db_orcid) and tex_orcid != db_orcid
 
-    def _find_corresponding_account(self, tex_author: dict) -> "SyncAuthorsForm.AuthorStruct":
+
+@dataclass
+class DBAuthor:
+    """The DB counterpart of a TeX author: an Account, either mapped onto it or just "similar"."""
+
+    pk: int
+    first_name: str
+    last_name: str
+    email: str
+    orcid: str
+    biography: str
+    socials_handle: str
+    country: str
+    institution: str
+
+    @classmethod
+    def from_account(cls, account: Account) -> "DBAuthor":
+        """Build an instance from an Account."""
+        return cls(
+            pk=account.pk,
+            first_name=account.first_name or "",
+            last_name=account.last_name or "",
+            email=account.email or "",
+            orcid=account.orcid or "",
+            biography=account.biography or "",
+            # Janeway's Account has no "socials handle" field: the twitter one is used instead.
+            socials_handle=account.twitter or "",
+            country=account.country.name if account.country else "",
+            institution=account.institution or "",
+        )
+
+
+@dataclass
+class AuthorRecord:
+    """
+    One author record (FrozenAuthor) of the paper.
+
+    A record does not necessarily have an account, so it is identified by its own pk: this is what
+    the forms of the first section of the authors block act upon.
+    """
+
+    pk: int
+    account_id: int | None
+    first_name: str
+    last_name: str
+    email: str
+    orcid: str
+    biography: str
+    socials_handle: str
+    country: str
+    institution: str
+
+    @classmethod
+    def from_frozen_author(cls, frozen_author: submission_models.FrozenAuthor) -> "AuthorRecord":
+        """Build an instance from an author record of the paper."""
+        account = frozen_author.author
+        return cls(
+            pk=frozen_author.pk,
+            account_id=frozen_author.author_id,
+            first_name=frozen_author.first_name or "",
+            last_name=frozen_author.last_name or "",
+            # These three fall back onto the account, when the record has one.
+            email=frozen_author.email or "",
+            orcid=frozen_author.orcid or "",
+            biography=frozen_author.biography or "",
+            # Janeway's Account has no "socials handle" field: the twitter one is used instead.
+            socials_handle=account.twitter if account else "",
+            country=str(frozen_author.country) if frozen_author.country else "",
+            institution=frozen_author.institution or "",
+        )
+
+
+@dataclass
+class AuthorMapping:
+    """The result of the mapping of one TeX author onto the DB."""
+
+    tex_author: TexAuthor
+    account_id: int | None = None
+    mapped_account: DBAuthor | None = None
+    similar_accounts: list[DBAuthor] = field(default_factory=list)
+    must_be_created: bool = False
+    warning: str | None = None
+
+    @property
+    def candidates(self) -> list[DBAuthor]:
+        """Return the DB accounts that this TeX author might correspond to."""
+        if self.mapped_account:
+            return [self.mapped_account]
+        return list(self.similar_accounts)
+
+    @property
+    def is_sure_match(self) -> bool:
+        """
+        Tell if this TeX author has been surely mapped onto a DB account.
+
+        Only the mapping by email, by orcid and by "correspondence" are considered sure: the
+        heuristics on the name only propose candidates (see AuthorsMapper).
+        """
+        return self.mapped_account is not None
+
+
+@dataclass
+class AuthorsMapper:
+    """
+    Map the authors declared by the TeX source onto the authors of the article.
+
+    This is the read-model shared by the forms of the authors block: it knows the authors of the
+    TeX source, the authors of the DB, how they map onto each other and what does not add up.
+    """
+
+    texdata: "MetadataFromTeX"
+
+    @property
+    def workflow(self) -> ArticleWorkflow:
+        """Return the workflow of the paper whose authors are being synchronized."""
+        return self.texdata.workflow
+
+    @property
+    def article(self) -> Article:
+        """Return the paper whose authors are being synchronized."""
+        return self.workflow.article
+
+    @cached_property
+    def authors_tex(self) -> list[TexAuthor]:
+        """Return the authors declared by the TeX source."""
+        return [
+            TexAuthor.from_payload(order, data)
+            for order, data in enumerate(self.texdata.data.get("authors_data") or [])
+        ]
+
+    @cached_property
+    def authors_db(self) -> QuerySet:
+        """
+        Get the author records (FrozenAuthor) of the paper, in order.
+
+        Work on the author records and not on article.author_accounts: a record does not necessarily
+        have an account, and such a record would be invisible here (and the sync would silently drop
+        it). The records are ordered by FrozenAuthor's own Meta.ordering.
+        """
+        return submission_models.FrozenAuthor.objects.filter(article=self.article).select_related("author")
+
+    @cached_property
+    def authors_map(self) -> list[AuthorMapping]:
+        """Use TeX data to retrieve Accounts from DB."""
+        return [self._find_corresponding_account(tex_author) for tex_author in self.authors_tex]
+
+    @cached_property
+    def sure_match_ids(self) -> set[int]:
+        """Return the ids of the accounts that have been surely mapped onto a TeX author."""
+        return {mapping.account_id for mapping in self.authors_map if mapping.is_sure_match}
+
+    @cached_property
+    def tex_emails(self) -> set[str]:
+        """Return the email addresses declared by the TeX source."""
+        return {tex_author.email.lower() for tex_author in self.authors_tex if tex_author.email}
+
+    @cached_property
+    def orphan_authors(self) -> list[AuthorRecord]:
+        """
+        Return the author records of the paper that the TeX source does not (surely) know.
+
+        These are the records that the operator must take care of before the author records can be
+        rebuilt from the TeX source, or the rebuild would silently drop them: either they are not
+        authors of this paper (and their record can be deleted), or they are known to the TeX with
+        a different email (and a "correspondence" can say so).
+        """
+        return [
+            AuthorRecord.from_frozen_author(record)
+            for record in self.authors_db
+            if not self._record_is_known_to_tex(record)
+        ]
+
+    def _record_is_known_to_tex(self, record: submission_models.FrozenAuthor) -> bool:
+        """Tell if one author record of the paper corresponds to one of the TeX authors."""
+        if record.author_id:
+            return record.author_id in self.sure_match_ids
+        # A record with no account can only be recognized by its email address.
+        return bool(record.email) and record.email.lower() in self.tex_emails
+
+    @cached_property
+    def unmatched_tex_authors(self) -> list[TexAuthor]:
+        """Return the TeX authors that are not surely mapped onto an account of the paper."""
+        return [mapping.tex_author for mapping in self.authors_map if not mapping.is_sure_match]
+
+    @cached_property
+    def errors_db(self) -> list[str]:
+        """
+        Return the problems of the DB authors list (displayed by the first section).
+
+        ATM only check that the authors of the paper are the same (and in the same order) as the
+        authors of the TeX source.
+        """
+        db_last_names = [record.last_name.strip() for record in self.authors_db]
+        tex_last_names = [tex_author.last_name.strip() for tex_author in self.authors_tex]
+        if db_last_names == tex_last_names:
+            return []
+        return [
+            _("TeX and DB authors list differ (DB: %(db)s vs TeX: %(tex)s)")
+            % {"db": "; ".join(db_last_names), "tex": "; ".join(tex_last_names)},
+        ]
+
+    @cached_property
+    def errors_tex(self) -> list[str]:
+        """
+        Return the problems of the TeX authors list (displayed by the second section).
+
+        ATM only check that owner and corresondence author are in the list of mapped authors.
+        """
+        article = self.article
+        errors = []
+        mapped_authors_ids = [mapping.account_id for mapping in self.authors_map if mapping.account_id]
+        if article.owner.id not in mapped_authors_ids:
+            errors.append(_("No owner in the new authors list!"))
+        if article.correspondence_author.id not in mapped_authors_ids:
+            errors.append(_("No correspondence author in the new authors list!"))
+        if any(mapping.similar_accounts for mapping in self.authors_map):
+            errors.append(_("Similar accounts exist!"))
+        return errors
+
+    def create_correspondence(self, account: Account, tex_author: TexAuthor) -> Correspondence | None:
+        """
+        Map an account onto the email of a TeX author, i.e. create a "correspondence".
+
+        This is what makes the mapping of that TeX author sure (see _find_corresponding_account).
+        Return None when the TeX author has no email (there would be nothing to map onto).
+        """
+        if not tex_author.email:
+            return None
+        correspondence, __ = Correspondence.objects.get_or_create(
+            account=account,
+            # There is no wjapp userCod here: use the order of the author in the TeX source.
+            user_cod=tex_author.order,
+            source="tex",
+            email=tex_author.email,
+            defaults={"notes": self.workflow.preprint_id},
+        )
+        return correspondence
+
+    def _find_corresponding_account(self, tex_author: TexAuthor) -> AuthorMapping:
         """
         Find an Account in the DB, given some author data.
 
@@ -732,247 +939,574 @@ class SyncAuthorsForm(forms.Form):
         - by first-initial + last on article.authors
         - by first + last on all DB (select first and add a "warning" if >1)
         - by first-initial + last on all DB (select first and add a "warning" if >1)
-        - give up and propose to add a new Account
-          - notify the author of the new account
+        - give up and flag the author as "to be created"
 
-        If no account in the DB can be found, an Account() object populated with data from the TeX is returned.
+        Only the first three ways give a "sure" match: the others just propose some candidates.
         """
-        article = self.texdata.workflow.article
+        article = self.article
         try:
-            account = Account.objects.get(email=tex_author["email"])
+            account = Account.objects.get(email=tex_author.email)
         except Account.DoesNotExist:
             pass
         else:
-            return self.AuthorStruct(
-                last_name=account.last_name,
-                first_name=account.first_name,
-                email=account.email,
-                orcid=account.orcid,
-                extra_email=None,
+            return AuthorMapping(
+                tex_author=tex_author,
                 account_id=account.id,
-                must_be_created=False,
-                warning=None,
+                mapped_account=DBAuthor.from_account(account),
             )
 
-        if tex_author["orcid"]:
+        if tex_author.orcid:
             try:
-                account = Account.objects.get(orcid=tex_author["orcid"])
+                account = Account.objects.get(orcid=tex_author.orcid)
             except Account.DoesNotExist:
                 pass
             else:
-                return self.AuthorStruct(
-                    last_name=account.last_name,
-                    first_name=account.first_name,
-                    email=account.email,
-                    orcid=account.orcid,
-                    extra_email=None,  # FIXME!
+                return AuthorMapping(
+                    tex_author=tex_author,
                     account_id=account.id,
-                    must_be_created=False,
-                    warning=None,
+                    mapped_account=DBAuthor.from_account(account),
                 )
 
         try:
-            wjapp_mapping = Correspondence.objects.get(email=tex_author["email"])
+            wjapp_mapping = Correspondence.objects.get(email=tex_author.email)
         except Correspondence.DoesNotExist:
             pass
         else:
-            return self.AuthorStruct(
-                last_name=wjapp_mapping.account.last_name,
-                first_name=wjapp_mapping.account.first_name,
-                email=wjapp_mapping.account.email,
-                orcid=wjapp_mapping.account.orcid,
-                extra_email=None,  # FIXME!
+            return AuthorMapping(
+                tex_author=tex_author,
                 account_id=wjapp_mapping.account.id,
-                must_be_created=False,
-                warning=None,
+                mapped_account=DBAuthor.from_account(wjapp_mapping.account),
             )
 
-        similaraccounts_warning = """Similar accounts: either set the orcid on the existing account (if the TeX has
-        it), or create/edit a "correspondence" (a mapping) with the TeX email."""
-        try:
-            article.author_accounts.get(
-                first_name=tex_author["first_name"],
-                last_name=tex_author["surname"],
-            )
-        except Account.DoesNotExist:
-            pass
-        except Account.MultipleObjectsReturned:
-            # Any other euristics after this would contain these accounts also.
-            # So we can stop here and ask for help.
-            similar_accounts = article.author_accounts.filter(
-                first_name=tex_author["first_name"],
-                last_name=tex_author["surname"],
-            )
-            return self.AuthorStruct(
-                last_name="NA",
-                first_name="NA",
-                email="NA",
-                orcid="NA",
-                extra_email=None,
-                account_id=None,
-                must_be_created=False,
-                warning=similaraccounts_warning,
-                similar_accounts=self._enrich_similar_accounts(tex_author, similar_accounts),
-            )
+        similaraccounts_warning = """Unsure match!
+If this DB account matches the TeX one,
+either set the orcid (click on the name and come back),
+or "use" it: NB a "correspondence" will be created!.
+"""
+        # Each of the following heuristics is more generic than the previous one, so the first one
+        # that finds more than one account can stop the search: any other heuristic would contain
+        # these accounts also.
+        similar_accounts_filters = (
+            (article.author_accounts, {"first_name": tex_author.first_name, "last_name": tex_author.last_name}),
+            (article.author_accounts, {"last_name": tex_author.last_name}),
+            (Account.objects, {"first_name": tex_author.first_name, "last_name": tex_author.last_name}),
+            (
+                Account.objects,
+                {
+                    "first_name__startswith": tex_author.first_name[0] if tex_author.first_name else "",
+                    "last_name__endswith": tex_author.last_name.split(" ")[-1],
+                },
+            ),
+        )
+        for manager, filters in similar_accounts_filters:
+            try:
+                manager.get(**filters)
+            except Account.DoesNotExist:
+                continue
+            except Account.MultipleObjectsReturned:
+                return AuthorMapping(
+                    tex_author=tex_author,
+                    warning=similaraccounts_warning,
+                    similar_accounts=[DBAuthor.from_account(account) for account in manager.filter(**filters)],
+                )
 
-        try:
-            article.author_accounts.get(
-                last_name=tex_author["surname"],
-            )
-        except Account.DoesNotExist:
-            pass
-        except Account.MultipleObjectsReturned:
-            # Any other euristics after this would contain these accounts also.
-            # So we can stop here and ask for help.
-            similar_accounts = article.author_accounts.filter(
-                last_name=tex_author["surname"],
-            )
-            return self.AuthorStruct(
-                last_name="NA",
-                first_name="NA",
-                email="NA",
-                orcid="NA",
-                extra_email=None,
-                account_id=None,
-                must_be_created=False,
-                warning=similaraccounts_warning,
-                similar_accounts=self._enrich_similar_accounts(tex_author, similar_accounts),
-            )
+        return AuthorMapping(tex_author=tex_author, must_be_created=True)
 
-        try:
-            Account.objects.get(
-                first_name=tex_author["first_name"],
-                last_name=tex_author["surname"],
-            )
-        except Account.DoesNotExist:
-            pass
-        except Account.MultipleObjectsReturned:
-            # Any other euristics after this would contain these accounts also.
-            # So we can stop here and ask for help.
-            similar_accounts = Account.objects.filter(
-                first_name=tex_author["first_name"],
-                last_name=tex_author["surname"],
-            )
-            return self.AuthorStruct(
-                last_name="NA",
-                first_name="NA",
-                email="NA",
-                orcid="NA",
-                extra_email=None,
-                account_id=None,
-                must_be_created=False,
-                warning=similaraccounts_warning,
-                similar_accounts=self._enrich_similar_accounts(tex_author, similar_accounts),
-            )
 
-        try:
-            Account.objects.get(
-                first_name__startswith=tex_author["first_name"][0],
-                last_name__endswith=tex_author["surname"].split(" ")[-1],
-            )
-        except Account.DoesNotExist:
-            pass
-        except Account.MultipleObjectsReturned:
-            # Any other euristics after this would contain these accounts also.
-            # So we can stop here and ask for help.
-            similar_accounts = Account.objects.filter(
-                first_name__startswith=tex_author["first_name"][0],
-                last_name__endswith=tex_author["surname"].split(" ")[-1],
-            )
-            return self.AuthorStruct(
-                last_name="NA",
-                first_name="NA",
-                email="NA",
-                orcid="NA",
-                extra_email=None,
-                account_id=None,
-                must_be_created=False,
-                warning=similaraccounts_warning,
-                similar_accounts=self._enrich_similar_accounts(tex_author, similar_accounts),
-            )
+class BaseOrphanAuthorForm(forms.Form):
+    """
+    Base class of the forms that act on one "orphan" author record of the paper.
 
-        return self.AuthorStruct(
-            last_name=tex_author["surname"],
-            first_name=tex_author["first_name"],
-            email=tex_author["email"],
-            orcid=tex_author["orcid"],
-            extra_email=None,
-            account_id=None,
-            must_be_created=True,
-            warning=None,
+    An orphan record is an author record of the paper that the TeX source does not (surely) know (see
+    ``AuthorsMapper.orphan_authors``); the record that this form acts upon is carried by the hidden
+    ``author_record_id``. It is the record (and not its account) that identifies the author here,
+    because a record does not necessarily have an account.
+    """
+
+    author_record_id = forms.IntegerField(widget=forms.HiddenInput())
+
+    def __init__(self, mapper: AuthorsMapper, *args, author_record: AuthorRecord | None = None, **kwargs):
+        """Store the mapper and (when rendering) the orphan record that this form acts upon."""
+        self.mapper = mapper
+        self.author_record = author_record
+        super().__init__(*args, **kwargs)
+        if author_record:
+            self.initial["author_record_id"] = author_record.pk
+
+    def clean_author_record_id(self):
+        """Ensure that the record is one of the orphan records of the paper."""
+        author_record_id = self.cleaned_data["author_record_id"]
+        if author_record_id not in [orphan.pk for orphan in self.mapper.orphan_authors]:
+            raise ValidationError(
+                _("Author record %(pk)s is not an author to take care of!") % {"pk": author_record_id},
+            )
+        return author_record_id
+
+    def get_frozen_author(self) -> submission_models.FrozenAuthor:
+        """Return the author record that this form acts upon."""
+        return submission_models.FrozenAuthor.objects.get(
+            pk=self.cleaned_data["author_record_id"],
+            article=self.mapper.article,
         )
 
-    def _find_authors_errors(self) -> list[str]:
-        """
-        Tell if there is some unresolvable error in the authors list.
 
-        ATM only check that owner and corresondence author are in the list of mapped authors.
-        """
-        article = self.texdata.workflow.article
-        errors = []
-        proposed_authors_ids = [a.account_id for a in self.authors_map if a.account_id]
-        if article.owner.id not in proposed_authors_ids:
-            errors.append(_("No owner in the new authors list!"))
-        if article.correspondence_author.id not in proposed_authors_ids:
-            errors.append(_("No correspondence author in the new authors list!"))
-        if any(am.similar_accounts for am in self.authors_map):
-            errors.append(_("Similar accounts exist!"))
-        return errors
+class DeleteAuthorRecordForm(BaseOrphanAuthorForm):
+    """Form used to remove one author record (FrozenAuthor) from the paper."""
 
-    def _enrich_similar_accounts(self, tex_author: dict, similar_accounts: QuerySet) -> list[SimilarAccount]:
-        """
-        Enrich the list of similar accounts by computing the appropriate correspondence URL.
+    action = forms.CharField(widget=forms.HiddenInput(), initial="delete_author_record")
 
-        Since it's possible to have existing mappings/correspondences with empty email, the idea here is to give the
-        operator a direct link to the most appropriate action: edit the exising correspondence if the email is missing
-        or add a new correspondence.
-
+    def sync(self) -> submission_models.FrozenAuthor:
         """
-        result = []
-        for i, account in enumerate(similar_accounts):
-            if not Correspondence.objects.filter(account=account, email__isnull=True).exists():
-                link_to_mapping = reverse("admin:jcom_profile_correspondence_add")
-                querystring = urlencode(
-                    {
-                        "account": account.pk,
-                        "email": tex_author["email"],
-                        # "source" and "user_cod" are mandatory for a Correspondence
-                        # below we make-up suitable values:
-                        "source": "tex",
-                        "user_cod": self.texdata.workflow.article.pk * 100 + i,
-                    },
+        Validate and delete the author record.
+
+        Return the (deleted) record: it is not in the DB anymore, but it still knows the name of the
+        author that is not an author of the paper anymore.
+
+        Raise:
+          ValidationError: if the form does not validate.
+        """
+        if not self.is_valid():
+            raise ValidationError(self.errors.as_text())
+        frozen_author = self.get_frozen_author()
+        frozen_author.delete()
+        return frozen_author
+
+
+class CreateCorrespondenceForm(BaseOrphanAuthorForm):
+    """
+    Form used to map one author of the paper onto the email of one TeX author.
+
+    The choices are the emails of the TeX authors that are not surely mapped onto an author of the
+    paper: creating the "correspondence" makes the mapping sure (see
+    ``AuthorsMapper._find_corresponding_account``).
+    """
+
+    action = forms.CharField(widget=forms.HiddenInput(), initial="create_correspondence")
+    email = forms.ChoiceField(label=_("TeX email"), widget=forms.RadioSelect(), required=True)
+
+    def __init__(self, mapper: AuthorsMapper, *args, **kwargs):
+        """Offer the emails of the TeX authors that are not surely mapped onto the DB."""
+        super().__init__(mapper, *args, **kwargs)
+        self.tex_authors = {tex_author.email: tex_author for tex_author in mapper.unmatched_tex_authors}
+        self.fields["email"].choices = [
+            (tex_author.email, f"{tex_author.full_name} <{tex_author.email}>")
+            for tex_author in mapper.unmatched_tex_authors
+        ]
+
+    @property
+    def is_usable(self) -> bool:
+        """
+        Tell if this form can do anything for the record that it is rendered for.
+
+        A "correspondence" maps an account onto an email address, so it needs both an account on the
+        DB side and an unmatched email on the TeX side.
+        """
+        return bool(self.author_record and self.author_record.account_id and self.fields["email"].choices)
+
+    def sync(self) -> Correspondence:
+        """
+        Validate and create the correspondence.
+
+        Raise:
+          ValidationError: if the form does not validate or if the correspondence cannot be created.
+        """
+        if not self.is_valid():
+            raise ValidationError(self.errors.as_text())
+        email = self.cleaned_data["email"]
+        account = self.get_frozen_author().author
+        if not account:
+            raise ValidationError(_("This author record has no account to map onto a TeX email!"))
+        try:
+            correspondence = self.mapper.create_correspondence(
+                account=account,
+                tex_author=self.tex_authors[email],
+            )
+        except Exception as e:  # noqa: BLE001 - surface any persistence failure as a ValidationError
+            raise ValidationError(str(e)) from e
+        return correspondence
+
+
+@dataclass
+class OrphanAuthorRow:
+    """One author record of the paper that the TeX source does not (surely) know, and its two forms."""
+
+    author_record: AuthorRecord
+    delete_form: "DeleteAuthorRecordForm"
+    correspondence_form: "CreateCorrespondenceForm"
+
+
+@dataclass
+class AuthorChoiceRow:
+    """One line of the choices offered for one TeX author: an account of the DB, or a new record."""
+
+    radio: forms.BoundField
+    db_author: DBAuthor | None = None
+    # True when the account of this line declares an orcid different from the TeX one: such an
+    # account cannot be the author, so this line cannot be selected (see SyncAuthorsForm).
+    orcid_conflict: bool = False
+
+
+@dataclass
+class AuthorSection:
+    """One TeX author, the accounts that it might be linked to and the "new record" line."""
+
+    mapping: AuthorMapping
+    rows: list[AuthorChoiceRow]
+    # True when this TeX author is not an author of the paper yet: adding them to the paper notifies
+    # them (see SyncAuthorsForm._log_new_coauthor_created).
+    is_new_coauthor: bool = False
+
+    @property
+    def tex_author(self) -> TexAuthor:
+        """Return the TeX author of this section (shortcut for the template)."""
+        return self.mapping.tex_author
+
+
+@dataclass(frozen=True)
+class PreviousAuthors:
+    """
+    The authors of a paper, as they were before their author records are rebuilt.
+
+    Rebuilding the author records (see SyncAuthorsForm.sync) drops and recreates all of them, so the
+    records themselves cannot tell who is a *new* co-author of the paper: this is the snapshot taken
+    before the rebuild. A person is recognized by their account and by their email address, because an
+    author record does not necessarily have an account.
+    """
+
+    account_ids: frozenset[int]
+    emails: frozenset[str]
+
+    @classmethod
+    def snapshot(cls, article: Article) -> "PreviousAuthors":
+        """Take note of the authors of the paper, before their records are dropped."""
+        account_ids = set()
+        emails = set()
+        for record in submission_models.FrozenAuthor.objects.filter(article=article).select_related("author"):
+            if record.author_id:
+                account_ids.add(record.author_id)
+            if record.email:
+                emails.add(record.email.lower())
+        return cls(account_ids=frozenset(account_ids), emails=frozenset(emails))
+
+    def includes(self, frozen_author: submission_models.FrozenAuthor) -> bool:
+        """Tell if the given author record refers to a person that was already an author of the paper."""
+        return self.includes_person(frozen_author.author_id, frozen_author.email)
+
+    def includes_person(self, account_id: int | None, email: str | None) -> bool:
+        """Tell if the given account / email address refers to a person that was already an author."""
+        if account_id and account_id in self.account_ids:
+            return True
+        email = (email or "").lower()
+        return bool(email) and email in self.emails
+
+
+class RadioSelectWithDisabled(forms.RadioSelect):
+    """A radio group where some of the options cannot be selected."""
+
+    def __init__(self, *args, disabled_values: frozenset[str] = frozenset(), **kwargs):
+        """Store the values of the options that cannot be selected."""
+        self.disabled_values = disabled_values
+        super().__init__(*args, **kwargs)
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        """Render as disabled the options whose value cannot be selected."""
+        option = super().create_option(name, value, label, selected, index, subindex=subindex, attrs=attrs)
+        if str(value) in self.disabled_values:
+            option["attrs"]["disabled"] = True
+        return option
+
+
+class SyncAuthorsForm(forms.Form):
+    """
+    Form used to rebuild the author records of the paper from the TeX source.
+
+    The TeX source is the source of truth: syncing drops every author record (FrozenAuthor) of the
+    paper and creates a new one per TeX author, in the order of the TeX source and with the data of
+    the TeX source (there is nothing to edit here).
+
+    The form has one radio group per TeX author, that tells which account the new author record
+    must be linked to: the (single) account that the TeX author has been surely mapped onto, one of
+    the "similar" accounts found in the DB, or none at all (the "new" choice).
+
+    Syncing is refused as long as some author of the paper is not surely mapped onto a TeX author
+    (see ``AuthorsMapper.orphan_authors``): such an author would silently disappear from the paper.
+    """
+
+    NEW_RECORD = "new"
+
+    action = forms.CharField(widget=forms.HiddenInput(), initial="sync_authors")
+
+    def __init__(self, mapper: AuthorsMapper, *args, **kwargs):
+        """Store the mapper and add one radio group per TeX author."""
+        self.mapper = mapper
+        super().__init__(*args, **kwargs)
+        for mapping in mapper.authors_map:
+            self.fields[self.field_name(mapping.tex_author)] = self._build_choice_field(mapping)
+
+    @staticmethod
+    def field_name(tex_author: TexAuthor) -> str:
+        """Return the name of the field that holds the choice made for the given TeX author."""
+        return f"author_{tex_author.order}"
+
+    def _build_choice_field(self, mapping: AuthorMapping) -> forms.ChoiceField:
+        """Return the radio group of one TeX author: its candidate accounts and/or a new record."""
+        choices = [(str(candidate.pk), _("use")) for candidate in mapping.candidates]
+        if not mapping.is_sure_match:
+            # A candidate is just a guess, so the operator must be able to refuse all of them.
+            choices.append((self.NEW_RECORD, _("new")))
+        return forms.ChoiceField(
+            label=mapping.tex_author.full_name,
+            choices=choices,
+            # An account that declares another orcid cannot be this author: do not let it be chosen
+            # (_check_orcid guards the update, for a request that ignores this).
+            widget=RadioSelectWithDisabled(disabled_values=self._orcid_conflicts(mapping)),
+            required=True,
+            initial=choices[0][0] if mapping.is_sure_match else self.NEW_RECORD,
+        )
+
+    @staticmethod
+    def _orcid_conflicts(mapping: AuthorMapping) -> frozenset[str]:
+        """Return the choices of one TeX author whose account declares a different orcid."""
+        return frozenset(
+            str(candidate.pk) for candidate in mapping.candidates if mapping.tex_author.orcid_differs_from(candidate)
+        )
+
+    @property
+    def sections(self) -> list[AuthorSection]:
+        """Group the radio buttons by TeX author: the template displays one section per author."""
+        sections = []
+        for mapping in self.mapper.authors_map:
+            tex_author = mapping.tex_author
+            radios = list(self[self.field_name(tex_author)])
+            rows = [
+                AuthorChoiceRow(
+                    radio=radio,
+                    db_author=candidate,
+                    orcid_conflict=tex_author.orcid_differs_from(candidate),
                 )
-            else:
-                correspondence = Correspondence.objects.filter(account=account, email__isnull=True).first()
-
-                link_to_mapping = reverse("admin:jcom_profile_correspondence_change", args=[correspondence.pk])
-                querystring = urlencode(
-                    {
-                        "email": tex_author["email"],
-                        "source": "tex",
-                        "user_cod": self.texdata.workflow.article.pk * 100 + i,
-                    },
-                )
-            link_to_mapping = f"{link_to_mapping}?{querystring}"
-
-            result.append(
-                self.SimilarAccount(
-                    pk=account.pk,
-                    last_name=account.last_name,
-                    first_name=account.first_name,
-                    email=account.email,
-                    orcid=account.orcid,
-                    country=account.country.name if account.country else "",
-                    institution=account.institution,
-                    biography=account.biography,
-                    link_to_mapping=link_to_mapping,
+                for candidate, radio in zip(mapping.candidates, radios)
+            ]
+            if not mapping.is_sure_match:
+                # The "new record" choice is always the last one (see _build_choice_field).
+                rows.append(AuthorChoiceRow(radio=radios[-1]))
+            sections.append(
+                AuthorSection(
+                    mapping=mapping,
+                    rows=rows,
+                    # Judge the choice that is selected: the account that the TeX author has been
+                    # surely mapped onto, or (when it is just a guess) a brand new author record.
+                    is_new_coauthor=not self.previous_authors.includes_person(
+                        mapping.account_id if mapping.is_sure_match else None,
+                        tex_author.email,
+                    ),
                 ),
             )
-        return result
+        return sections
 
-    def _log_new_coauthor_created(self, newaccount: Account) -> Message:
-        """Send a notification to the newly-created account."""
-        article = self.texdata.workflow.article
+    @cached_property
+    def previous_authors(self) -> PreviousAuthors:
+        """Return the authors that the paper has before its author records are rebuilt."""
+        return PreviousAuthors.snapshot(self.mapper.article)
+
+    def can_sync(self) -> bool:
+        """Tell if the author records can be rebuilt from the TeX source."""
+        return not self.mapper.orphan_authors
+
+    def should_sync(self) -> bool:
+        """
+        Tell if the author records of the paper are out of sync with the TeX source.
+
+        Return False when there is no author to take care of and every author record has the values
+        and the position of the corresponding TeX author; True otherwise.
+
+        NB: the socials handle is not part of the author record (it lives on the account), so it
+        does not take part in the comparison.
+        """
+        if self.mapper.orphan_authors:
+            return True
+        frozen_authors = list(self.mapper.article.frozen_authors())
+        if len(frozen_authors) != len(self.mapper.authors_tex):
+            return True
+        return not all(
+            self._matches_tex_author(frozen_author, tex_author)
+            for frozen_author, tex_author in zip(frozen_authors, self.mapper.authors_tex)
+        )
+
+    @staticmethod
+    def _matches_tex_author(frozen_author: submission_models.FrozenAuthor, tex_author: TexAuthor) -> bool:
+        """Tell if an author record has the values that the given TeX author would write on it."""
+        return all(
+            str(getattr(frozen_author, record_field) or "").strip() == str(getattr(tex_author, tex_field)).strip()
+            for record_field, tex_field in (
+                ("first_name", "first_name"),
+                ("last_name", "last_name"),
+                ("name_suffix", "suffix"),
+                ("frozen_email", "email"),
+                ("frozen_orcid", "orcid"),
+                ("frozen_biography", "biography"),
+            )
+        )
+
+    def clean(self):
+        """Refuse to sync as long as some author of the paper is not surely mapped."""
+        cleaned_data = super().clean()
+        if not self.can_sync():
+            raise ValidationError(
+                _("Please take care of the authors of the paper that the TeX source does not know!"),
+            )
+        # Two TeX authors can be mapped onto the same account (e.g. by a "correspondence" on a
+        # second email), but a single account cannot be the author of the same paper twice.
+        chosen_accounts = [
+            choice
+            for mapping in self.mapper.authors_map
+            if (choice := cleaned_data.get(self.field_name(mapping.tex_author))) and choice != self.NEW_RECORD
+        ]
+        if len(chosen_accounts) != len(set(chosen_accounts)):
+            raise ValidationError(_("The same account cannot be linked to two different authors!"))
+        self._check_orcid(cleaned_data)
+        # The socials handle is stored as a handle (see _create_author_record) but displayed as a
+        # bluesky URL (see the bluesky_url template filter), so the TeX must declare it as such.
+        bad_handles = [
+            tex_author.socials_handle
+            for tex_author in self.mapper.authors_tex
+            if tex_author.socials_handle and not tex_author.socials_handle.startswith("@")
+        ]
+        if bad_handles:
+            raise ValidationError(
+                _('The socials handle must start with "@": please fix %(handles)s in the TeX source!')
+                % {"handles": "; ".join(bad_handles)},
+            )
+        return cleaned_data
+
+    def _check_orcid(self, cleaned_data: dict):
+        """
+        Ensure that the account linked to a TeX author does not declare another orcid.
+
+        The account of a candidate is just a guess (it has been found by name), and even a sure match
+        can contradict the TeX source (a match by email or by "correspondence" says nothing about the
+        orcid): a different orcid on both sides means that this is the wrong account. A sure match is
+        judged even when nothing has been selected for its TeX author, because it is its only choice
+        (and the choice is not selectable, see _build_choice_field): such a contradiction can only be
+        resolved by fixing the TeX source or the account.
+
+        Raise:
+          ValidationError: if the orcid of a linked account differs from the TeX one.
+        """
+        conflicts = []
+        for mapping in self.mapper.authors_map:
+            if mapping.is_sure_match:
+                candidate = mapping.mapped_account
+            else:
+                candidate = self._get_selected_candidate(mapping, cleaned_data)
+            if candidate and mapping.tex_author.orcid_differs_from(candidate):
+                conflicts.append(
+                    _("%(name)s: the TeX orcid (%(tex)s) is not the orcid of the selected account (%(db)s)!")
+                    % {
+                        "name": mapping.tex_author.full_name,
+                        "tex": mapping.tex_author.orcid,
+                        "db": candidate.orcid,
+                    },
+                )
+        if conflicts:
+            raise ValidationError(conflicts)
+
+    def _get_selected_candidate(self, mapping: AuthorMapping, cleaned_data: dict) -> DBAuthor | None:
+        """Return the account selected for the given TeX author (None for a brand new record)."""
+        choice = cleaned_data.get(self.field_name(mapping.tex_author))
+        if not choice or choice == self.NEW_RECORD:
+            return None
+        return next((candidate for candidate in mapping.candidates if str(candidate.pk) == choice), None)
+
+    def get_selected_account(self, mapping: AuthorMapping) -> Account | None:
+        """Return the account chosen for the given TeX author, or None for a new record."""
+        choice = self.cleaned_data[self.field_name(mapping.tex_author)]
+        if choice == self.NEW_RECORD:
+            return None
+        return Account.objects.get(id=int(choice))
+
+    def sync(self):
+        """
+        Validate and rebuild the author records of the paper.
+
+        Raise:
+          ValidationError: if the form does not validate or if saving fails.
+        """
+        if not self.is_valid():
+            raise ValidationError(self.errors.as_text())
+        article = self.mapper.article
+        try:
+            with transaction.atomic():
+                # Take note of who the authors of the paper are before dropping the author records:
+                # anybody else is a new co-author, and must be notified.
+                previous_authors = self.previous_authors
+                submission_models.FrozenAuthor.objects.filter(article=article).delete()
+                for mapping in self.mapper.authors_map:
+                    self._create_author_record(
+                        mapping,
+                        self.get_selected_account(mapping),
+                        previous_authors,
+                    )
+        except Exception as e:  # noqa: BLE001 - surface any persistence failure as a ValidationError
+            raise ValidationError(str(e)) from e
+
+    def _create_author_record(
+        self,
+        mapping: AuthorMapping,
+        account: Account | None,
+        previous_authors: PreviousAuthors,
+    ) -> submission_models.FrozenAuthor:
+        """
+        Create the author record of one TeX author, linked to the given account (if any).
+
+        Notify the person when they were not already an author of the paper (every author record is
+        created anew by every sync, so the notification is driven by the snapshot of the authors that
+        the paper had before the rebuild, not by the records themselves).
+        """
+        article = self.mapper.article
+        tex_author = mapping.tex_author
+        frozen_author = submission_models.FrozenAuthor.objects.create(
+            article=article,
+            author=account,
+            order=tex_author.order,
+            first_name=tex_author.first_name,
+            last_name=tex_author.last_name,
+            name_suffix=tex_author.suffix,
+            frozen_email=tex_author.email,
+            frozen_orcid=tex_author.orcid,
+            frozen_biography=tex_author.biography,
+            display_email=account is not None and account == article.correspondence_author,
+        )
+        if account:
+            if not mapping.is_sure_match:
+                # The account has been chosen among some candidates: remember that it corresponds
+                # to this TeX author, so that the next sync does not have to guess again.
+                self.mapper.create_correspondence(account=account, tex_author=tex_author)
+            account.add_account_role("author", article.journal)
+            account.snapshot_affiliations(frozen_author)
+            # Janeway's Account has no "socials handle" field: the twitter one is used instead.
+            if tex_author.socials_handle and tex_author.socials_handle != account.twitter:
+                account.twitter = tex_author.socials_handle
+                account.save()
+        if not previous_authors.includes(frozen_author):
+            self._log_new_coauthor_created(frozen_author)
+        return frozen_author
+
+    def _log_new_coauthor_created(self, frozen_author: submission_models.FrozenAuthor) -> Message | None:
+        """
+        Notify a person that has just been linked to the paper as co-author.
+
+        When the author record has an account, that account is the recipient of the message, as usual.
+        When it has none, the notification is sent to the email address declared by the TeX source: the
+        message is logged (so that the EO can see it) and the email is sent, but no account is created
+        (see communication_utils.UnregisteredRecipient).
+
+        Return None when there is nobody to notify, i.e. when the author record has neither an account
+        nor an email address.
+        """
+        article = self.mapper.article
+        account = frozen_author.author
+        if not account and not frozen_author.email:
+            return None
         fake_request = create_fake_request(
             user=get_eo_user(article.journal),
             journal=article.journal,
@@ -990,68 +1524,41 @@ class SyncAuthorsForm(forms.Form):
             setting_name="add_coauthor_manually_body",
             journal=article.journal,
             request=fake_request,
-            context={"article": article, "newaccount": newaccount},
+            context={"article": article, "newaccount": account or frozen_author},
             template_is_setting=True,
         )
-        return communication_utils.log_operation(
+        recipients = None
+        unregistered_recipients = None
+        if account:
+            recipients = [account]
+        else:
+            unregistered_recipients = [
+                communication_utils.UnregisteredRecipient(
+                    email=frozen_author.email,
+                    full_name=frozen_author.full_name(),
+                    # A co-author may see the authors of the paper.
+                    may_see_authors=True,
+                ),
+            ]
+        message = communication_utils.log_operation(
             article=article,
             message_subject=message_subject,
             message_body=message_body,
             actor=None,
-            recipients=[newaccount],
+            recipients=recipients,
+            unregistered_recipients=unregistered_recipients,
             verbosity=Message.MessageVerbosity.EMAIL,
             flag_as_read=True,
             flag_as_read_by_eo=True,
         )
-
-    def should_sync(self) -> bool:
-        """Tell if DB and TeX authors are out of sync."""
-        return list(self.authors_db.values_list("id", flat=True)) != [a.account_id for a in self.authors_map]
-
-    def sync(self):
-        """
-        Validate and persist the authors; also freeze authors.
-
-        Raise:
-          ValueError: if the form does not validate or if saving fails.
-        """
-        if not self.is_valid():
-            raise ValueError(self.errors.as_text())
-        article = self.texdata.workflow.article
-        try:
-            submission_models.FrozenAuthor.objects.filter(article=article).delete()
-            for am in self.authors_map:
-                if am.must_be_created:
-                    author = Account.objects.create(
-                        first_name=am.first_name,
-                        last_name=am.last_name,
-                        email=am.email,
-                        orcid=am.orcid,
-                    )
-                    self._log_new_coauthor_created(author)
-                else:
-                    author = Account.objects.get(
-                        id=am.account_id,
-                    )
-                    # FIXME: update with data from DB:
-                    # - first/last name (only if longer than DB)
-                    # - email (only add to jcom_profile.Correspondence)
-                    # - orcid
-                    # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1804
-
-                author.snapshot_as_author(article)
-        except Exception as e:  # noqa: BLE001 - surface any persistence failure as a ValueError
-            raise ValueError(str(e)) from e
-
-    def get_form_context_data(self) -> dict:
-        """Return authors-related context to be merged into the view's context."""
-        return {
-            "form_authors": self,
-            "authors_tex": self.authors_tex,
-            "authors_db": self.authors_db,
-            "authors_map": self.authors_map,
-            "authors_errors": self.authors_errors,
-        }
+        if not recipients:
+            # The notification has been emailed to a recipient that has no account, so the message has
+            # no recipient at all, and a message with no recipients is "generic", i.e. visible to
+            # anybody who can see the messages of the paper (see get_messages_related_to_me): now that
+            # the email has been sent, make it a (read) message to the EO.
+            message.recipients.set([get_eo_user(article.journal)])
+            MessageRecipients.objects.filter(message=message).update(read=True)
+        return message
 
 
 class SyncFundingsForm(forms.Form):

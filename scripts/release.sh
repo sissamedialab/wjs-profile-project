@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Release wjs-develop -> wjs-production for a wjs-* Python package:
 # merge, version bump, changelog from GitLab MRs/issues, tag, merge back,
-# dev-version bump. See docs/superpowers/specs/2026-07-17-release-script-design.md.
+# dev-version bump. With --dry-run: simulate all of that on the throwaway
+# 'next-release' branch up to the changelog, and stop (see release_dry_run).
+# See docs/superpowers/specs/2026-07-17-release-script-design.md.
 set -euo pipefail
 
 # --- version helpers ------------------------------------------------------
@@ -599,6 +601,81 @@ release_confirm_and_push_production() {
   git push origin "$tag"
 }
 
+# --- dry run -----------------------------------------------------------------
+
+DRY_RUN_BRANCH="next-release"
+
+release_dry_run() {
+  # release_dry_run - simulate the release on a throwaway branch, touching nothing else
+  #
+  # Rebuilds DRY_RUN_BRANCH ("next-release") from wjs-production, merges
+  # wjs-develop into it and writes the changelog section the next real release
+  # would write — then stops. Nothing is tagged, nothing is merged back,
+  # nothing is pushed, and neither wjs-develop nor wjs-production is modified:
+  # the whole simulation lives on next-release, which is disposable and gets
+  # hard-reset on every dry run.
+  #
+  # Serves two purposes: reviewing the changelog (and the merge) before
+  # releasing for real, and seeing what reached wjs-develop since the last
+  # release.
+  #
+  # Unlike the real flow this does NOT run `pre-commit run --all-files` (see
+  # main()'s release commit): a dry run only inspects the changelog and the
+  # merge, and the reformatting pass is both slow and irrelevant to that.
+  #
+  # Arguments:
+  #   $1 - GitLab hostname
+  #   $2 - full project path (e.g. "wjs/wjs-profile-project")
+  #   $3 - group prefix (e.g. "wjs"), for the description-regex fallback
+  # Returns:
+  #   0 on success (leaves the checkout on DRY_RUN_BRANCH)
+  #   1 if the merge conflicts or the changelog section cannot be written
+  local host="$1" project_path="$2" group_prefix="$3"
+  local prev_tag raw_version release_version section changelog_url
+
+  prev_tag="$(git describe --tags --abbrev=0 wjs-production)"
+
+  if git show-ref --verify --quiet "refs/heads/$DRY_RUN_BRANCH"; then
+    echo "release.sh: resetting existing '$DRY_RUN_BRANCH' to wjs-production (a previous dry run on it is discarded)"
+    git switch "$DRY_RUN_BRANCH"
+    git reset --hard wjs-production
+  else
+    git switch -c "$DRY_RUN_BRANCH" wjs-production
+  fi
+
+  git_merge_or_skip "$DRY_RUN_BRANCH" wjs-develop "Merge branch 'wjs-develop' into '${DRY_RUN_BRANCH}'" || return 1
+
+  raw_version="$(version_read_setup_cfg setup.cfg)"
+  release_version="$(version_release_from_dev "$raw_version")"
+
+  section="$(changelog_build_section "$host" "$project_path" "$group_prefix" "$prev_tag" wjs-develop "$release_version" "$(date +%F)")"
+  changelog_prepend_section CHANGELOG.md "$section" || return 1
+
+  sed -i "s/^version = .*/version = ${release_version}/" setup.cfg
+  git add -A
+  git commit -m "Release ${release_version} (dry run)"
+
+  echo
+  echo "--- dry run: the changelog section a real release would write ---"
+  printf '%s\n' "$section"
+  echo "--- end of section ---"
+  echo
+  echo "release.sh: dry run done — nothing tagged, nothing pushed, wjs-develop and wjs-production untouched."
+  echo "Simulated release ${release_version} is committed on '${DRY_RUN_BRANCH}' (now checked out). Inspect it with:"
+  echo "  git show ${DRY_RUN_BRANCH} -- CHANGELOG.md setup.cfg"
+  echo "  git log --oneline --first-parent ${prev_tag}..wjs-develop   # what reached wjs-develop since ${prev_tag}"
+  echo
+  # The URL is only reachable once the branch is on origin, hence the push line
+  # above it: the changelog is far easier to read rendered by GitLab than as a
+  # local diff, and pushing a disposable branch costs nothing. Force-push
+  # because every dry run rebuilds the branch from wjs-production.
+  changelog_url="https://${host}/${project_path}/-/blob/${DRY_RUN_BRANCH}/CHANGELOG.md?ref_type=heads"
+  echo "To read it rendered on GitLab, push the branch (git push -f origin ${DRY_RUN_BRANCH}), then open:"
+  echo "  ${changelog_url}"
+  echo
+  echo "Re-run without --dry-run for the real release; '${DRY_RUN_BRANCH}' is disposable and force-rebuilt every dry run — never merge it."
+}
+
 # --- entrypoint -------------------------------------------------------------
 
 release_already_prepared_locally() {
@@ -629,7 +706,40 @@ release_already_prepared_locally() {
   printf '%s\n' "$version"
 }
 
+usage() {
+  cat <<'USAGE'
+Usage: release.sh [--dry-run]
+
+Release wjs-develop -> wjs-production for a wjs-* Python package: merge,
+version bump, changelog from GitLab MRs/issues, tag, merge back, dev-version
+bump. Both pushes sit behind interactive y/n prompts.
+
+Options:
+  --dry-run   Simulate the release on the throwaway 'next-release' branch:
+              pull wjs-develop and wjs-production, rebuild 'next-release' from
+              wjs-production (hard-resetting it if it already exists), merge
+              wjs-develop into it, write the changelog section the real release
+              would write, and stop there. No tag, no merge back, no push, and
+              wjs-develop / wjs-production are left untouched.
+  -h, --help  Show this help.
+USAGE
+}
+
 main() {
+  local dry_run=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) dry_run=1 ;;
+      -h|--help) usage; return 0 ;;
+      *)
+        echo "release.sh: unknown option '$1'" >&2
+        usage >&2
+        return 1
+        ;;
+    esac
+    shift
+  done
+
   preflight_check_tools || return 1
   preflight_check_clean_tree || return 1
 
@@ -643,6 +753,11 @@ main() {
   git fetch origin
   git_ff_branch wjs-develop || return 1
   git_ff_branch wjs-production || return 1
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    release_dry_run "$host" "$project_path" "$group_prefix" || return 1
+    return 0
+  fi
 
   local release_version
   if release_version="$(release_already_prepared_locally)"; then

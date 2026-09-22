@@ -727,6 +727,10 @@ class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
     exclude_children = False
     filter_by = None
 
+    #: Filter keys from :py:meth:`_get_filters` that span a multi-valued relation and can
+    #: therefore yield duplicate rows. Their presence is what makes `.distinct()` necessary.
+    MULTI_VALUED_FILTERS = frozenset({"frozenauthor__author", "keywords__pk", "keywords__in"})
+
     def setup(self, request, *args, **kwargs):
         super().setup(request, *args, **kwargs)
         self.form = self.get_form(self.form_class)
@@ -753,8 +757,10 @@ class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
         some are from the filters (filter-by-kwd, etc.; second batch),
         and the rest are common for this journal's published articles.
 
-        authors are excluded from this search because we will use full-text search on the authors' fields alone to be
-        able to match full names, initials, etc.
+        The `article_authors` form field is excluded from this search because we will use full-text search on the
+        authors' fields alone to be able to match full names, initials, etc. (see `SearchForm.get_author_filter`).
+        That is a different thing from the `author` URL kwarg handled below, which carries an `Account` pk and is
+        resolved here as an ORM lookup on the article's frozen authors.
         """
         filters = {
             "keywords__in": self.form.cleaned_data.get("keywords"),
@@ -762,7 +768,11 @@ class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
             "date_published__year": self.form.cleaned_data.get("year", None),
             "section": self.kwargs.get("section", self.form.cleaned_data.get("article_type", None)),
             "keywords__pk": self.kwargs.get("keyword"),
-            "authors": self.kwargs.get("author", None),
+            # specs#3048: Article.authors is deprecated in Janeway 1.8 and is not
+            # maintained by the review workflow (only the submitting user is ever
+            # added). FrozenAuthor is the published-state source of truth, and is
+            # what Article.author_accounts and the advanced search already use.
+            "frozenauthor__author": self.kwargs.get("author", None),
             "journal": self.request.journal,
             "stage": submission_models.STAGE_PUBLISHED,
             "identifier__id_type": self.form.cleaned_data.get("identifier_type", None),
@@ -822,6 +832,12 @@ class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
                 pk__in=pinned_article_pks,
             )
         )
+        # Only lookups spanning a multi-valued relation can return one row per related object.
+        # The plain article listing and the section filter cannot duplicate, and SELECT DISTINCT
+        # over the full Article row set (~70 columns, including the translated title/abstract
+        # fields) is expensive enough on those routes not to pay for it unconditionally.
+        if self.MULTI_VALUED_FILTERS & filters.keys():
+            articles = articles.distinct()
 
         if self.exclude_children:
             articles = article_links.exclude_children(articles)
