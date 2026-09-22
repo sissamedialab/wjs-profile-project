@@ -1,17 +1,26 @@
+import datetime
 from pathlib import Path
 
 from core import files
 from core import models as core_models
+from core.models import Account
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.base import ContentFile
 from django.db.models import Count
 from django.db.models.functions import Lower
+from django.shortcuts import get_object_or_404
 from plugins.wjs_submission.models import Collaboration
 from rest_framework import status
+from rest_framework.authentication import TokenAuthentication
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from ..logic import (
+    states_when_article_is_considered_production_archived,
+    states_when_article_is_considered_typesetter_working_on,
+)
+from ..models import ArticleWorkflow
 from .const import (
     COLLABORATIONS_EXPORT_VERSION,
     PUBLIC_LISTING_DEFAULT,
@@ -23,7 +32,12 @@ from .mixins import (
     LoggedRequestMixin,
     PublishedArticleAccessMixin,
 )
-from .serializers import CollaborationSerializer, GalleyUploadSerializer
+from .permissions import IsEOOrTypesetterForArticle
+from .serializers import (
+    CollaborationSerializer,
+    GalleyUploadSerializer,
+    TypesetterPapersListSerializer,
+)
 
 
 class ArticleZipDownloadView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
@@ -282,3 +296,84 @@ class CollaborationListView(LoggedRequestMixin, EOOrTypesetterAccessMixin, ListA
             "collaborations": self.get_serializer(self.filter_queryset(self.get_queryset()), many=True).data,
         }
         return Response(payload, status=status.HTTP_200_OK)
+
+
+class TypesetterPapersListView(LoggedRequestMixin, APIView):
+    """
+    G8 - List the papers a typesetter has handled/is handling, for EO workload monitoring.
+
+    Papers with a TypesettingAssignment to the given typesetter, assigned in
+    [start_date, end_date] (both extremes included, TypesettingAssignment.assigned), in state
+    TypesetterSelected / Proofreading / ReadyForPublication / Published. See Specifications.md §3.7.
+
+    Authentication/permission: same stack as the other API endpoints (Token
+    authentication + IsEOOrTypesetterForArticle): on a list route only the
+    has_permission part applies, letting EO and any typesetter in; the finer
+    object-level check (is a typesetter *of this article*) would need an object,
+    so it is not used here. The permission model is going to be refactored using
+    permission classes; for now we reuse it as is (see Specifications.md §3.7).
+    """
+
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsEOOrTypesetterForArticle]
+
+    def _date_range(self, request):
+        """Parse the mandatory start_date=/end_date= params into a __range pair (inclusive)."""
+        start_raw, end_raw = request.query_params.get("start_date"), request.query_params.get("end_date")
+        if not start_raw or not end_raw:
+            return None, Response(
+                {
+                    "error": {
+                        "code": "BAD_REQUEST",
+                        "message": "Missing required query parameters: start_date and end_date.",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            start, end = datetime.date.fromisoformat(start_raw), datetime.date.fromisoformat(end_raw)
+        except ValueError:
+            return None, Response(
+                {
+                    "error": {
+                        "code": "BAD_REQUEST",
+                        "message": "Invalid date format: start_date and end_date must be ISO dates (YYYY-MM-DD).",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # TypesettingAssignment.assigned is a DateTime: build an inclusive datetime range so
+        # that both extremes are included. Dates are midnight UTC, safely inside the window
+        # whatever the server's TIME_ZONE is (±12h).
+        return (
+            (
+                datetime.datetime.combine(start, datetime.time.min, tzinfo=datetime.timezone.utc),
+                datetime.datetime.combine(end, datetime.time.max, tzinfo=datetime.timezone.utc),
+            ),
+            None,
+        )
+
+    def get(self, request, code: str, typesetter_pk: int):
+        date_range, error = self._date_range(request)
+        if error:
+            return error
+
+        get_object_or_404(Account, pk=typesetter_pk)  # unknown typesetter pk → 404
+
+        workflows = (
+            ArticleWorkflow.objects.filter(
+                article__journal__code=code,
+                article__typesettinground__isnull=False,
+                article__typesettinground__typesettingassignment__typesetter__pk=typesetter_pk,
+                article__typesettinground__typesettingassignment__assigned__range=date_range,
+                state__in=states_when_article_is_considered_typesetter_working_on
+                + states_when_article_is_considered_production_archived,
+            )
+            .distinct()
+            .order_by("-article__date_accepted")
+            .select_related("article", "article__journal")
+        )
+        return Response(
+            TypesetterPapersListSerializer(workflows, many=True, context={"typesetter_pk": typesetter_pk}).data
+        )

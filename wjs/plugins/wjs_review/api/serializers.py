@@ -1,6 +1,8 @@
+from django.db.models import Min
 from plugins.wjs_submission.helpers.collaborations import TABELLONE_FIELDS
 from plugins.wjs_submission.models import Collaboration
 from rest_framework import serializers
+from typesetting.models import TypesettingAssignment
 
 from .const import COLLABORATIONS_EXPORT_KEYS, TYPE_TO_MIME
 
@@ -71,3 +73,55 @@ class GalleyUploadSerializer(serializers.Serializer):
 
         attrs["data"] = data
         return attrs
+
+
+class ProductionBaseSerializer(serializers.Serializer):
+    """
+    Shared field set of the production-monitoring responses (G7/G8 - Specifications.md §3.6/§3.7).
+
+    Instance is an ArticleWorkflow.
+    """
+
+    preprint_id = serializers.ReadOnlyField()
+    published_id = serializers.SerializerMethodField()
+    doi = serializers.SerializerMethodField()
+    # Article.date_accepted is a DateTimeField: do not coerce it to a date,
+    # or DRF would refuse (timezone-naive coercion) - render the raw ISO datetime.
+    date_accepted = serializers.DateTimeField(source="article.date_accepted", allow_null=True)
+    status = serializers.SerializerMethodField()
+    last_status_change = serializers.DateTimeField(source="modified")
+
+    def get_published_id(self, obj):
+        """Pubid identifier (e.g. JCAP07(2010)027); empty string until publication."""
+        return obj.article.get_identifier("pubid") or ""
+
+    def get_doi(self, obj):
+        """DOI, set at acceptance; present even before the paper is published."""
+        return obj.article.get_doi()
+
+    def get_status(self, obj):
+        # name = the computed state label (state_value → ReviewComputedStates where applicable).
+        # Today a typesetter-side paper in the working-on states renders its raw state label
+        # ("Typesetter selected"); the TiC vs "Back to typesetter" distinction lands
+        # automatically here once specs#3120 adds that computed state.
+        return {"code": obj.state, "name": obj.state_label}
+
+    def get_date_taken_in_charge(self, obj):
+        """First time this article was assigned to the URL typesetter (may predate the window).
+
+        Requires "typesetter_pk" in the serializer context (provided by the G8 view); null-safe:
+        any typesetter-less rendering yields None rather than crashing.
+        """
+        typesetter_pk = self.context.get("typesetter_pk")
+        if not typesetter_pk:
+            return None
+        return TypesettingAssignment.objects.filter(
+            round__article=obj.article,
+            typesetter__pk=typesetter_pk,
+        ).aggregate(min_assigned=Min("assigned"))["min_assigned"]
+
+
+class TypesetterPapersListSerializer(ProductionBaseSerializer):
+    """Response item of G8 - GET /journal/<code>/typesetter/<typesetter_pk>/papers/ (Specifications.md §3.7)."""
+
+    date_taken_in_charge = serializers.SerializerMethodField()
