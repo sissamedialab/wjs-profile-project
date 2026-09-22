@@ -52,6 +52,120 @@ def test_filter_articles_by_author(editor, published_articles, press, admin, sec
 
 
 @pytest.mark.django_db
+def test_filter_articles_by_author_finds_frozen_only_author(
+    editor,
+    published_articles,
+    press,
+    admin,
+    sections,
+    keywords,
+    journal,
+    account_factory,
+):
+    """An account linked only via FrozenAuthor is listed on its author page.
+
+    This is the production shape reported in specs#3048: articles published
+    through the review workflow get FrozenAuthor rows for their co-authors,
+    but those co-authors are never added to the deprecated Article.authors
+    M2M, which only ever receives the submitting user.
+    """
+    article = published_articles.filter(journal=journal).first()
+    coauthor = account_factory()
+    # Creates a FrozenAuthor with author=coauthor WITHOUT touching article.authors.
+    coauthor.snapshot_as_author(article)
+
+    assert coauthor not in article.authors.all()
+    assert article in submission_models.Article.objects.filter(frozenauthor__author=coauthor)
+
+    client = Client()
+    url = reverse("articles_by_author", kwargs={"author": coauthor.pk})
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert article in response.context["page_obj"].object_list
+
+
+@pytest.mark.django_db
+def test_filter_articles_by_author_ignores_legacy_only_author(
+    editor,
+    published_articles,
+    press,
+    admin,
+    sections,
+    keywords,
+    journal,
+    account_factory,
+):
+    """An account present only in the deprecated M2M is not listed.
+
+    Submission adds the submitting user to Article.authors, which for an
+    EO-assisted submission is not an author at all. Frozen authors are the
+    only source of truth for the public author page.
+
+    Janeway 1.8 keeps the two representations in sync with a pair of signals:
+    `backwards_compat_authors` snapshots a FrozenAuthor on `authors.add()`, and
+    `remove_author_from_article` calls `authors.remove()` when a FrozenAuthor is
+    deleted. The legacy-only state is therefore unreachable through the ORM, so
+    the through table is written directly here — reproducing data written before
+    those signals existed, or by paths that bypass them (raw SQL, bulk writes).
+    """
+    article = published_articles.filter(journal=journal).first()
+    non_author = account_factory()
+    submission_models.Article.authors.through.objects.create(article=article, account=non_author)
+
+    assert non_author in article.authors.all()
+    assert not article.frozenauthor_set.filter(author=non_author).exists()
+
+    client = Client()
+    url = reverse("articles_by_author", kwargs={"author": non_author.pk})
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.context["page_obj"].paginator.count == 0
+
+
+@pytest.mark.django_db
+def test_filter_articles_by_author_deduplicates_repeated_frozen_authors(
+    editor,
+    published_articles,
+    press,
+    admin,
+    sections,
+    keywords,
+    journal,
+    account_factory,
+):
+    """An article is listed once even when an account is frozen on it twice.
+
+    Janeway acknowledges this state explicitly: `remove_author_from_article`
+    catches `ArticleAuthorOrder.MultipleObjectsReturned` with the comment "the
+    same account could be linked to the paper twice if the account is linked to
+    multiple FrozenAuthor records". `snapshot_as_author` cannot produce it
+    (it uses get_or_create), so the second row is created directly.
+    """
+    article = published_articles.filter(journal=journal).first()
+    coauthor = account_factory()
+    coauthor.snapshot_as_author(article)
+    submission_models.FrozenAuthor.objects.create(
+        article=article,
+        author=coauthor,
+        first_name=coauthor.first_name,
+        last_name=coauthor.last_name,
+        order=article.next_frozen_author_order(),
+    )
+
+    assert article.frozenauthor_set.filter(author=coauthor).count() == 2
+
+    client = Client()
+    url = reverse("articles_by_author", kwargs={"author": coauthor.pk})
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.context["page_obj"].paginator.count == 1
+    assert list(response.context["page_obj"].object_list) == [article]
+
+
+@pytest.mark.django_db
 def test_filter_articles_by_author_not_found_error(editor, published_articles, press, admin, sections, keywords):
     journal_2 = _journal_factory("JCOMAL", press, domain="jcomal.sissa.it")
     _create_published_articles(admin, editor, journal_2, sections, keywords, items=4)
