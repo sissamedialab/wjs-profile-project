@@ -1,11 +1,15 @@
+from urllib.parse import urlencode
+
 from django import forms
 from django.apps import apps
 from django.contrib import admin
+from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 from django.db.models import Q
 from django.db.models.functions import Lower
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import path, reverse
+from django.utils.translation import gettext_lazy as _
 from submission.models import Article, FrozenAuthor
 from wjs.advanced_admin.admin import advanced_admin_site
 
@@ -18,7 +22,60 @@ EditorDecision = apps.get_model("wjs_review", "EditorDecision")
 WorkflowReviewAssignment = apps.get_model("wjs_review", "WorkflowReviewAssignment")
 
 
-@admin.register(WjsSection, site=advanced_admin_site)
+class ParamsWrapper(RelatedFieldWidgetWrapper):
+    def __init__(self, wrapper, extra):
+        """
+        Add wrapper to wrap some extra context to url params.
+        """
+        super().__init__(
+            wrapper.widget,
+            wrapper.rel,
+            wrapper.admin_site,
+            wrapper.can_add_related,
+            wrapper.can_change_related,
+            wrapper.can_delete_related,
+            wrapper.can_view_related,
+        )
+        self.extra = extra
+
+    def get_context(self, name, value, attrs):
+        """
+        Add extra context to url params.
+        """
+        ctx = super().get_context(name, value, attrs)
+        ctx["url_params"] += "&" + urlencode(self.extra)
+        return ctx
+
+
+class EditorDecisionProxy(EditorDecision):
+    class Meta:
+        proxy = True
+        verbose_name = _("Editor report")
+        verbose_name_plural = _("Editor reports")
+
+
+class EditorRevisionRequestProxy(EditorRevisionRequest):
+    class Meta:
+        proxy = True
+        verbose_name = _("Author's cover letter (revisions)")
+        verbose_name_plural = _("Author's cover letters (revisions)")
+
+
+class WjsSectionProxy(WjsSection):
+    class Meta:
+        proxy = True
+        verbose_name = _("Modify journal's article type")
+        verbose_name_plural = _("Modify journal's article types")
+
+
+class WorkflowReviewAssignmentProxy(WorkflowReviewAssignment):
+    class Meta:
+        proxy = True
+        verbose_name = _("Reviewer report")
+        verbose_name_plural = _("Reviewer reports")
+
+
+@admin.register(WjsSectionProxy, site=advanced_admin_site)
 class WjsSectionAdmin(admin.ModelAdmin):
     fields = ["doi_sectioncode", "pubid_and_tex_sectioncode", "description"]
     list_display = ["name", "journal"]
@@ -34,7 +91,7 @@ class WjsSectionAdmin(admin.ModelAdmin):
         return False
 
 
-@admin.register(EditorRevisionRequest, site=advanced_admin_site)
+@admin.register(EditorRevisionRequestProxy, site=advanced_admin_site)
 class EditorRevisionRequestAdmin(admin.ModelAdmin):
     readonly_fields = ("author_note",)
     fields = (
@@ -56,6 +113,18 @@ class EditorRevisionRequestAdmin(admin.ModelAdmin):
         extra_context = extra_context or {}
         extra_context["title"] = "Select authors cover letter to change"
         return super().changelist_view(request, extra_context=extra_context)
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """
+        Add article id in widget.
+        """
+        ff = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if db_field.name == "cover_letter_file":
+            object_id = request.resolver_match.kwargs.get("object_id")
+            if object_id:
+                article_id = self.model.objects.get(id=object_id).article.id
+                ff.widget = ParamsWrapper(ff.widget, {"article": article_id})
+        return ff
 
     def has_add_permission(self, request: HttpRequest) -> bool:  # noqa: PLR6301
         """
@@ -115,7 +184,7 @@ class EditorRevisionRequestAdmin(admin.ModelAdmin):
         return obj.article.get_pubid()
 
 
-@admin.register(WorkflowReviewAssignment, site=advanced_admin_site)
+@admin.register(WorkflowReviewAssignmentProxy, site=advanced_admin_site)
 class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
     form = WorkflowReviewAssignmentForm
     search_fields = (
@@ -123,10 +192,31 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
         "article__id",
         "article__identifier__identifier",
     )
-    readonly_fields = ("tex_report_pdf", "review_file_display")
+    autocomplete_fields = ("tex_report_pdf", "review_file")
+
+    def get_readonly_fields(self, request, obj=None):
+        ro = list(super().get_readonly_fields(request, obj))
+        if obj and obj.tex_report_pdf:
+            ro.append("tex_report_pdf")
+        if obj and obj.review_file:
+            ro.append("review_file")
+        return ro
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """
+        Add article id in widget.
+        """
+        ff = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if db_field.name in ["tex_report_pdf", "review_file"]:
+            object_id = request.resolver_match.kwargs.get("object_id")
+            if object_id:
+                article_id = self.model.objects.get(id=object_id).article.id
+                ff.widget = ParamsWrapper(ff.widget, {"article": article_id})
+        return ff
+
     fields = (
         "tex_report_pdf",
-        "review_file_display",
+        "review_file",
         "reviewer_report",
     )
     list_display = [
@@ -143,24 +233,18 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
     ]
     ordering = ("-pk",)
 
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["subtitle"] = (
+            "Replacing the LaTeX version of the report is not possible via the advanced admin at the moment."
+        )
+        return super().change_view(request, object_id, form_url, extra_context)
+
     def version_number(self, obj):
         return obj.version[0].number if obj.version else "-"
 
     def report_id(self, obj):
         return obj.pk
-
-    @admin.display(description="Attachment")
-    def review_file_display(self, obj):
-        return obj.review_file
-
-    def render_change_form(self, request, context, *args, **kwargs):
-        context["title"] = "Change reviewer report"
-        return super().render_change_form(request, context, *args, **kwargs)
-
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        extra_context["title"] = "Select reviewer report to change"
-        return super().changelist_view(request, extra_context=extra_context)
 
     def pubid(self, obj: WorkflowReviewAssignment) -> str:  # noqa: PLR6301
         """
@@ -209,7 +293,7 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
         return obj.article.title
 
 
-@admin.register(EditorDecision, site=advanced_admin_site)
+@admin.register(EditorDecisionProxy, site=advanced_admin_site)
 class EditorDecisionAdmin(admin.ModelAdmin):
     search_fields = (
         "workflow__article__id",
@@ -230,15 +314,6 @@ class EditorDecisionAdmin(admin.ModelAdmin):
         "workflow__article__journal",
     ]
     ordering = ("-id",)
-
-    def render_change_form(self, request, context, *args, **kwargs):
-        context["title"] = "Change editor report"
-        return super().render_change_form(request, context, *args, **kwargs)
-
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        extra_context["title"] = "Select editor report to change"
-        return super().changelist_view(request, extra_context=extra_context)
 
     def pubid(self, obj: EditorDecision) -> str:  # noqa: PLR6301
         """
