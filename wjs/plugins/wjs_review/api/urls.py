@@ -5,6 +5,7 @@ from .views import (
     ArticleGalleyView,
     ArticleZipDownloadView,
     CollaborationListView,
+    JournalProductionListView,
     TypesetterPapersListView,
 )
 
@@ -22,5 +23,11 @@ urlpatterns = [
         "journal/<str:code>/typesetter/<int:typesetter_pk>/papers/",
         TypesetterPapersListView.as_view(),
         name="typesetter-papers",
+    ),
+    # G7
+    path(
+        "journal/<str:code>/production/",
+        JournalProductionListView.as_view(),
+        name="journal-production",
     ),
 ]

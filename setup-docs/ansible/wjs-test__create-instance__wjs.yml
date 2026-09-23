@@ -44,6 +44,12 @@
     pip: "{{ venv_root }}/bin/pip"
     ansible_ssh_common_args: "-o ForwardAgent=yes"
     janeway_version: "{{ janeway | default('wjs-develop') }}"
+    # Interpreter the virtualenv is built on. Comes from pyenv (see the
+    # janeway group in inventories/), NOT from /usr/bin: new instances must be
+    # born on the same python as the ones regenerate-venv-and-deploy.yml rebuilds.
+    pyenv_root: /home/wjs/.pyenv
+    python_version: "{{ pyenv_python | default('3.13.15') }}"
+    pyenv_python_bin: "{{ pyenv_root }}/versions/{{ python_version }}/bin/python"
     # Third-party Janeway plugin, cloned into src/plugins (see below)
     hydra_repo: git@gitlab.sissamedialab.it:wjs/hydra.git
     hydra_version: wjs-production
@@ -63,6 +69,22 @@
           redis_db is "{{ redis_db }}": pass a free DB index with -e redis=N
           (1..15, excluding 10 and 11).
 
+    - name: Check that the pyenv interpreter is available
+      stat:
+        path: "{{ pyenv_python_bin }}"
+      register: pyenv_interpreter
+      changed_when: false
+
+    - name: Fail early if the interpreter has not been built yet
+      assert:
+        that:
+          - pyenv_interpreter.stat.exists
+        fail_msg: >-
+          {{ pyenv_python_bin }} does not exist. Build it first - regenerate-venv.yml
+          installs pyenv and the interpreter - or pass -e pyenv_python=<version>
+          for one that is already installed
+          ({{ pyenv_root }}/versions holds the current ones).
+
     - name: Clone Janeway repo
       # See also wjs-setup-user.yml
       # Note that to clone a private repo we need
@@ -79,7 +101,7 @@
       shell: |
         export WORKON_HOME={{ workon_home }}
         source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-        mkvirtualenv -a $(pwd) {{ full_name }}
+        mkvirtualenv -a $(pwd) -p {{ pyenv_python_bin }} {{ full_name }}
       args:
         chdir: "/home/wjs/{{ full_name }}/src"
         executable: /bin/bash
@@ -196,6 +218,28 @@
     # done
 
 
+    - name: Locate the virtualenv's site-packages
+      # Asked of the interpreter instead of being spelled out: the path contains
+      # the python version ("lib/python3.13/site-packages"), and hardcoding it
+      # is what made these links break on every interpreter change.
+      command: >-
+        {{ python }} -c
+        "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+      register: purelib
+      changed_when: false
+
+    - name: Remember where the WJS packages landed
+      set_fact:
+        site_packages: "{{ purelib.stdout | trim }}"
+
+    - name: Expose the packaged Apache redirects at a version-independent path
+      # apache/wjs-test.conf.j2 includes wjs/conf/<journal>-apache-redirects.inc
+      # through this symlink, which keeps the python version out of the vhost.
+      file:
+        src: "{{ site_packages }}/wjs/conf"
+        dest: "{{ venv_root }}/wjs-conf"
+        state: link
+
     # Note: at this point, no management command can be used,
     # because there is reference from wjs_review to plugins/wjs_submission,
     # but the latter does not yet exist.
@@ -209,7 +253,7 @@
 
     - name: Manually install wjs-submission plugin
       file:
-        src: "{{ venv_root }}/lib/python3.11/site-packages/wjs/plugins/wjs_submission"
+        src: "{{ site_packages }}/wjs/plugins/wjs_submission"
         dest: "/home/wjs/{{ full_name }}/src/plugins/wjs_submission"
         state: link
         owner: wjs
@@ -219,7 +263,7 @@
       # Keeping as a separate task, because there is probably some spurious dependency
       # from wjs_submission that will probably be fixed in the future.
       file:
-        src: "{{ venv_root }}/lib/python3.11/site-packages/wjs/plugins/wjs_review"
+        src: "{{ site_packages }}/wjs/plugins/wjs_review"
         dest: "/home/wjs/{{ full_name }}/src/plugins/wjs_review"
         state: link
         owner: wjs
@@ -262,7 +306,7 @@
     - name: Copy gunicorn systemd service unit
       template:
         src: systemd/gunicorn.service.j2
-        dest: "/home/wjs/.config/systemd/user/gunicorn-{{ instance_name }}.service"
+        dest: "/home/wjs/.config/systemd/user/gunicorn{{ suffix }}.service"
         owner: wjs
         group: wjs
         mode: '0644'
@@ -273,7 +317,7 @@
     - name: Copy qcluster systemd service unit
       template:
         src: systemd/qcluster.service.j2
-        dest: "/home/wjs/.config/systemd/user/qcluster-{{ instance_name }}.service"
+        dest: "/home/wjs/.config/systemd/user/qcluster{{ suffix }}.service"
         owner: wjs
         group: wjs
         mode: '0644'
@@ -284,8 +328,8 @@
     - name: Add aliases to start/stop the instance's services to .bashrc
       ansible.builtin.lineinfile:
         path: /home/wjs/.bashrc
-        regexp: "^alias {{ item }}-{{ instance_name }}="
-        line: "alias {{ item }}-{{ instance_name }}='systemctl --user {{ item }} gunicorn-{{ instance_name }} && systemctl --user {{ item }} qcluster-{{ instance_name }}'"
+        regexp: "^alias {{ item }}{{ suffix }}="
+        line: "alias {{ item }}{{ suffix }}='systemctl --user {{ item }} gunicorn{{ suffix }} && systemctl --user {{ item }} qcluster{{ suffix }}'"
       loop:
         - start
         - stop
@@ -302,8 +346,8 @@
       environment:
         XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
       loop:
-        - "gunicorn-{{ instance_name }}.service"
-        - "qcluster-{{ instance_name }}.service"
+        - "gunicorn{{ suffix }}.service"
+        - "qcluster{{ suffix }}.service"
 
 
 
@@ -319,5 +363,5 @@
       environment:
         XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
       loop:
-        - "gunicorn-{{ instance_name }}.service"
-        - "qcluster-{{ instance_name }}.service"
+        - "gunicorn{{ suffix }}.service"
+        - "qcluster{{ suffix }}.service"

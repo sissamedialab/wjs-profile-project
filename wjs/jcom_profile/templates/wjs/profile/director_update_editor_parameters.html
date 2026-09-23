@@ -34,6 +34,8 @@
         </div>
         <div class="row g-6">
           {% for subform in formset.forms %}
+            {{ subform.id }}
+            {% bootstrap_form_errors subform type="non_fields" %}
             <div class="col-6">
               {% bootstrap_field subform.keyword_str layout="horizontal" horizontal_label_class="col-sm-3" horizontal_field_class="col-sm-9" %}
             </div>

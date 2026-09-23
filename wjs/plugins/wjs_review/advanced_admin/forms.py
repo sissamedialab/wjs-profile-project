@@ -8,11 +8,16 @@ class WorkflowReviewAssignmentForm(forms.ModelForm):
     reviewer_report = forms.CharField(
         required=False,
         widget=forms.Textarea,
+        label="Reviewer report (txt only, no Latex)",
     )
 
     class Meta:
         model = WorkflowReviewAssignment
         fields = "__all__"
+        labels = {
+            "tex_report_pdf": "PDF generated from LaTeX",
+            "review_file": "Attachment",
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

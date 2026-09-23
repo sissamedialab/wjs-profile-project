@@ -66,15 +66,6 @@
         group: root
         mode: '0644'
 
-    - name: Copy daphne Apache
-      copy:
-        src: apache/apache-proxy-and-socket-daphne.inc
-        dest: /etc/apache2/conf-available/wjs/
-        owner: root
-        group: root
-        mode: '0644'
-
-
     - name: Render and copy Apache virtualhost configuration
       # Note that the template "wjs-test.conf.j2" in "src" is called "wjs-test..."
       # because it's a template for the "wjs-test.ud" machine.
