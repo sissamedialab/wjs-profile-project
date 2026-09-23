@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.1.1] - 2026-09-23
+
+- [specs#3196: Upgrade autobahn to 26.7](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3196) — Upgrade autobahn to 26.7 (!1526)
+- [specs#3082: Labels should have a cohoerent colour across pages](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3082) — feat: add typesetter exception for badge waiting for flow refactoring (!1504)
+- [specs#3098: Live test JP integration test](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3098) — add components of jp sgp bridge (!1444)
+- [wjs-profile-project#297: JP bridge cookie should have the same domain of the journal in production](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/297) — add components of jp sgp bridge (!1444)
+- [specs#2949: Implement SGP - JP Bridge](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2949) — add components of jp sgp bridge (!1444)
+- [specs#3025: G8 GET typesetters stats (for monitoring)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3025) — feat: G8 - add typesetters papers monitoring endpoint (!1503)
+- [specs#3120: As a typesetter i need to distinguish between "taken in charge" and "proofs received" status](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3120) — feat: G8 - add typesetters papers monitoring endpoint (!1503)
+- [specs#3048: Problems filtering by author in Vetrinetta](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3048) — fix(views): filter author landing page on frozen authors (!1510)
+- [specs#2961: Adapt HTML post-processing to JQuant](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2961) — feature: use custom body processing function for JQuant (!1483)
+- [specs#883: As sysadmin I want the import command not to depend on wjs_review plugin, because the latter is not yet installed in production](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/883) — feature: use custom body processing function for JQuant (!1483)
+- [specs#3149: Adapt "dummy generator" to JQuant and JCAP](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3149) — feature: use custom body processing function for JQuant (!1483)
+- [specs#2881: Sync authors text<->DB](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2881) — Sync authors (!1497)
+- [specs#1804: As EO I want to update authors' data (name, email, etc.) if data from TeX is more complete](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/1804) — Sync authors (!1497)
+- [specs#2924: Review check by Giorgia in #2771](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2924) — Sync authors (!1497)
+- [specs#3133: Ensure that all "searches" of article authors use the FrozenAuthors and not A.article_authors](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3133) — Sync authors (!1497)
+- [specs#3134: Tidy-up twitter handle](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3134) — Sync authors (!1497)
+- [specs#3116: Review message sent to newly associated co-authors](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3116) — Sync authors (!1497)
+- [specs#2997: As EO I want a UI to handle multiple attention conditions](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2997) — feature: add attention condition template and update review listing template (!1514)
+- [specs#3061: Improvements to JCAP home page](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3061) — style(login): add exception to handle login btn style for jcap (!1494)
+- [specs#3091: Add --dry-run option to release.sh script](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3091) — Add the option --dry-run to the release script (!1498)
+
 ## [2.1.0] - 2026-09-16
 
 - No linked issue — fix: minor fixes preventing installation from scratch (!1508)
