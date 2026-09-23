@@ -336,7 +336,9 @@ class ReviewerArticleWorkflowFilter(BaseArticleWorkflowFilter):
 class StaffArticleWorkflowFilter(BaseArticleWorkflowFilter):
     template_name = "wjs_review/lists/elements/filters_staff.html"
 
-    author = django_filters.CharFilter(field_name="article__authors", method="filter_user", label=_("Authors"))
+    author = django_filters.CharFilter(
+        field_name="article__frozenauthor__author", method="filter_user", label=_("Authors")
+    )
     reviewer = django_filters.CharFilter(
         field_name="article__reviewassignment__reviewer",
         method="filter_user",
