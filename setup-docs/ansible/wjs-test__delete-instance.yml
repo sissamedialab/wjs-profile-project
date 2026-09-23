@@ -39,8 +39,8 @@
         XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
         DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ wjs_user_id }}/bus"
       loop:
-        - "gunicorn-{{ instance_name }}.service"
-        - "qcluster-{{ instance_name }}.service"
+        - "gunicorn{{ suffix }}.service"
+        - "qcluster{{ suffix }}.service"
       notify: Reload user systemd
 
 
@@ -63,13 +63,13 @@
         dest: "{{ item }}"
         state: absent
       loop:
-        - "/home/wjs/.config/systemd/user/gunicorn-{{ instance_name }}.service"
-        - "/home/wjs/.config/systemd/user/qcluster-{{ instance_name }}.service"
+        - "/home/wjs/.config/systemd/user/gunicorn{{ suffix }}.service"
+        - "/home/wjs/.config/systemd/user/qcluster{{ suffix }}.service"
 
     - name: Remove start/stop aliases for the instance's services from .bashrc
       ansible.builtin.lineinfile:
         path: /home/wjs/.bashrc
-        regexp: "^alias {{ item }}-{{ instance_name }}="
+        regexp: "^alias {{ item }}{{ suffix }}="
         state: absent
       loop:
         - start
@@ -109,7 +109,7 @@
 
     - name: Delete logrotate configuration for wjs
       file:
-        path: "/etc/logrotate.d/wjs-{{ instance_name }}"
+        path: "/etc/logrotate.d/wjs{{ suffix }}"
         state: absent
 
 

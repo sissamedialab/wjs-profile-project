@@ -91,13 +91,6 @@
         extra_args: "-c /home/wjs/projects/janeway/constraints.txt"
         virtualenv: /home/wjs/projects/janeway/venv
 
-    # TBV: we don't "require" daphne from anywhere
-    # (seems correct to me, because it's not strictly required by our code)
-    - name: Install Daphne
-      pip:
-        name: daphne
-        virtualenv: /home/wjs/projects/janeway/venv
-
     - name: Install WJS packages in editable mode
       pip:
         name: "{{ item }}"
@@ -238,28 +231,3 @@
         group: wjs
         mode: '0755'
       # www-data  # FIXME: specs#2059! ???
-
-    - name: Copy daphne systemd service to user config
-      copy:
-        src: griffo-files/daphne.service
-        dest: /home/wjs/.config/systemd/user/daphne.service
-        owner: wjs
-        group: wjs
-        mode: '0644'
-      # www-data  # FIXME: specs#2059! ???
-      notify: Reload user systemd
-
-
-    - name: Start daphne service
-      systemd:
-        name: daphne.service
-        state: restarted
-        scope: user
-        enabled: true
-
-
-  handlers:
-    - name: Reload user systemd
-      systemd:
-        daemon_reload: yes
-        scope: user

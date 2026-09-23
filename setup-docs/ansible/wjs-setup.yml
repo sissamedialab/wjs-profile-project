@@ -203,7 +203,6 @@
         mode: '0644'
       loop:
         - { src: "apache/apache-log-and-ssl.inc", dest: "/etc/apache2/conf-available/wjs/apache-log-and-ssl.inc" }
-        - { src: "apache/apache-proxy-and-socket-daphne.inc", dest: "/etc/apache2/conf-available/wjs/apache-proxy-and-socket-daphne.inc" }
         - { src: "apache/apache-static-files-block.inc", dest: "/etc/apache2/conf-available/wjs/apache-static-files-block.inc" }
 
     - name: Enable virtualhost

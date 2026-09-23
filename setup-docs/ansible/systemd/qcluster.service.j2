@@ -1,8 +1,25 @@
+# WJS task queue (django-q) runner: one unit per Janeway instance.
+#
+# A systemd *user* unit for the wjs user. Install it as
+# ~/.config/systemd/user/qcluster{{ suffix }}.service, then
+# - systemctl --user daemon-reload
+# - systemctl --user enable --now qcluster{{ suffix }}.service
+# - loginctl enable-linger wjs   (once per machine, so the units survive logout)
+# To read the log: journalctl -q -f --user-unit qcluster{{ suffix }}.service
+# See also https://www.brendanlong.com/systemd-user-services-are-amazing.html
+#
+# One template for every instance, test and production alike: the unit name and all
+# the paths derive from `suffix` / `full_name` / `venv_root`, so production (empty
+# suffix) renders qcluster.service and a test instance renders qcluster-t3.service.
+# The unit names must keep agreeing with scripts/deploy.sh (qcluster${SUFFIX}.service).
+
 [Unit]
-Description=qcluster runner for {{ instance_name }}
+Description=qcluster runner for WJS {{ full_name }}
 After=network.target
 
 [Service]
+# No! # Environment="Q_CLUSTER_NAME=qcluster-test"  # gives KeyError: 'ALT_CLUSTERS' (see docs)
+# User=wjs  # Not needed: this is a user unit, it already runs as wjs
 WorkingDirectory=/home/wjs/{{ full_name }}/src
 ExecStart={{ venv_root }}/bin/python manage.py qcluster
 

@@ -21,3 +21,9 @@
 <Location "/api/schema/">
     Require all denied
 </Location>
+
+
+<LocationMatch "^/apple-touch-icon.*\.png$">
+    ProxyPass "!"
+    ErrorDocument 404 "no icon"
+</LocationMatch>

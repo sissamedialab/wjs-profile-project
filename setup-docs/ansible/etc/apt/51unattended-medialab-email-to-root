@@ -1,0 +1,3 @@
+// Managed by ansible (hold-postgresql.yml). Do not edit by hand.
+Unattended-Upgrade::Mail "root";
+Unattended-Upgrade::MailReport "on-change";
