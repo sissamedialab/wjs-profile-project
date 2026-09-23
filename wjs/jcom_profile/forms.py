@@ -273,8 +273,23 @@ class EditorKeywordForm(forms.ModelForm):
             kwargs["initial"] = {}
         # forcing the keyword content in the "fake_factory" field allowed the field to be rendered, but it's
         # disconnected from the model field and is ignored on save
-        kwargs["initial"]["keyword_str"] = kwargs["instance"].keyword.word
+        # instance is missing when the row's hidden pk field is missing from POST data (e.g. tampered/stale
+        # data): the formset then falls back to a blank instance. Track this so clean() can report it as a
+        # normal form error instead of the __init__ crashing outright.
+        instance = kwargs.get("instance")
+        self._instance_missing = instance is None or instance.pk is None
+        if not self._instance_missing:
+            kwargs["initial"]["keyword_str"] = instance.keyword.word
         super().__init__(*args, **kwargs)
+
+    def clean(self):
+        """Reject rows whose hidden pk field could not be matched to an existing StaffKeyword."""
+        cleaned_data = super().clean()
+        if self._instance_missing:
+            raise forms.ValidationError(
+                _("This keyword row could not be matched to an existing entry. Please reload the page and retry."),
+            )
+        return cleaned_data
 
 
 EditorKeywordFormset = inlineformset_factory(
