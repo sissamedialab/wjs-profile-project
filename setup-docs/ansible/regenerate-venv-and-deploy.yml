@@ -1,0 +1,522 @@
+# Rebuild an instance's virtualenv on a fresh Python (3.13 by default) AND put
+# Janeway and WJS back into it, in one run.
+#
+# This is regenerate-venv.yml plus the deploy: same pyenv / interpreter /
+# virtualenv / symlink steps, but instead of stopping and handing over to the CI
+# it pulls Janeway, installs the packages, starts the instance back up and
+# reloads Apache. Use regenerate-venv.yml when the deploy must go through the CI
+# (a specific SHA on t1-t5, say); use this one to get an instance back on its
+# feet in a single command.
+#
+# From specs#3084 (note 73742).
+#
+# Test instance:
+#   ansible-playbook regenerate-venv-and-deploy.yml -e instance="t1"
+#
+# Production (note the explicit inventory and confirmation):
+#   ansible-playbook -i inventories/prod.yml regenerate-venv-and-deploy.yml \
+#       -e instance="" -e confirm=PROD
+#
+# "instance" is mandatory and has no default, as in install_hydra.yml: pass an
+# empty value to work on an unsuffixed instance (/home/wjs/janeway).
+#
+# Useful knobs:
+#   -e pyenv_python=3.13.15  interpreter to build and to base the virtualenv on
+#   -e pyenv_ref=v2.4.7      pyenv revision to check out (default: master)
+#   -e refresh_wjs=off       reinstall the WJS versions the instance already
+#                            had, instead of taking the current ones. Default
+#                            "on".
+#   -e pip_options=--pre     extra flags for the WJS install, e.g. "--pre" to
+#                            take pre-release versions of wjs-jcom-profile and
+#                            of the WJS packages it depends on.
+#                            For MORE THAN ONE flag use the JSON form, because
+#                            "-e key=value" stops at the first space and would
+#                            silently drop the rest:
+#                              -e '{"pip_options": "--pre --no-cache-dir"}'
+#
+# Janeway is pulled on whatever branch the checkout is already on - this
+# playbook never switches branch. Change branch by hand (or via the CI) first if
+# that is what you are after.
+#
+# The management commands are the same set deploy.sh runs, so this is a full
+# deploy and not just a virtualenv rebuild.
+#
+# wjs-themes, wjs-submission and wjs-user-search all arrive as dependencies of
+# wjs-jcom-profile (search comes in through submission), so with refresh_wjs=on
+# the single install covers every WJS package.
+#
+# With refresh_wjs=off the versions installed in the old virtualenv are read
+# with "pip freeze" before it is set aside, and put back one by one. A git
+# requirement is rewritten to "git+ssh://git@<host>/<path>@<sha>": deploy.sh
+# installs from an https URL carrying a short-lived deploy token, always expired
+# by the time this runs, so the clone goes over the operator's forwarded ssh
+# agent instead - the same one "Pull Janeway" needs.
+#
+# What it still does NOT do:
+#   - hydra, which is a git clone under src/plugins rather than a python
+#     package, and so is unaffected by rebuilding the virtualenv. Use the CI's
+#     "deploy-<instance>-hydra", or install_hydra.yml, to move it.
+#   - install_plugins. The plugins are symlinked above and are already
+#     registered in the database, which this playbook never touches; deploy.sh
+#     only ever runs install_plugins for hydra. Run it by hand if you are
+#     adding a plugin that the database has never seen.
+#
+# The previous virtualenv is renamed to "<virtualenv>.bak-<timestamp>", not
+# deleted: rolling back is a "mv" away. Nothing cleans those up, so remove them
+# once the instance is known good.
+#
+# "pyenv install" does NOT fail when a build dependency is missing: configure
+# quietly drops the affected module and the interpreter is built without it.
+# Install these as root before the first run (the issue reports Debian 13
+# already has everything):
+#
+#   apt install build-essential pkg-config curl ca-certificates xz-utils \
+#       libreadline-dev libncurses-dev libssl-dev zlib1g-dev libbz2-dev \
+#       liblzma-dev libzstd-dev libsqlite3-dev libffi-dev uuid-dev \
+#       libgdbm-dev libgdbm-compat-dev
+#
+# Notes on that list:
+#   - readline needs libreadline-dev AND libncurses-dev: it links against
+#     terminfo, so ncurses headers alone decide whether the module appears
+#   - libssl-dev is the one that hurts most - without it pip cannot reach any
+#     index, so the deploy fails at the first install
+#   - xz-utils and curl are for pyenv itself (fetching and unpacking the source
+#     tarball), not for CPython
+#   - libzstd-dev is only used by 3.14's compression.zstd; harmless before that
+#   - tk-dev (tkinter) is left out: nothing here uses it. libmpdec-dev
+#     (_decimal) is left out too because Debian 12 does not package it - check
+#     "import decimal" on a freshly built interpreter
+#
+# It extends the list in the issue, which also had three mistakes:
+# "xz-utils-dev" does not exist (it is "xz-utils"), "libncursesw5-dev" is gone
+# in Debian 13 (superseded by "libncurses-dev", present in 12 too), and
+# "libnss3-dev" is not a CPython build dependency at all.
+#
+# Check what a finished interpreter actually got:
+#
+#   ~/.pyenv/versions/<version>/bin/python -c "import bz2, ctypes, curses, \
+#       dbm.gnu, decimal, lzma, readline, sqlite3, ssl, uuid, zlib"
+#
+# Installing a missing library afterwards is not enough on its own: "pyenv
+# install -s" and this playbook's "creates:" both skip an interpreter that
+# already exists, so a crippled one would be silently reused. Force it with
+# "pyenv install -f <version>" first, then re-run.
+#
+# "--check" runs say little here: the interpreter and the virtualenv are built
+# by commands, and nothing after them can run against a virtualenv check mode
+# never created.
+
+---
+- name: Rebuild the Janeway virtualenv and redeploy into it
+  hosts: janeway
+  remote_user: wjs
+  # One machine at a time, and stop at the first failure rather than leaving
+  # half the fleet without a working virtualenv.
+  serial: 1
+  any_errors_fatal: true
+  vars:
+    ansible_user: wjs
+    wjs_user_id: 1000
+    instance_name: "{{ instance | mandatory }}"
+    # "~" (not "+") because it stringifies its operands; see install_hydra.yml.
+    suffix: "{{ '-' ~ instance_name if instance_name else '' }}"
+    full_name: "janeway{{ suffix }}"
+    project_dir: "/home/wjs/{{ full_name }}/src"
+    workon_home: /home/wjs/.virtualenvs/
+    venv_root: "{{ workon_home }}/{{ full_name }}"
+    python: "{{ venv_root }}/bin/python"
+    pip: "{{ venv_root }}/bin/pip"
+    ansible_ssh_common_args: "-o ForwardAgent=yes"
+    # pyenv, and the interpreter it must provide. Pin the patch level: the
+    # virtualenv is built from an explicit ".../versions/<version>/bin/python".
+    pyenv_root: /home/wjs/.pyenv
+    pyenv_version: "{{ pyenv_ref | default('master') }}"
+    python_version: "{{ pyenv_python | default('3.13.15') }}"
+    pyenv_python_bin: "{{ pyenv_root }}/versions/{{ python_version }}/bin/python"
+    # "3.13.15" -> "3.13", which is how the interpreter spells its own lib
+    # directory. Derived from the same variable that picks the interpreter, so
+    # the two cannot drift apart.
+    python_xy: "{{ python_version.split('.')[:2] | join('.') }}"
+    site_packages: "{{ venv_root }}/lib/python{{ python_xy }}/site-packages"
+    virtualenvwrapper: /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+    # Spelled out rather than discovered: the virtualenv is still empty when the
+    # links are made, so there is nothing to enumerate. Add a line here when a
+    # new WJS plugin appears. wjs_submission comes from wjs-submission-project,
+    # the rest from this repo.
+    wjs_plugins:
+      - wjs_home_blocks
+      - wjs_latest_articles
+      - wjs_latest_news
+      - wjs_review
+      - wjs_stats
+      - wjs_submission
+      - wjs_subscribe_newsletter
+    # JCOM-theme and wjs-bootstrap both ship in wjs-themes. Janeway's own themes
+    # (OLH, material, clean) are real directories in the checkout, not links.
+    wjs_themes:
+      - JCOM-theme
+      - wjs-bootstrap
+    # The instance's user services: stopped before the rebuild, started again
+    # once Janeway and WJS are back in the virtualenv.
+    instance_services:
+      - "gunicorn{{ suffix }}.service"
+      - "qcluster{{ suffix }}.service"
+    wjs_package_index: "https://gitlab.sissamedialab.it/api/v4/projects/60/packages/pypi/simple"
+    # Extra flags for the WJS install. Empty by default; "-e pip_options=--pre"
+    # on the command line wins over this (extra-vars outrank play vars) and
+    # accepts pre-releases - of wjs-jcom-profile and of the WJS packages it
+    # pulls in (wjs-themes, wjs-submission), which is normally what you want.
+    pip_options: ""
+    # Refresh packages "on" (default): install the current wjs-jcom-profile and
+    # let pip resolve the rest. "off": put back exactly what the instance had -
+    # see the tasks that read "pip freeze" before the old virtualenv is set
+    # aside.
+    refresh_wjs: "on"
+    # Order matters when restoring: during development the declared
+    # dependencies are not always right, so wjs-jcom-profile goes in first and
+    # the others then pin themselves over whatever it dragged in. Canonical
+    # (PEP 503) names - the distributions spell themselves wjs.jcom_profile,
+    # wjs_submission, wjs-themes and wjs.user_search, and "wjs-search" in
+    # deploy.sh's CI grammar is the package wjs-user-search.
+    wjs_install_order:
+      - wjs-jcom-profile
+      - wjs-submission
+      - wjs-themes
+      - wjs-user-search
+
+  pre_tasks:
+
+    - name: Guard against unintended production runs
+      import_tasks: tasks/assert-production-opt-in.yml
+
+    - name: Check that virtualenvwrapper is available
+      # mkvirtualenv is a shell function, so a missing virtualenvwrapper would
+      # only surface as a puzzling "command not found" late in the run.
+      stat:
+        path: "{{ virtualenvwrapper }}"
+      register: venvwrapper
+      changed_when: false
+
+    - name: Fail early if virtualenvwrapper is missing
+      assert:
+        that:
+          - venvwrapper.stat.exists
+        fail_msg: >-
+          {{ virtualenvwrapper }} not found on {{ inventory_hostname }}.
+          Install virtualenvwrapper, or adapt this playbook to plain "python -m venv".
+
+  tasks:
+
+    - name: Install or update pyenv
+      # The issue pipes https://pyenv.run into bash; the git checkout is the
+      # same thing without the pipe, and is what wjs-setup-user.yml already
+      # does. We only need pyenv itself - the virtualenv comes from
+      # virtualenvwrapper.
+      git:
+        repo: https://github.com/pyenv/pyenv.git
+        dest: "{{ pyenv_root }}"
+        version: "{{ pyenv_version }}"
+
+    - name: Add pyenv to the wjs user's environment
+      lineinfile:
+        path: /home/wjs/.bashrc
+        line: "{{ item }}"
+        create: yes
+      loop:
+        - 'export PYENV_ROOT="$HOME/.pyenv"'
+        - 'export PATH="$PYENV_ROOT/bin:$PATH"'
+        - 'eval "$(pyenv init -)"'
+
+    - name: Build Python {{ python_version }} with pyenv
+      # Deliberately no "pyenv global": the machine hosts several instances, and
+      # each one pins its interpreter through the virtualenv it was created
+      # with. A global switch would move all of them at once.
+      command: "{{ pyenv_root }}/bin/pyenv install -s {{ python_version }}"
+      args:
+        creates: "{{ pyenv_python_bin }}"
+
+    - name: Stop the instance's services
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+        scope: user
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      loop: "{{ instance_services }}"
+
+    - name: Check whether a virtualenv is already in place
+      stat:
+        path: "{{ venv_root }}"
+      register: old_venv
+
+    - name: Record the WJS packages installed in the current virtualenv
+      command: "{{ pip }} freeze"
+      register: old_freeze
+      changed_when: false
+      when:
+        - not (refresh_wjs | bool)
+        - old_venv.stat.exists
+
+    - name: Work out which WJS requirements to restore, in install order
+      # "wjs[._-]" so a package that merely starts with those three letters is
+      # not swept in, and the names are normalized the way pip does it
+      # (lowercase, "." and "_" to "-") so the four spellings all match.
+      #
+      # The two regex_replace steps turn every git requirement into git+ssh.
+      # deploy.sh installs from "https://<user>:<deploy token>@gitlab...", and
+      # pip freeze hands that back with the credentials intact - but the deploy
+      # token is short-lived and has always expired by the time this runs, so
+      # re-cloning from it would fail to authenticate. Rewriting to
+      # "git+ssh://git@<host>/<path>@<sha>" clones over the operator's forwarded
+      # ssh agent instead, and keeps the commit. The second step is a safety
+      # net: it strips credentials from any http(s) URL the first one did not
+      # convert, so nothing that reaches pip (or the output below) can carry a
+      # secret. It deliberately does not touch ssh URLs, whose "git@" must stay.
+      vars:
+        frozen_lines: >-
+          {{ old_freeze.stdout_lines | default([])
+             | select('match', '(?i)^\s*wjs[._-]') | list }}
+        frozen_map: >-
+          {{ dict(frozen_lines
+                  | map('regex_replace', '^\s*([A-Za-z0-9._-]+).*$', '\1')
+                  | map('lower') | map('regex_replace', '[._]', '-')
+                  | zip(frozen_lines)) }}
+      set_fact:
+        wjs_requirements: >-
+          {{ wjs_install_order | select('in', frozen_map)
+             | map('extract', frozen_map)
+             | map('regex_replace',
+                   '^(.*?)git\+https?://(?:[^/@]*@)?([^/]+)/(.*)$',
+                   '\1git+ssh://git@\2/\3')
+             | map('regex_replace', '(https?)://[^/@\s]*@', '\1://')
+             | list }}
+      when: not (refresh_wjs | bool)
+
+    - name: Refuse to restore WJS versions that could not be read
+      # Without this the run would quietly continue with nothing to install and
+      # leave the instance without WJS at all.
+      assert:
+        that:
+          - wjs_requirements | length > 0
+        fail_msg: >-
+          refresh_wjs is off, so this run should put back the WJS versions
+          {{ full_name }} was using, but none could be read from its virtualenv
+          (there may not have been one). Re-run with -e refresh_wjs=on to take
+          the current releases instead.
+      when: not (refresh_wjs | bool)
+
+    - name: Show which WJS versions will be restored
+      debug:
+        msg: "{{ wjs_requirements | list }}"
+      when: not (refresh_wjs | bool)
+
+    - name: Choose a name for the previous virtualenv
+      # now() renders on the controller, so this needs no gathered facts.
+      # set_fact pins it, so the name cannot drift between the "mv" below and
+      # the closing message.
+      set_fact:
+        venv_backup: "{{ venv_root }}.bak-{{ now(fmt='%Y%m%dT%H%M%S') }}"
+
+    - name: Set the previous virtualenv aside
+      # Renamed rather than removed: until it is cleaned up, rolling back is
+      # just moving it back into place.
+      command: mv {{ venv_root }} {{ venv_backup }}
+      when: old_venv.stat.exists
+
+    - name: Remove the links left dangling by the previous virtualenv
+      # After the rename, every symlink pointing into the virtualenv is broken:
+      # the WJS plugin and theme links, and nothing else. "-xtype l" matches only
+      # symlinks that no longer resolve, so Janeway's own themes (real
+      # directories) and the hydra clone are left alone. They are recreated
+      # below, against the new interpreter's site-packages.
+      command: find plugins themes -maxdepth 1 -xtype l -delete
+      args:
+        chdir: "{{ project_dir }}"
+      changed_when: true
+
+    - name: Create the virtualenv on Python {{ python_version }}
+      # "-a" records the project directory, so "workon {{ full_name }}" still
+      # lands in src/. Expect three "Wheel for pip for Python 3.13 is
+      # unavailable" exceptions here (reported in the issue): noisy, harmless.
+      shell: |
+        export WORKON_HOME={{ workon_home }}
+        source {{ virtualenvwrapper }}
+        mkvirtualenv -a {{ project_dir }} -p {{ pyenv_python_bin }} {{ full_name }}
+      args:
+        executable: /bin/bash
+        creates: "{{ python }}"
+
+    - name: Link the WJS plugins into Janeway's plugins directory
+      # Made before the packages are installed, so they dangle for a few tasks.
+      # Nothing follows them until Django starts, which is after the install
+      # below. deploy.sh never runs link_plugins, so this is the only thing that
+      # repairs links left pointing into the previous virtualenv.
+      file:
+        src: "{{ site_packages }}/wjs/plugins/{{ item }}"
+        dest: "{{ project_dir }}/plugins/{{ item }}"
+        state: link
+        force: yes
+        follow: no
+      loop: "{{ wjs_plugins }}"
+
+    - name: Link the WJS themes into Janeway's themes directory
+      # The "don't forget to install themes correctly from the new env" step.
+      file:
+        src: "{{ site_packages }}/wjs/themes/{{ item }}"
+        dest: "{{ project_dir }}/themes/{{ item }}"
+        state: link
+        force: yes
+        follow: no
+      loop: "{{ wjs_themes }}"
+
+    - name: Expose the packaged Apache redirects at a version-independent path
+      # The vhosts include wjs/conf/<journal>-apache-redirects.inc from inside
+      # the wjs package. They go through this symlink, which keeps the python
+      # version out of the Apache configuration. It resolves as soon as WJS is
+      # installed below, which is before the second play reloads Apache.
+      file:
+        src: "{{ site_packages }}/wjs/conf"
+        dest: "{{ venv_root }}/wjs-conf"
+        state: link
+        force: yes
+        follow: no
+
+    - name: Pull Janeway
+      # Plain "git pull", not the git module: this must fast-forward whatever
+      # branch the checkout is on, never switch to another one. "--ff-only" is
+      # what deploy.sh uses, and it fails loudly rather than creating a merge if
+      # someone left commits behind on the machine.
+      command: git pull --ff-only
+      args:
+        chdir: "/home/wjs/{{ full_name }}"
+
+    - name: Install Janeway's requirements
+      # wjs-jcom-profile does NOT depend on Django or on anything else Janeway
+      # needs - those live in requirements.txt. Without this the virtualenv
+      # stays unusable and gunicorn cannot start.
+      pip:
+        requirements: "/home/wjs/{{ full_name }}/requirements.txt"
+        extra_args: "-c /home/wjs/{{ full_name }}/constraints.txt"
+        virtualenv: "{{ venv_root }}"
+
+    - name: Install WJS
+      # refresh_wjs=on: take the current wjs-jcom-profile and let pip pull in
+      # wjs-submission, wjs-themes and wjs-user-search behind it.
+      # pip_options is the knob for pre-releases: "-e pip_options=--pre".
+      pip:
+        name: wjs-jcom-profile
+        state: present
+        virtualenv: "{{ venv_root }}"
+        extra_args: "--extra-index-url={{ wjs_package_index }} {{ pip_options }}"
+      when: refresh_wjs | bool
+
+    - name: Restore the WJS versions the instance had
+      # refresh_wjs=off. One package at a time and in wjs_install_order, not in
+      # a single pip call: wjs-jcom-profile is installed first and drags in
+      # whatever its metadata asks for, then each of the others pins itself over
+      # that. A single call would let pip's resolver pick, which is exactly what
+      # this mode exists to avoid.
+      # A git requirement has been rewritten to git+ssh (see above), so the
+      # clone authenticates with the operator's forwarded ssh agent. That needs
+      # SSH_AUTH_SOCK, not XDG_RUNTIME_DIR - the latter is here only so that
+      # "systemd --user" can find the user bus - and no "environment:" block:
+      # ForwardAgent=yes is set in ansible.cfg and in this play's
+      # ansible_ssh_common_args, so the agent is already in the session. "Pull
+      # Janeway" below relies on exactly the same thing (that checkout's remote
+      # is git@gitlab...), so if this step cannot authenticate, neither can it.
+      # No no_log: the rewrite leaves no credentials in these requirements.
+      pip:
+        name: "{{ item }}"
+        state: present
+        virtualenv: "{{ venv_root }}"
+        extra_args: "--extra-index-url={{ wjs_package_index }} {{ pip_options }}"
+      loop: "{{ wjs_requirements }}"
+      when: not (refresh_wjs | bool)
+
+    - name: Run the deploy's management commands
+      # The same set, and the same order, as deploy.sh: each package's
+      # POST_MANAGE (run_customizations for profile, install_themes for themes)
+      # and load_default_settings for janeway, followed by manage_setup's
+      # migrate / sync_translation_fields / collectstatic / compilemessages /
+      # build_assets. compilemessages keeps deploy.sh's explicit --settings.
+      command: "{{ python }} -mmanage {{ item }}"
+      args:
+        chdir: "{{ project_dir }}"
+      loop:
+        - run_customizations
+        - install_themes
+        - load_default_settings
+        - migrate
+        - sync_translation_fields --noinput
+        - collectstatic --noinput
+        - compilemessages --settings core.settings
+        - build_assets
+
+    - name: Start the instance's services
+      systemd:
+        name: "{{ item }}"
+        state: started
+        scope: user
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      loop: "{{ instance_services }}"
+
+
+- name: Point Apache's vhost at the wjs-conf symlink
+  hosts: janeway
+  remote_user: root
+  become: yes
+  serial: 1
+  any_errors_fatal: true
+  # Play-level tag: "--skip-tags apache" runs the wjs part only, for a machine
+  # where root is not available or the vhost is managed by hand.
+  tags: apache
+  vars:
+    instance_name: "{{ instance | mandatory }}"
+    suffix: "{{ '-' ~ instance_name if instance_name else '' }}"
+    full_name: "janeway{{ suffix }}"
+    # Same split as maintenance-mode.yml: production serves one unprefixed set
+    # of journals, test instances are namespaced by instance name. The prod
+    # config has no Jinja placeholders, but goes through the template module
+    # anyway so this stays a single task.
+    vhost_src: >-
+      {{ 'apache/wjs-prod.conf'
+         if is_production | default(false)
+         else 'apache/wjs-test.conf.j2' }}
+    # wjs-t1.conf on test (the name wjs-test__create-instance__root.yml uses),
+    # wjs.conf on production.
+    vhost_dest: "/etc/apache2/sites-available/wjs{{ suffix }}.conf"
+
+  pre_tasks:
+
+    - name: Guard against unintended production runs
+      import_tasks: tasks/assert-production-opt-in.yml
+
+  tasks:
+
+    - name: Render the vhost, so its redirects go through wjs-conf
+      # The point of the rewrite: the vhost used to reach the packaged redirects
+      # through ".../lib/python3.11/site-packages/wjs/conf/", which every
+      # interpreter change invalidated. It now goes through the version-
+      # independent "wjs-conf" symlink created in the play above.
+      template:
+        src: "{{ vhost_src }}"
+        dest: "{{ vhost_dest }}"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Check the Apache configuration
+      # Safe to test now: WJS is installed, so the wjs-conf symlink the vhost
+      # Includes resolves. Run before the reload, so a broken config fails the
+      # play instead of being reloaded into a live Apache.
+      command: apache2ctl configtest
+      changed_when: false
+
+    - name: Reload Apache
+      # Unconditional, not a handler on the template above: even when the vhost
+      # file is already correct, Apache is still running with the configuration
+      # it parsed before the virtualenv was rebuilt.
+      service:
+        name: apache2
+        state: reloaded

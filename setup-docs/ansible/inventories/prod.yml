@@ -17,13 +17,21 @@
 janeway:
   children:
     prod:
+  vars:
+    # See the identical note in inventories/test.yml: this is the pyenv-provided
+    # Python the Janeway virtualenvs are built on, not the OS interpreter
+    # Ansible uses for its modules.
+    pyenv_python: "3.13.15"
 
 prod:
   vars:
     is_production: true
   hosts:
     wjs-prod:
-      ansible_python_interpreter: /usr/bin/python3.11
+      # System interpreter for Ansible's own modules; "auto" rather than a pin,
+      # so an OS upgrade does not break every playbook at once. Not the python
+      # the instance runs on - that is pyenv_python, above.
+      ansible_python_interpreter: auto
     # Add further production machines here, one per line, e.g.:
     # wjs-prod-2:
-    #   ansible_python_interpreter: /usr/bin/python3.11
+    #   ansible_python_interpreter: auto
