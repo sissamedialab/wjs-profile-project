@@ -583,3 +583,51 @@ class TestG8TypesetterPapersMonitoring:
         assert "GET" in log_line
         assert "GOODTOKEN" not in log_line
         assert str(eo_user.janeway_account.pk) in log_line
+
+
+@pytest.mark.django_db
+def test_api_journal_production_list_returns_articles_in_production(
+    client: Client, eo_user: JCOMProfile, journal, author, sections
+):
+    """G7 - GET /journal/<code>/production/ (Specifications.md §3.6)."""
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+    article = _create_article_for_api_tests(author, journal, sections)
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
+    article.articleworkflow.save()
+
+    response = client.get(
+        reverse("journal-production", args=(journal.code,)),
+        HTTP_AUTHORIZATION="Token EOTOKEN",
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    record = data[0]
+    assert record["preprint_id"] == article.articleworkflow.preprint_id
+    assert record["status"]["code"] == "ReadyForTypesetter"
+    # ProductionBaseSerializer fields (shared with G8) come along for free.
+    assert "published_id" in record
+    assert "doi" in record
+    # G7-specific fields.
+    assert "special_issue" in record
+    assert "typesetter" in record
+
+
+@pytest.mark.django_db
+def test_api_journal_production_list_excludes_accepted_state(
+    client: Client, eo_user: JCOMProfile, journal, author, sections
+):
+    """ACCEPTED articles are deliberately excluded (Specifications.md §3.6)."""
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+    article = _create_article_for_api_tests(author, journal, sections)
+    article.articleworkflow.state = ArticleWorkflow.ReviewStates.ACCEPTED
+    article.articleworkflow.save()
+
+    response = client.get(
+        reverse("journal-production", args=(journal.code,)),
+        HTTP_AUTHORIZATION="Token EOTOKEN",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []

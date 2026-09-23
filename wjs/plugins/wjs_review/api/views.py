@@ -9,6 +9,7 @@ from django.core.files.base import ContentFile
 from django.db.models import Count
 from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404
+from journal.models import Journal
 from plugins.wjs_submission.models import Collaboration
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
@@ -17,6 +18,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..logic import (
+    states_when_article_is_considered_in_production,
     states_when_article_is_considered_production_archived,
     states_when_article_is_considered_typesetter_working_on,
 )
@@ -36,6 +38,7 @@ from .permissions import IsEOOrTypesetterForArticle
 from .serializers import (
     CollaborationSerializer,
     GalleyUploadSerializer,
+    ProductionArticleSerializer,
     TypesetterPapersListSerializer,
 )
 
@@ -377,3 +380,29 @@ class TypesetterPapersListView(LoggedRequestMixin, APIView):
         return Response(
             TypesetterPapersListSerializer(workflows, many=True, context={"typesetter_pk": typesetter_pk}).data
         )
+
+
+class JournalProductionListView(LoggedRequestMixin, EOOrTypesetterAccessMixin, ListAPIView):
+    """
+    G7 - Articles of a journal that are currently in production (excluding ACCEPTED). See Specifications.md §3.6.
+
+    Uses the same LoggedRequestMixin/EOOrTypesetterAccessMixin/ListAPIView pattern as
+    CollaborationListView above -- unlike TypesetterPapersListView (G8), which predates and uses
+    a different (raw APIView + TokenAuthentication) stack; the two endpoints are independent and
+    don't need to share a view base, only ProductionArticleSerializer's shared fields (see
+    ProductionBaseSerializer in serializers.py).
+    """
+
+    serializer_class = ProductionArticleSerializer
+    #: A journal's in-production articles are bounded like its collaborations list (not "all
+    #: articles ever"); matches CollaborationListView's own no-pagination precedent above, and
+    #: TypesetterPapersListView (G8) also returns a flat array, not a paginated envelope.
+    pagination_class = None
+
+    def get_queryset(self):
+        journal = get_object_or_404(Journal, code=self.kwargs["code"].upper())
+        qs = ArticleWorkflow.objects.filter(
+            article__journal=journal,
+            state__in=set(states_when_article_is_considered_in_production) - {ArticleWorkflow.ReviewStates.ACCEPTED},
+        ).select_related("article", "article__journal")
+        return qs

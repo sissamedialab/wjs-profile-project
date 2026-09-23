@@ -125,3 +125,19 @@ class TypesetterPapersListSerializer(ProductionBaseSerializer):
     """Response item of G8 - GET /journal/<code>/typesetter/<typesetter_pk>/papers/ (Specifications.md §3.7)."""
 
     date_taken_in_charge = serializers.SerializerMethodField()
+
+
+class ProductionArticleSerializer(ProductionBaseSerializer):
+    """Response item of G7 - GET /journal/<code>/production/ (Specifications.md §3.6).
+
+    Extends the shared ProductionBaseSerializer (see its docstring) for preprint_id/published_id/
+    doi/date_accepted/status/last_status_change; adds the two fields specific to this endpoint.
+    """
+
+    special_issue = serializers.IntegerField(source="article.primary_issue_id", allow_null=True)
+    typesetter = serializers.SerializerMethodField()
+
+    def get_typesetter(self, obj):
+        """Full name of the typesetter on the latest typesetting assignment, if any."""
+        assignment = obj.get_latest_typesetting_assignment()
+        return assignment.typesetter.full_name() if assignment else None
