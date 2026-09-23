@@ -12,13 +12,25 @@
 janeway:
   children:
     test:
+  vars:
+    # The Python the Janeway virtualenvs are built on. It comes from pyenv, and
+    # has nothing to do with ansible_python_interpreter below - that one is the
+    # OS interpreter Ansible runs its own modules with.
+    # Read by regenerate-venv.yml and by wjs-test__create-instance__wjs.yml;
+    # override for a single run with -e pyenv_python=<version>.
+    pyenv_python: "3.13.15"
 
 test:
   hosts:
     wjs-test:
       # ansible_user: root
       ansible_ssh_private_key_file: ~/.ssh/id_ed25519
-      ansible_python_interpreter: /usr/bin/python3.11
+      # Interpreter Ansible uses for its modules on the remote host, i.e. the
+      # system python. This used to be pinned to /usr/bin/python3.11, which
+      # silently breaks the day the machine moves to Debian 13 (python3.13);
+      # "auto" lets Ansible discover whatever the platform ships. The python the
+      # instances themselves run on is pyenv_python, set on the janeway group.
+      ansible_python_interpreter: auto
 
 # Machine used for the one-off import/setup playbooks (wjs-setup*.yml).
 # Deliberately not a child of "janeway": those playbooks are not meant to be
