@@ -585,6 +585,73 @@ def test_director_can_change_editor_parameters(journal, roles, admin, editor, ke
         assert keyword.weight == weight
 
 
+@pytest.mark.django_db
+def test_director_editor_parameters_page_renders_keyword_hidden_id_field(journal, roles, admin, editor, keywords):
+    """
+    The editor-keyword rows must include their hidden pk field in the rendered HTML.
+
+    Without it, the browser posts a formset row with no way to match it to an existing
+    StaffKeyword, and the server errors out constructing the row's form (see issue with
+    /update/parameters/<pk>/ raising ``KeyError: 'instance'``).
+    """
+    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
+    for keyword in keywords:
+        StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
+    client = Client()
+    client.force_login(admin)
+    url = f"/{journal.code}/update/parameters/{editor.janeway_account.pk}/"
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    formset = response.context["formset"]
+    content = response.content.decode()
+    for form in formset.forms:
+        assert f'name="{form.prefix}-id"' in content
+
+
+@pytest.mark.django_db
+def test_director_editor_parameters_post_without_keyword_id_reports_form_error(
+    journal, roles, admin, editor, keywords
+):
+    """
+    Posting a formset row without its hidden pk field (e.g. tampered/stale data) must not 500.
+
+    This reproduces the reported crash: the row's form used to be constructed without an
+    ``instance`` kwarg in that case, and unconditionally accessed it, raising an uncaught
+    ``KeyError``. It must instead be reported as a normal (non-field) form error.
+    """
+    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
+    for keyword in keywords:
+        StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
+    client = Client()
+    client.force_login(admin)
+    url = f"/{journal.code}/update/parameters/{editor.janeway_account.pk}/"
+
+    response = client.get(url)
+    formset = response.context["formset"]
+
+    data = {"workload": parameters.workload, "brake_on": 10, "csrf_token": response.context["csrf_token"]}
+    for field in "TOTAL_FORMS", "INITIAL_FORMS", "MIN_NUM_FORMS", "MAX_NUM_FORMS":
+        data[f"{formset.management_form.prefix}-{field}"] = formset.management_form[field].value()
+    for form in formset.forms:
+        # Deliberately omit "{prefix}-id", mirroring the pre-fix template that never rendered it.
+        data[f"{form.prefix}-weight"] = 7
+
+    response_post = client.post(url, data)
+
+    assert response_post.status_code == 200
+    posted_formset = response_post.context["formset"]
+    assert not posted_formset.is_valid()
+    for posted_form in posted_formset.forms:
+        assert posted_form.non_field_errors()
+    assert "could not be matched to an existing entry" in response_post.content.decode()
+
+    # Nothing was saved: the weight update must have been rejected, not silently applied.
+    for keyword in StaffKeyword.objects.filter(parameters=parameters):
+        assert keyword.weight != 7
+
+
 @pytest.mark.parametrize(
     "user_role,hijacked,success",
     (
