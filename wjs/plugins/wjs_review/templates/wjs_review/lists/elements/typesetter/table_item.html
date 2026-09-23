@@ -15,7 +15,7 @@
       <span title="{% translate "Last status change" %}">{{ workflow.latest_state_change|days_since }} {% translate "days since last state change" %}</span>
     </td>
     <td class="align-bottom position-relative {% if attention_flag %}fw-bolder{% endif %}">
-      {% include "wjs_review/lists/elements/table_item_status.html" with publish_status=True publishable_symbol=False %}
+      {% include "wjs_review/lists/elements/table_item_status.html" with publish_status=True publishable_symbol=True %}
     </td>
     <td>
       {{ article.primary_issue|internal_title|default:"—" }}
