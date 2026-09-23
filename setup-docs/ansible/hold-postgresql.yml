@@ -1,0 +1,129 @@
+# Keep postgres out of automatic upgrades, and have unattended-upgrades report to
+# root.
+#
+# Postgres is upgraded deliberately, at a chosen moment, because its packages stop
+# and start the cluster in their postinst. Two independent things arrange that:
+# - apt-mark hold on the postgres packages, so nothing upgrades them by itself;
+# - /etc/apt/apt.conf.d/51unattended-medialab-email-to-root, which makes
+#   unattended-upgrades mail its report (Mail "root", MailReport "on-change"), so
+#   the upgrades that *do* happen automatically are not silent.
+#
+# The mail needs a working MTA and, unless root's mailbox is read on the machine,
+# an alias in /etc/aliases (`root: wjs-support@sissamedialab.it` + `newaliases`).
+# Neither is managed here.
+#
+# Runs against both test and production; production is opt-in only (see
+# inventories/prod.yml and tasks/assert-production-opt-in.yml).
+#
+# Test:
+#   ansible-playbook hold-postgresql.yml
+#
+# Production (note the explicit inventory and confirmation):
+#   ansible-playbook -i inventories/prod.yml hold-postgresql.yml -e confirm=PROD --check --diff
+#   ansible-playbook -i inventories/prod.yml hold-postgresql.yml -e confirm=PROD
+#
+# To check the result on the machine:
+#   apt-mark showhold
+#   unattended-upgrade --dry-run --debug 2>&1 | grep -i postgres
+#
+# To actually upgrade postgres, later and on purpose:
+#   apt-mark showhold                                   # what is held right now
+#   apt-mark unhold $(apt-mark showhold | grep -E '^(postgresql|libpq)')
+#   apt-get install --only-upgrade postgresql postgresql-15 postgresql-common
+#   systemctl status postgresql@15-main
+#   ansible-playbook hold-postgresql.yml     # puts the hold back
+---
+- name: Hold postgres and report unattended upgrades to root
+  hosts: janeway
+  remote_user: root
+  become: yes
+  vars:
+    # What to hold is discovered on the machine rather than listed here (see the
+    # task below): an awk regex, matched against the package name.
+    # "^postgresql" covers the metapackage, the server (postgresql-15), the client,
+    # postgresql-common, contrib and any postgresql-15-* extension; "^libpq" covers
+    # the client library that comes up for upgrade on its own.
+    hold_pattern: '^postgresql|^libpq'
+    # Anything else to hold, on top of what the pattern finds on the host.
+    extra_held_packages: []
+
+  pre_tasks:
+
+    - name: Guard against unintended production runs
+      import_tasks: tasks/assert-production-opt-in.yml
+
+  tasks:
+
+    - name: Send the unattended-upgrades report to root
+      # A syntax error under apt.conf.d breaks every apt invocation on the machine,
+      # hence the validation: apt-config parses the file and exits non-zero if it
+      # cannot. The file is its own drop-in, sorting after 50unattended-upgrades,
+      # so the two scalars below override whatever that one sets.
+      copy:
+        src: etc/apt/51unattended-medialab-email-to-root
+        dest: /etc/apt/apt.conf.d/51unattended-medialab-email-to-root
+        owner: root
+        group: root
+        mode: '0644'
+        validate: 'apt-config -c=%s dump'
+
+    - name: Find the postgres packages installed on this machine
+      # Ask dpkg rather than keep a list here. The list differs per machine (client,
+      # contrib, PL extensions) and it moves with every major postgres upgrade, when
+      # postgresql-15 becomes postgresql-16 - a hardcoded list would quietly stop
+      # covering the server package on the day it matters most.
+      # Ask for db:Status-Status, the *status* alone, and not db:Status-Abbrev: the
+      # abbreviation's first letter is the selection, which this very playbook turns
+      # from "i" (install) into "h" (hold), so a filter on "ii" matches nothing from
+      # the second run on - and an empty list here would make the unhold task below
+      # clear every hold it just set. Filtering on "installed" keeps out packages
+      # dpkg merely knows about (removed, config-files-only) and is unaffected by
+      # the hold. sub(/:.*/) drops the :amd64 suffix that multi-arch packages carry,
+      # which apt-mark does not want.
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          dpkg-query -W -f='${db:Status-Status} ${binary:Package}\n' \
+          | awk -v pattern="{{ hold_pattern }}" '$1=="installed" && $2 ~ pattern {sub(/:.*/,"",$2); print $2}' \
+          | sort -u
+        executable: /bin/bash
+      changed_when: false
+      # Read-only, and the task below needs its output, so let it run under --check
+      check_mode: false
+      register: postgres_packages
+
+    - name: Work out which packages should be held
+      set_fact:
+        held_packages: "{{ (postgres_packages.stdout_lines + extra_held_packages) | unique }}"
+
+    - name: Hold the postgres packages
+      # Holding the whole family, not just the server, also keeps apt from pulling
+      # the set apart: a client or libpq upgraded while the server stays back is a
+      # mixed installation nobody asked for.
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: "{{ held_packages }}"
+
+    - name: Find the packages currently on hold
+      ansible.builtin.command: apt-mark showhold
+      changed_when: false
+      check_mode: false
+      register: current_holds
+
+    - name: Unhold what no longer matches
+      # A hold outlives the package: after a major upgrade postgresql-15 is gone but
+      # still held, and `apt-mark showhold` keeps listing it, until nobody can tell
+      # which holds are deliberate. Clear those, and only those - the filter keeps
+      # holds this playbook never set (something else on the machine may want them)
+      # and holds that are still wanted.
+      # hold_pattern is used here as a python regex and above as an awk one: keep it
+      # to syntax both read the same way.
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: install
+      loop: "{{ current_holds.stdout_lines | select('match', hold_pattern) | difference(held_packages) }}"
+      # If the discovery above came back empty, that is far more likely to be a
+      # broken discovery than a machine with stale postgres holds and no postgres,
+      # and the loop would then unhold everything that matches. Do nothing instead.
+      when: held_packages | length > 0

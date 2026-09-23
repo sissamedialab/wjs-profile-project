@@ -1,0 +1,62 @@
+# Deploy the shared Apache configuration includes.
+#
+# These three files carry no hostname, instance name or environment of their own -
+# they are pulled in by every WJS virtualhost (see apache/wjs-test.conf.j2 and
+# apache/wjs-prod.conf) and read ${LOG_NAME} and ${SOCKET_NAME} from the including
+# vhost - so one playbook serves test and production alike. This used to be
+# wjs-test__apache-config.yml, targeting "test" only, with the eventual intent
+# recorded in a commented-out "hosts: test:wjs-prod" line.
+#
+# Runs against both test and production; production is opt-in only (see
+# inventories/prod.yml and tasks/assert-production-opt-in.yml).
+#
+# Test:
+#   ansible-playbook apache-config.yml
+#
+# Production (note the explicit inventory and confirmation):
+#   ansible-playbook -i inventories/prod.yml apache-config.yml -e confirm=PROD --check --diff
+#   ansible-playbook -i inventories/prod.yml apache-config.yml -e confirm=PROD
+#
+# DO the --check --diff run first on production. The copies living there now were
+# installed by hand and may have drifted from what is in this repo - the SSL
+# certificate paths and the RemoteIPInternalProxy addresses in
+# apache-log-and-ssl.inc are the lines to look at - and this playbook overwrites
+# them with the repo's version.
+#
+# The per-instance vhost files are a different job: see
+# wjs-test__create-instance__root.yml (test) and apache/wjs-prod.conf (production,
+# still installed by hand).
+---
+- name: Deploy the shared Apache configuration includes
+  hosts: janeway
+  remote_user: root
+  become: yes
+  # One machine at a time: each host reloads Apache at the end of its own run.
+  serial: 1
+  any_errors_fatal: true
+
+  pre_tasks:
+
+    - name: Guard against unintended production runs
+      import_tasks: tasks/assert-production-opt-in.yml
+
+  tasks:
+
+    - name: Copy Apache configuration
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - { src: "apache/apache-log-and-ssl.inc", dest: "/etc/apache2/conf-available/wjs/apache-log-and-ssl.inc" }
+        - { src: "apache/apache-proxy-and-socket.inc", dest: "/etc/apache2/conf-available/wjs/apache-proxy-and-socket.inc" }
+        - { src: "apache/apache-static-files-block.inc", dest: "/etc/apache2/conf-available/wjs/apache-static-files-block.inc" }
+      notify: Reload Apache
+
+  handlers:
+    - name: Reload Apache
+      service:
+        name: apache2
+        state: reloaded

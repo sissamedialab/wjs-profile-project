@@ -1,5 +1,22 @@
+# WJS application server: one unit per Janeway instance.
+#
+# A systemd *user* unit for the wjs user. Install it as
+# ~/.config/systemd/user/gunicorn{{ suffix }}.service, then
+# - systemctl --user daemon-reload
+# - systemctl --user enable --now gunicorn{{ suffix }}.service
+# - loginctl enable-linger wjs   (once per machine, so the units survive logout)
+# To read the log: journalctl -q -f --user-unit gunicorn{{ suffix }}.service
+# (gunicorn's own access/error logs are the files named below.)
+# See also https://www.brendanlong.com/systemd-user-services-are-amazing.html
+#
+# One template for every instance, test and production alike: the unit name, the
+# socket name and all the paths derive from `suffix` / `full_name` / `venv_root`,
+# so production (empty suffix) renders gunicorn.service + /run/wjs/gunicorn.sock and
+# a test instance renders gunicorn-t3.service + /run/wjs/gunicorn-t3.sock.
+# The unit names must keep agreeing with scripts/deploy.sh (gunicorn${SUFFIX}.service).
+
 [Unit]
-Description=Application server for WJS {{ instance_name }}, using Gunicorn with Uvicorn workers
+Description=Application server for WJS {{ full_name }}, using Gunicorn with Uvicorn workers
 # See also https://gunicorn.org/deploy/#systemd
 After=network.target
 
@@ -10,12 +27,16 @@ NotifyAccess=main
 WorkingDirectory=/home/wjs/{{ full_name }}/src
 
 # Runtime directory (/run/wjs) for socket is expected to exist!
+# It is created by /etc/tmpfiles.d/wjs-rundir.conf (see wjs-setup.yml and
+# systemd/wjs-rundir.conf).
 
 # Start Gunicorn with Uvicorn workers and Unix socket
+# Production carries the real traffic and gets one worker more than a test
+# instance; override for a single render with -e gunicorn_workers=N.
 ExecStart={{ venv_root }}/bin/gunicorn \
-    --bind unix:/run/wjs/gunicorn-{{ instance_name }}.sock \
+    --bind unix:/run/wjs/gunicorn{{ suffix }}.sock \
     --worker-class uvicorn.workers.UvicornWorker \
-    --workers 2 \
+    --workers {{ gunicorn_workers | default(3 if is_production | default(false) else 2) }} \
     --access-logfile /home/wjs/{{ full_name }}/logs/app-access.log \
     --error-logfile  /home/wjs/{{ full_name }}/logs/app-error.log \
     wjs.channels.asgi:application

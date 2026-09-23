@@ -262,7 +262,7 @@
     - name: Copy gunicorn systemd service unit
       template:
         src: systemd/gunicorn.service.j2
-        dest: "/home/wjs/.config/systemd/user/gunicorn-{{ instance_name }}.service"
+        dest: "/home/wjs/.config/systemd/user/gunicorn{{ suffix }}.service"
         owner: wjs
         group: wjs
         mode: '0644'
@@ -273,7 +273,7 @@
     - name: Copy qcluster systemd service unit
       template:
         src: systemd/qcluster.service.j2
-        dest: "/home/wjs/.config/systemd/user/qcluster-{{ instance_name }}.service"
+        dest: "/home/wjs/.config/systemd/user/qcluster{{ suffix }}.service"
         owner: wjs
         group: wjs
         mode: '0644'
@@ -284,8 +284,8 @@
     - name: Add aliases to start/stop the instance's services to .bashrc
       ansible.builtin.lineinfile:
         path: /home/wjs/.bashrc
-        regexp: "^alias {{ item }}-{{ instance_name }}="
-        line: "alias {{ item }}-{{ instance_name }}='systemctl --user {{ item }} gunicorn-{{ instance_name }} && systemctl --user {{ item }} qcluster-{{ instance_name }}'"
+        regexp: "^alias {{ item }}{{ suffix }}="
+        line: "alias {{ item }}{{ suffix }}='systemctl --user {{ item }} gunicorn{{ suffix }} && systemctl --user {{ item }} qcluster{{ suffix }}'"
       loop:
         - start
         - stop
@@ -302,8 +302,8 @@
       environment:
         XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
       loop:
-        - "gunicorn-{{ instance_name }}.service"
-        - "qcluster-{{ instance_name }}.service"
+        - "gunicorn{{ suffix }}.service"
+        - "qcluster{{ suffix }}.service"
 
 
 
@@ -319,5 +319,5 @@
       environment:
         XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
       loop:
-        - "gunicorn-{{ instance_name }}.service"
-        - "qcluster-{{ instance_name }}.service"
+        - "gunicorn{{ suffix }}.service"
+        - "qcluster{{ suffix }}.service"

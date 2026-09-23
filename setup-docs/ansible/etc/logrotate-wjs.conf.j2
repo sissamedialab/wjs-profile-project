@@ -1,8 +1,19 @@
-/home/wjs/janeway-{{ instance_name }}/logs/*log {
+# Log rotation for one Janeway instance. Installed as /etc/logrotate.d/wjs{{ suffix }}
+# by wjs-test__create-instance__root.yml.
+#
+# One template for every instance, test and production alike: the paths and the unit
+# name derive from `suffix`, so production (empty suffix) rotates
+# /home/wjs/janeway/logs and reloads gunicorn.service, while a test instance rotates
+# /home/wjs/janeway-t3/logs and reloads gunicorn-t3.service.
+#
+# The reload reaches a *user* unit of the wjs user from root's logrotate run, hence
+# "--user --machine wjs@.host"; it is best-effort, so a missing or stopped unit does
+# not make logrotate fail.
+/home/wjs/janeway{{ suffix }}/logs/*log {
    rotate 2
    missingok
    sharedscripts
    postrotate
-      /usr/bin/systemctl --user --machine wjs@.host reload gunicorn-{{ instance_name }}.service 2>/dev/null || true
+      /usr/bin/systemctl --user --machine wjs@.host reload gunicorn{{ suffix }}.service 2>/dev/null || true
    endscript
 }
