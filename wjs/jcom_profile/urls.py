@@ -164,6 +164,8 @@ urlpatterns = [
     path("keywords/", KeywordListView.as_view(), name="keywords_list"),
     path("search_authors/<int:article_id>/", AuthorSearchView.as_view(), name="author_search"),
     path("search_users/", AuthorAutocompleteView.as_view(), name="user_autocomplete"),
+    # Jp-sgp
+    path("", include("wjs.jcom_profile.jpbridge.urls")),
 ]
 
 # Some experimental / Easter-egg URLs
