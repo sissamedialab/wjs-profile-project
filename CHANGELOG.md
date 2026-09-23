@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.2] - 2026-09-23
+
+- [specs#3097: Test Django 5.2](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3097) — Re-generate WJS venvs (!1507)
+- [specs#3165: Regen venvs of all Ts](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3165) — Re-generate WJS venvs (!1507)
+- [specs#2595: Migrate to Django 5.2](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2595) — Re-generate WJS venvs (!1507)
+- [specs#3155: Deploy to production](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3155) — Re-generate WJS venvs (!1507)
+- [specs#2288: Failed connection to DB - connection already closed](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2288) — Do not upgrade postgresql "unattended" (!1470)
+- [specs#2910: Hold postres upgrades (was "link postgrest to wjs")](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2910) — Do not upgrade postgresql "unattended" (!1470)
+- [specs#3168: Upgrade "auditor" on wjs-test](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3168) — Do not upgrade postgresql "unattended" (!1470)
+- [specs#3024: G7 GET list of production papers (all journals)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3024) — feat: Add JournalProductionListView for G7 (!1509)
+- [specs#3137: error saving changes to Update editor parameters](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3137) — Fix: 500 error saving editor parameters — missing hidden pk field in keyword formset (!1511)
+- [specs#2983: Quality of life admin improvementrs](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2983) — Feat: advanced admin (!1500)
+- [specs#2984: As EO I want to create new files](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2984) — Feat: advanced admin (!1500)
+- [specs#2964: Fix search in "search preprints"](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2964) — fix: fix author filter in StaffArticleWorkflowFilter (!1505)
+
 ## [2.1.1] - 2026-09-23
 
 - [specs#3196: Upgrade autobahn to 26.7](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3196) — Upgrade autobahn to 26.7 (!1526)
