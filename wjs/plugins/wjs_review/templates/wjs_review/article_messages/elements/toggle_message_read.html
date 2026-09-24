@@ -12,7 +12,7 @@
     <div class="d-none" aria-hidden="true">
       {{ form.read }}
     </div>
-    <label class="btn btn-sm {% if form.read.value %}btn-success{% else %}btn-danger text-white{% endif %}"
+    <label class="btn btn-sm {% if form.read.value %}btn-secondary{% else %}btn-danger text-white{% endif %}"
            for="{{ form.read.auto_id }}"
            role="checkbox"
            aria-checked="{% if message.read %}true{% else %}false{% endif %}"
