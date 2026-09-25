@@ -1,6 +1,7 @@
 """Tests for the blacklisted author attention condition."""
 
 import pytest
+from django.urls import reverse
 from plugins.wjs_review.ac_service import (
     BLACKLISTED_AUTHOR,
     evaluate_blacklisted_author,
@@ -211,3 +212,38 @@ def test_admin_delete_blacklisted_email_resolves_ac(submitted_article, eo_user, 
     ac = AttentionCondition.objects.filter(article=article, code=BLACKLISTED_AUTHOR).first()
     assert ac is not None
     assert ac.status == AttentionCondition.Status.RESOLVED
+
+
+@pytest.mark.django_db
+def test_admin_bulk_add_redirects_to_changelist(admin, client, journal):
+    """Bulk-adding emails from the advanced admin redirects to the changelist (issue #3194)."""
+    # The journal fixture sets the journal script prefix, so reverse() yields journal-scoped URLs.
+    bulk_add_url = reverse("admin:blacklisted_authoremail_bulk_add", current_app="advanced_admin")
+    changelist_url = reverse("admin:wjs_review_blacklistedauthoremail_changelist", current_app="advanced_admin")
+    BlacklistedAuthorEmail.objects.create(email="existing@example.com", note="Already there")
+    client.force_login(admin)
+
+    response = client.post(
+        bulk_add_url,
+        {"emails": "first@example.com\nSecond@example.com, Spam\nexisting@example.com, Ignored"},
+    )
+
+    assert response.status_code == 302, f"Expected a redirect after bulk add, got {response.status_code}"
+    assert response.url == changelist_url, f"Expected redirect to {changelist_url}, got {response.url}"
+    assert BlacklistedAuthorEmail.objects.filter(
+        email="first@example.com", note=""
+    ).exists(), "Email without note was not saved"
+    assert BlacklistedAuthorEmail.objects.filter(
+        email="second@example.com", note="Spam"
+    ).exists(), "Email with note was not saved lowercased with its note"
+
+    changelist_response = client.get(response.url)
+    assert (
+        changelist_response.status_code == 200
+    ), f"Changelist failed to render after redirect, got {changelist_response.status_code}"
+    assert (
+        "Bulk import complete: 2 added, 1 already existed." in changelist_response.content.decode()
+    ), "Bulk import summary message not shown on the changelist"
+    assert (
+        BlacklistedAuthorEmail.objects.get(email="existing@example.com").note == "Already there"
+    ), "Bulk add overwrote the note of an already blacklisted email"
