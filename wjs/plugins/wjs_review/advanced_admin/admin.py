@@ -492,7 +492,12 @@ class BlacklistedAuthorEmailAdmin(admin.ModelAdmin):
                     request,
                     f"Bulk import complete: {added} added, {skipped} already existed.",
                 )
-                return HttpResponseRedirect(reverse("admin:blacklisted_authoremail_changelist"))
+                opts = self.model._meta
+                changelist_url = reverse(
+                    f"admin:{opts.app_label}_{opts.model_name}_changelist",
+                    current_app=self.admin_site.name,
+                )
+                return HttpResponseRedirect(changelist_url)
         else:
             form = BlacklistedEmailBulkForm()
 
