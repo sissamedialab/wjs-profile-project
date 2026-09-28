@@ -15,7 +15,7 @@ from django.utils.safestring import mark_safe
 from django.utils.timezone import localtime, now
 from django.utils.translation import gettext_lazy as _
 from journal.models import Issue
-from submission.models import Article
+from submission.models import STAGE_PUBLISHED, Article
 
 from wjs.defaults import settings
 from wjs.jcom_profile import article_links
@@ -69,17 +69,17 @@ def concat(base_string, suffix):
 
 @register.filter
 def article_has_children(article):
-    """Return if article has children articles (commentary items, errata,...)."""
-    return article_links.children(article).exists()
+    """Return if article has **published** children articles (commentary items, errata,...)."""
+    return article_links.children(article).filter(stage=STAGE_PUBLISHED).exists()
 
 
 @register.filter
 def article_children(article):
-    """Return the articles hanging from the given one (commentary items, errata,...).
+    """Return the **published** articles hanging from the given one (commentary items, errata,...).
 
     They come in their editorial order, so that they can be listed or `regroup`ed as-is.
     """
-    return article_links.children(article)
+    return article_links.children(article).filter(stage=STAGE_PUBLISHED)
 
 
 @register.filter

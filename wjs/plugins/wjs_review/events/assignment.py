@@ -3,7 +3,7 @@
 Journal level configuration is made using the 'WJS_ARTICLE_ASSIGNMENT_FUNCTIONS' setting
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from core.models import AccountRole, Role
 from django.conf import settings
@@ -12,6 +12,8 @@ from django.db.models import F, FloatField, Func, OuterRef, QuerySet, Subquery
 from django.db.models.functions import Cast, Coalesce, NullIf
 from django.utils.module_loading import import_string
 from journal.models import Journal
+from plugins.wjs_submission.correction.links import correction_parent
+from plugins.wjs_submission.workflow import is_correction
 from submission.models import Article
 from utils.logic import get_current_request
 
@@ -168,16 +170,35 @@ def assign_editor_random(article: Article, **kwargs) -> Optional["WjsEditorAssig
         return assignment
 
 
+def should_assign_editor(article: Article) -> bool:
+    """
+    Verify if editor assignment is enabled for the given article.
+
+    :param article: Article instance
+    :type article: Article
+    :return: editor assignment is enabled
+    :rtype: bool
+    """
+    return not is_correction(article)
+
+
 def dispatch_assignment(article: Article) -> Optional["WjsEditorAssignment"]:
     """Dispatch editors assignment on journal basis, selecting the requested assignment algorithm."""
-    journal = article.journal.code
+    journal = article.journal
+
+    if not should_assign_editor(article):
+        return None
     assignment_function = import_string(
-        settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(journal, settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(None)),
+        settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(
+            journal.code, settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(None)
+        ),
     )
     return assignment_function(article)
 
 
-def get_select_eo_by_workload(users_parameters: QuerySet) -> Optional["Account"]:
+def get_select_eo_by_workload(
+    article: Article, users_parameters: QuerySet[StaffWorkloadParameters]
+) -> Optional["Account"]:
     """
     Select EO based on their workload.
 
@@ -213,11 +234,60 @@ def get_select_eo_by_workload(users_parameters: QuerySet) -> Optional["Account"]
     return None
 
 
-def select_eo_random(users_parameters: QuerySet) -> Optional["Account"]:
+def select_eo_random(article: Article, users_parameters: QuerySet[StaffWorkloadParameters]) -> Optional["Account"]:
     """Select a random EO member, for test purposes."""
     users = users_parameters.values_list("user", flat=True)
 
     return Account.objects.filter(pk__in=users).exclude(workload=0).order_by("?").first()
+
+
+def select_eo_by_linked_article(
+    article: Article, users_parameters: QuerySet[StaffWorkloadParameters]
+) -> Optional["Account"]:
+    """
+    Select the EO in charge for a given article based on linked ancestor article.
+
+    This function identifies the linked ancestor article of the given article and retrieves the
+    Executive Officer in charge from the associated workflow. If no linked ancestor exists,
+    it returns None.
+
+    :param article: The article for which the linked ancestor is evaluated.
+    :type article: Article
+    :param users_parameters: Staff workload parameters that may influence the evaluation.
+    :type users_parameters: QuerySet[StaffWorkloadParameters]
+    :return: The account of the linked EO in charge or None if no ancestor link exists.
+    :rtype: Optional[Account]
+    """
+    parent = correction_parent(article)
+    if parent:
+        return parent.articleworkflow.eo_in_charge
+
+
+def get_eo_selection_function(
+    article: Article,
+) -> Callable[["Article", QuerySet[StaffWorkloadParameters]], Optional["Account"]]:
+    """
+    Determine the appropriate EO selection function for an article.
+
+    Identifies the EO selection function based on the journal code of the article. If the article
+    is a correction, a specific function for selecting EO by linked article is returned.
+    Otherwise, it retrieves the default or journal-specific EO assignment function from settings.
+
+    :param article: The article for which the EO selection function is determined.
+    :type article: Article
+    :return: Callable that determines the EO responsible for the article.
+    :rtype: Callable[[Article, QuerySet[StaffWorkloadParameters]], Optional[Account]]
+    """
+    journal = article.journal.code
+    if is_correction(article):
+        return select_eo_by_linked_article
+    else:
+        return import_string(
+            settings.WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS.get(
+                journal,
+                settings.WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS.get(None),
+            ),
+        )
 
 
 def dispatch_eo_assignment(article: Article, **kwargs) -> Optional["Account"]:
@@ -227,18 +297,12 @@ def dispatch_eo_assignment(article: Article, **kwargs) -> Optional["Account"]:
     Contrary to :py:function:`wjs_review.events.handlers.dispatch_assignment`, this function directly assigns the EO
     to the article as we don't have a workflow for EO assignment.
     """
-    journal = article.journal.code
-    eo_selection_function = import_string(
-        settings.WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS.get(
-            journal,
-            settings.WJS_ARTICLE_EO_ASSIGNMENT_FUNCTIONS.get(None),
-        ),
-    )
     eo_users = Account.objects.filter(groups__name=EO_GROUP)
     users_parameters = StaffWorkloadParameters.objects.filter(
         journal=article.journal, user__in=eo_users, workload__gt=0
     )
-    eo_user = eo_selection_function(users_parameters)
+    eo_selection_function = get_eo_selection_function(article)
+    eo_user = eo_selection_function(article, users_parameters)
     if eo_user:
         article.articleworkflow.eo_in_charge = eo_user
         article.articleworkflow.save()
