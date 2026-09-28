@@ -32,6 +32,8 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils.translation import gettext as _
 from faker.utils.text import slugify
+from plugins.wjs_submission.correction.links import article_children
+from plugins.wjs_submission.correction.logic import ADDENDUM, ERRATUM
 from review.models import ReviewAssignment
 from typesetting.models import GalleyProofing
 
@@ -298,6 +300,22 @@ def get_resume_submission_url(action: "ArticleAction", workflow: "ArticleWorkflo
 
 
 def get_identifier_id_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    """
+    Generate a URL with the identifier type set to "id".
+
+    This function constructs a URL based on the given action, workflow, and user. The
+    URL includes the identifier type as "id" and utilizes the primary key of the article
+    contained within the workflow.
+
+    :param action: The action instance that contains view information.
+    :type action: ArticleAction
+    :param workflow: The workflow instance that contains article information.
+    :type workflow: ArticleWorkflow
+    :param user: The user for whom the URL is generated.
+    :type user: Account
+    :return: The generated URL as a string.
+    :rtype: str
+    """
     url = reverse(
         action.view_name,
         kwargs={
@@ -306,6 +324,35 @@ def get_identifier_id_url(action: "ArticleAction", workflow: "ArticleWorkflow", 
         },
     )
     return url
+
+
+def get_doi_url_by_correction(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account) -> str:
+    """
+    Generate a URL with the identifier type set to "id", linking to the correction page.
+
+    This function determines the appropriate article ID from the given workflow
+    and generates a URL based on the action's view name, article ID, and other
+    parameters. If the given workflow has child articles, it selects the first
+    child's ID; otherwise, it uses the main article's ID.
+
+    :param action: The ArticleAction instance providing the view name for the URL.
+    :type action: ArticleAction
+    :param workflow: The ArticleWorkflow instance containing the article data.
+    :type workflow: ArticleWorkflow
+    :param user: The account of the user initiating the URL generation.
+    :type user: Account
+    :return: A string representing the correction URL for the specified action
+             and article.
+    :rtype: str
+    """
+    if child := article_children(workflow.article, relationships=[ADDENDUM, ERRATUM]).first():
+        doi_url = child.get_doi_url()
+    else:
+        doi_url = workflow.article.get_doi_url()
+    if doi_url:
+        return doi_url
+    else:
+        return get_identifier_id_url(action, workflow, user)
 
 
 def get_publishable_label(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
@@ -1301,7 +1348,7 @@ class Published(BaseState):
             name="janeway_published_version",
             label="Go to published version",
             view_name="article_view",
-            custom_get_url=get_identifier_id_url,
+            custom_get_url=get_doi_url_by_correction,
         ),
         ArticleAction(
             permission=permissions.is_one_of_the_authors,
@@ -1312,6 +1359,7 @@ class Published(BaseState):
                 "wjs_correction_start",
                 kwargs={"article_id": workflow.article.id, "relationship": "erratum"},
             ),
+            condition=conditions.can_add_erratum,
         ),
         ArticleAction(
             permission=permissions.is_one_of_the_authors,
@@ -1322,6 +1370,7 @@ class Published(BaseState):
                 "wjs_correction_start",
                 kwargs={"article_id": workflow.article.id, "relationship": "addendum"},
             ),
+            condition=conditions.can_add_addendum,
         ),
     )
     article_buttons = (

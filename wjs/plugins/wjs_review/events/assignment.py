@@ -12,10 +12,11 @@ from django.db.models import F, FloatField, Func, OuterRef, QuerySet, Subquery
 from django.db.models.functions import Cast, Coalesce, NullIf
 from django.utils.module_loading import import_string
 from journal.models import Journal
+from plugins.wjs_submission.correction.links import correction_parent
+from plugins.wjs_submission.workflow import is_correction
 from submission.models import Article
 from utils.logic import get_current_request
 
-from wjs.jcom_profile import article_links
 from wjs.jcom_profile.constants import DIRECTOR_MAIN_ROLE, EO_GROUP, SECTION_EDITOR_ROLE
 from wjs.jcom_profile.models import StaffWorkloadParameters
 
@@ -169,21 +170,6 @@ def assign_editor_random(article: Article, **kwargs) -> Optional["WjsEditorAssig
         return assignment
 
 
-def is_article_correction(article: Article) -> bool:
-    """
-    Verify if article is in a correction section (erratum / addendum).
-
-    :param article: Article instance
-    :type article: Article
-    :return: article is in a correction section
-    :rtype: bool
-    """
-    from ..models import get_correction_sections
-
-    journal = article.journal
-    return get_correction_sections(journal).filter(pk=article.section_id).exists()
-
-
 def should_assign_editor(article: Article) -> bool:
     """
     Verify if editor assignment is enabled for the given article.
@@ -193,7 +179,7 @@ def should_assign_editor(article: Article) -> bool:
     :return: editor assignment is enabled
     :rtype: bool
     """
-    return not is_article_correction(article)
+    return not is_correction(article)
 
 
 def dispatch_assignment(article: Article) -> Optional["WjsEditorAssignment"]:
@@ -272,7 +258,7 @@ def select_eo_by_linked_article(
     :return: The account of the linked EO in charge or None if no ancestor link exists.
     :rtype: Optional[Account]
     """
-    parent = article_links.correction_parent(article)
+    parent = correction_parent(article)
     if parent:
         return parent.articleworkflow.eo_in_charge
 
@@ -293,7 +279,7 @@ def get_eo_selection_function(
     :rtype: Callable[[Article, QuerySet[StaffWorkloadParameters]], Optional[Account]]
     """
     journal = article.journal.code
-    if is_article_correction(article):
+    if is_correction(article):
         return select_eo_by_linked_article
     else:
         return import_string(

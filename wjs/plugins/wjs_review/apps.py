@@ -122,7 +122,6 @@ class WjsReviewConfig(AppConfig):
             on_article_submission_start,
             perform_checks_at_acceptance,
             process_submission,
-            process_submitted_correction,
             process_submitted_revision,
             restart_review_process_after_revision_submission,
             send_access_mode_special_requirements_notification_,
@@ -152,10 +151,6 @@ class WjsReviewConfig(AppConfig):
         events_logic.Events.register_for_event(
             SubmissionEvent.ON_REVISION_SUBMISSION_COMPLETED,
             process_submitted_revision,
-        )
-        events_logic.Events.register_for_event(
-            SubmissionEvent.ON_CORRECTION_SUBMISSION_COMPLETED,
-            process_submitted_correction,
         )
         events_logic.Events.register_for_event(
             events_logic.Events.ON_REVISIONS_COMPLETE,

@@ -111,6 +111,7 @@ def test_default_normal_issue_articles_automatic_assignment(
 def test_erratum_articles_automatic_assignment(
     review_settings,
     admin,
+    corrections_article,
     article,
     directors,
     editors,
@@ -120,9 +121,11 @@ def test_erratum_articles_automatic_assignment(
 ):
     article_editors = None
 
-    section, _ = Section.objects.get_or_create(name=section_name, journal=article.journal)
-    article.section = section
-    article.save()
+    if section_name in ("Erratum", "Addendum"):
+        checked_article = corrections_article
+    else:
+        checked_article = article
+
     if has_editors:
         article_editors = editors
 
@@ -133,18 +136,18 @@ def test_erratum_articles_automatic_assignment(
         expected_editor = None
         if has_editors:
             parameters = StaffWorkloadParameters.objects.filter(user__in=article_editors)
-            expected_editor = get_selected_editor_by_workload(parameters, journal=article.journal)
+            expected_editor = get_selected_editor_by_workload(parameters, journal=checked_article.journal)
 
-        url = reverse("submit_review", args=(article.pk,))
+        url = reverse("submit_review", args=(checked_article.pk,))
         response = client.post(url, data={"next_step": "next_step"})
         assert response.status_code == 302
 
-        article.refresh_from_db()
+        checked_article.refresh_from_db()
         if has_editors:
-            editor_assignment = WjsEditorAssignment.objects.get(article=article)
+            editor_assignment = WjsEditorAssignment.objects.get(article=checked_article)
             assert editor_assignment.editor == expected_editor
         else:
-            assert not WjsEditorAssignment.objects.filter(article=article).exists()
+            assert not WjsEditorAssignment.objects.filter(article=checked_article).exists()
 
 
 @pytest.mark.django_db
@@ -688,11 +691,17 @@ def test_get_selected_eo_by_article_section(
     test_article = submitted_articles[1]
     test_article.section = section
     test_article.save()
-    LinkedArticle.objects.create(
-        from_article=submitted_parent,
-        to_article=test_article,
-        relationship=LinkType.ERRATUM,
-    )
+    relationship = None
+    if section_name == "Erratum":
+        relationship = LinkType.ERRATUM
+    elif section_name == "Addendum":
+        relationship = LinkType.ADDENDUM
+    if relationship:
+        LinkedArticle.objects.create(
+            from_article=submitted_parent,
+            to_article=test_article,
+            relationship=relationship,
+        )
 
     eo_users = Account.objects.filter(groups__name=EO_GROUP)
     eo_parameters = StaffWorkloadParameters.objects.filter(journal=journal, user__in=eo_users, workload__gt=0)
