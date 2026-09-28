@@ -34,7 +34,7 @@ CORRECTION_SECTIONS = [
 class Command(BaseCommand):
     """Create Erratum and Addendum sections with WjsSection pubid_and_tex_sectioncode records."""
 
-    help = "Create Erratum and Addendum sections with WjsSection pubid_and_tex_sectioncode records."  # noqa: A003
+    help = "Create Erratum and Addendum sections with WjsSection pubid_and_tex_sectioncode records."  # noqa
 
     def add_arguments(self, parser):
         """Add --journal argument to limit creation to a single journal."""
@@ -58,6 +58,7 @@ class Command(BaseCommand):
                 section, created = Section.objects.get_or_create(
                     journal=journal,
                     name=section_def["name"],
+                    defaults={"public_submissions": False},
                 )
                 if created:
                     self.stdout.write(
