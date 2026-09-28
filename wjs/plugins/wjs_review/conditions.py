@@ -14,6 +14,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
 from journal.models import Issue, Journal
+from plugins.wjs_submission.correction.links import article_children
+from plugins.wjs_submission.correction.logic import ADDENDUM, ERRATUM
 from submission.models import REVIEW_ACCESSIBLE_STAGES, Article
 from typesetting.models import GalleyProofing, TypesettingAssignment
 
@@ -22,7 +24,10 @@ from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 from wjs.jcom_profile.utils import get_eo_user
 
 from . import permissions
-from .logic import states_when_article_is_considered_archived_with_under_appeal
+from .logic import (
+    states_when_article_is_considered_archived_with_under_appeal,
+    states_when_correction_must_be_ignored,
+)
 from .models import (
     ArticleWorkflow,
     EditorDecision,
@@ -783,3 +788,43 @@ def can_withdraw_preprint(workflow: ArticleWorkflow, user: Account) -> bool:
     """Return True if the preprint can be withdrawn."""
     state_condition = workflow.state not in states_when_article_is_considered_archived_with_under_appeal
     return state_condition
+
+
+def can_add_erratum(workflow: ArticleWorkflow, user: Account) -> bool:
+    """
+    Determine if an erratum can be added to the workflow.
+
+    Evaluates whether an erratum exists for the given article in the
+    workflow and returns a boolean value indicating if an erratum
+    can be added.
+
+    :param workflow: The article workflow containing the article data.
+    :type workflow: ArticleWorkflow
+    :param user: The account information of the user making the request.
+    :type user: Account
+    :return: True if no erratum exists for the article, otherwise False.
+    :rtype: bool
+    """
+    children = article_children(workflow.article, relationships=[ERRATUM])
+
+    return not children.exclude(articleworkflow__state__in=states_when_correction_must_be_ignored).exists()
+
+
+def can_add_addendum(workflow: ArticleWorkflow, user: Account) -> bool:
+    """
+    Determine if an addendum can be added to the given article workflow.
+
+    This function checks if any child articles of the specified type
+    (ADDENDUM) already exist for the article associated with the provided
+    workflow. If no such child articles exist, the addendum can be added.
+
+    :param workflow: The article workflow to evaluate.
+    :type workflow: ArticleWorkflow
+    :param user: The account making the request to add the addendum.
+    :type user: Account
+    :return: True if an addendum can be added, False otherwise.
+    :rtype: bool
+    """
+    children = article_children(workflow.article, relationships=[ADDENDUM])
+
+    return not children.exclude(articleworkflow__state__in=states_when_correction_must_be_ignored).exists()

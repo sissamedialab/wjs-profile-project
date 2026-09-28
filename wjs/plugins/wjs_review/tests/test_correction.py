@@ -1,51 +1,55 @@
 """Tests for the correction (erratum/addendum) post-submission handler."""
 
-from unittest.mock import MagicMock, patch
-
 import pytest
-from plugins.wjs_submission.events import SubmissionEvent
+from plugins.wjs_review.models import ArticleWorkflow, WjsEditorAssignment
+from plugins.wjs_submission.correction.logic import ERRATUM, SetupCorrectionStorage
+from plugins.wjs_submission.step8.logic import CompleteSubmission
 
 
 @pytest.mark.django_db
 class TestProcessSubmittedCorrection:
     """Tests for the process_submitted_correction handler and AuthorHandleCorrection."""
 
-    def test_event_is_registered(self):
-        """Verify that ON_CORRECTION_SUBMISSION_COMPLETED is defined."""
-        assert SubmissionEvent.ON_CORRECTION_SUBMISSION_COMPLETED == "on_correction_submission_completed"
+    def test_process_submitted_correction_calls_handler(
+        self, review_settings, fake_request, published_article_with_standard_galleys, correction_sections, eo_user
+    ):
+        """Verify that corrections (errata / addenda) have same EO of original paper and no editor assigned."""
+        from events import registration  # noqa: Forces events to load into memory
 
-    @patch("plugins.wjs_review.events.handlers.AuthorHandleCorrection")
-    def test_process_submitted_correction_calls_handler(self, mock_handler_class):
-        """Verify that process_submitted_correction delegates to AuthorHandleCorrection."""
-        from plugins.wjs_review.events.handlers import process_submitted_correction
+        fake_request.user = published_article_with_standard_galleys.correspondence_author
+        published_article_with_standard_galleys.articleworkflow.eo_in_charge = eo_user
+        published_article_with_standard_galleys.articleworkflow.save()
 
-        mock_instance = MagicMock()
-        mock_handler_class.return_value = mock_instance
+        setup = SetupCorrectionStorage(
+            article_id=published_article_with_standard_galleys.pk,
+            relationship=ERRATUM,
+            request=fake_request,
+        )
+        to_article = setup.run()
 
-        process_submitted_correction(
-            request=MagicMock(),
-            article=MagicMock(),
+        CompleteSubmission(article=to_article, request=fake_request, first_submission=True).run()
+
+        to_article.refresh_from_db()
+        assert to_article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+        assert to_article.articleworkflow.eo_in_charge
+        assert not WjsEditorAssignment.objects.filter(article=to_article).exists()
+
+    def test_author_handle_correction_run(self, fake_request, article, eo_user):
+        """Verify that process_submission process the article as a standard submission."""
+        from plugins.wjs_review.events.handlers import process_submission
+
+        fake_request.user = article.owner
+        workflow = article.articleworkflow
+        workflow.state = ArticleWorkflow.ReviewStates.SUBMITTED
+        process_submission(
+            request=fake_request,
+            workflow=workflow,
         )
 
-        mock_handler_class.assert_called_once()
-        mock_instance.run.assert_called_once()
-
-    @patch("plugins.wjs_review.logic.dispatch_eo_assignment")
-    @patch("plugins.wjs_review.logic.AuthorHandleCorrection._notify_coauthors")
-    @patch("plugins.wjs_review.logic.AuthorHandleCorrection._log_operation")
-    def test_author_handle_correction_run(self, mock_log, mock_notify, mock_eo):
-        """Verify that AuthorHandleCorrection.run() calls all three steps."""
-        from plugins.wjs_review.logic import AuthorHandleCorrection
-
-        handler = AuthorHandleCorrection(
-            request=MagicMock(),
-            article=MagicMock(),
-        )
-        handler.run()
-
-        mock_log.assert_called_once()
-        mock_notify.assert_called_once()
-        mock_eo.assert_called_once()
+        article.refresh_from_db()
+        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+        assert article.articleworkflow.eo_in_charge
+        assert not WjsEditorAssignment.objects.filter(article=article).exists()
 
 
 @pytest.mark.django_db

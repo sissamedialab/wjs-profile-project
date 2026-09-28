@@ -26,7 +26,6 @@ from django_fsm import GET_STATE, FSMField, transition
 from identifiers.models import Identifier
 from journal.models import Journal
 from model_utils.models import TimeStampedModel
-from plugins.wjs_submission.correction.logic import SECTION_NAME_BY_RELATIONSHIP
 from plugins.wjs_submission.models import RevisionStorage
 from review.const import EditorialDecisions
 from review.models import (
@@ -70,24 +69,6 @@ MEDIALAB_DOI_JOURNAL_NUMBER = {
     "JCOM": "2",
     "JCOMAL": "3",
 }
-
-
-def get_correction_sections(journal: Journal) -> QuerySet[Section]:
-    """
-    Retrieve sections related to corrections for a given journal.
-
-    This function retrieves a queryset of sections associated with corrections
-    such as "Erratum" or "Addendum" for the specified journal. The mapping between
-    the relationships and section names is predefined and utilized to filter the
-    sections belonging to the journal.
-
-    :param journal: An instance of the Journal model.
-    :type journal: Journal
-    :return: A queryset containing sections related to corrections.
-    :rtype: QuerySet[Section]
-    """
-
-    return journal.section_set.filter(name__in=SECTION_NAME_BY_RELATIONSHIP.values())
 
 
 class WjsBleachCharField(JanewayBleachCharField):
