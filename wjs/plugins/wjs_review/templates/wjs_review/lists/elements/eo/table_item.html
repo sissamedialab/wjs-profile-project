@@ -2,7 +2,7 @@
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
-    <td class="text-nowrap">
+    <td>
       <span class="badge {{ article_classes.section_css }}">{{ article.section.name }}</span>
       <a
          href="{% url 'wjs_article_details' workflow.id %}"

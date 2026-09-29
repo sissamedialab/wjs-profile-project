@@ -24,6 +24,11 @@ from freezegun import freeze_time
 from identifiers.models import Identifier
 from journal import models as journal_models
 from journal.models import Issue, IssueType, Journal
+from plugins.wjs_submission.correction.logic import (
+    ERRATUM,
+    SECTION_NAME_BY_RELATIONSHIP,
+    get_or_create_linked_article,
+)
 from press.models import Press
 from submission import models as submission_models
 from submission.logic import add_author_using_email
@@ -540,6 +545,20 @@ def sections(journal):
     return submission_models.Section.objects.filter(pk__in=sections_pk)
 
 
+@pytest.fixture
+def correction_sections(journal, sections):
+    with translation.override("en"):
+        sections_pk = []
+        for sec_name in SECTION_NAME_BY_RELATIONSHIP.values():
+            obj = submission_models.Section.objects.create(
+                journal=journal,
+                name=sec_name,
+                public_submissions=False,
+            )
+            sections_pk.append(obj.pk)
+    return submission_models.Section.objects.filter(pk__in=sections_pk)
+
+
 def _article(author, coauthor, journal, sections, submitted=False):
     if submitted:
         date_started = date_submitted = now() - timedelta(days=random.randint(10, 20))
@@ -581,6 +600,14 @@ def article(author, coauthor, journal, sections):
 @pytest.fixture
 def submitted_article(author, coauthor, journal, sections):
     return _article(author, coauthor, journal, sections, submitted=True)
+
+
+@pytest.fixture
+def corrections_article(author, coauthor, journal, sections):
+    parent = _article(author, coauthor, journal, sections, submitted=True)
+    child = _article(author, coauthor, journal, sections, submitted=False)
+    get_or_create_linked_article(parent, child, ERRATUM)
+    return child
 
 
 def _create_submitted_articles(journal: journal_models.Journal, count: int = 10) -> List[submission_models.Article]:
@@ -666,12 +693,14 @@ def published_articles(author, editor, journal, sections, keywords):
 
 
 @pytest.fixture
-def published_article_with_standard_galleys(journal, article_factory):
+def published_article_with_standard_galleys(journal, article_factory, author):
     """Create articles in published stage with PDF and EPUB galleys."""
     article = article_factory(
         journal=journal,
         date_published=timezone.now(),
         stage=submission_models.STAGE_PUBLISHED,
+        correspondence_author=author.janeway_account,
+        owner=author.janeway_account,
     )
     pubid = "JCOM_0102_2023_A04"
     Identifier.objects.create(

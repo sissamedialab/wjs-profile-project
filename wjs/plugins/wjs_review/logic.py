@@ -163,6 +163,12 @@ states_when_article_is_considered_archived = [
     ArticleWorkflow.ReviewStates.NOT_SUITABLE,
     ArticleWorkflow.ReviewStates.PUBLISHED,
 ]
+states_when_correction_must_be_ignored = [
+    ArticleWorkflow.ReviewStates.INCOMPLETE_SUBMISSION,
+    ArticleWorkflow.ReviewStates.WITHDRAWN,
+    ArticleWorkflow.ReviewStates.REJECTED,
+    ArticleWorkflow.ReviewStates.NOT_SUITABLE,
+]
 # FIXME:this needs a broader refactoring probably
 states_when_article_is_considered_archived_with_under_appeal = states_when_article_is_considered_archived + [
     ArticleWorkflow.ReviewStates.UNDER_APPEAL,

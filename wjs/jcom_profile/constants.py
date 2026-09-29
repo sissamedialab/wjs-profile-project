@@ -48,6 +48,8 @@ JCOM_SECTION_TO_PUBIDSECTIONCODE = {
     "practice insight": "N",
     "focus": "F",
     "review article": "V",
+    "erratum": "X",
+    "addendum": "Z",
 }
 
 # In JCAP and JINST, the eid contains a section code only for these sections

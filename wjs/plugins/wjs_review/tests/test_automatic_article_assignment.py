@@ -11,8 +11,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from journal.models import Issue, IssueType
+from plugins.hydra.models import LinkedArticle, LinkType
 from plugins.wjs_review.models import Message
-from submission.models import Article
+from submission.models import Article, Section
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.constants import EO_GROUP
@@ -21,8 +23,10 @@ from wjs.jcom_profile.models import JCOMProfile, StaffWorkloadParameters
 from ..communication_utils import get_system_user
 from ..events.assignment import (
     get_available_editor_parameters,
+    get_eo_selection_function,
     get_select_eo_by_workload,
     get_selected_editor_by_workload,
+    select_eo_by_linked_article,
 )
 from ..logic import (
     BaseAssignToEditor,
@@ -94,6 +98,57 @@ def test_default_normal_issue_articles_automatic_assignment(
         if has_editors:
             editor_assignment = WjsEditorAssignment.objects.get(article=article)
             assert editor_assignment.editor == expected_editor
+
+
+@pytest.mark.parametrize(
+    "section_name,has_editors",
+    (
+        ("Erratum", False),
+        ("Addendum", False),
+        ("Article", True),
+    ),
+)
+@pytest.mark.django_db
+def test_erratum_articles_automatic_assignment(
+    review_settings,
+    admin,
+    corrections_article,
+    article,
+    directors,
+    editors,
+    coauthors_setting,
+    section_name,
+    has_editors,
+):
+    article_editors = None
+
+    if section_name in ("Erratum", "Addendum"):
+        checked_article = corrections_article
+    else:
+        checked_article = article
+
+    if has_editors:
+        article_editors = editors
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+
+        expected_editor = None
+        if has_editors:
+            parameters = StaffWorkloadParameters.objects.filter(user__in=article_editors)
+            expected_editor = get_selected_editor_by_workload(parameters, journal=checked_article.journal)
+
+        url = reverse("submit_review", args=(checked_article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+        checked_article.refresh_from_db()
+        if has_editors:
+            editor_assignment = WjsEditorAssignment.objects.get(article=checked_article)
+            assert editor_assignment.editor == expected_editor
+        else:
+            assert not WjsEditorAssignment.objects.filter(article=checked_article).exists()
 
 
 @pytest.mark.django_db
@@ -450,6 +505,55 @@ def test_jcom_special_issue_articles_automatic_assignment(
 
 
 @pytest.mark.django_db
+def test_jcom_assignment_primary_issue_without_managing_editors_uses_directors(
+    review_settings,
+    admin,
+    article,
+    main_director,
+    coauthors_setting,
+    journal,
+    sections,
+):
+    """Regression test for the JCOM assignment always-truthy-manager bug.
+
+    ``jcom_assign_editors_to_articles`` used to check ``article.primary_issue.managing_editors`` directly,
+    which is a related manager and thus always truthy, so any article with a ``primary_issue`` was routed
+    to the (empty) special-issue pool even when that issue has no managing editors, and never reached a
+    director. The article's primary issue here has no managing editors, so the assignment must fall back
+    to the main director, exactly as it does when the article has no primary issue at all.
+    """
+    issue_without_managing_editors = Issue.objects.create(
+        issue_title="Issue without managing editors",
+        short_name="issue-without-managing-editors",
+        journal=journal,
+        date_open=timezone.now() - timezone.timedelta(days=1),
+        date_close=timezone.now() + timezone.timedelta(days=1),
+        issue_type=IssueType.objects.get(journal=journal, code="collection"),
+    )
+    issue_without_managing_editors.allowed_sections.set(Section.objects.filter(journal=journal).order_by("?")[:3])
+    issue_without_managing_editors.articles.add(article)
+    # Article.primary_issue is set by a signal triggered by the m2m save, so the in-memory article object
+    # must be reloaded to see the change (see the "special_issue" fixture for the same caveat).
+    article.refresh_from_db()
+    assert article.primary_issue == issue_without_managing_editors, "Article must have the primary issue set."
+    assert not article.primary_issue.managing_editors.exists(), "Precondition: issue must have no managing editors."
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin.janeway_account)
+
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302, "Submission should redirect to the next step."
+
+        article.refresh_from_db()
+        editor_assignment = WjsEditorAssignment.objects.get(article=article)
+        assert (
+            editor_assignment.editor == main_director.janeway_account
+        ), "Main director must be assigned when the primary issue has no managing editors."
+
+
+@pytest.mark.django_db
 def test_random_automatic_assignment(
     review_settings,
     admin,
@@ -580,6 +684,118 @@ def test_workload_decrease_editor(
             )
 
 
+@pytest.mark.parametrize(
+    "section_name,has_eo",
+    (
+        ("Erratum", False),
+        ("Addendum", False),
+        ("Article", True),
+    ),
+)
+@pytest.mark.django_db
+def test_get_selected_eo_by_article_section(
+    review_settings,
+    journal,
+    eo_group: Group,
+    create_jcom_user: Callable,
+    submitted_articles,
+    published_articles,
+    eo_user,
+    section_name,
+    has_eo,
+):
+    """
+    Test the EO (Editorial Office) selection process based on article section.
+
+    This test ensures that the function responsible for selecting an EO user, based
+    on the section of a given article and their workload, behaves as expected. It
+    evaluates the assignment of EO users for specified section categories like
+    Erratum, Addendum, or Article. Different conditions of workload and section
+    types are accounted for in the test.
+
+    :param review_settings: Review settings configuration fixture
+    :param journal: Journal object fixture
+    :param eo_group: Group object associated with EO role
+    :param create_jcom_user: Callable to create test users with specific roles
+    :param submitted_articles: Fixture providing a list of submitted articles
+    :param published_articles: Fixture providing a list of published articles
+    :param eo_user: Default EO user fixture
+    :param section_name: Name of the section associated with the test article
+    :param has_eo: Boolean indicating if an EO is expected to be selected
+    :return: None
+    """
+    submitted_parent = submitted_articles[0]
+    submitted_parent.articleworkflow.state = ArticleWorkflow.ReviewStates.SUBMITTED
+    submitted_parent.articleworkflow.save()
+
+    eo_1 = create_jcom_user("eo_1")
+    eo_1.groups.add(eo_group)
+    StaffWorkloadParameters.objects.create(user=eo_1, journal=journal, workload=12)
+    eo_2 = create_jcom_user("eo_2")
+    eo_2.groups.add(eo_group)
+    StaffWorkloadParameters.objects.create(user=eo_2, journal=journal, workload=1)
+    # Assigning base eo user zero workload to exclude it
+    StaffWorkloadParameters.objects.filter(user=eo_user, journal=journal).update(workload=0)
+
+    section, _ = Section.objects.get_or_create(name=section_name, journal=journal)
+    test_article = submitted_articles[1]
+    test_article.section = section
+    test_article.save()
+    relationship = None
+    if section_name == "Erratum":
+        relationship = LinkType.ERRATUM
+    elif section_name == "Addendum":
+        relationship = LinkType.ADDENDUM
+    if relationship:
+        LinkedArticle.objects.create(
+            from_article=submitted_parent,
+            to_article=test_article,
+            relationship=relationship,
+        )
+
+    eo_users = Account.objects.filter(groups__name=EO_GROUP)
+    eo_parameters = StaffWorkloadParameters.objects.filter(journal=journal, user__in=eo_users, workload__gt=0)
+    eo_selection_function = get_eo_selection_function(test_article)
+    eo_user = eo_selection_function(test_article, eo_parameters)
+    if has_eo:
+        assert eo_user
+    else:
+        assert not eo_user
+
+
+@pytest.mark.parametrize("relationship", (LinkType.ERRATUM, LinkType.ADDENDUM))
+@pytest.mark.django_db
+def test_select_eo_by_linked_article(
+    review_settings,
+    journal,
+    eo_group: Group,
+    create_jcom_user: Callable,
+    submitted_articles,
+    relationship,
+):
+    """A correction inherits the EO in charge of the article that it corrects."""
+    corrected_article, correction = submitted_articles[0], submitted_articles[1]
+
+    eo_1 = create_jcom_user("eo_1")
+    eo_1.groups.add(eo_group)
+    parameters = StaffWorkloadParameters.objects.create(user=eo_1, journal=journal, workload=12)
+    corrected_article.articleworkflow.eo_in_charge = eo_1.janeway_account
+    corrected_article.articleworkflow.save()
+
+    eo_parameters = StaffWorkloadParameters.objects.filter(pk=parameters.pk)
+
+    # Without a link, no EO can be inherited.
+    assert select_eo_by_linked_article(correction, eo_parameters) is None
+
+    LinkedArticle.objects.create(
+        from_article=corrected_article,
+        to_article=correction,
+        relationship=relationship,
+    )
+
+    assert select_eo_by_linked_article(correction, eo_parameters) == eo_1.janeway_account
+
+
 @pytest.mark.parametrize("assign_published", (True, False))
 @pytest.mark.django_db
 def test_get_selected_eo_by_workload(
@@ -630,7 +846,7 @@ def test_get_selected_eo_by_workload(
 
     eo_users = Account.objects.filter(groups__name=EO_GROUP)
     eo_parameters = StaffWorkloadParameters.objects.filter(journal=journal, user__in=eo_users, workload__gt=0)
-    eo_selected = get_select_eo_by_workload(eo_parameters)
+    eo_selected = get_select_eo_by_workload(article=published_articles[0], users_parameters=eo_parameters)
     # eo_1 is always selected because published articles are ignored in the assignment algorithm
     assert eo_selected == eo_1.janeway_account
 
@@ -723,7 +939,7 @@ def test_get_selected_eo_by_workload_include_by_state(
 
     eo_users = Account.objects.filter(groups__name=EO_GROUP)
     eo_parameters = StaffWorkloadParameters.objects.filter(journal=journal, user__in=eo_users, workload__gt=0)
-    eo_selected = get_select_eo_by_workload(eo_parameters)
+    eo_selected = get_select_eo_by_workload(article=article, users_parameters=eo_parameters)
     if counted:
         assert eo_selected == eo_2.janeway_account
     else:
@@ -922,7 +1138,7 @@ def test_workload_decrease_eo(
         eo_parameters = StaffWorkloadParameters.objects.filter(
             journal=article.journal, user__in=eo_users, workload__gt=0
         )
-        assert get_select_eo_by_workload(eo_parameters) == eo_2.janeway_account
+        assert get_select_eo_by_workload(article=article, users_parameters=eo_parameters) == eo_2.janeway_account
 
 
 @pytest.mark.skip("Old submission is not used anymore")

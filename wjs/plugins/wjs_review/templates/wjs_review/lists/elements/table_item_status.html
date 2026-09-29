@@ -5,7 +5,7 @@
     <span class="badge {{ article_classes.state_css }}" title="State: {{ workflow.state_label }}">{{ workflow.state_label }}</span>
   {% include "wjs_review/lists/elements/attention.html" %}
 {% else %}
-  <div class="top-0 {% if attention_flag %}position-absolute{% endif %} py-2">
+  <div class="top-0 py-2">
     <span class="badge {{ article_classes.state_css }}" title="State: {{ workflow.state_label }}">
       {{ workflow.state_label }}<br>
       {% with status_date=workflow.article|get_status_date_label %}
