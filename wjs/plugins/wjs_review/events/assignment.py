@@ -128,7 +128,7 @@ def jcom_assign_editors_to_articles(article: Article, **kwargs) -> Optional["Wjs
     """Assign editors to article for review. JCOM algorithm."""
     from ..logic import BaseAssignToEditor
 
-    if article.primary_issue and article.primary_issue.managing_editors:
+    if article.primary_issue and article.primary_issue.managing_editors.exists():
         parameters = get_special_issue_parameters(article)
     else:
         # Event though we should only ever have one and only one "main director",
