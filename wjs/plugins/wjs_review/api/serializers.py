@@ -13,6 +13,37 @@ COLLABORATION_EXPORT_FIELDS: tuple[str, ...] = tuple(
 ) + tuple(key for key in TABELLONE_FIELDS if key not in COLLABORATIONS_EXPORT_KEYS)
 
 
+class ErrorDetailSerializer(serializers.Serializer):
+    """The `"error"` object of this API's error envelope."""
+
+    code = serializers.CharField()
+    message = serializers.CharField()
+    details = serializers.JSONField(required=False)
+
+
+class ErrorSerializer(serializers.Serializer):
+    """This API's error envelope: `{"error": {"code", "message", "details"?}}`."""
+
+    error = ErrorDetailSerializer()
+
+
+class GalleyItemSerializer(serializers.Serializer):
+    """One entry of `ArticleGalleyListSerializer.items`."""
+
+    type = serializers.CharField()  # noqa: A003 (matches the existing JSON contract's key)
+    sequence = serializers.IntegerField()
+    filename = serializers.CharField()
+    contentType = serializers.CharField()  # noqa: N815 (matches the existing JSON contract's key)
+    download_url = serializers.CharField()
+
+
+class ArticleGalleyListSerializer(serializers.Serializer):
+    """Response of `ArticleGalleyListView`: an article's galleys, by type and sequence."""
+
+    article_id = serializers.IntegerField()
+    items = GalleyItemSerializer(many=True)
+
+
 class CollaborationSerializer(serializers.ModelSerializer):
     """
     Serialize a collaboration as a record of a "tabellone.json"-like file.
@@ -31,6 +62,13 @@ class CollaborationSerializer(serializers.ModelSerializer):
             key: {"read_only": True, **({} if TABELLONE_FIELDS[key] == key else {"source": TABELLONE_FIELDS[key]})}
             for key in COLLABORATION_EXPORT_FIELDS
         }
+
+
+class CollaborationsExportSerializer(serializers.Serializer):
+    """Response of `CollaborationListView`: the versioned "tabellone.json"-like envelope."""
+
+    version = serializers.FloatField()  # COLLABORATIONS_EXPORT_VERSION is a float (1.0)
+    collaborations = CollaborationSerializer(many=True)
 
 
 class GalleyUploadSerializer(serializers.Serializer):

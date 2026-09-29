@@ -6,6 +6,9 @@ from .views import (
     ArticleZipDownloadView,
     CollaborationListView,
     JournalProductionListView,
+    RedocUIView,
+    SchemaView,
+    SwaggerUIView,
     TypesetterPapersListView,
 )
 
@@ -30,4 +33,7 @@ urlpatterns = [
         JournalProductionListView.as_view(),
         name="journal-production",
     ),
+    path("schema/", SchemaView.as_view(), name="schema"),
+    path("schema/swagger-ui/", SwaggerUIView.as_view(url_name="schema"), name="swagger-ui"),
+    path("schema/redoc/", RedocUIView.as_view(url_name="schema"), name="redoc"),
 ]
