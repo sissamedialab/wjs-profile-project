@@ -8,6 +8,7 @@ https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 import os
 from pathlib import Path
 
+from core.janeway_global_settings import REST_FRAMEWORK as _CORE_REST_FRAMEWORK
 from core.janeway_global_settings import STATIC_URL, TEMPLATES
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
@@ -25,6 +26,10 @@ INSTALLED_APPS = [
     "wjs.themes",
     "wjs.advanced_admin",
     "rest_framework.authtoken",
+    "drf_spectacular",
+    # Ships Swagger UI's and Redoc's assets as local static files, so that the docs pages do not
+    # load unpinned third-party JavaScript from a CDN (see SPECTACULAR_SETTINGS' "SIDECAR" values).
+    "drf_spectacular_sidecar",
 ]
 
 try:
@@ -44,6 +49,29 @@ try:
     )
 except ImportError:
     pass
+
+REST_FRAMEWORK = {
+    **_CORE_REST_FRAMEWORK,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # wjs_review's URLs name their path parameter "pk" (e.g. "article/<int:pk>/zip/"); keep the
+    # generated schema's path parameter named "pk" to match, instead of DRF's default of coercing
+    # it to "id".
+    "SCHEMA_COERCE_PATH_PK": False,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "WJS Review API",
+    "DESCRIPTION": "Internal API for WJS Review production and collaboration data.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Serve Swagger UI's and Redoc's assets from drf-spectacular-sidecar's own static files.
+    # drf-spectacular's defaults point at "https://cdn.jsdelivr.net/npm/<pkg>@latest": unpinned,
+    # unverified third-party JavaScript, loaded on the journal's own origin on an authenticated
+    # page. "SIDECAR" replaces those URLs with local, version-pinned static assets.
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
+}
 
 REDIS_CACHE_URL = os.environ.get("REDIS_CACHE_URL", "redis://localhost:6379/1")
 REDIS_QCLUSTER_URL = os.environ.get("REDIS_QCLUSTER_URL", "redis://localhost:6379/10")

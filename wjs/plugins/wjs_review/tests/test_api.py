@@ -4,11 +4,17 @@ import datetime
 import json
 
 import pytest
+from core.models import File, Galley
 from django.test.client import Client
 from django.urls import reverse
 from django.utils import timezone
 from identifiers.models import Identifier
-from plugins.wjs_review.api.const import COLLABORATIONS_EXPORT_KEYS
+from plugins.wjs_review.api.const import (
+    COLLABORATIONS_EXPORT_KEYS,
+    GALLEY_DOWNLOAD_MEDIA_TYPES,
+    GALLEY_UPLOAD_MEDIA_TYPES,
+    ZIP_MEDIA_TYPE,
+)
 from plugins.wjs_submission.helpers.collaborations import TABELLONE_FIELDS
 from plugins.wjs_submission.models import Collaboration
 from rest_framework.authtoken.models import Token
@@ -631,3 +637,192 @@ def test_api_journal_production_list_excludes_accepted_state(
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_api_schema_is_protected(client: Client, eo_user: JCOMProfile, typesetter, normal_user):
+    """Only EO members and typesetters with a valid token can fetch the OpenAPI schema."""
+    url = reverse("schema")
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+    Token.objects.create(user=typesetter.janeway_account, key="TYPESETTERTOKEN")
+    Token.objects.create(user=normal_user.janeway_account, key="NORMALTOKEN")
+
+    assert client.get(url).status_code == 401
+    assert client.get(url, HTTP_AUTHORIZATION="Token WRONGTOKEN").status_code == 401
+    assert client.get(url, HTTP_AUTHORIZATION="Token NORMALTOKEN").status_code == 403
+    assert client.get(url, HTTP_AUTHORIZATION="Token EOTOKEN").status_code == 200
+    assert client.get(url, HTTP_AUTHORIZATION="Token TYPESETTERTOKEN").status_code == 200
+
+
+@pytest.mark.django_db
+def test_api_schema_is_valid_openapi(client: Client, eo_user: JCOMProfile):
+    """The schema entry point serves a parsable OpenAPI 3 document."""
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+
+    response = client.get(reverse("schema"), {"format": "json"}, HTTP_AUTHORIZATION="Token EOTOKEN")
+
+    assert response.status_code == 200
+    schema = response.json()
+    assert schema["openapi"].startswith("3.")
+    assert "/plugins/wjs-review-articles/api/v1/collaborations/" in schema["paths"]
+
+
+@pytest.mark.django_db
+def test_api_docs_ui_is_protected(client: Client, eo_user: JCOMProfile, normal_user):
+    """The schema, Swagger UI and Redoc are gated exactly like the rest of the API.
+
+    Unlike the rest of the API, these three docs views also accept a logged-in Janeway session
+    (with no token at all): a browser navigating directly to their URLs cannot set an
+    ``Authorization`` header, so a human already logged into a Janeway session needs another way
+    in. The permission check (EO or typesetter) still applies regardless of which authentication
+    method got the request past authentication.
+    """
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+    Token.objects.create(user=normal_user.janeway_account, key="NORMALTOKEN")
+
+    for view_name in ("schema", "swagger-ui", "redoc"):
+        url = reverse(view_name)
+
+        # No authentication at all (no token, no session): unauthenticated.
+        assert client.get(url).status_code == 401
+
+        # Token authentication, wrong role: authenticated but forbidden.
+        assert client.get(url, HTTP_AUTHORIZATION="Token NORMALTOKEN").status_code == 403
+
+        # Token authentication, EO: allowed, as before.
+        assert client.get(url, HTTP_AUTHORIZATION="Token EOTOKEN").status_code == 200
+
+        # Session authentication (no token header at all), wrong role: still forbidden -- the
+        # permission check applies regardless of the authentication method.
+        client.force_login(normal_user.janeway_account)
+        assert client.get(url).status_code == 403
+        client.logout()
+
+        # Session authentication (no token header at all), EO: now allowed too.
+        client.force_login(eo_user.janeway_account)
+        assert client.get(url).status_code == 200
+        client.logout()
+
+
+@pytest.mark.django_db
+def test_api_schema_documents_binary_responses(client: Client, eo_user: JCOMProfile):
+    """The zip and galley download/upload entry points document their binary and error responses."""
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+
+    response = client.get(reverse("schema"), {"format": "json"}, HTTP_AUTHORIZATION="Token EOTOKEN")
+    schema = response.json()
+
+    zip_get = schema["paths"]["/plugins/wjs-review-articles/api/v1/article/{pk}/zip/"]["get"]
+    assert set(zip_get["responses"]) == {"200", "404"}
+    # The binary bodies are documented under their real media types, not under the JSON one that
+    # the view's renderers (needed by the error envelopes) would otherwise imply.
+    assert set(zip_get["responses"]["200"]["content"]) == {ZIP_MEDIA_TYPE}
+    assert set(zip_get["responses"]["404"]["content"]) == {"application/json"}
+
+    galley_get = schema["paths"]["/plugins/wjs-review-articles/api/v1/article/{pk}/galley/{file_type}/"]["get"]
+    assert set(galley_get["responses"]) == {"200", "400", "404", "409"}
+    assert set(galley_get["responses"]["200"]["content"]) == set(GALLEY_DOWNLOAD_MEDIA_TYPES)
+    assert set(galley_get["responses"]["404"]["content"]) == {"application/json"}
+
+    galley_post = schema["paths"]["/plugins/wjs-review-articles/api/v1/article/{pk}/galley/{file_type}/"]["post"]
+    assert set(galley_post["responses"]) == {"201", "400", "404", "409"}
+    # The upload rejects anything but the media types matching the galley type: the schema must not
+    # advertise the form/multipart ones that DRF's default parsers would imply.
+    assert set(galley_post["requestBody"]["content"]) == set(GALLEY_UPLOAD_MEDIA_TYPES)
+
+    error_component = schema["components"]["schemas"]["Error"]
+    assert error_component["properties"]["error"]["$ref"].endswith("/ErrorDetail")
+    detail_component = schema["components"]["schemas"]["ErrorDetail"]
+    assert set(detail_component["properties"]) == {"code", "message", "details"}
+
+
+@pytest.mark.django_db
+def test_api_articlegalleys_response_shape(client: Client, article: Article, eo_user: JCOMProfile):
+    """The article-galleys entry point serves the same JSON shape before and after the refactor."""
+    article.date_published = timezone.now()
+    article.stage = STAGE_PUBLISHED
+    article.save()
+
+    pdf_corefile = File.objects.create(
+        mime_type="application/pdf",
+        original_filename="of.pdf",
+        uuid_filename="uf.pdf",
+        is_galley=True,
+    )
+    Galley.objects.create(file=pdf_corefile, label="PDF", type="pdf", article=article, sequence=1)
+
+    account = eo_user.janeway_account
+    Token.objects.create(user=account, key="GOODTOKEN")
+
+    url = reverse("article-galleys", args=(article.pk,))
+    response = client.get(url, HTTP_AUTHORIZATION="Token GOODTOKEN")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "article_id": article.pk,
+        "items": [
+            {
+                "type": "pdf",
+                "sequence": 1,
+                "filename": "of.pdf",
+                "contentType": "application/pdf",
+                "download_url": f"/plugins/wjs-review-articles/api/v1/article/{article.pk}/galley/pdf/",
+            }
+        ],
+    }
+
+
+@pytest.mark.django_db
+def test_api_schema_infers_article_galleys_response(client: Client, eo_user: JCOMProfile):
+    """ArticleGalleyListView's response schema is inferred from its serializer, with no manual override."""
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+
+    response = client.get(reverse("schema"), {"format": "json"}, HTTP_AUTHORIZATION="Token EOTOKEN")
+    schema = response.json()
+
+    component = schema["components"]["schemas"]["ArticleGalleyList"]
+    assert set(component["properties"]) == {"article_id", "items"}
+    item_ref = component["properties"]["items"]["items"]["$ref"]
+    item_component = schema["components"]["schemas"][item_ref.rsplit("/", 1)[-1]]
+    assert set(item_component["properties"]) == {"type", "sequence", "filename", "contentType", "download_url"}
+
+
+@pytest.mark.django_db
+def test_api_schema_documents_collaborations_response(client: Client, eo_user: JCOMProfile):
+    """The collaborations entry point documents its envelope and its 400 error response."""
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+
+    response = client.get(reverse("schema"), {"format": "json"}, HTTP_AUTHORIZATION="Token EOTOKEN")
+    schema = response.json()
+
+    collaborations_get = schema["paths"]["/plugins/wjs-review-articles/api/v1/collaborations/"]["get"]
+    assert set(collaborations_get["responses"]) == {"200", "400"}
+
+    # The entry point serves a single envelope object, not a bare list: the documented 200 response
+    # must be a direct reference to the envelope component, never wrapped in an array.
+    collaborations_200 = collaborations_get["responses"]["200"]["content"]["application/json"]["schema"]
+    assert collaborations_200.get("type") != "array", collaborations_200
+    assert collaborations_200["$ref"].endswith("/CollaborationsExport"), collaborations_200
+
+    component = schema["components"]["schemas"]["CollaborationsExport"]
+    assert set(component["properties"]) == {"version", "collaborations"}
+
+
+@pytest.mark.django_db
+def test_api_schema_covers_all_entry_points(client: Client, eo_user: JCOMProfile):
+    """The generated schema covers every real API entry point and excludes its own docs infrastructure."""
+    Token.objects.create(user=eo_user.janeway_account, key="EOTOKEN")
+
+    response = client.get(reverse("schema"), {"format": "json"}, HTTP_AUTHORIZATION="Token EOTOKEN")
+
+    assert response.status_code == 200
+    schema = response.json()
+    assert schema["paths"].keys() == {
+        "/plugins/wjs-review-articles/api/v1/collaborations/",
+        "/plugins/wjs-review-articles/api/v1/article/{pk}/zip/",
+        "/plugins/wjs-review-articles/api/v1/article/{pk}/galleys/",
+        "/plugins/wjs-review-articles/api/v1/article/{pk}/galley/{file_type}/",
+        "/plugins/wjs-review-articles/api/v1/article/{pk}/galley/{file_type}/{sequence}/",
+        "/plugins/wjs-review-articles/api/v1/journal/{code}/production/",
+        "/plugins/wjs-review-articles/api/v1/journal/{code}/typesetter/{typesetter_pk}/papers/",
+    }
