@@ -41,6 +41,12 @@ class Command(BaseCommand):
             action="store_true",
             help="Also anonimize titles of non-published papers.",
         )
+        parser.add_argument(
+            "-a",
+            "--abstracts",
+            action="store_true",
+            help="Also anonimize abstracts of non-published papers.",
+        )
 
     def handle(self, *args, **options):
         """Command entry point."""
@@ -61,6 +67,8 @@ class Command(BaseCommand):
         anonymize_editor_decision()
         if options["titles"]:
             anonymize_titles()
+        if options["abstracts"]:
+            anonymize_abstracts()
         disable_crossref()
         delete_crossref_credentials()
 
@@ -109,6 +117,14 @@ def anonymize_titles():
     fake = faker.Faker()
     for article in Article.objects.filter(date_published__isnull=True):
         article.title = fake.sentence(nb_words=random.randint(5, 13)).title()
+        article.save()
+
+
+def anonymize_abstracts():
+    """Set a random abstract (about 130 words) on non-published papers."""
+    fake = faker.Faker()
+    for article in Article.objects.filter(date_published__isnull=True):
+        article.abstract = fake.sentence(nb_words=130)
         article.save()
 
 
