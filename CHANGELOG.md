@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.3] - 2026-09-29
+
+- [specs#3136: Test automatic editor assignment](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3136) — fix(wjs_review): check managing editors exist before using the special-issue pool in JCOM assignment (!1535)
+- [specs#3130: Prepare anonyumised test website for JCOM Demo to editorial board](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3130) — Strengthen pg-restore when creating a test instance (!1538)
+- [specs#2873: Submit erratum / addendum](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2873) — feat: erratum and addendum submission workflow (!1540)
+- [specs#3056: Integrate hydra in erratum / addenda submission](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3056) — feat: erratum and addendum submission workflow (!1540)
+- [specs#2875: Disable automatic editor assignment for Erratum / Addendum](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2875) — feat: erratum and addendum submission workflow (!1540)
+- [specs#2874: Assign erratum / addendum to the same EO in charge](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2874) — feat: erratum and addendum submission workflow (!1540)
+- [specs#3171: 18.9: feedback errata/addenda](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3171) — feat: erratum and addendum submission workflow (!1540)
+- [specs#3077: Minor internal page changes](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3077) — feat: minor internal page changes (!1501)
+- [specs#3082: Labels should have a cohoerent colour across pages](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3082) — feature: remove position absolute to label and fix text-wrap for first column (!1531)
+- [specs#3123: Labels for read-by-user messages and read-by-EO have different colours](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3123) — feature: align message read button color (!1530)
+- [specs#3108: rename link "Not suitable for JCOM"](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3108) — feature: rename link as - not suitable for this journal (!1529)
+- [specs#3194: System error trying to add bulk blacklist](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3194) — fix: redirect to advanced admin changelist after blacklist bulk add (!1527)
+
 ## [2.1.2] - 2026-09-23
 
 - [specs#3097: Test Django 5.2](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3097) — Re-generate WJS venvs (!1507)
