@@ -11,6 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import Client, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from journal.models import Issue, IssueType
 from plugins.hydra.models import LinkedArticle, LinkType
 from plugins.wjs_review.models import Message
 from submission.models import Article, Section
@@ -501,6 +502,55 @@ def test_jcom_special_issue_articles_automatic_assignment(
         if has_editors:
             editor_assignment = WjsEditorAssignment.objects.get(article=article)
             assert editor_assignment.editor == expected_editor
+
+
+@pytest.mark.django_db
+def test_jcom_assignment_primary_issue_without_managing_editors_uses_directors(
+    review_settings,
+    admin,
+    article,
+    main_director,
+    coauthors_setting,
+    journal,
+    sections,
+):
+    """Regression test for the JCOM assignment always-truthy-manager bug.
+
+    ``jcom_assign_editors_to_articles`` used to check ``article.primary_issue.managing_editors`` directly,
+    which is a related manager and thus always truthy, so any article with a ``primary_issue`` was routed
+    to the (empty) special-issue pool even when that issue has no managing editors, and never reached a
+    director. The article's primary issue here has no managing editors, so the assignment must fall back
+    to the main director, exactly as it does when the article has no primary issue at all.
+    """
+    issue_without_managing_editors = Issue.objects.create(
+        issue_title="Issue without managing editors",
+        short_name="issue-without-managing-editors",
+        journal=journal,
+        date_open=timezone.now() - timezone.timedelta(days=1),
+        date_close=timezone.now() + timezone.timedelta(days=1),
+        issue_type=IssueType.objects.get(journal=journal, code="collection"),
+    )
+    issue_without_managing_editors.allowed_sections.set(Section.objects.filter(journal=journal).order_by("?")[:3])
+    issue_without_managing_editors.articles.add(article)
+    # Article.primary_issue is set by a signal triggered by the m2m save, so the in-memory article object
+    # must be reloaded to see the change (see the "special_issue" fixture for the same caveat).
+    article.refresh_from_db()
+    assert article.primary_issue == issue_without_managing_editors, "Article must have the primary issue set."
+    assert not article.primary_issue.managing_editors.exists(), "Precondition: issue must have no managing editors."
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin.janeway_account)
+
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302, "Submission should redirect to the next step."
+
+        article.refresh_from_db()
+        editor_assignment = WjsEditorAssignment.objects.get(article=article)
+        assert (
+            editor_assignment.editor == main_director.janeway_account
+        ), "Main director must be assigned when the primary issue has no managing editors."
 
 
 @pytest.mark.django_db
