@@ -170,6 +170,10 @@
         name: "{{ full_name }}"
         state: restore
         target: "/tmp/janeway-pp-{{ instance_name }}.pgc"
+        # Single transaction: tables stay invisible to other connections until
+        # commit, so a running Janeway can't insert rows (e.g. plugin install()
+        # via hook_registry) between CREATE TABLE and ADD CONSTRAINT.
+        target_opts: "--single-transaction --exit-on-error"
         login_host: localhost
         login_port: 5432
         login_user: janeway
