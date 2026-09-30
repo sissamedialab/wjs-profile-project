@@ -51,6 +51,17 @@ class Command(BaseCommand):
             "oa-cern-affiliated": "Open Access – CERN-affiliated co-author(s)",
             "oa-transformative-agreement": "Open Access - Transformative agreements",
             "open-access": "Open Access",
+            "open-access-legacy": "Open Access",
+            # Historic-only codes: needed so import_articles_from_wjapp.py's
+            # create_access_mode_from_wjapp() (issue #3169) never has to auto-create an
+            # AccessMode with the wrong user_selectable default (True) for a wjapp-imported
+            # paper's access mode. Never offered as a live choice on any submission form.
+            # A wjapp (oaaCod, copyCod) combination that would otherwise need its own
+            # variant of one of these (e.g. Publisher copyright instead of Authors) is
+            # instead handled per-article via ArticleSubmission.rights_override/
+            # license_override, so a single shared code covers all of them.
+            "not-open-access": "Not open access",
+            "free-to-read": "Free to read",
         }
         journals = {
             "JHEP": {
@@ -83,6 +94,30 @@ class Command(BaseCommand):
                     "copyright": "Authors",
                 },
                 "oa-transformative-agreement": {
+                    "licence": "CC BY 4.0",
+                    "copyright": "Authors",
+                },
+                # "open-access" is only ever imported for JCAP (from wjapp's SCOAP-funded
+                # papers, oaaCod=7); it's not otherwise a live JCAP choice, but it's also
+                # already used, with user_selectable=True, by JCOM/JCOMAL - since
+                # user_selectable is a per-code, not per-journal, flag, this reuses that
+                # existing value as-is rather than splitting it into a JCAP-only variant.
+                "open-access-legacy": {
+                    "licence": "CC BY 4.0",
+                    "copyright": "Authors",
+                },
+                # Historic-only codes produced by import_articles_from_wjapp.py's wjs_mapping
+                # (issue #3169), for papers imported from wjapp under old (oaaCod, copyCod)
+                # combinations. Not offered as a live choice - see the access_modes comment
+                # above. licence/copyright here are just the majority-case default for each
+                # code; a paper whose actual wjapp values differ gets a per-article
+                # rights_override/license_override from the importer instead of a separate
+                # AccessMode variant.
+                "not-open-access": {
+                    "licence": "most-rights",
+                    "copyright": "Publisher",
+                },
+                "free-to-read": {
                     "licence": "CC BY 4.0",
                     "copyright": "Authors",
                 },

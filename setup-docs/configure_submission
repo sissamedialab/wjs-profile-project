@@ -72,4 +72,7 @@ python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${lo
 echo "Importing WJS submission settings"
 python -W ignore manage.py set_settings_from_csv --journal=${journal} --csv ${local_dir}/configs/${journal}/202604_wjs_submission_settings.csv
 echo "Configure access mode"
-python -W ignore manage.py setup_access_mode --clear-all
+# --clear-all must never be used here: it wipes AccessMode globally (all journals, not just
+# this one) and SET_NULLs ArticleSubmission.access_mode on every already-submitted article
+# system-wide (see issue #3169). Without it, this command is idempotent/additive.
+python -W ignore manage.py setup_access_mode
