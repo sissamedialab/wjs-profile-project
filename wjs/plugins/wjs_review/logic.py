@@ -3298,6 +3298,25 @@ class PostponeRevisionRequestDueDate:
             self._log_author_if_date_due_is_postponed(context)
             self._update_reminder_dates()
 
+            # Materialized AC update:
+            # Postponing the due date affects the author-late time-based
+            # ACs. Re-evaluate them immediately instead of blind-resolving:
+            # the new due date could still be in the past, and conditions
+            # are the single source of truth for which codes apply to which
+            # revision type.
+            from . import ac_service
+
+            article = self.revision_request.article
+            evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state, article=article)
+            for code in (
+                ac_service.AUTHOR_REVISION_LATE,
+                ac_service.AUTHOR_REVISION_LATE_ESCALATED,
+                ac_service.AUTHOR_METADATA_LATE,
+                ac_service.AUTHOR_METADATA_LATE_ESCALATED,
+                ac_service.APPEAL_LATE,
+            ):
+                evaluator._evaluate_code(code)
+
 
 @dataclasses.dataclass
 class HandleMessage:
@@ -3781,6 +3800,28 @@ class PostponeReviewerDueDate:
             if self._report_postponed_far_future_date():
                 self._log_eo_far_future_date()
             self._log_reviewer_if_date_is_postponed()
+
+            # Materialized AC update:
+            # Postponing the due date affects the reviewer-late time-based
+            # ACs. These underlying conditions aggregate over ALL review
+            # assignments of the round, so we must re-evaluate them instead
+            # of blind-resolving (another reviewer may still be late).
+            from . import ac_service
+
+            article = self.assignment.article
+            evaluator = ac_service.ACStateEvaluator(
+                state=article.articleworkflow.state,
+                article=article,
+            )
+            for code in (
+                ac_service.REVIEWER_LATE,
+                ac_service.REVIEWER_LATE_ESCALATED,
+                ac_service.REVIEWER_INACTIVE,
+                ac_service.REVIEWER_INVITATION_PENDING,
+                ac_service.REVIEWER_REPORT_OVERDUE,
+                ac_service.EDITOR_REVIEW_OVERDUE,
+            ):
+                evaluator._evaluate_code(code)
 
 
 @dataclasses.dataclass

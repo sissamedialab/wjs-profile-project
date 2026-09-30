@@ -25,6 +25,7 @@ from plugins.wjs_review.logic import (
     HandleDecision,
     HandleEditorDeclinesAssignment,
     PostponeReviewerDueDate,
+    PostponeRevisionRequestDueDate,
 )
 from plugins.wjs_review.models import (
     ArticleWorkflow,
@@ -1217,3 +1218,353 @@ def test_unread_message_ac_priority_is_low_for_users_and_high_for_eo(
     assert (
         _displayed_attention_condition(article, eo_human.janeway_account) == "You have unread messages"
     ), "Messages come first for EO"
+
+
+# TODO: write test for exclusions of both authors and reviewers
+
+
+@pytest.mark.django_db
+def test_postpone_reviewer_due_date_clears_ac_immediately(
+    assigned_article: Article,
+    reviewer: JCOMProfile,
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+):
+    """Postponing a reviewer's due date immediately resolves reviewer-late ACs.
+
+    This test verifies that PostponeReviewerDueDate.run() resolves the
+    time-based reviewer ACs without needing a subsequent
+    attention_conditions_rebuild() call (the daily cron).
+    """
+    from plugins.wjs_review import ac_service
+
+    article = assigned_article
+    workflow = article.articleworkflow
+
+    editor_assignment = WjsEditorAssignment.objects.get_current(article)
+    section_editor = editor_assignment.editor
+
+    # 1. Assign a reviewer.
+    fake_request.user = section_editor
+    assignment = AssignToReviewer(
+        workflow=workflow,
+        reviewer=reviewer.janeway_account,
+        editor=section_editor,
+        form_data={
+            "acceptance_due_date": (localtime(timezone.now() + timezone.timedelta(1))).strftime("%Y-%m-%d"),
+            "message": "random message",
+            "author_note_visible": False,
+        },
+        request=fake_request,
+    ).run()
+
+    # 2. Make the assignment overdue and send reminders far in the past so
+    #    that REVIEWER_LATE and REVIEWER_LATE_ESCALATED fire.
+    assignment.date_due = localtime(timezone.now()).date() - timezone.timedelta(days=1)
+    assignment.save()
+
+    all_reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(assignment),
+        object_id=assignment.id,
+        disabled=False,
+    )
+    for reminder in all_reminders:
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
+        reminder.save()
+
+    # 3. Accept the review and set an overdue report due date so that
+    #    REVIEWER_REPORT_OVERDUE also fires.
+    EvaluateReview(
+        assignment=assignment,
+        reviewer=reviewer.janeway_account,
+        editor=section_editor,
+        form_data={
+            "reviewer_decision": "1",  # "1" means "accept"
+            "additional_comments": "Additional comments",
+            "date_due": localtime(timezone.now()).date() - timezone.timedelta(days=1),
+        },
+        request=fake_request,
+        token="",
+    ).run()
+
+    # Clear messages so they don't interfere with ACs.
+    Message.objects.update(read_by_eo=True)
+    MessageRecipients.objects.update(read=True)
+
+    # 4. Send the new report reminders far in the past so that
+    #    REVIEWER_LATE and REVIEWER_LATE_ESCALATED also fire.
+    report_reminders = Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(assignment),
+        object_id=assignment.id,
+        disabled=False,
+        date_sent__isnull=True,
+    )
+    for reminder in report_reminders:
+        reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
+        reminder.save()
+
+    # 5. Materialise the ACs via the daily rebuild.
+    attention_conditions_rebuild(article)
+
+    # 6. Sanity-check: the reviewer-late ACs are ACTIVE.
+    late_codes = [
+        ac_service.REVIEWER_LATE,
+        ac_service.REVIEWER_LATE_ESCALATED,
+        ac_service.REVIEWER_REPORT_OVERDUE,
+    ]
+    active_acs = AttentionCondition.objects.filter(
+        article=article,
+        code__in=late_codes,
+        status=AttentionCondition.Status.ACTIVE,
+    )
+    assert active_acs.exists(), "Expected reviewer-late ACs to be ACTIVE before postponement"
+    # Capture the count as a plain int before the postponement, otherwise the
+    # lazy queryset would re-query the DB after run() resolves the ACs.
+    active_count = active_acs.count()
+
+    # 7. Postpone the due date to the future.
+    assignment.refresh_from_db()
+    PostponeReviewerDueDate(
+        assignment=assignment,
+        editor=assignment.editor,
+        user=assignment.editor,
+        form_data={"date_due": localtime(timezone.now()).date() + datetime.timedelta(days=7)},
+        request=fake_request,
+        original_due_date=assignment.date_due,
+    ).run()
+
+    # 8. WITHOUT calling attention_conditions_rebuild(), verify that the
+    #    late ACs have been resolved immediately by run().
+    resolved_acs = AttentionCondition.objects.filter(
+        article=article,
+        code__in=late_codes,
+        status=AttentionCondition.Status.RESOLVED,
+    )
+    assert resolved_acs.count() == active_count, (
+        f"Expected {active_count} reviewer-late ACs to be RESOLVED immediately after postponement, "
+        f"got {resolved_acs.count()}"
+    )
+    # No remaining ACTIVE late ACs.
+    assert not AttentionCondition.objects.filter(
+        article=article,
+        code__in=late_codes,
+        status=AttentionCondition.Status.ACTIVE,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_postpone_revision_request_due_date_clears_ac_immediately(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+):
+    """Postponing a revision request due date immediately resolves author-late ACs.
+
+    This test verifies that PostponeRevisionRequestDueDate.run() resolves
+    the time-based author revision ACs without needing a subsequent
+    attention_conditions_rebuild() call (the daily cron).
+    """
+    from plugins.wjs_review import ac_service
+
+    article = assigned_article
+    workflow = article.articleworkflow
+    section_editor = WjsEditorAssignment.objects.get_current(article).editor
+
+    # 1. Create a MINOR_REVISION request with a past due date (author is late).
+    days_past = 5
+    expected = localtime(now() + timezone.timedelta(days=-days_past))
+    form_data = {
+        "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
+        "decision_editor_report": "random message",
+        "withdraw_notice": "notice",
+        "date_due": expected,
+    }
+    editor_decision = HandleDecision(
+        workflow=workflow,
+        form_data=form_data,
+        user=section_editor,
+        request=fake_request,
+    ).run()
+    revision_request = editor_decision.revision_request
+    article.refresh_from_db()
+    workflow.refresh_from_db()
+
+    # 2. Materialise the ACs via the daily rebuild.
+    attention_conditions_rebuild(article)
+
+    # 3. Sanity-check: the AUTHOR_REVISION_LATE AC is ACTIVE.
+    late_codes = [ac_service.AUTHOR_REVISION_LATE]
+    active_acs = AttentionCondition.objects.filter(
+        article=article,
+        code__in=late_codes,
+        status=AttentionCondition.Status.ACTIVE,
+    )
+    assert active_acs.exists(), "Expected AUTHOR_REVISION_LATE AC to be ACTIVE before postponement"
+
+    # 4. Postpone the due date to the future.
+    revision_request.refresh_from_db()
+    PostponeRevisionRequestDueDate(
+        revision_request=revision_request,
+        form_data={"date_due": localtime(timezone.now()).date() + datetime.timedelta(days=7)},
+        request=fake_request,
+        original_due_date=revision_request.date_due,
+    ).run()
+
+    # 5. WITHOUT calling attention_conditions_rebuild(), verify that the
+    #    late AC has been resolved immediately by run().
+    assert not AttentionCondition.objects.filter(
+        article=article,
+        code__in=late_codes,
+        status=AttentionCondition.Status.ACTIVE,
+    ).exists(), "Expected AUTHOR_REVISION_LATE AC to be RESOLVED immediately after postponement"
+
+
+@pytest.mark.django_db
+def test_postpone_due_date_keeps_acs_for_other_late_reviewer(
+    assigned_article: Article,
+    reviewer: JCOMProfile,
+    normal_user: JCOMProfile,
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+):
+    """Postponing one reviewer's due date must not clear ACs that are still true.
+
+    The underlying conditions aggregate over ALL review assignments of the
+    round: with two late reviewers, postponing reviewer 1 must NOT resolve
+    the editor's REVIEWER_LATE (reviewer 2 is still overdue) nor reviewer
+    2's own REVIEWER_INVITATION_PENDING.
+
+    Regression test for https://gitlab.sissamedialab.it/wjs/specs/-/issues/2966
+    review Finding 1 (blanket resolve clears ACs that are still true).
+    """
+    from plugins.wjs_review import ac_service
+    from plugins.wjs_review.tests.test_helpers import _create_review_assignment
+
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    reviewer2_account = normal_user.janeway_account
+
+    assignment1 = _create_review_assignment(fake_request, reviewer, article)
+    assignment2 = _create_review_assignment(fake_request, normal_user, article)
+
+    for assignment in (assignment1, assignment2):
+        assignment.date_due = localtime(timezone.now()).date() - datetime.timedelta(days=3)
+        assignment.save()
+        for reminder in Reminder.objects.filter(
+            content_type=ContentType.objects.get_for_model(assignment),
+            object_id=assignment.id,
+            disabled=False,
+        ):
+            reminder.date_sent = timezone.now() - datetime.timedelta(days=10)
+            reminder.save()
+
+    attention_conditions_rebuild(article)
+
+    assert AttentionCondition.objects.filter(
+        article=article,
+        user=editor,
+        code=ac_service.REVIEWER_LATE,
+        status=AttentionCondition.Status.ACTIVE,
+    ).exists(), "precondition: editor sees REVIEWER_LATE"
+    assert AttentionCondition.objects.filter(
+        article=article,
+        user=reviewer2_account,
+        code=ac_service.REVIEWER_INVITATION_PENDING,
+        status=AttentionCondition.Status.ACTIVE,
+    ).exists(), "precondition: reviewer2 sees REVIEWER_INVITATION_PENDING"
+
+    # Postpone reviewer 1's due date to the future.
+    assignment1.refresh_from_db()
+    PostponeReviewerDueDate(
+        assignment=assignment1,
+        editor=editor,
+        user=editor,
+        form_data={"date_due": localtime(timezone.now()).date() + datetime.timedelta(days=7)},
+        request=fake_request,
+        original_due_date=assignment1.date_due,
+    ).run()
+
+    # Reviewer 2 is STILL late: these must still be ACTIVE.
+    assert AttentionCondition.objects.filter(
+        article=article,
+        user=editor,
+        code=ac_service.REVIEWER_LATE,
+        status=AttentionCondition.Status.ACTIVE,
+    ).exists(), "Editor's REVIEWER_LATE was cleared although reviewer2 is still late"
+    assert AttentionCondition.objects.filter(
+        article=article,
+        user=reviewer2_account,
+        code=ac_service.REVIEWER_INVITATION_PENDING,
+        status=AttentionCondition.Status.ACTIVE,
+    ).exists(), "Reviewer2's own REVIEWER_INVITATION_PENDING was cleared"
+
+    # Reviewer-late ACs aggregate over all reviewers: as long as reviewer2 is
+    # late the condition stays true and the AC is visible to the whole role —
+    # including reviewer1, even if their own due date was postponed. This is
+    # the intended behaviour and matches the nightly rebuild.
+
+
+@pytest.mark.django_db
+def test_postpone_due_date_clears_editor_review_overdue(
+    assigned_article: Article,
+    fake_request: HttpRequest,
+    review_form: review_models.ReviewForm,
+):
+    """Postponing the editor-as-reviewer's own due date resolves EDITOR_REVIEW_OVERDUE.
+
+    An editor who self-assigns as reviewer and is late gets the
+    EDITOR_REVIEW_OVERDUE condition; postponing their due date must clear
+    it immediately (this code is now classified as time-based, see
+    issue-2966 review Finding 3).
+    """
+    from plugins.wjs_review import ac_service
+
+    article = assigned_article
+    workflow = article.articleworkflow
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+
+    # The editor assigns themselves as reviewer.
+    fake_request.user = editor
+    assignment = AssignToReviewer(
+        workflow=workflow,
+        reviewer=editor,
+        editor=editor,
+        form_data={
+            "acceptance_due_date": (localtime(timezone.now() + timezone.timedelta(1))).strftime("%Y-%m-%d"),
+            "message": "random message",
+            "author_note_visible": False,
+        },
+        request=fake_request,
+    ).run()
+
+    # The editor accepts the assignment so that their report is pending, then
+    # the report due date goes in the past -> EDITOR_REVIEW_OVERDUE.
+    assignment.date_accepted = timezone.now()
+    assignment.date_due = localtime(timezone.now()).date() - datetime.timedelta(days=1)
+    assignment.save()
+
+    attention_conditions_rebuild(article)
+    assert AttentionCondition.objects.filter(
+        article=article,
+        user=editor,
+        code=ac_service.EDITOR_REVIEW_OVERDUE,
+        status=AttentionCondition.Status.ACTIVE,
+    ).exists(), "precondition: editor sees EDITOR_REVIEW_OVERDUE"
+
+    # Postpone the editor's own due date to the future.
+    assignment.refresh_from_db()
+    PostponeReviewerDueDate(
+        assignment=assignment,
+        editor=editor,
+        user=editor,
+        form_data={"date_due": localtime(timezone.now()).date() + datetime.timedelta(days=7)},
+        request=fake_request,
+        original_due_date=assignment.date_due,
+    ).run()
+
+    # WITHOUT calling attention_conditions_rebuild(), the AC must be resolved.
+    assert not AttentionCondition.objects.filter(
+        article=article,
+        user=editor,
+        code=ac_service.EDITOR_REVIEW_OVERDUE,
+        status=AttentionCondition.Status.ACTIVE,
+    ).exists(), "Expected EDITOR_REVIEW_OVERDUE to be RESOLVED immediately after postponement"
