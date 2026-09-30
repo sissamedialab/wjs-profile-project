@@ -86,9 +86,6 @@ NEEDS_ASSIGNMENT = "needs_assignment"
 REVIEWS_COMPLETED = "reviews_completed_decision_needed"
 """Editor: all active reviews are done; a decision should be made."""
 
-EDITOR_REVIEW_OVERDUE = "editor_review_overdue"
-"""Editor: the editor assigned themselves as reviewer and is late."""
-
 INCOMPLETE_SUBMISSION = "incomplete_submission"
 """Author: the submission was left unfinished."""
 
@@ -129,6 +126,9 @@ REVIEWER_REPORT_OVERDUE = "reviewer_report_overdue"
 
 REVIEWER_INACTIVE = "reviewer_inactive_after_reminders"
 """Editor: reviewers stayed inactive even after extended waiting period."""
+
+EDITOR_REVIEW_OVERDUE = "editor_review_overdue"
+"""Editor: the editor assigned themselves as reviewer and is late."""
 
 AUTHOR_REVISION_LATE = "author_revision_late"
 """Author: a requested revision is overdue."""
@@ -181,6 +181,7 @@ TIME_BASED_AC_CODES: set[str] = {
     REVIEWER_INVITATION_PENDING,
     REVIEWER_REPORT_OVERDUE,
     REVIEWER_INACTIVE,
+    EDITOR_REVIEW_OVERDUE,
     AUTHOR_REVISION_LATE,
     AUTHOR_REVISION_LATE_ESCALATED,
     AUTHOR_METADATA_LATE,
