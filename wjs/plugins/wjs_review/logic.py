@@ -2334,6 +2334,13 @@ class AuthorHandleRevision:
                     ac_service.AUTHOR_METADATA_LATE_ESCALATED,
                 ],
             )
+            if self._was_under_appeal():
+                # Appeal submitted: the paper left UnderAppeal, its ACs no longer
+                # apply to anyone (not only to the current role holders).
+                ac_service.resolve_all_for_article(
+                    article,
+                    codes=[ac_service.APPEAL_TO_SUBMIT, ac_service.APPEAL_LATE],
+                )
 
             # Check for blacklisted authors (non-blocking, creates AC for EO)
             ac_service.evaluate_blacklisted_author(article)

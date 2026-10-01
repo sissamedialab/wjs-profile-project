@@ -1,11 +1,13 @@
 """Test (some) attention conditions."""
 
 import datetime
+import importlib
 from datetime import timedelta
 from typing import Callable
 
 import freezegun
 import pytest
+from django.apps import apps as django_apps
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
@@ -20,6 +22,7 @@ from plugins.wjs_review.ac_service import ACStateEvaluator
 from plugins.wjs_review.forms import ToggleMessageReadByEOForm, ToggleMessageReadForm
 from plugins.wjs_review.logic import (
     AssignToReviewer,
+    AuthorHandleRevision,
     AuthorHandleRevisionObsolete,
     EvaluateReview,
     HandleDecision,
@@ -38,6 +41,8 @@ from plugins.wjs_review.models import (
     WorkflowReviewAssignment,
 )
 from plugins.wjs_review.states import EditorSelected, EditorToBeSelected
+from plugins.wjs_submission.models import RevisionStorage
+from plugins.wjs_submission.revision import RevisionStartConfirmView
 from review import models as review_models
 from review.models import ReviewForm
 from submission.models import Article
@@ -1084,13 +1089,13 @@ def test_populate_covers_unread_messages_in_any_state_for_any_recipient(
 ):
     """The populate command heals the unread-message AC where the per-state evaluator cannot see it.
 
-    I.e. in a state with no AC of its own (here: Accepted) and for a recipient that holds no role
+    I.e. in a state with no AC of its own (here: ReadyForTypesetter) and for a recipient that holds no role
     on the article (here: normal_user). The daily rebuild, on the contrary, leaves this AC alone:
     it is event-driven, and a drift should stay visible.
     """
     article = assigned_article
     workflow = article.articleworkflow
-    workflow.state = ArticleWorkflow.ReviewStates.ACCEPTED
+    workflow.state = ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
     workflow.save()
     assert workflow.state not in ACStateEvaluator.STATE_AC_MAP, "This state should have no AC of its own"
     Message.objects.all().delete()
@@ -1568,3 +1573,89 @@ def test_postpone_due_date_clears_editor_review_overdue(
         code=ac_service.EDITOR_REVIEW_OVERDUE,
         status=AttentionCondition.Status.ACTIVE,
     ).exists(), "Expected EDITOR_REVIEW_OVERDUE to be RESOLVED immediately after postponement"
+
+
+@pytest.mark.django_db
+def test_appeal_acs_resolved_when_author_submits_appeal(
+    under_appeal_article: Article,
+    fake_request: HttpRequest,
+    normal_user: JCOMProfile,
+):
+    """Submitting the appeal resolves the UnderAppeal ACs (specs#3174).
+
+    APPEAL_TO_SUBMIT is event-based: nothing else (stale cleanup, nightly
+    rebuild) would ever resolve it once the paper left UnderAppeal.
+    """
+    article = under_appeal_article
+    author = article.correspondence_author
+    eo = get_eo_user(article)
+
+    # Make APPEAL_LATE active too: the appeal is overdue.
+    openappeal_err = EditorRevisionRequest.objects.get(
+        article_id=article.id,
+        date_completed__isnull=True,
+        type=ArticleWorkflow.Decisions.OPEN_APPEAL,
+    )
+    openappeal_err.date_due = now() - timezone.timedelta(days=5)
+    openappeal_err.save()
+    attention_conditions_rebuild(article)
+    assert AttentionCondition.objects.active().filter(article=article, code=ac_service.APPEAL_TO_SUBMIT).exists()
+    assert AttentionCondition.objects.active().filter(article=article, code=ac_service.APPEAL_LATE).exists()
+
+    # A row left for a user who no longer holds the author role (e.g. the
+    # correspondence author changed during the appeal) must be resolved too.
+    former_author = normal_user.janeway_account
+    ac_service.upsert_ac(article, former_author, ac_service.APPEAL_TO_SUBMIT, "Appeal to submit")
+
+    # The author submits the appeal through the wjs_submission revision flow.
+    fake_request.user = author
+    RevisionStartConfirmView()._init_revision_flow(article_id=article.pk)
+    revision_storage = RevisionStorage.objects.get(article=article)
+    revision_storage.data.update({"comments_editor": "author_note", "submission_requirements": True})
+    revision_storage.save()
+    AuthorHandleRevision(request=fake_request, article=article).run()
+
+    article.refresh_from_db()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+    assert not AttentionCondition.objects.active().filter(article=article, code=ac_service.APPEAL_TO_SUBMIT).exists()
+    assert not AttentionCondition.objects.active().filter(article=article, code=ac_service.APPEAL_LATE).exists()
+    state_cls = getattr(states, article.articleworkflow.state)
+    assert state_cls.article_requires_attention(article=article, user=author) != "Appeal to submit"
+    assert "Appeal is" not in state_cls.article_requires_attention(article=article, user=eo)
+
+
+@pytest.mark.django_db
+def test_migration_resolves_stale_appeal_acs(
+    under_appeal_article: Article,
+    article: Article,
+):
+    """The data migration resolves appeal ACs only on papers no longer UnderAppeal (specs#3174)."""
+    migration = importlib.import_module("plugins.wjs_review.migrations.0018_resolve_stale_appeal_acs")
+    stale_article = article
+    assert stale_article.pk != under_appeal_article.pk
+    assert stale_article.articleworkflow.state != ArticleWorkflow.ReviewStates.UNDER_APPEAL
+    # Simulate the leaked rows (what the #3174 bug left in the database).
+    ac_service.upsert_ac(
+        stale_article, stale_article.correspondence_author, ac_service.APPEAL_TO_SUBMIT, "Appeal to submit"
+    )
+    ac_service.upsert_ac(stale_article, get_eo_user(stale_article), ac_service.APPEAL_LATE, "Appeal is late")
+    # Legitimate row: the paper is still under appeal.
+    attention_conditions_rebuild(under_appeal_article)
+    assert (
+        AttentionCondition.objects.active()
+        .filter(article=under_appeal_article, code=ac_service.APPEAL_TO_SUBMIT)
+        .exists()
+    )
+
+    migration.resolve_stale_appeal_acs(django_apps, None)
+
+    assert (
+        not AttentionCondition.objects.active()
+        .filter(article=stale_article, code__in=[ac_service.APPEAL_TO_SUBMIT, ac_service.APPEAL_LATE])
+        .exists()
+    )
+    assert (
+        AttentionCondition.objects.active()
+        .filter(article=under_appeal_article, code=ac_service.APPEAL_TO_SUBMIT)
+        .exists()
+    )

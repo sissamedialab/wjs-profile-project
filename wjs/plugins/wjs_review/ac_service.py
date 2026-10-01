@@ -30,6 +30,7 @@ Design decisions:
 Future extensions anticipated by this design:
   - New Issue 2: EO-configurable AC parameters (thresholds, messages)
   - New Issue 3: Blocking AC for EO OA settings confirmation (IoP)
+    (a first, non-blocking step exists: ACCESS_MODE_TO_CHECK, specs#3174)
   - New Issue 4: AC for author's special copyright/OA request
   - New Issue 5: AC for submission matching EO-defined rules
   - New Issue 7: Manual per-paper custom alerts (source=MANUAL)
@@ -103,6 +104,9 @@ MISSING_ENGLISH_CONTENT = "missing_english_content"
 
 APPEAL_TO_SUBMIT = "appeal_to_submit"
 """Author: an appeal needs to be submitted."""
+
+ACCESS_MODE_TO_CHECK = "access_mode_to_check"
+"""EO: the accepted paper is held in Accepted; access mode to be checked before production."""
 
 # -- Time-based (fire after elapsed time) --
 
@@ -752,6 +756,8 @@ STATE_ROLE_AC_MAP: dict[tuple[str, str], list[str]] = {
     # -- UnderAppeal --
     ("UnderAppeal", "author"): [APPEAL_TO_SUBMIT],
     ("UnderAppeal", "eo"): [APPEAL_LATE],
+    # -- Accepted --
+    ("Accepted", "eo"): [ACCESS_MODE_TO_CHECK],
     # -- PaperMightHaveIssues --
     ("PaperMightHaveIssues", "eo"): [SUBMISSION_TO_CHECK, BLACKLISTED_AUTHOR],
     # -- TypesetterSelected --
@@ -1115,6 +1121,16 @@ class ACStateEvaluator:
         """Author: appeal to submit."""
         for role in roles:
             self._upsert_for_role(role, APPEAL_TO_SUBMIT, "Appeal to submit")
+
+    def _evaluate_access_mode_to_check(self, roles: list[str]) -> None:
+        """EO: paper held in Accepted, access mode to check.
+
+        Always active in this state: a paper stays in Accepted only when the
+        acceptance checks block it (e.g. JCAP TA papers), until the EO confirms
+        production readiness.
+        """
+        for role in roles:
+            self._upsert_for_role(role, ACCESS_MODE_TO_CHECK, "Access mode to check")
 
     def _evaluate_appeal_late(self, roles: list[str]) -> None:
         """EO: appeal submission late."""

@@ -13,7 +13,6 @@ from django.template import RequestContext
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView, FormView, TemplateView, UpdateView, View
-from django_fsm import has_transition_perm
 from django_q.tasks import async_task
 from journal.models import Issue, Journal
 from typesetting.models import GalleyProofing, TypesettingAssignment
@@ -38,6 +37,7 @@ from .logic import (
 from .logic__production import (
     AssignTypesetter,
     AuthorSendsCorrections,
+    ConfirmProductionReadiness,
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
     ReadyForPublication,
@@ -660,11 +660,11 @@ class EOConfirmsProductionReady(LoginRequiredMixin, View):
         self.object = get_object_or_404(self.model, pk=self.kwargs["pk"])
 
     def post(self, request, *args, **kwargs):
-        if not has_transition_perm(self.object.system_verifies_production_requirements, request.user):
-            messages.error(request, "This article cannot transition to Ready for Typesetter in its current state.")
+        try:
+            ConfirmProductionReadiness(workflow=self.object, user=request.user).run()
+        except ValueError as e:
+            messages.error(request, str(e))
             return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
-        self.object.system_verifies_production_requirements()
-        self.object.save()
         messages.success(request, "Article confirmed as ready for typesetter.")
         return HttpResponseRedirect(reverse("wjs_article_details", kwargs={"pk": self.object.pk}))
 

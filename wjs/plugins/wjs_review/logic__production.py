@@ -44,7 +44,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.module_loading import import_string
-from django_fsm import can_proceed
+from django_fsm import can_proceed, has_transition_perm
 from django_q.tasks import async_task
 from events import logic as events_logic
 from identifiers.logic import get_dois_for_articles
@@ -148,10 +148,53 @@ class VerifyProductionRequirements:
                 # Here we do not raise an exception, because doing so would prevent an editor from accepting an
                 # article. Instead we send a message to EO.
                 self._log_acceptance_issues()
+
+                # -- Materialized AC updates --
+                from . import ac_service
+
+                # Paper held in Accepted: the EO must check it before production.
+                # ACCESS_MODE_TO_CHECK is event-based: this is its creation point;
+                # ConfirmProductionReadiness resolves it on the way out.
+                evaluator = ac_service.ACStateEvaluator(
+                    state=self.articleworkflow.state, article=self.articleworkflow.article
+                )
+                evaluator._evaluate_code(ac_service.ACCESS_MODE_TO_CHECK)
             else:
                 self.articleworkflow.system_verifies_production_requirements()
                 self.articleworkflow.save()
             return self.articleworkflow
+
+
+@dataclasses.dataclass
+class ConfirmProductionReadiness:
+    """EO manually confirms that an accepted article is ready for the typesetter.
+
+    Used for journals where the acceptance checks hold the article in ACCEPTED
+    pending an out-of-band confirmation by the EO (e.g. JCAP TA papers).
+    """
+
+    workflow: ArticleWorkflow
+    user: Account
+
+    def _check_conditions(self) -> bool:
+        """Check that the user can move the article to READY_FOR_TYPESETTER."""
+        return has_transition_perm(self.workflow.system_verifies_production_requirements, self.user)
+
+    def run(self) -> ArticleWorkflow:
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("This article cannot transition to Ready for Typesetter in its current state.")
+            self.workflow.system_verifies_production_requirements()
+            self.workflow.save()
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # EO confirmed production readiness: the paper left ACCEPTED, the AC
+            # no longer applies to anyone (not only to the current EO members).
+            ac_service.resolve_all_for_article(self.workflow.article, codes=[ac_service.ACCESS_MODE_TO_CHECK])
+
+        return self.workflow
 
 
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/667
