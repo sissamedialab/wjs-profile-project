@@ -291,7 +291,6 @@
         # which is "shared" by all wjs projects, so all plugins should be linked
         - "{{ python }} -mmanage link_plugins"
         - "{{ python }} -mmanage install_plugins"
-        - rm -f themes/JCOM-theme
         - "{{ python }} -mmanage install_themes"
         - "{{ python }} -mmanage migrate"
         - "{{ python }} -mmanage build_assets"

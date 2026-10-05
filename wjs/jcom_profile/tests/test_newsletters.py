@@ -12,6 +12,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail, management
 from django.db.models import Q
+from django.template.loader import render_to_string
 from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
@@ -1009,7 +1010,12 @@ def test_anonymous_user_recipient_registers_for_second_journal(journal):
 
 
 @pytest.mark.django_db
-def test_anonymous_user_recipient_confirms_registration_to_second_journal(journal, client, settings):
+def test_anonymous_user_recipient_confirms_registration_to_second_journal(
+    journal,
+    client,
+    settings,
+    mock_premailer_load_url,
+):
     """Test that an anonymous user can subscribe to multiple journals.
 
     Here we test that the recipient can visit the page where he sets
@@ -1432,3 +1438,15 @@ def test_unpublished_articles_are_not_collected(
     a1.save()
     _recipients, articles, _news = nms._get_objects(journal, newsletter.last_sent)  # noqa: SLF001
     assert len(articles) == 1
+
+
+@pytest.mark.django_db
+def test_newsletter_template_references_wjs_bootstrap_css(journal):
+    """The newsletter email template must load its CSS from wjs-bootstrap, not JCOM-theme."""
+    content = render_to_string(
+        "wjs/newsletter/email/newsletter_template.html",
+        {"journal": journal},
+    )
+    assert "wjs-bootstrap/css/newsletter_jcom.css" in content, "expected the per-journal newsletter stylesheet path"
+    assert "wjs-bootstrap/css/newsletter_mobile.css" in content, "expected the mobile newsletter stylesheet path"
+    assert "JCOM-theme" not in content, "JCOM-theme has been removed and must not be referenced"

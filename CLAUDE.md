@@ -16,7 +16,6 @@ Package name: `wjs.jcom_profile` (see `setup.cfg`). Despite the package name, th
 ```bash
 pip install -e .[test]                    # install into Janeway's virtualenv, from this repo's dir
 python manage.py run_customizations       # from janeway/src: apply all WJS customizations to Janeway
-./build_assets.sh                         # compile JCOM-theme frontend assets (needs inotify-tools)
 ```
 
 ### Tests — must run from `janeway/src`, not from this repo
@@ -49,7 +48,7 @@ branching model: `.claude/rules/version-control.md`.
 
 ### How this plugs into Janeway
 - `wjs/defaults/settings.py` is Janeway's settings module extended with WJS's `INSTALLED_APPS`, channels/ASGI config, Q-cluster/Redis config, and dozens of `WJS_*` / per-journal dict settings (many keyed by journal code, e.g. `{None: ..., "JCOM": ..., "JCOMAL": ...}` where `None` is the default journal).
-- `wjs.jcom_profile.apps.JCOMProfileConfig.ready()` monkeypatches `core.forms.RegistrationForm`, inserts this app's `templates/` dir at the front of Janeway's template `DIRS` (so WJS templates can override JCOM-theme/Janeway templates), and registers hook functions (`extra_corefields`, `extra_article_metadata`, `extra_edit_profile_parameters`, `extra_edit_subscription`) into Janeway's `core.plugin_loader`.
+- `wjs.jcom_profile.apps.JCOMProfileConfig.ready()` monkeypatches `core.forms.RegistrationForm`, inserts this app's `templates/` dir at the front of Janeway's template `DIRS` (so WJS templates can override Janeway templates), and registers hook functions (`extra_corefields`, `extra_article_metadata`, `extra_edit_profile_parameters`, `extra_edit_subscription`) into Janeway's `core.plugin_loader`.
 - Each `wjs/plugins/<name>/` directory is a Janeway **plugin**: it has a `plugin_settings.py` defining a `plugins.Plugin` subclass (name, version, `janeway_version`, manager URL). Only `wjs_review` also has an `apps.py` `AppConfig` (needed because it registers event handlers and monkeypatches on startup); the simpler plugins rely solely on `plugin_settings.py`. Plugins are linked/installed into Janeway's `plugins/` dir by the `link_plugins` management command.
 - Business logic hooks into Janeway's **event system** (`events.logic.Events`) rather than overriding Janeway code directly: `AppConfig.ready()` calls `register_for_event`/`unregister_for_event` to attach WJS handlers (and detach Janeway's default transactional emails) for events like `ON_ARTICLE_SUBMITTED`, `ON_REVISIONS_COMPLETE`, `ON_ARTICLE_ACCEPTED`, `ON_ARTICLE_PUBLISHED`, etc. See `wjs/plugins/wjs_review/apps.py::register_events` for the canonical example — it also defines custom events (`ReviewEvent.ON_ARTICLEWORKFLOW_SUBMITTED`) that chain off Janeway's events.
 - Account/queryset behavior is extended via monkeypatching rather than subclassing: `wjs_review`'s `AppConfig.ready()` attaches methods like `filter_reviewers`, `annotate_is_active_reviewer` directly onto Janeway's `AccountManager`/`AccountQuerySet`.
