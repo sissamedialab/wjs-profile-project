@@ -423,7 +423,7 @@ def press(install_jcom_theme):
     """Prepare a press."""
     # Copied from journal.tests.test_models
     apress = Press.objects.create(domain="testserver", is_secure=False, name="Medialab")
-    apress.theme = "JCOM-theme"
+    apress.theme = "wjs-bootstrap"
     apress.save()
     yield apress
 
@@ -770,7 +770,7 @@ def user_as_main_author_setting(journal):
 
 @pytest.fixture
 def install_jcom_theme():
-    """JCOM-theme must be installed in J. code base for its templates to be found."""
+    """Themes must be installed in J. code base for their templates to be found."""
     management.call_command("install_themes")
 
 
