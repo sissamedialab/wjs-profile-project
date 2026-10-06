@@ -1604,6 +1604,56 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def author_withdraws_preprint_after_appeal_message():
+        # Default text is a copy of author_withdraws_preprint_*: final wording pending from MT (specs#2903)
+        subject_setting: SettingParams = {
+            "name": "author_withdraws_preprint_after_appeal_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author withdrawing a preprint after an appeal."),
+            "description": _(
+                "The subject of the notification that is sent to the Editor/EO when a preprint is withdrawn "
+                "after a rejection (during or after an appeal).",
+            ),
+            "is_translatable": False,
+        }
+        subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Withdrawn",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            subject_setting, subject_setting_value, subject_setting["name"], force=force
+        )
+        body_setting: SettingParams = {
+            "name": "author_withdraws_preprint_after_appeal_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for author withdrawing a preprint after an appeal."),
+            "description": _(
+                "The body of the notification that is sent to the Editor/EO when a preprint is withdrawn after a "
+                "rejection (during or after an appeal). The author can modify it (so don't include the editor's "
+                "name).",
+            ),
+            "is_translatable": False,
+        }
+        body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear Editor, <br><br>
+This is to inform you that I have just withdrawn my {{ article.section.name }} from {{ article.journal.code }}.
+<br>
+<br>
+Thank you and best regards,
+<br><br>
+{{ article.correspondence_author.full_name }}
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(body_setting, body_setting_value, body_setting["name"], force=force)
+        return setting_1, setting_2
+
     def preprint_withdrawn_system_message():
         subject_preprint_withdrawn_preprint: SettingParams = {
             "name": "preprint_withdrawn_subject",
@@ -2214,6 +2264,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(editor_deassign_reviewer_messages())
         csv_writer.write_settings(eo_opens_appeal_message())
         csv_writer.write_settings(author_withdraws_preprint_message())
+        csv_writer.write_settings(author_withdraws_preprint_after_appeal_message())
         csv_writer.write_settings(preprint_withdrawn_system_message())
         csv_writer.write_settings(author_submits_appeal_message())
         csv_writer.write_settings(eo_send_back_to_typesetting_message())

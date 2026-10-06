@@ -47,6 +47,7 @@ from . import permissions
 from .managers import (
     ArticleWorkflowQuerySet,
     AttentionConditionQuerySet,
+    PastEditorAssignmentQuerySet,
     WjsEditorAssignmentQuerySet,
     WorkflowReviewAssignmentQuerySet,
 )
@@ -1291,6 +1292,11 @@ class ArticleWorkflow(TimeStampedModel):
             .order_by("-sorting_date")
         )
 
+    @property
+    def has_past_rejection(self) -> bool:
+        """Return whether the article was ever rejected, i.e. has a REJECT editor decision (in any round)."""
+        return EditorDecision.objects.filter(workflow=self, decision=self.Decisions.REJECT).exists()
+
     def get_review_versions(self, user: Account) -> list[ReviewVersion]:
         """
         Generates the list of version for the current article.
@@ -1300,6 +1306,26 @@ class ArticleWorkflow(TimeStampedModel):
 
         Versions are returned in inverted order, with the most recent version first.
 
+        Visibility of a round is decided in this order (a round that nobody grants is not returned at all):
+
+        1. appeal editors (:py:attr:`permissions.EditorType.APPEAL`) never get a round holding an ``OPEN_APPEAL``
+           decision: this is a **hard-coded, round-level skip**, applied before and independently of any
+           :py:class:`PermissionChecker` / :py:class:`PermissionAssignment` evaluation (see the note below);
+        2. otherwise the round is granted if the user passes :py:class:`PermissionChecker` on any of the round's
+           editor decisions, on any of its review assignments or on its editor assignment, or is the article author,
+           or the round is one of the user's :py:class:`PastEditorAssignment` ``review_rounds``.
+
+        .. note::
+           The appeal-round skip (1) is deliberately **not** expressed as a permission, so no custom
+           :py:class:`PermissionAssignment` (not even an explicit ALLOW) can re-grant that round to an appeal editor.
+           It has to be a round-level skip because on an editor change ``_migrate_review_assignments`` moves the
+           round's review assignments to the appeal editor, who would otherwise reach the round through them (and
+           skipping only the editor-assignment branch is not enough). The functional spec (specs#2903) treats this as
+           the more limited, safer option. If a future requirement needs this to be configurable per journal or per
+           user, the skip must be reworked to go through the permission machinery (e.g. a DENY-by-default
+           :py:class:`PermissionAssignment` for appeal editors on appealed rounds), instead of adding further special
+           cases here. See ``docs/superpowers/specs/2026-09-26-appeal-editor-permissions-design.md`` (D4).
+
         :param user: The user for which the versions are generated.
         :type user: Account
         :return: The list of versions the user has rights on.
@@ -1307,9 +1333,29 @@ class ArticleWorkflow(TimeStampedModel):
         """
         from .logic__visibility import PermissionChecker
 
+        # Editor type and past rounds only matter to editors (a past assignment without an editor role grants nothing,
+        # see permissions.get_editor_type): skip those queries for everybody else (authors, reviewers, EO, ...).
+        editor_type = None
+        past_round_ids = set()
+        if permissions.has_any_editor_role_by_article(self, user):
+            editor_type = permissions.get_editor_type(user, self.article)
+            past_round_ids = set(
+                PastEditorAssignment.objects.for_editor(self.article, user).values_list("review_rounds", flat=True)
+            )
+            past_round_ids.discard(None)
+
         versions = []
-        for index, review_round in enumerate(self.article.reviewround_set.all().order_by("-round_number")):
+        # Counts only the versions actually appended: rounds skipped below must not shift the "latest" flag.
+        visible_versions = 0
+        for review_round in self.article.reviewround_set.all().order_by("-round_number"):
             decisions = EditorDecision.objects.filter(workflow=self, review_round=review_round).order_by("-created")
+            # Appeal editors must not see the rejected round the appeal was opened on (specs#2903).
+            # Skipping the whole round is required: review assignments of that round were moved to them.
+            # This is intentionally a hard-coded skip, not a permission: custom PermissionAssignments are never
+            # evaluated for this round (see the method docstring before changing it).
+            is_appealed_round = any(decision.decision == self.Decisions.OPEN_APPEAL for decision in decisions)
+            if editor_type == permissions.EditorType.APPEAL and is_appealed_round:
+                continue
             review_assignments = self._get_sorted_review_assignments(review_round)
             editor_assigment = WjsEditorAssignment.objects.filter(
                 article=self.article, review_rounds=review_round
@@ -1350,6 +1396,8 @@ class ArticleWorkflow(TimeStampedModel):
                         permission_type=PermissionAssignment.PermissionType.NO_NAMES,
                     )
                 )
+            # Past editors keep the rounds they handled (PastEditorAssignment.review_rounds)
+            has_permission = has_permission or review_round.pk in past_round_ids
             if has_permission:
                 revisions = EditorRevisionRequest.objects.filter(
                     article=self.article, review_round=review_round
@@ -1360,18 +1408,19 @@ class ArticleWorkflow(TimeStampedModel):
                     )
                 version = ReviewVersion(
                     review_round=review_round,
-                    latest=index == 0,
+                    latest=visible_versions == 0,
                     decisions=list(decisions),
                     revision_requests=list(revisions),
                     editor_assignment=editor_assigment,
                     review_assignments=list(review_assignments),
                 )
                 versions.append(version)
+                visible_versions += 1
         else:
             # Add a "fake" version for the initial submission
             version = ReviewVersion(
                 review_round=ReviewRound(round_number=-1, article=self.article),
-                latest=not versions,
+                latest=visible_versions == 0,
                 decisions=[],
                 revision_requests=[],
                 editor_assignment=None,
@@ -1841,6 +1890,13 @@ class PastEditorAssignment(models.Model):
         blank=True, null=True, choices=DeclineReasons.choices, verbose_name=_("Decline reason")
     )
     decline_text = models.TextField(blank=True, null=True, verbose_name=_("Decline optional text"))
+    on_appeal = models.BooleanField(
+        default=False,
+        verbose_name=_("Removed on appeal"),
+        help_text=_("The editor was removed when the Editorial Office opened an appeal."),
+    )
+
+    objects = PastEditorAssignmentQuerySet.as_manager()
 
     class Meta:
         verbose_name = _("Past editor assignment")

@@ -1,4 +1,5 @@
 import dataclasses
+import functools
 from typing import Optional, get_args
 
 from core.models import Account
@@ -6,7 +7,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from journal.models import Journal
 from plugins.wjs_review.communication_utils import role_for_article
-from review.models import EditorAssignment, ReviewAssignment, RevisionRequest
+from review.models import (
+    EditorAssignment,
+    ReviewAssignment,
+    ReviewRound,
+    RevisionRequest,
+)
 from submission.models import Article
 from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils.setting_handler import get_setting
@@ -297,6 +303,10 @@ class EditorPermissionChecker(BasePermissionChecker):
         to or they were assigned to in the past. If one wants to remove permission, custom permissions with DENY
         permission type must be used.
 
+        A past editor (tracked via ``PastEditorAssignment.review_rounds``) also gets access to the editor
+        decisions, revision requests and completed review assignments of the review rounds they handled, even
+        though they are no longer the assignee of those objects.
+
         :param permission_type: The permission set to check for.
         :type permission_type: PermissionAssignment.PermissionType
         :param secondary_permission: Check secondary set of permissions.
@@ -311,25 +321,77 @@ class EditorPermissionChecker(BasePermissionChecker):
             current_editor = WjsEditorAssignment.objects.get_all(self.instance).filter(editor=self.user).exists()
             if current_editor:
                 return True
-            past_editor = PastEditorAssignment.objects.filter(editor=self.user, article=self.instance).exists()
+            past_editor = PastEditorAssignment.objects.for_editor(self.instance, self.user).exists()
             return past_editor
         if isinstance(self.instance, ArticleWorkflow):
             current_editor = WjsEditorAssignment.objects.get_all(self.instance).filter(editor=self.user).exists()
             if current_editor:
                 return True
-            past_editor = PastEditorAssignment.objects.filter(editor=self.user, article=self.instance.article).exists()
+            past_editor = PastEditorAssignment.objects.for_editor(self.instance.article, self.user).exists()
             return past_editor
         if isinstance(self.instance, EditorAssignment):
             return self.instance.editor == self.user
         if isinstance(self.instance, EditorDecision):
-            return self.instance.editor == self.user
+            return self.instance.editor == self.user or self._in_past_review_rounds(self.instance.review_round)
         if isinstance(self.instance, RevisionRequest):
-            return self.instance.editor == self.user
+            return self.instance.editor == self.user or self._revision_in_past_review_rounds(
+                self.instance, secondary_permission
+            )
         if isinstance(self.instance, ReviewAssignment):
-            return self.instance.editor == self.user
+            return self.instance.editor == self.user or (
+                self.instance.date_complete is not None and self._in_past_review_rounds(self.instance.review_round)
+            )
         if isinstance(self.instance, PastEditorAssignment):
             return self.instance.editor == self.user
         return False
+
+    @functools.cached_property
+    def _past_review_rounds(self) -> frozenset[tuple[int, int]]:
+        """Return (pk, round_number) pairs of review rounds the user handled as a (now removed) editor.
+
+        Computed once (and cached) per checker instance, since ``check_default`` may be called more than once
+        for the same instance (e.g. via ``SpecialIssueEditorPermissionChecker.check_default``'s ``super()``
+        call), avoiding a repeated query for the same (user, article) pair.
+
+        .. note::
+           The cache scope is the checker *instance* only. :py:meth:`PermissionChecker.__call__` creates a new
+           checker for every call, so nothing is shared between calls: a caller checking many objects for the same
+           (user, article), like ``ArticleWorkflow.get_review_versions`` (per decision / review assignment / round),
+           runs this query once per call that reaches this branch. This is a known and accepted trade-off (the
+           query is small and indexed, and only runs for past editors): it is deliberately not fixed, to keep the
+           checkers stateless and independent from their callers. If it ever becomes a bottleneck, share the result
+           from the caller (e.g. pass the past rounds in) rather than caching on the checker.
+        """
+        return frozenset(
+            ReviewRound.objects.filter(
+                pasteditorassignment__editor=self.user,
+                pasteditorassignment__article=self.workflow.article,
+            ).values_list("pk", "round_number")
+        )
+
+    def _in_past_review_rounds(self, review_round: Optional[ReviewRound]) -> bool:
+        """Check if the review round is one the user handled as a past editor."""
+        return review_round is not None and any(pk == review_round.pk for pk, _ in self._past_review_rounds)
+
+    def _revision_in_past_review_rounds(self, revision: RevisionRequest, secondary_permission: bool) -> bool:
+        """
+        Check if a revision request belongs to a round the user handled as a past editor.
+
+        The author cover letter of a version lives on the previous round's revision request, so for the
+        secondary permission the revision request of the round before a past round is also granted.
+        """
+        review_round = getattr(revision, "review_round", None)
+        if review_round is None:
+            # A plain RevisionRequest instance: review_round only exists on the EditorRevisionRequest
+            # multi-table child, reachable through the reverse accessor.
+            child = getattr(revision, "editorrevisionrequest", None)
+            review_round = getattr(child, "review_round", None)
+        if review_round is None:
+            return False
+        numbers = {number for _, number in self._past_review_rounds}
+        if review_round.round_number in numbers:
+            return True
+        return secondary_permission and review_round.round_number + 1 in numbers
 
 
 @dataclasses.dataclass

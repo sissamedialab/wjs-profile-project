@@ -3838,6 +3838,7 @@ class BaseDeassignEditor:
     assignment: WjsEditorAssignment
     editor: Account
     request: HttpRequest
+    appeal: bool = False
 
     @staticmethod
     def _check_editor_conditions(assignment: WjsEditorAssignment, editor: Account) -> bool:
@@ -3862,6 +3863,7 @@ class BaseDeassignEditor:
             article=self.assignment.article,
             date_assigned=self.assignment.assigned,
             date_unassigned=timezone.now(),
+            on_appeal=self.appeal,
         )
         migrated_review_rounds = self.assignment.review_rounds.all()
 
@@ -3950,6 +3952,7 @@ class SupervisorChangeEditorAssignment:
             assignment=self.assignment,
             editor=self.assignment.editor,
             request=self.request,
+            appeal=self.appeal,
         ).run()
         if not self.appeal:
             self._log_past_editor()
@@ -4236,11 +4239,11 @@ class OpenAppeal:
             context=self._get_message_context(),
             template_is_setting=True,
         )
+        # No actor: logged by the system user, so the appeal editor doesn't see it (specs#2903)
         communication_utils.log_operation(
             article=self.article,
             message_subject=message_subject,
             message_body=message_body,
-            actor=self.new_editor,
             recipients=[self.article.correspondence_author],
             # refs https://gitlab.sissamedialab.it/wjs/specs/-/work_items/1469
             flag_as_read_by_eo=True,
@@ -4291,21 +4294,14 @@ class WithdrawPreprint:
         """Check if the user is the correspondence author or owner."""
         return self.request.user in [self.workflow.article.correspondence_author, self.workflow.article.owner]
 
-    def _has_past_rejection(self) -> bool:
-        """Check if the article was already rejected one time."""
-        return EditorDecision.objects.filter(
-            workflow=self.workflow,
-            decision=ArticleWorkflow.Decisions.REJECT,
-        ).exists()
-
     def _check_state_conditions(self) -> bool:
         """Check if the FSM transition can be made."""
         withdraw_without_rejection = (
-            can_proceed(self.workflow.author_or_owner_withdraws_preprint) and not self._has_past_rejection()
+            can_proceed(self.workflow.author_or_owner_withdraws_preprint) and not self.workflow.has_past_rejection
         )
         withdraw_after_a_rejection = (
             can_proceed(self.workflow.author_or_owner_withdraws_preprint_after_a_rejection)
-            and self._has_past_rejection()
+            and self.workflow.has_past_rejection
         )
         return withdraw_without_rejection or withdraw_after_a_rejection
 
@@ -4327,7 +4323,7 @@ class WithdrawPreprint:
 
     def _update_state(self):
         """Run FSM transition."""
-        if self._has_past_rejection() and can_proceed(
+        if self.workflow.has_past_rejection and can_proceed(
             self.workflow.author_or_owner_withdraws_preprint_after_a_rejection
         ):
             self.workflow.author_or_owner_withdraws_preprint_after_a_rejection()
