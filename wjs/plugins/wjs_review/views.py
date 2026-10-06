@@ -3868,11 +3868,18 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
             "article": self.object.article,
         }
 
+    def _get_withdraw_setting_names(self) -> Tuple[str, str]:
+        """Return subject and body setting names: withdrawals after a rejection (appeal) use dedicated texts."""
+        if self.object.has_past_rejection:
+            return "author_withdraws_preprint_after_appeal_subject", "author_withdraws_preprint_after_appeal_body"
+        return "author_withdraws_preprint_subject", "author_withdraws_preprint_body"
+
     def get_initial(self):
         initial = super().get_initial()
+        subject_setting, body_setting = self._get_withdraw_setting_names()
         message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="author_withdraws_preprint_subject",
+            setting_name=subject_setting,
             journal=self.object.article.journal,
             request=self.request,
             context=self._get_message_context(),
@@ -3880,7 +3887,7 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
         )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="author_withdraws_preprint_body",
+            setting_name=body_setting,
             journal=self.object.article.journal,
             request=self.request,
             context=self._get_message_context(),

@@ -59,6 +59,7 @@ from ..models import (
     EditorRevisionRequest,
     Message,
     MessageThread,
+    PastEditorAssignment,
     ProphyAccount,
     Reminder,
     WjsEditorAssignment,
@@ -512,6 +513,39 @@ def is_user_article_editor(article: ArticleWorkflow, user: Account) -> bool:
 def is_user_past_article_editor(article: ArticleWorkflow, user: Account) -> bool:
     """Returns if user is a past editor of the article."""
     return permissions.is_past_article_editor(article, user)
+
+
+@register.filter
+def is_user_former_article_editor(workflow: ArticleWorkflow, user: Account) -> bool:
+    """Return if the user is a past editor (removed on appeal or not) and not a current editor of the article.
+
+    Short-circuits before ``get_editor_type``'s current-editor-type classification (which runs two
+    ``EditorDecision`` queries per call): a current ``WjsEditorAssignment`` always makes the user a current
+    editor, and otherwise any ``PastEditorAssignment`` (on appeal or not) makes them a former one, provided they
+    still have an editor role (:py:func:`permissions.is_past_article_editor`). This mirrors
+    ``get_editor_type(...) in (EditorType.PAST, EditorType.REMOVED_FOR_APPEAL)`` exactly.
+    """
+    if WjsEditorAssignment.objects.get_all(workflow.article).filter(editor=user).exists():
+        return False
+    return permissions.is_past_article_editor(workflow, user)
+
+
+@register.filter
+def hide_last_submitted(workflow: ArticleWorkflow, user: Account) -> bool:
+    """
+    Return if the "Last submitted" date must be hidden to the user.
+
+    Former editors must not see submissions that happened after their latest removal.
+    """
+    if not is_user_former_article_editor(workflow, user):
+        return False
+    latest_unassigned = (
+        PastEditorAssignment.objects.for_editor(workflow.article, user)
+        .order_by("-date_unassigned")
+        .values_list("date_unassigned", flat=True)
+        .first()
+    )
+    return get_version_submission_date(workflow.article) > latest_unassigned
 
 
 @register.filter

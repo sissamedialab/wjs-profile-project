@@ -35,7 +35,7 @@ def compute_role_for_article(article: Article, user: Account) -> str:
     if WjsEditorAssignment.objects.filter(editor=user, article=article).exists():
         return constants.EDITOR_ROLE
 
-    if PastEditorAssignment.objects.filter(editor=user, article=article).exists():
+    if PastEditorAssignment.objects.for_editor(article, user).exists():
         return f"past {constants.EDITOR_ROLE}"
 
     if review_models.ReviewAssignment.objects.filter(reviewer=user, article=article).exists():

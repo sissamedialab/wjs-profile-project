@@ -59,7 +59,7 @@
     </tr>
   {% endif %}
   {% if article.date_submitted %}
-    {% if article|get_version_submission_date != article.date_submitted %}
+    {% if article|get_version_submission_date != article.date_submitted and not workflow|hide_last_submitted:request.user %}
       <tr>
         <th>{% translate "Last submitted" %}</th>
         <td>{{ article|get_version_submission_date|date:"DATE_FORMAT" }}</td>
