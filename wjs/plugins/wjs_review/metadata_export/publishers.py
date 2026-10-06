@@ -5,16 +5,23 @@ A function is referenced by dotted path from
 ``settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS`` and resolved via
 ``django.utils.module_loading.import_string`` -- the same per-journal dynamic-import pattern used
 by ``WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS`` and its siblings in ``wjs/defaults/settings.py``.
+
+Each function here is a thin wrapper over ``sftp._send_via_sftp`` -- the actual transport is
+flow-agnostic; only the (journal_code, flow) pair varies per function. May raise
+``sftp.SFTPSendError``; the caller (``SendProductionXMLToPublisher.run()``) decides what to do
+about it.
 """
 
 from submission.models import Article
+
+from . import sftp
 
 
 def send_zip_to_iop(article: Article, zip_bytes: bytes) -> None:
     """Send an article's production export zip (metadata XML + linked files) to IOP.
 
-    Stub: no transport implemented yet. When real transport is added, the endpoint URL and any
-    credentials must live in Django settings (never a per-article/per-journal DB field an admin
-    could redirect), the connection must use TLS, and the payload -- which carries author PII
-    such as names, affiliations, and funding -- must never be logged.
+    The "accepted-articles" flow -- the only one with a caller today (wjs/specs#2912). The
+    payload carries author PII (names, affiliations, funding); it is never logged, here or in
+    ``sftp._send_via_sftp``.
     """
+    sftp._send_via_sftp(article, zip_bytes, journal_code="JCAP", flow="accepted-articles")

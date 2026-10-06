@@ -1303,11 +1303,26 @@ def test_template_wraps_article_in_article_set_with_doctype():
     assert root[0].tag == "article"
 
 
-def test_send_zip_to_iop_is_a_noop_stub():
-    """No transport is implemented yet: the stub must not raise and must return nothing."""
-    assert publishers.send_zip_to_iop(article=None, zip_bytes=b"PK\x03\x04") is None
+def test_send_zip_to_iop_delegates_to_sftp_transport():
+    """send_zip_to_iop is a thin wrapper: JCAP, accepted-articles flow, nothing else."""
+    with mock.patch("plugins.wjs_review.metadata_export.publishers.sftp._send_via_sftp") as mock_send:
+        publishers.send_zip_to_iop(article="the-article", zip_bytes=b"PK\x03\x04")
+
+    mock_send.assert_called_once_with(
+        "the-article",
+        b"PK\x03\x04",
+        journal_code="JCAP",
+        flow="accepted-articles",
+    )
 
 
 def test_wjs_review_acceptance_zip_send_functions_jcap_entry_resolves():
     """The shipped WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS["JCAP"] path must resolve to send_zip_to_iop."""
     assert import_string(settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS["JCAP"]) is publishers.send_zip_to_iop
+
+
+def test_wjs_review_iop_sftp_jcap_entry_has_both_flows():
+    """The shipped WJS_REVIEW_IOP_SFTP["JCAP"] entry declares both remote_paths flows send_zip_to_iop needs."""
+    jcap_config = settings.WJS_REVIEW_IOP_SFTP["JCAP"]
+    assert set(jcap_config["remote_paths"]) == {"accepted-articles", "final-files"}
+    assert jcap_config["remote_paths"]["accepted-articles"] == "partner-sissa/jcap/accepted-articles"
