@@ -1198,7 +1198,11 @@ class ArticleWorkflow(TimeStampedModel):
         # TODO: conditions=[],
     )
     def system_verifies_production_requirements(self):
-        pass
+        # Local import to avoid circular import: logic__production imports ArticleWorkflow from
+        # this module.
+        from .logic__production import SendProductionXMLToPublisher
+
+        SendProductionXMLToPublisher(articleworkflow=self).run()
 
     @transition(
         field=state,

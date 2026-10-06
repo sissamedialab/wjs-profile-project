@@ -3,6 +3,7 @@ import json
 import logging
 import tarfile
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Callable
 from unittest import mock
@@ -23,6 +24,7 @@ from django.urls import reverse
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Journal
+from plugins.wjs_review.metadata_export import service
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
@@ -40,6 +42,7 @@ from ..logic__production import (
     BeginPublication,
     FinishPublication,
     HandleDownloadRevisionFiles,
+    SendProductionXMLToPublisher,
     TypesettedFilesUpload,
     TypesetterTestsGalleyGeneration,
 )
@@ -1860,3 +1863,91 @@ def test_prepare_source_missing_doi_raises(rfp_article: Article, eo_user: Accoun
 
     with pytest.raises(ValueError, match="DOI"):
         service._prepare_source(io.BytesIO(b"source tex"))
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_noop_for_unsupported_journal(accepted_article: Article):
+    """No entry in WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS for the article's journal: nothing happens."""
+    workflow = accepted_article.articleworkflow
+
+    with (
+        mock.patch("plugins.wjs_review.logic__production.build_production_export_zip") as mock_build_zip,
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        result = SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    assert result == workflow
+    mock_build_zip.assert_not_called()
+    mock_log.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_sends_zip_and_logs_message(
+    accepted_article: Article,
+    settings,
+):
+    """A configured journal: the export zip is built, handed to the send function, and logged to EO."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    # The article fixture pre-populates manuscript_files with placeholder File rows that have no
+    # real content on disk (see wjs.jcom_profile.tests.conftest); drop them so building the zip
+    # doesn't try to read a nonexistent file.
+    accepted_article.manuscript_files.clear()
+    workflow = accepted_article.articleworkflow
+
+    with (
+        mock.patch("plugins.wjs_review.metadata_export.publishers.send_zip_to_iop") as mock_send,
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        result = SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    assert result == workflow
+    mock_send.assert_called_once()
+    called_article, called_zip_bytes = mock_send.call_args.args
+    assert called_article == accepted_article
+    with zipfile.ZipFile(io.BytesIO(called_zip_bytes)) as archive:
+        assert service.ZIP_XML_ENTRY_NAME in archive.namelist()
+        assert archive.read(service.ZIP_XML_ENTRY_NAME).decode().strip().startswith("<?xml")
+    # Not assert_called_once_with: the accepted_article fixture's corresponding author may or may
+    # not end up with a complete affiliation, which would add a second (unrelated) EO message --
+    # see test_send_production_xml_to_publisher_logs_warning_when_corresponding_author_affiliation_incomplete
+    # below for that behaviour. This only asserts on the "export prepared" message, the first call.
+    export_prepared_call = mock_log.call_args_list[0]
+    assert export_prepared_call.kwargs["article"] == accepted_article
+    assert export_prepared_call.kwargs["actor"] is None
+    assert export_prepared_call.kwargs["recipients"] == [get_eo_user(accepted_article)]
+    assert export_prepared_call.kwargs["verbosity"] == Message.MessageVerbosity.FULL
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_logs_warning_when_corresponding_author_affiliation_incomplete(
+    accepted_article: Article,
+    settings,
+):
+    """IOP feedback: an incomplete corresponding-author affiliation must produce a second EO message."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    # The article fixture pre-populates manuscript_files with placeholder File rows that have no
+    # real content on disk (see wjs.jcom_profile.tests.conftest); drop them so building the zip
+    # doesn't try to read a nonexistent file (same workaround as the sibling test above).
+    accepted_article.manuscript_files.clear()
+    accepted_article.frozenauthor_set.all().delete()
+    FrozenAuthor.objects.create(article=accepted_article, order=1, first_name="Solo")
+    accepted_article.correspondence_author = None
+    accepted_article.save()
+    workflow = accepted_article.articleworkflow
+
+    with (
+        mock.patch("plugins.wjs_review.metadata_export.publishers.send_zip_to_iop"),
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    assert mock_log.call_count == 2, "one 'export prepared' message plus one incomplete-affiliation warning"
+    warning_call = mock_log.call_args_list[1]
+    assert warning_call.kwargs["article"] == accepted_article
+    assert warning_call.kwargs["actor"] is None
+    assert warning_call.kwargs["recipients"] == [get_eo_user(accepted_article)]
+    assert warning_call.kwargs["verbosity"] == Message.MessageVerbosity.FULL

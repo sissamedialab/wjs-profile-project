@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--s1.dtd v.4.28.5-->
+<!DOCTYPE article_set SYSTEM "s1.dtd">
+<article_set dtd_version="4.28.5">
+<article export_date="{{ export_date }}" external_id="" lang="{{ article.lang }}" ms_no="{{ article.ms_no }}" rev="{{ article.rev }}">
+<journal><publisher_name>{{ article.journal.publisher_name }}</publisher_name><full_journal_title>{{ article.journal.full_journal_title }}</full_journal_title><journal_abbreviation>{{ article.journal.journal_abbreviation }}</journal_abbreviation><issn issn_type="print">{{ article.journal.issn_print }}</issn><issn issn_type="digital">{{ article.journal.issn_digital }}</issn></journal>
+<article_status decision_status="{{ article.decision_status }}">{{ article.decision_label }}</article_status>
+<article_title>{{ article.title }}</article_title>
+<article_sub_title>{{ article.subtitle }}</article_sub_title>
+<publication_type>{{ article.publication_type }}</publication_type>
+<author_list>{% for author in article.authors %}
+	<author author_seq="{{ author.seq }}" corr="{{ author.is_corresponding|yesno:"true,false" }}" user_id="{{ author.user_id }}">
+	<salutation>{{ author.salutation }}</salutation>
+	<first_name>{{ author.first_name }}</first_name>
+	<middle_name>{{ author.middle_name }}</middle_name>
+	<last_name>{{ author.last_name }}</last_name>
+	<email addr_type="primary">{{ author.email }}</email>
+	<comments/>
+	<orcid>{{ author.orcid }}</orcid>
+	<affiliation seq="1">
+	<inst>{{ author.affiliation.institution }}</inst>
+	<dept>{{ author.affiliation.department }}</dept>
+	<person_title>{{ author.affiliation.person_title }}</person_title>
+	<addr1/>
+	<addr2/>
+	<addr3/>
+	<city>{{ author.affiliation.city }}</city>
+	<state/>
+	<country>{{ author.affiliation.country }}</country>
+	<post_code/>
+	<phone/>
+	<fax/>
+	</affiliation>
+	</author>{% endfor %}
+</author_list>
+<article_id_list>
+	<article_id id_type="pii">{{ article.pii }}</article_id>
+</article_id_list>
+<file_list>{% for file in article.files %}
+	<file file_category="" file_name="{{ file.file_name }}" submission_medium="online">
+	<file_designation>{{ file.designation }}</file_designation>
+	<file_format>{{ file.file_format }}</file_format>
+	<file_extension>{{ file.file_format }}</file_extension>
+	<file_originalname>{{ file.file_name }}</file_originalname>
+	<file_caption/>
+	<file_tag/>
+	<attribute/>
+	<num_pages_calc/>
+	<num_pages_actual/>
+	</file>{% endfor %}
+</file_list>
+<history>
+	<ms_id ms_no="{{ article.ms_no }}">
+	<rev_id>{{ article.rev_id }}</rev_id>
+	<submitted_date>
+		<year>{{ article.submitted_date.year }}</year>
+		<month>{{ article.submitted_date.month }}</month>
+		<day>{{ article.submitted_date.day }}</day>
+	</submitted_date>
+	<received_date>
+		<year>{{ article.received_date.year }}</year>
+		<month>{{ article.received_date.month }}</month>
+		<day>{{ article.received_date.day }}</day>
+	</received_date>
+	<revised_date>
+		<year>{{ article.revised_date.year }}</year>
+		<month>{{ article.revised_date.month }}</month>
+		<day>{{ article.revised_date.day }}</day>
+	</revised_date>
+	<decision_date>
+		<year>{{ article.decision_date.year }}</year>
+		<month>{{ article.decision_date.month }}</month>
+		<day>{{ article.decision_date.day }}</day>
+	</decision_date>
+	</ms_id>
+</history>
+<abstract>{{ article.abstract }}</abstract>
+<configurable_data_fields>{% for field in article.custom_fields %}
+<custom_fields cd_code="{{ field.code }}" cd_name="{{ field.name }}" cd_value="{{ field.value }}"/>{% endfor %}
+</configurable_data_fields>
+<content>
+	<attr_type id="23214610" name="Keywords">{% for keyword in article.keywords %}
+		<attribute id="{{ keyword.id }}" name="{{ keyword.name }}">selected</attribute>{% endfor %}
+	</attr_type>
+	<total_pages_calc>{{ article.total_pages }}</total_pages_calc>
+	<total_pages_actual/>
+	<total_tables/>
+	<num_color_figures/>
+	<num_bw_figures/>
+	<total_figures/>
+	<total_pdf_pages/>
+</content>
+<forms/>
+<fundref_information>
+<no_funders>{{ article.no_funders|yesno:"True,False" }}</no_funders>{% for funder in article.funders %}
+	<funder>
+		<preferred_label>{{ funder.name }}</preferred_label>
+		<concept_id>{{ funder.fundref_id }}</concept_id>
+		<grant_number>{{ funder.funding_id }}</grant_number>
+	</funder>{% endfor %}
+</fundref_information>
+</article>
+</article_set>
