@@ -1,15 +1,21 @@
+import io
+import zipfile
+from unittest import mock
+
 import pytest
 from django.http import HttpRequest
 from django.utils import timezone
 from events import logic as events_logic
 from identifiers import models as identifiers_models
+from plugins.wjs_review.metadata_export import service
 from submission import models as submission_models
 from utils import setting_handler
 
 from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile.utils import get_eo_user
 
 from ..events import ReviewEvent
-from ..models import ArticleWorkflow, WjsEditorAssignment
+from ..models import ArticleWorkflow, Message, WjsEditorAssignment
 from ..plugin_settings import STAGE
 from .conftest import _accept_article
 
@@ -221,3 +227,66 @@ def test_identifiers_at_acceptance(
     assert isinstance(assigned_article.get_doi(), str) and assigned_article.get_doi()
     assert assigned_article.get_identifier("preprintid") == test_preprintid
     assert identifiers_models.Identifier.objects.filter(article=assigned_article).count() == 2
+
+
+@pytest.mark.django_db
+def test_accepted_workflow_sends_zip_to_publisher_when_journal_configured(
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+    settings,
+):
+    """Accepting an article whose journal has a publisher zip-send function configured sends the zip and logs to EO."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        assigned_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    # The article fixture pre-populates manuscript_files with placeholder File rows that have no
+    # real content on disk (see wjs.jcom_profile.tests.conftest); drop them so building the zip
+    # doesn't try to read a nonexistent file.
+    assigned_article.manuscript_files.clear()
+    fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
+
+    with (
+        mock.patch("plugins.wjs_review.metadata_export.publishers.send_zip_to_iop") as mock_send,
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        _accept_article(fake_request, assigned_article)
+
+    assigned_article.refresh_from_db()
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
+    mock_send.assert_called_once()
+    called_article, called_zip_bytes = mock_send.call_args.args
+    assert called_article == assigned_article
+    with zipfile.ZipFile(io.BytesIO(called_zip_bytes)) as archive:
+        assert service.ZIP_XML_ENTRY_NAME in archive.namelist()
+        assert archive.read(service.ZIP_XML_ENTRY_NAME).decode().strip().startswith("<?xml")
+    # `communication_utils` is a single shared module: patching `log_operation` through
+    # `logic__production`'s reference to it also intercepts the unrelated "Accepted for
+    # publication" author-notification call `HandleDecision._log_accept()` (in `logic.py`)
+    # makes through the same module during the same `_accept_article` flow. Assert our call
+    # happened with the expected arguments, rather than that it was the only call.
+    mock_log.assert_any_call(
+        article=assigned_article,
+        message_subject=mock.ANY,
+        message_body=mock.ANY,
+        actor=None,
+        recipients=[get_eo_user(assigned_article)],
+        verbosity=Message.MessageVerbosity.FULL,
+    )
+
+
+@pytest.mark.django_db
+def test_accepted_workflow_does_not_send_zip_when_journal_not_configured(
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+    director: JCOMProfile,
+):
+    """No entry in WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS for the article's journal: nothing happens."""
+    fake_request.user = WjsEditorAssignment.objects.get_current(assigned_article).editor
+
+    with mock.patch("plugins.wjs_review.logic__production.build_production_export_zip") as mock_build_zip:
+        _accept_article(fake_request, assigned_article)
+
+    assigned_article.refresh_from_db()
+    assert assigned_article.articleworkflow.state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER
+    mock_build_zip.assert_not_called()

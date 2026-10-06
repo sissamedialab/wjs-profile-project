@@ -24,7 +24,7 @@ import zipfile
 from io import BytesIO
 from itertools import permutations
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 from urllib.parse import urlencode
 from zipfile import ZipFile
 
@@ -79,6 +79,8 @@ from wjs.jcom_profile.utils import (
 )
 
 from . import communication_utils
+from .metadata_export.mappers import corresponding_author_affiliation_is_incomplete
+from .metadata_export.service import build_production_export_zip
 from .models import ArticleWorkflow, LatexPreamble, Message
 from .permissions import (
     has_typesetter_role_by_article,
@@ -195,6 +197,91 @@ class ConfirmProductionReadiness:
             ac_service.resolve_all_for_article(self.workflow.article, codes=[ac_service.ACCESS_MODE_TO_CHECK])
 
         return self.workflow
+
+
+@dataclasses.dataclass
+class SendProductionXMLToPublisher:
+    """Generate an accepted article's production export zip and send it to the publisher.
+
+    No-op for any journal without a configured send function in
+    ``settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS``: there is no sensible default publisher
+    integration, so a journal must be a key in that setting for anything (zip generation,
+    sending, message logging) to happen at all.
+    """
+
+    articleworkflow: ArticleWorkflow
+
+    def _get_send_function(self) -> Optional[Callable[[Article, bytes], None]]:
+        """Return the configured per-journal zip-send function, or None if unsupported."""
+        journal_code = self.articleworkflow.article.journal.code
+        function_path = settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS.get(journal_code)
+        if function_path is None:
+            return None
+        return import_string(function_path)
+
+    def _log_operation(self):
+        """Log that the production XML was sent to the publisher."""
+        context = {"article": self.articleworkflow.article}
+        journal = self.articleworkflow.article.journal
+        message_subject = render_template(
+            get_setting(
+                setting_group_name="wjs_review",
+                setting_name="xml_sent_to_publisher_subject",
+                journal=journal,
+            ).processed_value,
+            context,
+        )
+        message_body = render_template(
+            get_setting(
+                setting_group_name="wjs_review",
+                setting_name="xml_sent_to_publisher_body",
+                journal=journal,
+            ).processed_value,
+            context,
+        )
+        communication_utils.log_operation(
+            article=self.articleworkflow.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[get_eo_user(self.articleworkflow.article)],
+            verbosity=Message.MessageVerbosity.FULL,
+        )
+
+    def _log_incomplete_affiliation_warning(self):
+        """Log a second, separate EO message when the corresponding author's affiliation is incomplete."""
+        article = self.articleworkflow.article
+        message_subject = f"Corresponding author affiliation incomplete - article {article.pk}"
+        message_body = (
+            f"The corresponding author's affiliation for {self.articleworkflow} is missing "
+            "institution, city, or country. IOP requires all three for the corresponding author. "
+            "Please check and complete the author's affiliation in Janeway."
+        )
+        communication_utils.log_operation(
+            article=article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[get_eo_user(article)],
+            verbosity=Message.MessageVerbosity.FULL,
+        )
+
+    def run(self) -> ArticleWorkflow:
+        """Send the article's production export zip to the publisher, if the journal is configured for it."""
+        send_function = self._get_send_function()
+        if send_function is None:
+            return self.articleworkflow
+        # NOTE: this holds the transaction open across build_production_export_zip() (which can shell
+        # out to pdfinfo) and the send call. Once send_zip_to_iop grows real network transport, move the
+        # send (or the whole block) outside this transaction / into an async_task, rather than holding a DB
+        # transaction across a network round-trip.
+        with transaction.atomic():
+            zip_bytes = build_production_export_zip(self.articleworkflow.article)
+            send_function(self.articleworkflow.article, zip_bytes)
+            self._log_operation()
+            if corresponding_author_affiliation_is_incomplete(self.articleworkflow.article):
+                self._log_incomplete_affiliation_warning()
+        return self.articleworkflow
 
 
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/667

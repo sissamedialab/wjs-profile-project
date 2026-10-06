@@ -216,6 +216,14 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
     "JCAP": ("plugins.wjs_review.events.checks_after_acceptance.jcap_ta_not_yet_confirmed",),
 }
 
+# Per-journal functions that send an article's production export zip (metadata XML + linked
+# files) to the publisher, once the article is accepted and ready for the typesetter. Journals
+# with no entry here have no publisher integration: nothing happens (no zip built, no message
+# logged) -- there is no sensible default.
+WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+    "JCAP": "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+}
+
 # Email addresses that must receive the notification when an article is published.
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
 WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {

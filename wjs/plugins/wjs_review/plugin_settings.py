@@ -555,6 +555,58 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def xml_sent_to_publisher_notification() -> tuple[SettingValue, ...]:
+        xml_sent_subject_setting: SettingParams = {
+            "name": "xml_sent_to_publisher_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for XML sent to publisher notification to EO"),
+            "description": _(
+                "Subject of the message sent to EO when an article's production metadata XML "
+                "has been sent to the publisher.",
+            ),
+            "is_translatable": False,
+        }
+        xml_sent_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Production export package prepared for publisher for article {{ article.pk }}",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            xml_sent_subject_setting,
+            xml_sent_subject_setting_value,
+            xml_sent_subject_setting["name"],
+            force=force,
+        )
+        xml_sent_body_setting: SettingParams = {
+            "name": "xml_sent_to_publisher_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body for XML sent to publisher notification to EO"),
+            "description": _(
+                "Body of the message sent to EO when an article's production metadata XML "
+                "has been sent to the publisher.",
+            ),
+            "is_translatable": False,
+        }
+        xml_sent_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": (
+                "The production export package (metadata XML and linked files) for article "
+                "{{ article.pk }} ({{ article.title }}) has been prepared for the publisher."
+            ),
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            xml_sent_body_setting,
+            xml_sent_body_setting_value,
+            xml_sent_body_setting["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     def hijack_notification_message() -> tuple[SettingValue, ...]:
         hijack_notification_subject: SettingParams = {
             "name": "hijack_notification_subject",
@@ -2173,6 +2225,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(reviewer_report_type())
         csv_writer.write_settings(add_access_mode_request_notifications())
         csv_writer.write_settings(expected_galleys())
+        csv_writer.write_settings(xml_sent_to_publisher_notification())
 
 
 def ensure_workflow_elements():
