@@ -81,6 +81,7 @@ from wjs.jcom_profile.utils import (
 from . import communication_utils
 from .metadata_export.mappers import corresponding_author_affiliation_is_incomplete
 from .metadata_export.service import build_production_export_zip
+from .metadata_export.sftp import SFTPSendError
 from .models import ArticleWorkflow, LatexPreamble, Message
 from .permissions import (
     has_typesetter_role_by_article,
@@ -266,21 +267,71 @@ class SendProductionXMLToPublisher:
             verbosity=Message.MessageVerbosity.FULL,
         )
 
-    def run(self) -> ArticleWorkflow:
-        """Send the article's production export zip to the publisher, if the journal is configured for it."""
+    def _handle_send_failure(self, exc: SFTPSendError) -> None:
+        """Flag delivery failure for EO instead of blocking the ready-for-typesetter transition."""
+        from . import ac_service
+
+        ac_service.upsert_for_role(
+            self.articleworkflow.article,
+            "eo",
+            ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+            message=str(exc),
+            priority=ac_service.PRODUCTION_EXPORT_SEND_FAILED_PRIORITY,
+        )
+
+    def run(self, *, silent: bool = False) -> ArticleWorkflow:
+        """Send the article's production export zip to the publisher, if the journal is configured for it.
+
+        A delivery failure (SFTPSendError) is flagged as an EO attention condition rather than
+        raised: blocking the ACCEPTED -> READY_FOR_TYPESETTER transition over a transient
+        network/SFTP-server issue would be worse than a flagged manual follow-up. XML/zip
+        generation failures still propagate unchanged -- those are real bugs, not transient
+        conditions. The incomplete-affiliation warning describes a data problem, not a delivery
+        one, so it fires regardless of whether the send itself succeeds.
+
+        silent=True skips every side effect below (AC creation/resolution, EO message logging,
+        including the incomplete-affiliation warning) -- used by the export_production_zip
+        management command so a manual test send doesn't pollute the EO's message inbox or
+        attention-condition dashboard. The zip build and the actual send call still happen; only
+        the bookkeeping around them is skipped. Without that bookkeeping there is no attention
+        condition or message to surface a failure through, so silent=True re-raises
+        SFTPSendError instead of swallowing it -- the direct, synchronous caller that opted into
+        silent needs the exception itself to know the send failed.
+        """
+        from . import ac_service
+
         send_function = self._get_send_function()
         if send_function is None:
             return self.articleworkflow
-        # NOTE: this holds the transaction open across build_production_export_zip() (which can shell
-        # out to pdfinfo) and the send call. Once send_zip_to_iop grows real network transport, move the
-        # send (or the whole block) outside this transaction / into an async_task, rather than holding a DB
-        # transaction across a network round-trip.
-        with transaction.atomic():
-            zip_bytes = build_production_export_zip(self.articleworkflow.article)
+        # zip-building is DB reads only (plus a pdfinfo shell-out) -- no writes, so it does not
+        # need a transaction of its own. This method opens no transaction around the network call,
+        # but it cannot guarantee there is none: the send is synchronous (the caller needs the
+        # outcome immediately) and both real callers (VerifyProductionRequirements,
+        # ConfirmProductionReadiness) invoke it from inside their own transaction.atomic(). That is
+        # accepted: the send is bounded by the transport's timeouts, and a rollback after a
+        # successful send only means the (idempotent, same-name) upload is repeated on retry.
+        zip_bytes = build_production_export_zip(self.articleworkflow.article)
+        affiliation_incomplete = corresponding_author_affiliation_is_incomplete(self.articleworkflow.article)
+        try:
             send_function(self.articleworkflow.article, zip_bytes)
-            self._log_operation()
-            if corresponding_author_affiliation_is_incomplete(self.articleworkflow.article):
-                self._log_incomplete_affiliation_warning()
+        except SFTPSendError as exc:
+            if silent:
+                raise
+            with transaction.atomic():
+                self._handle_send_failure(exc)
+                if affiliation_incomplete:
+                    self._log_incomplete_affiliation_warning()
+            return self.articleworkflow
+        if not silent:
+            with transaction.atomic():
+                self._log_operation()
+                ac_service.resolve_for_role(
+                    self.articleworkflow.article,
+                    "eo",
+                    ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+                )
+                if affiliation_incomplete:
+                    self._log_incomplete_affiliation_warning()
         return self.articleworkflow
 
 

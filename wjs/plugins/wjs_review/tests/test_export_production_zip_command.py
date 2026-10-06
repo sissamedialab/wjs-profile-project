@@ -1,6 +1,7 @@
 """Tests for the ``export_production_zip`` management command."""
 
 import zipfile
+from unittest import mock
 
 import pytest
 from django.core.management import CommandError, call_command
@@ -8,6 +9,7 @@ from plugins.wjs_review.metadata_export import service
 from plugins.wjs_review.metadata_export.mappers import (
     UnsupportedArticleStageForExportError,
 )
+from plugins.wjs_review.metadata_export.sftp import SFTPSendError
 from submission.models import STAGE_ACCEPTED, Article
 
 
@@ -63,3 +65,38 @@ def test_export_production_zip_force_accepted_bypasses_stage_check(article, tmp_
 
     article.refresh_from_db()
     assert article.stage != STAGE_ACCEPTED, "the bypass must never persist the stage override to the database"
+
+
+@pytest.mark.django_db
+def test_export_production_zip_send_calls_send_production_xml_to_publisher_silently(accepted_article):
+    """--send triggers the real send path (silently) instead of building and saving a local file."""
+    with mock.patch(
+        "plugins.wjs_review.management.commands.export_production_zip.SendProductionXMLToPublisher",
+    ) as mock_sender_class:
+        call_command("export_production_zip", accepted_article.pk, "--send")
+
+    mock_sender_class.assert_called_once_with(articleworkflow=accepted_article.articleworkflow)
+    mock_sender_class.return_value.run.assert_called_once_with(silent=True)
+
+
+@pytest.mark.django_db
+def test_export_production_zip_send_raises_command_error_on_sftp_send_error(accepted_article):
+    """A failed send (SFTPSendError from run(silent=True)) surfaces as a CommandError, not a silent no-op."""
+    with mock.patch(
+        "plugins.wjs_review.management.commands.export_production_zip.SendProductionXMLToPublisher",
+    ) as mock_sender_class:
+        mock_sender_class.return_value.run.side_effect = SFTPSendError("connection refused")
+        with pytest.raises(CommandError, match="connection refused"):
+            call_command("export_production_zip", accepted_article.pk, "--send")
+
+
+@pytest.mark.django_db
+def test_export_production_zip_send_and_output_dir_are_mutually_exclusive(accepted_article, tmp_path):
+    with pytest.raises(CommandError, match="output_dir"):
+        call_command("export_production_zip", accepted_article.pk, str(tmp_path), "--send")
+
+
+@pytest.mark.django_db
+def test_export_production_zip_requires_output_dir_without_send(accepted_article):
+    with pytest.raises(CommandError, match="output_dir"):
+        call_command("export_production_zip", accepted_article.pk)

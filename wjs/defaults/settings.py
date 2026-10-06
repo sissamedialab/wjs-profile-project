@@ -224,6 +224,44 @@ WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
     "JCAP": "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
 }
 
+# Per-journal SFTP endpoint for delivering the production export zip (wjs/specs#2972).
+# JCAP points at IOP's real server: host, username and host_key are not secrets, so they are set here.
+# The credentials (private_key_path/password) are empty here and must be supplied by an instance's own
+# settings override -- never committed here, nor stored in a per-article/per-journal DB field an admin
+# could redirect. An instance that must not deliver to IOP (e.g. wjs-test, which will use its own SFTP
+# server, wjs/specs#3159) must override host/username/host_key as well, not only the credentials.
+# private_key_path takes precedence over password when both are set.
+# host_key pins the server's public host key ("<key-type> <base64>"): when set, it is the only key trusted
+# for that endpoint; when empty, the known_hosts of the OS user running the process is used. To collect it:
+#   1. list the key types the server offers, and pick one (prefer ssh-ed25519, then ecdsa, then ssh-rsa):
+#        ssh-keyscan -p <port> <host> 2>/dev/null
+#   2. compute its fingerprint and check it against the one the publisher gives you out-of-band (on AWS
+#      Transfer Family: AWS console, server details, "Host key") -- ssh-keyscan trusts whoever answers,
+#      so without this check pinning buys nothing:
+#        ssh-keyscan -p <port> -t ed25519 <host> 2>/dev/null | ssh-keygen -lf -
+#   3. drop the leading hostname and use the rest as the value (same value whatever the port):
+#        ssh-keyscan -p <port> -t ed25519 <host> 2>/dev/null | cut -d' ' -f2-
+# An unparseable value fails the send before connecting; if the server rotates its key, the connection is
+# rejected (bad host key) until host_key is updated by repeating the steps above.
+# atomic_rename (default True) uploads to a temp name and posix_rename()s it to the final one; IOP's server
+# (AWS Transfer Family) forbids rename, so JCAP writes the final name directly -- IOP does not process
+# interrupted uploads.
+WJS_REVIEW_IOP_SFTP = {
+    "JCAP": {
+        "host": "sftp.ioppublishing.org",
+        "port": 22,
+        "username": "partner-sissa",
+        "private_key_path": "",
+        "password": "",
+        "host_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDMngTFg/kHt6rSBxJL8gb1xQoxu87OJQwH9U12s/L9GUjktrEosJpKbacc72gC/KBgwEgSf2ed+wY/JjPY3GDavqEPcOczzarKRoBEfscvgOiFyJF08MCWc6CHtSkCiyYF+V1uTYhq9+JZORFN+JmnUf09hnbfuf+FvwbJ2wj757T+izY81/aKyn/J50/zvAqkhIVEwtTT44Nl6H3VccGZeeb7tO3V6yJopHtiMhgctTVZ/7wSg/svWQFLLFIVn2GJaaStp39c2aplcRaNDTwZZQp2MiZIFSeSL435V/fXsPxxaVnl+4qfbEymT+WMlb23lGJ2WEs31IAxqoE/jVFLvVYWUAQcWqcsAwh4IuLLEgPIL8Jb3eZqtaRxEK7sYp506S5QQvQ8F6wbo6rQ2QnyKwZ4sQVCBGYRgN+rOk3aJXqU+Ik8d2NYmDYdRksvgVeDemDYhQRv6ApP5y2SYndckRZFnNk81LL6d/bowS75aTSH9BosDkTSFk92DqtUVeAfjEh7BhRcyrkwId2mOoHnoXOOoYxl3AxK6LLnPuVVCUASrY6hnk98y6Ow2Ql90Jv0e3JMAxhIWi3VYlqE8jkId6Sfaqp8jSOCgCloA4UO1UyIjlYpSe5hVwV3KNTgl0hwCLlFDKSCKjHezuuli26IvgPnLM2pXuQeGuzOuXeAvw==",
+        "atomic_rename": False,
+        "remote_paths": {
+            "accepted-articles": "partner-sissa/jcap/accepted-articles",
+            "final-files": "partner-sissa/jcap/final-files",
+        },
+    },
+}
+
 # Email addresses that must receive the notification when an article is published.
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
 WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {

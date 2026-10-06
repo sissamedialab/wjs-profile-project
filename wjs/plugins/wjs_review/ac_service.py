@@ -108,6 +108,20 @@ APPEAL_TO_SUBMIT = "appeal_to_submit"
 ACCESS_MODE_TO_CHECK = "access_mode_to_check"
 """EO: the accepted paper is held in Accepted; access mode to be checked before production."""
 
+PRODUCTION_EXPORT_SEND_FAILED = "production_export_send_failed"
+"""EO: delivering the production export zip to the publisher failed (wjs/specs#2972).
+
+Created/resolved only from SendProductionXMLToPublisher.run() -- not registered in
+STATE_ROLE_AC_MAP, since it is purely event-driven (no daily re-evaluation applies).
+"""
+
+PRODUCTION_EXPORT_SEND_FAILED_PRIORITY = 20
+"""Display priority of PRODUCTION_EXPORT_SEND_FAILED.
+
+Not derived from get_ac_priority() (that table is for STATE_ROLE_AC_MAP-registered codes
+only) -- a fixed value, same style as HAS_UNREAD_MESSAGE_PRIORITY*.
+"""
+
 # -- Time-based (fire after elapsed time) --
 
 EDITOR_IS_LATE = "editor_is_late"
@@ -207,6 +221,18 @@ evaluated by the event-driven leg (explicit calls from logic classes).
 # ============================================================================
 
 
+def _fit_message(message: str) -> str:
+    """Truncate ``message`` (with a trailing ellipsis) so it fits ``AttentionCondition.message``.
+
+    Messages can embed arbitrary third-party text (e.g. SFTP/paramiko errors containing host keys) and
+    ``update_or_create`` does not validate lengths: an oversized value would raise ``DataError`` on Postgres.
+    """
+    max_length = AttentionCondition._meta.get_field("message").max_length
+    if len(message) <= max_length:
+        return message
+    return message[: max_length - 1] + "…"
+
+
 def upsert_ac(
     article: Article,
     user: Account,
@@ -243,7 +269,7 @@ def upsert_ac(
         user=user,
         code=code,
         defaults={
-            "message": message,
+            "message": _fit_message(message),
             "priority": priority,
             "source": source,
             "status": AttentionCondition.Status.ACTIVE,
