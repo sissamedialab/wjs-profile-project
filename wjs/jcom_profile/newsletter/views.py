@@ -69,7 +69,7 @@ class NewsletterParametersUpdate(UserPassesTestMixin, KeywordsHierarchyContextMi
         user = self.request.user
         url = reverse("edit_newsletters")
         if user.is_anonymous:
-            url = f"{url}&{urlencode({'token': self.object.newsletter_token})}"
+            url = f"{url}?{urlencode({'token': self.object.newsletter_token})}"
         return url
 
     def form_valid(self, form: ModelForm) -> HttpResponse:
