@@ -13,6 +13,7 @@ Three layers, per the package's own architecture:
 import dataclasses
 import datetime
 import io
+import stat
 import xml.etree.ElementTree as ET  # noqa: S405,N817 -- parses self-rendered XML, not untrusted input
 import zipfile
 from unittest import mock
@@ -1070,14 +1071,89 @@ def test_build_production_export_zip_contains_metadata_xml_and_linked_files(acce
     # one for the expected XML, one inside build_production_export_zip -- render identical
     # `export_date` values and can be compared for exact equality.
     expected_xml = service.serialize_article_to_metadata_xml(accepted_article)
+    ms_no = accepted_article.articleworkflow.preprint_id
 
     zip_bytes = service.build_production_export_zip(accepted_article)
 
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
-        assert archive.namelist() == ["metadata.xml", "article.pdf", "manuscript.tex"]
-        assert archive.read("metadata.xml").decode() == expected_xml
-        assert archive.read("article.pdf") == b"manuscript content"
-        assert archive.read("manuscript.tex") == b"source content"
+        assert set(archive.namelist()) == {
+            f"{ms_no}/doc/",
+            f"{ms_no}/doc/manuscript.tex",
+            f"{ms_no}/pdf/",
+            f"{ms_no}/pdf/{ms_no}.pdf",
+            service.metadata_xml_entry_name(ms_no),
+        }
+        assert archive.read(service.metadata_xml_entry_name(ms_no)).decode() == expected_xml
+        assert archive.read(f"{ms_no}/pdf/{ms_no}.pdf") == b"manuscript content"
+        assert archive.read(f"{ms_no}/doc/manuscript.tex") == b"source content"
+
+
+@pytest.mark.django_db
+def test_build_production_export_zip_includes_empty_doc_folder_when_no_source_files(accepted_article):
+    """doc/ is written even when there are no source files, matching IOP's own reference package."""
+    accepted_article.manuscript_files.clear()
+    manuscript_file = save_file_to_article(
+        DjangoFile(io.BytesIO(b"manuscript content"), name="article.pdf"),
+        accepted_article,
+        accepted_article.correspondence_author,
+    )
+    accepted_article.manuscript_files.add(manuscript_file)
+    accepted_article.source_files.clear()
+    ms_no = accepted_article.articleworkflow.preprint_id
+
+    zip_bytes = service.build_production_export_zip(accepted_article)
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        assert f"{ms_no}/doc/" in archive.namelist()
+        assert not any(name.startswith(f"{ms_no}/doc/") and name != f"{ms_no}/doc/" for name in archive.namelist())
+
+
+@pytest.mark.django_db
+def test_build_production_export_zip_directory_entries_are_enterable(accepted_article):
+    """doc/ and pdf/ are extracted as directories with the execute bit (a bare ZipInfo would give 0600)."""
+    accepted_article.manuscript_files.clear()
+    manuscript_file = save_file_to_article(
+        DjangoFile(io.BytesIO(b"manuscript content"), name="article.pdf"),
+        accepted_article,
+        accepted_article.correspondence_author,
+    )
+    accepted_article.manuscript_files.add(manuscript_file)
+    accepted_article.source_files.clear()
+    ms_no = accepted_article.articleworkflow.preprint_id
+
+    zip_bytes = service.build_production_export_zip(accepted_article)
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        for name in (f"{ms_no}/doc/", f"{ms_no}/pdf/"):
+            info = archive.getinfo(name)
+            mode = info.external_attr >> 16
+            assert info.is_dir(), f"{name} must be a directory entry"
+            assert stat.S_ISDIR(mode), f"{name} must carry the Unix directory file type"
+            assert stat.S_IMODE(mode) == 0o755, f"{name} must be extracted as rwxr-xr-x, got {oct(stat.S_IMODE(mode))}"
+
+
+@pytest.mark.django_db
+def test_build_production_export_zip_second_manuscript_file_keeps_original_filename(accepted_article):
+    """A second manuscript_files entry (not the documented "one PDF" case) keeps its own filename."""
+    accepted_article.manuscript_files.clear()
+    first_manuscript = save_file_to_article(
+        DjangoFile(io.BytesIO(b"first content"), name="article.pdf"),
+        accepted_article,
+        accepted_article.correspondence_author,
+    )
+    second_manuscript = save_file_to_article(
+        DjangoFile(io.BytesIO(b"second content"), name="appendix.pdf"),
+        accepted_article,
+        accepted_article.correspondence_author,
+    )
+    accepted_article.manuscript_files.add(first_manuscript, second_manuscript)
+    ms_no = accepted_article.articleworkflow.preprint_id
+
+    zip_bytes = service.build_production_export_zip(accepted_article)
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        assert archive.read(f"{ms_no}/pdf/{ms_no}.pdf") == b"first content"
+        assert archive.read(f"{ms_no}/pdf/appendix.pdf") == b"second content"
 
 
 # --------------------------------------------------------------------------------------------- #

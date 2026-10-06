@@ -1906,9 +1906,10 @@ def test_send_production_xml_to_publisher_sends_zip_and_logs_message(
     mock_send.assert_called_once()
     called_article, called_zip_bytes = mock_send.call_args.args
     assert called_article == accepted_article
+    xml_entry_name = service.metadata_xml_entry_name(accepted_article.articleworkflow.preprint_id)
     with zipfile.ZipFile(io.BytesIO(called_zip_bytes)) as archive:
-        assert service.ZIP_XML_ENTRY_NAME in archive.namelist()
-        assert archive.read(service.ZIP_XML_ENTRY_NAME).decode().strip().startswith("<?xml")
+        assert xml_entry_name in archive.namelist()
+        assert archive.read(xml_entry_name).decode().strip().startswith("<?xml")
     # Not assert_called_once_with: the accepted_article fixture's corresponding author may or may
     # not end up with a complete affiliation, which would add a second (unrelated) EO message --
     # see test_send_production_xml_to_publisher_logs_warning_when_corresponding_author_affiliation_incomplete
