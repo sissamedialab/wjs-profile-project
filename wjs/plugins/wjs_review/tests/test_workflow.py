@@ -257,9 +257,10 @@ def test_accepted_workflow_sends_zip_to_publisher_when_journal_configured(
     mock_send.assert_called_once()
     called_article, called_zip_bytes = mock_send.call_args.args
     assert called_article == assigned_article
+    xml_entry_name = service.metadata_xml_entry_name(assigned_article.articleworkflow.preprint_id)
     with zipfile.ZipFile(io.BytesIO(called_zip_bytes)) as archive:
-        assert service.ZIP_XML_ENTRY_NAME in archive.namelist()
-        assert archive.read(service.ZIP_XML_ENTRY_NAME).decode().strip().startswith("<?xml")
+        assert xml_entry_name in archive.namelist()
+        assert archive.read(xml_entry_name).decode().strip().startswith("<?xml")
     # `communication_utils` is a single shared module: patching `log_operation` through
     # `logic__production`'s reference to it also intercepts the unrelated "Accepted for
     # publication" author-notification call `HandleDecision._log_accept()` (in `logic.py`)
