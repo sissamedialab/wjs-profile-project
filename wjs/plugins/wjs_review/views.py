@@ -716,7 +716,7 @@ class DirectorPending(ArticleWorkflowBaseMixin):
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
             .filter(state__in=states_when_article_is_considered_in_review_for_eo_and_director)
-            .exclude(article__authors=self.request.user)
+            .exclude(article__frozenauthor__author=self.request.user)
         )
 
 
@@ -740,7 +740,7 @@ class DirectorArchived(DirectorPending):
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
             .filter(state__in=states_when_article_is_considered_archived)
-            .exclude(article__authors=self.request.user)
+            .exclude(article__frozenauthor__author=self.request.user)
         ).annotate(
             sort_date=Coalesce(
                 F("article__date_published"),

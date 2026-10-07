@@ -147,7 +147,7 @@ def get_messages_related_to_me(
             & Q(pk__gt=0),
         )
         # for directors we want to exclude papers for which they are an author (unless they are actor / recipient)
-        authored_articles = Article.objects.filter(authors=user).values_list("pk", flat=True)
+        authored_articles = Article.objects.filter(frozenauthor__author=user).values_list("pk", flat=True)
         # We must use a negative Q syntax + filter (applied last at the end of the function) because using
         # exclude function creates wrong queries: we must then use a filter and NOT query
         # _has_recipient annotation avoids the M2M JOIN on recipients
