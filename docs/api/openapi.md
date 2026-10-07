@@ -26,9 +26,11 @@ All paths are relative to the journal's host (e.g. `https://jcom.example.org`) a
 | `/plugins/wjs-review-articles/api/v1/schema/swagger-ui/` | Swagger UI: interactive, can execute requests ("Try it out") |
 | `/plugins/wjs-review-articles/api/v1/schema/redoc/` | Redoc: read-only, nicer for reading/reference        |
 
-**Access**: same gating as the rest of the API: Editorial Office members or typesetters only.
-Docs views accept either an API token or a normal logged-in Janeway session, so an EO/typesetter user can just
-log in and open Swagger UI/Redoc in the browser. The real API endpoints stay token-only.
+**Access**: Editorial Office members or typesetters only, everywhere. Both the docs views and the API entry
+points accept either an API token or a normal logged-in Janeway session, so an EO/typesetter user can just log
+in, open Swagger UI in the browser and try the API out from there without minting a token first. A
+session-authenticated write (POST/PUT) needs a CSRF token, which Swagger UI sends by itself; a
+token-authenticated client is not concerned.
 
 ## Authentication
 
@@ -55,9 +57,10 @@ Treat tokens as passwords; don't commit them, and prefer a dedicated account per
 
 ## Using the UIs
 
-- **Swagger UI**: log in to the journal as EO/typesetter, open `/plugins/wjs-review-articles/api/v1/schema/swagger-ui/`. Requests made from the
-  page reuse your session for the docs views; to call the *API* endpoints via "Try it out", click **Authorize**
-  and enter `Token <key>` in the `Authorization` field (if shown), or paste the header manually.
+- **Swagger UI**: log in to the journal as EO/typesetter, open `/plugins/wjs-review-articles/api/v1/schema/swagger-ui/`.
+  Requests made from the page - including "Try it out" against the API entry points - reuse that session, so
+  no token is needed. Use **Authorize** with `Token <key>` only to try the API as a *different* account than
+  the one you are logged in as.
 - **Redoc**: open `/plugins/wjs-review-articles/api/v1/schema/redoc/`. Documentation only.
 
 ### Downloading the schema from the UI

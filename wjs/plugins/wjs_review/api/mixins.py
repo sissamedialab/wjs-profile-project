@@ -3,12 +3,39 @@ from rest_framework.authentication import (
     SessionAuthentication as DRFSessionAuthentication,
 )
 from rest_framework.authentication import TokenAuthentication
+from rest_framework.negotiation import DefaultContentNegotiation
 from submission import models as submission_models
 from utils.logger import get_logger
 
 from .permissions import IsEOOrTypesetterForArticle
 
 logger = get_logger(__name__)
+
+
+class IgnoreAcceptHeaderNegotiation(DefaultContentNegotiation):
+    """Content negotiation that never refuses a request because of its "Accept" header.
+
+    The entry points serving a file answer with the media type of the file itself, which is
+    decided by the resource and not by the client, and they do it with a plain Django response
+    that never goes through a renderer. DRF's negotiation, on the other hand, matches "Accept"
+    against the view's *renderers* -- JSON, which these views need only for their error envelopes
+    -- and raises `NotAcceptable` for anything else, from `APIView.initial()`, i.e. before
+    authentication has even run. A client following this API's OpenAPI schema asks for exactly
+    the media type the schema promises ("Accept: application/zip", ...), and would get a 406.
+
+    Picking the first renderer whatever the client asked for keeps the error envelopes JSON and
+    lets the file responses through untouched. Parser selection is left to
+    `DefaultContentNegotiation`: the request body's own content type is still honoured.
+    """
+
+    def select_renderer(self, request, renderers, format_suffix=None):
+        """
+        Return the view's first renderer, whatever the client asked for.
+
+        :return: the renderer to use, and the media type to report for it.
+        :rtype: tuple
+        """
+        return (renderers[0], renderers[0].media_type)
 
 
 class SessionAuthentication(DRFSessionAuthentication):
@@ -65,31 +92,31 @@ class LoggedRequestMixin:
 
 
 class EOOrTypesetterAccessMixin:
-    """Restrict an entry point to EO members and typesetters, as authenticated by their API token."""
-
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsEOOrTypesetterForArticle]
-
-
-class EOOrTypesetterDocsAccessMixin(EOOrTypesetterAccessMixin):
     """
-    Like `EOOrTypesetterAccessMixin`, but also accepts a logged-in Janeway session.
+    Restrict an entry point to EO members and typesetters.
 
-    Used only by the OpenAPI docs views (the raw schema, Swagger UI and Redoc): a browser
-    navigating directly to their URLs cannot set an ``Authorization`` header, so a human already
-    logged into a Janeway session in that browser needs another way to authenticate. These views
-    are GET-only, so `SessionAuthentication`'s CSRF requirement (for unsafe methods) never
-    applies. The permission check (`IsEOOrTypesetterForArticle`) is unchanged.
+    Two credentials get a request past authentication: an API token, or the session of a user
+    already logged into Janeway in the browser. The session is what makes the OpenAPI docs usable
+    at all -- a browser navigating to Swagger UI or Redoc cannot set an ``Authorization`` header
+    -- and, on the API entry points themselves, what lets that same human try the API out from
+    Swagger UI without first minting a token for themselves. The permission check
+    (`IsEOOrTypesetterForArticle`) is the same whichever credential was used.
 
     `TokenAuthentication` is listed first on purpose: DRF's `APIView.handle_exception()` picks the
     401-vs-403 status for an unauthenticated request from ``get_authenticate_header()``, which
     only ever consults the *first* configured authenticator. `SessionAuthentication` has no
     ``WWW-Authenticate`` header of its own (it returns `None`), so putting it first would coerce
-    every credential-less request to a 403 instead of the expected 401; `TokenAuthentication`'s
-    header keeps that response a 401, exactly like the rest of this API.
+    every credential-less request to a 403 instead of the expected 401.
+
+    A session-authenticated *write* still needs a CSRF token, as `SessionAuthentication` enforces
+    it for unsafe methods -- and must: a cookie alone would let any other site make a logged-in
+    EO's browser replace an article's sources. Swagger UI sends the token on every non-GET
+    same-origin request, so "Try it out" works there; a token-authenticated client is not
+    concerned, since `SessionAuthentication` never runs for it.
     """
 
     authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsEOOrTypesetterForArticle]
 
 
 class PublishedArticleAccessMixin(EOOrTypesetterAccessMixin):
