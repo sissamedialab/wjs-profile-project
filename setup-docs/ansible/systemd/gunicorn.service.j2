@@ -37,6 +37,8 @@ ExecStart={{ venv_root }}/bin/gunicorn \
     --bind unix:/run/wjs/gunicorn{{ suffix }}.sock \
     --worker-class uvicorn.workers.UvicornWorker \
     --workers {{ gunicorn_workers | default(3 if is_production | default(false) else 2) }} \
+    --max-requests 10000 \
+    --max-requests-jitter 1000 \
     --access-logfile /home/wjs/{{ full_name }}/logs/app-access.log \
     --error-logfile  /home/wjs/{{ full_name }}/logs/app-error.log \
     wjs.channels.asgi:application
