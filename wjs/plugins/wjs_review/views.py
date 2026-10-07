@@ -67,6 +67,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
+from wjs.jcom_profile.jpbridge.logic import can_access_my_payments
 from wjs.jcom_profile.mixins import HtmxMixin, PaginatedViewMixin
 from wjs.jcom_profile.models import IssueParameters
 from wjs.jcom_profile.pagination import CountlessPaginator
@@ -228,6 +229,12 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
                 for view_name, title in self.related_views[current_role].items()
                 if self._is_available_related_view(request.journal, view_name, request)
             }
+            if (
+                current_role in (constants.SECTION_EDITOR_ROLE, constants.REVIEWER_ROLE)
+                and settings.WJS_JP_URLS.get(request.journal.code)
+                and can_access_my_payments(request.user.id)
+            ):
+                self.extra_links[reverse("my_payments")] = _("My Payments")
         else:
             self.extra_links = {}
 

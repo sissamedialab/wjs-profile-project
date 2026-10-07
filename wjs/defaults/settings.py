@@ -384,19 +384,13 @@ WJAPP_JCAP_IMPORT_ARCHIVE_OLD_DEDUP = ""
 WJAPP_JCAP_IMPORT_DEDUP_SCRIPT = ""
 
 # Jp-SGP bridge (issue #2949): lets a logged-in WJS user be redirected to Jp's "myPayments"
-# form, identified via a short-lived cookie, and lets Jp resolve a WJS account id to its SGP
-# code via the services/getSGPcodfpf.jsp endpoint. The URL path, cookie name and lack of any
-# token/auth check match what Jp already used/expected with the old wjapp system
-# (jp.identity_jsp), so Jp itself needs no changes.
-
-# Cookie shared between WJS and Jp to carry the WJS account id across the redirect
-# (jpbridge/views_mypayments.py). In production WJS and Jp live under the exact same
-# domain, so this is only meant for local/test setups that need a shared parent domain
-# across two different hosts, e.g. ".dev.local"; MyPaymentsView ignores this and always
-# uses None (same-host cookie) unless DEBUG is on, so it can't leak into a real deployment.
-WJS_COOKIE_DOMAIN = None
-# Cookie lifetime in seconds: it only needs to survive the redirect to Jp, so keep it short.
-WJS_IDENTITY_COOKIE_MAX_AGE = 300
+# form and lets Jp resolve the request's WJS account to its SGP code via the
+# services/getSGPcodfpf.jsp endpoint. No cookie is set by WJS: it relies entirely on the
+# browser's existing WJS session cookie, which is already present on the request that
+# reaches Jp (WJS and Jp live under the same domain in production). Jp is expected to
+# forward that session cookie on its own server-to-server call back to
+# services/getSGPcodfpf.jsp, which authenticates the caller from it (see
+# jpbridge/views_sgp.py, jpbridge/views_mypayments.py).
 
 # Jp base URL to redirect to, one entry per journal code (jpbridge/views_mypayments.py).
 # JCOM and JCOMAL never have payments/Jp; the others point at the real production Jp.
@@ -404,7 +398,7 @@ WJS_IDENTITY_COOKIE_MAX_AGE = 300
 # For local testing without a real Jp instance, override the journal(s) you're testing
 # in your personal settings to point at jpbridge/views_fake_jp.py's FakeJpView instead,
 # e.g. WJS_JP_URLS = {"JCAP": "http://jcap.local:8000/fake-jp/"} - this simulates the Jp
-# side of the flow end-to-end (reads the identity cookie, calls back
+# side of the flow end-to-end (forwards the session cookie, calls back
 # services/getSGPcodfpf.jsp) without needing a real Jp deployment.
 WJS_JP_URLS = {
     "JCOM": None,
