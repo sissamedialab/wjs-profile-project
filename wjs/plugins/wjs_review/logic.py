@@ -3740,6 +3740,40 @@ class PostponeReviewerDueDate:
             flag_as_read_by_eo=True,
         )
 
+    def _changed_by_reviewer(self) -> bool:
+        """Check if the due date has been changed by the reviewer of the assignment."""
+        return self.user == self.assignment.reviewer
+
+    def _log_editor_if_date_is_changed_by_reviewer(self) -> None:
+        """Notify the editor if the reviewer changed the due date."""
+        message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_postponed_by_reviewer_subject",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context={"reviewer": self.assignment.reviewer, "review_assigment": self.assignment},
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_postponed_by_reviewer_body",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            verbosity=Message.MessageVerbosity.FULL,
+            actor=self.user,
+            recipients=[self.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
+        )
+
     def _log_eo_far_future_date(self) -> None:
         """Log a warning for the EO if the editor postponed due date far in the future."""
         message_subject = render_template_from_setting(
@@ -3807,6 +3841,8 @@ class PostponeReviewerDueDate:
             if self._report_postponed_far_future_date():
                 self._log_eo_far_future_date()
             self._log_reviewer_if_date_is_postponed()
+            if self._changed_by_reviewer():
+                self._log_editor_if_date_is_changed_by_reviewer()
 
             # Materialized AC update:
             # Postponing the due date affects the reviewer-late time-based

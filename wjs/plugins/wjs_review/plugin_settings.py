@@ -1149,6 +1149,59 @@ Thank you in advance for your cooperation and best regards,<br>
         )
         return setting_1, setting_2
 
+    def due_date_postponed_by_reviewer_message() -> tuple[SettingValue, ...]:
+        subject_setting: SettingParams = {
+            "name": "due_date_postponed_by_reviewer_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for the editor notification when the reviewer changes the due date"),
+            "description": _(
+                "The subject of the notification that is sent to the editor, when the reviewer changes the due date",
+            ),
+            "is_translatable": False,
+        }
+        subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "{% if review_assigment.date_accepted %}Review{% else %}Accept/decline{% endif %} due date changed by {{ reviewer.full_name }}",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            subject_setting,
+            subject_setting_value,
+            subject_setting["name"],
+            force=force,
+        )
+        body_setting: SettingParams = {
+            "name": "due_date_postponed_by_reviewer_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Body of the editor notification when the reviewer changes the due date"),
+            "description": _(
+                "The body of the notification that is sent to the editor, when the reviewer changes the due date",
+            ),
+            "is_translatable": False,
+        }
+        body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ editor.full_name }},
+<br><br>
+{{ reviewer.full_name }} has changed the {% if review_assigment.date_accepted %}review{% else %}accept/decline{% endif %} due date for
+the {{ article.section.name }} "{{ article.title }}" from {{ original_due_date }} to {{ date_due }}.
+<br><br>
+{{ journal.code }} Journal
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            body_setting,
+            body_setting_value,
+            body_setting["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     def due_date_far_future_message() -> tuple[SettingValue, ...]:
         subject_due_date_far_future_setting: SettingParams = {
             "name": "due_date_far_future_subject",
@@ -2311,6 +2364,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(ready_for_typesetter_message())
         csv_writer.write_settings(prophy_settings())
         csv_writer.write_settings(due_date_postpone_message())
+        csv_writer.write_settings(due_date_postponed_by_reviewer_message())
         csv_writer.write_settings(due_date_far_future_message())
         csv_writer.write_settings(editor_decline_assignment_messages())
         csv_writer.write_settings(editor_assigns_themselves_as_reviewer_message())
