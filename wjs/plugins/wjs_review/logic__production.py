@@ -145,6 +145,43 @@ class VerifyProductionRequirements:
         )
         return message
 
+    def log_ready_for_typesetter(self, actor: Optional[Account] = None) -> Message:
+        """Log on the timeline that the article moved from ACCEPTED to READY_FOR_TYPESETTER.
+
+        Logging only: the caller is responsible for checking that the transition is allowed.
+
+        :param actor: the user who confirmed production readiness; None when the system verified
+            the production requirements automatically (the system user is then the actor)
+        """
+        article = self.articleworkflow.article
+        context = {"article": article, "actor": actor}
+        message_subject = render_template(
+            get_setting(
+                setting_group_name="wjs_review",
+                setting_name="ready_for_typesetter_subject",
+                journal=article.journal,
+            ).processed_value,
+            context,
+        )
+        message_body = render_template(
+            get_setting(
+                setting_group_name="wjs_review",
+                setting_name="ready_for_typesetter_body",
+                journal=article.journal,
+            ).processed_value,
+            context,
+        )
+        return communication_utils.log_operation(
+            article=article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=actor,
+            recipients=[get_eo_user(article)],
+            verbosity=Message.MessageVerbosity.TIMELINE,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
     def run(self) -> ArticleWorkflow:
         with transaction.atomic():
             if not self._check_conditions():
@@ -165,6 +202,7 @@ class VerifyProductionRequirements:
             else:
                 self.articleworkflow.system_verifies_production_requirements()
                 self.articleworkflow.save()
+                self.log_ready_for_typesetter()
             return self.articleworkflow
 
 
@@ -189,6 +227,7 @@ class ConfirmProductionReadiness:
                 raise ValueError("This article cannot transition to Ready for Typesetter in its current state.")
             self.workflow.system_verifies_production_requirements()
             self.workflow.save()
+            VerifyProductionRequirements(self.workflow).log_ready_for_typesetter(actor=self.user)
 
             # -- Materialized AC updates --
             from . import ac_service

@@ -2183,6 +2183,20 @@ def test_handle_editor_decision(
         template_is_setting=True,
     )
 
+    # A paper that passes the acceptance checks goes straight to READY_FOR_TYPESETTER and the system logs it on the
+    # timeline (specs#3178). We test it here and then remove it, so that the message counts below stay focused on
+    # the decision-specific messages.
+    if final_state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER:
+        ready_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="ready_for_typesetter_subject",
+            journal=assigned_article.journal,
+        ).processed_value
+        ready_message = Message.objects.get(subject=ready_subject)
+        assert ready_message.verbosity == Message.MessageVerbosity.TIMELINE
+        assert ready_message.actor == get_system_user(assigned_article.journal)
+        ready_message.delete()
+
     # In all the cases except technical revision, pending review assignments are
     # withdrawn. In this case the reviewer receive a message to notify this
     # At this stage two messages exist:
