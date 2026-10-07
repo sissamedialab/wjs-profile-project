@@ -607,6 +607,60 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def ready_for_typesetter_message() -> tuple[SettingValue, ...]:
+        subject_setting: SettingParams = {
+            "name": "ready_for_typesetter_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of the ready for typesetter timeline message"),
+            "description": _(
+                "Subject of the timeline message logged when an accepted article is moved to "
+                "Ready for typesetter, automatically or by the EO confirming production readiness.",
+            ),
+            "is_translatable": False,
+        }
+        subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Paper ready for typesetter",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            subject_setting,
+            subject_setting_value,
+            subject_setting["name"],
+            force=force,
+        )
+        body_setting: SettingParams = {
+            "name": "ready_for_typesetter_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of the ready for typesetter timeline message"),
+            "description": _(
+                "Body of the timeline message logged when an accepted article is moved to "
+                "Ready for typesetter. Context: article, actor (the user who confirmed "
+                "production readiness, empty when the transition is automatic).",
+            ),
+            "is_translatable": False,
+        }
+        body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": (
+                "{% if actor %}Production readiness confirmed by {{ actor.full_name }}."
+                "{% else %}Production requirements verified by the system.{% endif %}"
+                "<br><br>The paper is now ready for typesetter."
+            ),
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            body_setting,
+            body_setting_value,
+            body_setting["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     def hijack_notification_message() -> tuple[SettingValue, ...]:
         hijack_notification_subject: SettingParams = {
             "name": "hijack_notification_subject",
@@ -2254,6 +2308,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(admin_deems_unimportant())
         csv_writer.write_settings(admin_requires_resubmission())
         csv_writer.write_settings(jcap_ta_pending_notification())
+        csv_writer.write_settings(ready_for_typesetter_message())
         csv_writer.write_settings(prophy_settings())
         csv_writer.write_settings(due_date_postpone_message())
         csv_writer.write_settings(due_date_far_future_message())
