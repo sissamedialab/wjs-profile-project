@@ -4,7 +4,9 @@ from pathlib import Path
 from core import files
 from core import models as core_models
 from core.models import Account
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.base import ContentFile
 from django.db.models import Count
 from django.db.models.functions import Lower
@@ -24,6 +26,8 @@ from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from wjs.jcom_profile.utils import create_rich_fake_request
+
 from ..logic import (
     states_when_article_is_considered_in_production,
     states_when_article_is_considered_production_archived,
@@ -36,15 +40,25 @@ from .const import (
     GALLEY_UPLOAD_MEDIA_TYPES,
     PUBLIC_LISTING_DEFAULT,
     PUBLIC_LISTING_FILTERS,
+    SOURCE_ZIP_MEDIA_TYPES,
     TYPE_TO_MIME,
     ZIP_MEDIA_TYPE,
 )
+from .exceptions import (
+    BadRequest,
+    DataIntegrityConflict,
+    GalleyGenerationFailed,
+    InvalidGalleyType,
+    ResourceNotFound,
+)
+from .logic import INVALID_REQUEST_CODE, ReplaceSourceZipAndRegenerateGalleys
 from .mixins import (
     EOOrTypesetterAccessMixin,
-    EOOrTypesetterDocsAccessMixin,
+    IgnoreAcceptHeaderNegotiation,
     LoggedRequestMixin,
     PublishedArticleAccessMixin,
 )
+from .parsers import RawFileUploadParser
 from .permissions import IsEOOrTypesetterForArticle
 from .serializers import (
     ArticleGalleyListSerializer,
@@ -53,11 +67,21 @@ from .serializers import (
     ErrorSerializer,
     GalleyUploadSerializer,
     ProductionArticleSerializer,
+    RegeneratedGalleysSerializer,
+    SourceZipUploadSerializer,
     TypesetterPapersListSerializer,
 )
 
 
-class ArticleZipDownloadView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
+class ArticleZipView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
+    """Serve and replace the archive with the sources of a published article's galleys."""
+
+    #: The archive is sent as the bare request body, by both the client and this API's own GET.
+    parser_classes = [RawFileUploadParser]
+    #: The GET serves a zip, whose media type this API's schema advertises: honour a client that
+    #: asks for it (or for anything else) instead of answering 406.
+    content_negotiation_class = IgnoreAcceptHeaderNegotiation
+
     # The media types of the 2xx responses are spelled out as `(code, *media_types)` keys: without
     # them drf-spectacular derives the media types from the view's renderers, which are the default
     # JSON ones -- the view needs them for its error envelopes, but the file itself is not JSON.
@@ -71,32 +95,83 @@ class ArticleZipDownloadView(LoggedRequestMixin, PublishedArticleAccessMixin, AP
     )
     def get(self, request, pk: int):
         """
-        Download a zip file containing all galleys for the given article.
+        Download a zip file containing the sources of the published galleys for the given article.
         """
         article = self.get_article(request, pk)
 
         try:
             article_workflow = article.articleworkflow
         except ObjectDoesNotExist:
-            return Response(
-                {"error": {"code": "NOT_FOUND", "message": "Requested resource was not found."}},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            raise ResourceNotFound("Requested resource was not found.")
 
         core_file = getattr(article_workflow, "publication_galleys_source_file", None)
         if not core_file:
-            return Response(
-                {"error": {"code": "NOT_FOUND", "message": "Requested resource was not found."}},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        galleys_filename = core_file.uuid_filename
-        galleys_path = Path(article.folder_path()) / galleys_filename
-        if not galleys_path.exists():
-            return Response(
-                {"error": {"code": "NOT_FOUND", "message": "Requested resource was not found."}},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        return files.serve_file_to_browser(file_path=galleys_path, file_to_serve=core_file, public=True)
+            raise ResourceNotFound("Requested resource was not found.")
+        sources_filename = core_file.uuid_filename
+        sources_path = Path(article.folder_path()) / sources_filename
+        if not sources_path.exists():
+            raise ResourceNotFound("Requested resource was not found.")
+        return files.serve_file_to_browser(file_path=sources_path, file_to_serve=core_file, public=True)
+
+    # As for the GET above, the uploaded body is keyed by media type, so that the schema lists the
+    # Content-Types `SourceZipUploadSerializer` accepts instead of the JSON/form ones that the
+    # view's parsers would imply.
+    @extend_schema(
+        request={media_type: OpenApiTypes.BINARY for media_type in SOURCE_ZIP_MEDIA_TYPES},
+        description=(
+            "Replace the archive the article's galleys are built from, and regenerate every "
+            "galley out of it. The request body is the raw zip archive."
+        ),
+        responses={
+            200: RegeneratedGalleysSerializer,
+            400: ErrorSerializer,
+            404: ErrorSerializer,
+            415: ErrorSerializer,
+            502: ErrorSerializer,
+        },
+    )
+    def put(self, request, pk: int):
+        """
+        Replace the sources of a published article's galleys and regenerate the galleys.
+
+        This is what the obsolete "regen_galleys" management command used to do by hand: the
+        client downloads the sources with GET, edits them, and sends them back here.
+
+        :return: the regenerated galleys.
+        :rtype: Response
+
+        :raises ResourceNotFound: if the article has no workflow.
+        :raises BadRequest: if the uploaded archive is not this article's.
+        :raises GalleyGenerationFailed: if the galleys could not be rebuilt from the new sources.
+        """
+        article = self.get_article(request, pk)
+
+        try:
+            article_workflow = article.articleworkflow
+        except ObjectDoesNotExist:
+            raise ResourceNotFound("Requested resource was not found.")
+
+        serializer = SourceZipUploadSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            galleys = ReplaceSourceZipAndRegenerateGalleys(
+                workflow=article_workflow,
+                source_zip=serializer.validated_data["file"],
+                user=request.user,
+                # The galley machinery expects the kind of request that the publication process
+                # (which runs asynchronously) builds for itself.
+                request=create_rich_fake_request(journal=article.journal, settings=settings, user=request.user),
+            ).run()
+        except DjangoValidationError as exception:
+            message = " ".join(exception.messages)
+            # What the caller sent is their problem to fix, the rest is ours to report as a failure.
+            if getattr(exception, "code", None) == INVALID_REQUEST_CODE:
+                raise BadRequest(message)
+            raise GalleyGenerationFailed(message)
+
+        result_serializer = RegeneratedGalleysSerializer(instance={"article_id": article.pk, "galleys": galleys})
+        return Response(result_serializer.data, status=status.HTTP_200_OK)
 
 
 class ArticleGalleyListView(LoggedRequestMixin, PublishedArticleAccessMixin, GenericAPIView):
@@ -150,6 +225,10 @@ class ArticleGalleyListView(LoggedRequestMixin, PublishedArticleAccessMixin, Gen
 
 
 class ArticleGalleyView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
+    #: The GET serves a galley, whose media type this API's schema advertises: honour a client
+    #: that asks for it (or for anything else) instead of answering 406.
+    content_negotiation_class = IgnoreAcceptHeaderNegotiation
+
     def _validate_type(self, type_: str):
         if type_ not in [key for key, _ in core_models.galley_type_choices()]:
             return False
@@ -178,10 +257,7 @@ class ArticleGalleyView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView
         Download a galley file for the given article.
         """
         if not self._validate_type(file_type) is not None:
-            return Response(
-                {"error": {"code": "TYPE_NOT_FOUND", "message": "Invalid parameters."}},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise InvalidGalleyType("Invalid parameters.")
 
         article = self.get_article(request, pk)
 
@@ -190,28 +266,14 @@ class ArticleGalleyView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView
             qs = qs.filter(sequence=sequence)
         count = qs.count()
         if count == 0:
-            return Response(
-                {"error": {"code": "NOT_FOUND", "message": "Requested resource was not found."}},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            raise ResourceNotFound("Requested resource was not found.")
         if count > 1:
-            return Response(
-                {
-                    "error": {
-                        "code": "DATA_INTEGRITY_CONFLICT",
-                        "message": "Multiple galleys found for the same article/type/sequence",
-                    }
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
+            raise DataIntegrityConflict("Multiple galleys found for the same article/type/sequence")
 
         galley = qs.first()
         core_file = getattr(galley, "file", None)
         if not core_file:
-            return Response(
-                {"error": {"code": "NOT_FOUND", "message": "Requested resource was not found."}},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            raise ResourceNotFound("Requested resource was not found.")
 
         file_path = core_file.self_article_path()
         return files.serve_file_to_browser(file_path=file_path, file_to_serve=core_file, public=True)
@@ -238,10 +300,7 @@ class ArticleGalleyView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView
         Upload or replace a galley file for the given article.
         """
         if not self._validate_type(file_type) is not None:
-            return Response(
-                {"error": {"code": "TYPE_NOT_FOUND", "message": "Invalid parameters."}},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise InvalidGalleyType("Invalid parameters.")
 
         article = self.get_article(request, pk)
 
@@ -250,28 +309,14 @@ class ArticleGalleyView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView
             qs = qs.filter(sequence=sequence)
         count = qs.count()
         if count == 0:
-            return Response(
-                {"error": {"code": "NOT_FOUND", "message": "Requested resource was not found."}},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            raise ResourceNotFound("Requested resource was not found.")
         if count > 1:
-            return Response(
-                {
-                    "error": {
-                        "code": "DATA_INTEGRITY_CONFLICT",
-                        "message": "Multiple galleys found for the same article/type/sequence",
-                    }
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
+            raise DataIntegrityConflict("Multiple galleys found for the same article/type/sequence")
 
         galley = qs.first()
         core_file = getattr(galley, "file", None)
         if not core_file:
-            return Response(
-                {"error": {"code": "NOT_FOUND", "message": "Requested resource was not found."}},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            raise ResourceNotFound("Requested resource was not found.")
 
         serializer = GalleyUploadSerializer(
             data={},
@@ -346,20 +391,14 @@ class CollaborationListView(LoggedRequestMixin, EOOrTypesetterAccessMixin, Gener
         :rtype: Response
         """
         if self.get_public_listing() not in PUBLIC_LISTING_FILTERS:
-            return Response(
-                {
-                    "error": {
-                        "code": "BAD_REQUEST",
-                        "message": "Invalid parameters.",
-                        "details": {
-                            "public_listing": {
-                                "expected": sorted(PUBLIC_LISTING_FILTERS),
-                                "got": request.query_params.get("public_listing"),
-                            }
-                        },
+            raise BadRequest(
+                "Invalid parameters.",
+                details={
+                    "public_listing": {
+                        "expected": sorted(PUBLIC_LISTING_FILTERS),
+                        "got": request.query_params.get("public_listing"),
                     }
                 },
-                status=status.HTTP_400_BAD_REQUEST,
             )
 
         export_serializer = CollaborationsExportSerializer(
@@ -392,46 +431,32 @@ class TypesetterPapersListView(LoggedRequestMixin, APIView):
     permission_classes = [IsEOOrTypesetterForArticle]
 
     def _date_range(self, request):
-        """Parse the mandatory start_date=/end_date= params into a __range pair (inclusive)."""
+        """
+        Parse the mandatory start_date=/end_date= params into a __range pair (inclusive).
+
+        :return: the two extremes of the requested window.
+        :rtype: tuple
+
+        :raises BadRequest: if the parameters are missing or are not ISO dates.
+        """
         start_raw, end_raw = request.query_params.get("start_date"), request.query_params.get("end_date")
         if not start_raw or not end_raw:
-            return None, Response(
-                {
-                    "error": {
-                        "code": "BAD_REQUEST",
-                        "message": "Missing required query parameters: start_date and end_date.",
-                    }
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise BadRequest("Missing required query parameters: start_date and end_date.")
         try:
             start, end = datetime.date.fromisoformat(start_raw), datetime.date.fromisoformat(end_raw)
         except ValueError:
-            return None, Response(
-                {
-                    "error": {
-                        "code": "BAD_REQUEST",
-                        "message": "Invalid date format: start_date and end_date must be ISO dates (YYYY-MM-DD).",
-                    }
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise BadRequest("Invalid date format: start_date and end_date must be ISO dates (YYYY-MM-DD).")
 
         # TypesettingAssignment.assigned is a DateTime: build an inclusive datetime range so
         # that both extremes are included. Dates are midnight UTC, safely inside the window
         # whatever the server's TIME_ZONE is (±12h).
         return (
-            (
-                datetime.datetime.combine(start, datetime.time.min, tzinfo=datetime.timezone.utc),
-                datetime.datetime.combine(end, datetime.time.max, tzinfo=datetime.timezone.utc),
-            ),
-            None,
+            datetime.datetime.combine(start, datetime.time.min, tzinfo=datetime.timezone.utc),
+            datetime.datetime.combine(end, datetime.time.max, tzinfo=datetime.timezone.utc),
         )
 
     def get(self, request, code: str, typesetter_pk: int):
-        date_range, error = self._date_range(request)
-        if error:
-            return error
+        date_range = self._date_range(request)
 
         get_object_or_404(Account, pk=typesetter_pk)  # unknown typesetter pk → 404
 
@@ -494,32 +519,33 @@ def _filter_to_wjs_review_api(endpoints, **kwargs):
 
 
 @extend_schema_view(get=extend_schema(exclude=True))
-class SchemaView(LoggedRequestMixin, EOOrTypesetterDocsAccessMixin, SpectacularAPIView):
+class SchemaView(LoggedRequestMixin, EOOrTypesetterAccessMixin, SpectacularAPIView):
     """
     Serve the OpenAPI schema, gated like the rest of this API.
 
-    Also accepts a logged-in Janeway session (not just a token), so a human can view it directly
-    in a browser -- see `EOOrTypesetterDocsAccessMixin`.
+    As everywhere else here, a logged-in Janeway session authenticates as well as a token, so a
+    human can view it directly in a browser -- see `EOOrTypesetterAccessMixin`.
     """
 
     custom_settings = {"PREPROCESSING_HOOKS": ["plugins.wjs_review.api.views._filter_to_wjs_review_api"]}
 
 
 @extend_schema_view(get=extend_schema(exclude=True))
-class SwaggerUIView(LoggedRequestMixin, EOOrTypesetterDocsAccessMixin, SpectacularSwaggerView):
+class SwaggerUIView(LoggedRequestMixin, EOOrTypesetterAccessMixin, SpectacularSwaggerView):
     """
     Serve Swagger UI, gated like the rest of this API.
 
-    Also accepts a logged-in Janeway session (not just a token), so a human can view it directly
-    in a browser -- see `EOOrTypesetterDocsAccessMixin`.
+    As everywhere else here, a logged-in Janeway session authenticates as well as a token, so an
+    EO member or typesetter can open this page -- and use its "Try it out" against the API entry
+    points -- with no token at all; see `EOOrTypesetterAccessMixin`.
     """
 
 
 @extend_schema_view(get=extend_schema(exclude=True))
-class RedocUIView(LoggedRequestMixin, EOOrTypesetterDocsAccessMixin, SpectacularRedocView):
+class RedocUIView(LoggedRequestMixin, EOOrTypesetterAccessMixin, SpectacularRedocView):
     """
     Serve Redoc, gated like the rest of this API.
 
-    Also accepts a logged-in Janeway session (not just a token), so a human can view it directly
-    in a browser -- see `EOOrTypesetterDocsAccessMixin`.
+    As everywhere else here, a logged-in Janeway session authenticates as well as a token, so a
+    human can read it directly in a browser -- see `EOOrTypesetterAccessMixin`.
     """
