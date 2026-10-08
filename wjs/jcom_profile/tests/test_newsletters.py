@@ -12,6 +12,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail, management
 from django.db.models import Q
+from django.template.loader import render_to_string
 from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
@@ -959,6 +960,33 @@ def test_anonymous_user_newsletter_edit_with_nonexistent_token_redirects_to_logi
 
 
 @pytest.mark.django_db
+def test_anonymous_user_newsletter_update_redirects_to_edit_page_with_token(keywords, journal):
+    """After saving their preferences, anonymous users are sent back to the edit page with their token."""
+    journal.keywords.set(keywords)
+    anonymous_email = "anonymous@email.com"
+    newsletter_token = generate_token(anonymous_email, journal.code)
+    anonymous_recipient = Recipient.objects.create(
+        email=anonymous_email,
+        newsletter_token=newsletter_token,
+        journal=journal,
+    )
+    selected_keywords = list(journal.keywords.values_list("id", flat=True)[:2])
+
+    client = Client()
+    edit_url = f"/{journal.code}/update/newsletters/?{urlencode({'token': newsletter_token})}"
+    data = {"keywords": selected_keywords, "news": True, "language": "en"}
+    response = client.post(edit_url, data, follow=True)
+
+    redirect_url, status_code = response.redirect_chain[-1]
+    assert status_code == 302
+    assert redirect_url == f"{reverse('edit_newsletters')}?{urlencode({'token': newsletter_token})}"
+    assert response.status_code == 200
+    assert "Thank you for setting your preferences" in response.content.decode()
+    anonymous_recipient.refresh_from_db()
+    assert set(anonymous_recipient.topics.values_list("id", flat=True)) == set(selected_keywords)
+
+
+@pytest.mark.django_db
 def test_anonymous_user_newsletter_unsubscription(journal):
     client = Client()
     anonymous_email = "anonymous@email.com"
@@ -1009,7 +1037,12 @@ def test_anonymous_user_recipient_registers_for_second_journal(journal):
 
 
 @pytest.mark.django_db
-def test_anonymous_user_recipient_confirms_registration_to_second_journal(journal, client, settings):
+def test_anonymous_user_recipient_confirms_registration_to_second_journal(
+    journal,
+    client,
+    settings,
+    mock_premailer_load_url,
+):
     """Test that an anonymous user can subscribe to multiple journals.
 
     Here we test that the recipient can visit the page where he sets
@@ -1432,3 +1465,15 @@ def test_unpublished_articles_are_not_collected(
     a1.save()
     _recipients, articles, _news = nms._get_objects(journal, newsletter.last_sent)  # noqa: SLF001
     assert len(articles) == 1
+
+
+@pytest.mark.django_db
+def test_newsletter_template_references_wjs_bootstrap_css(journal):
+    """The newsletter email template must load its CSS from wjs-bootstrap, not JCOM-theme."""
+    content = render_to_string(
+        "wjs/newsletter/email/newsletter_template.html",
+        {"journal": journal},
+    )
+    assert "wjs-bootstrap/css/newsletter_jcom.css" in content, "expected the per-journal newsletter stylesheet path"
+    assert "wjs-bootstrap/css/newsletter_mobile.css" in content, "expected the mobile newsletter stylesheet path"
+    assert "JCOM-theme" not in content, "JCOM-theme has been removed and must not be referenced"

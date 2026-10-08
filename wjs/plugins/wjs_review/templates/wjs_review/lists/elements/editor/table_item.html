@@ -1,4 +1,4 @@
-{% load wjs_articles wjs_review wjs_tags %}
+{% load i18n wjs_articles wjs_review wjs_tags %}
 {% article_css_classes workflow as article_classes %}
 {% with article=workflow.article attention_flag=workflow|article_requires_attention_tt:user %}
   <tr {% if attention_flag %}class="table-warning"{% endif %}>
@@ -15,15 +15,23 @@
     <td class="{% if attention_flag %}fw-bolder{% endif %}" title="{{ article.title|safe }}">
       {{ article.title|truncatewords:6|safe }}
     </td>
-    <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
-      {% include "wjs_review/lists/elements/table_item_status.html" %}
-    </td>
-    <td>
-      {% if workflow.state == "EditorSelected" %}
-        {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
-      {% endif %}
-    </td>
-    <td title="Issue (if available)">{{ article.primary_issue|internal_title|default:"—" }}</td>
+    {% with former_editor=workflow|is_user_former_article_editor:user %}
+      <td class="position-relative {% if attention_flag %}fw-bolder align-bottom{% endif %}">
+        {% if former_editor %}
+          {% translate "Unassigned" %}
+        {% else %}
+          {% include "wjs_review/lists/elements/table_item_status.html" %}
+        {% endif %}
+      </td>
+      <td>
+        {% if workflow.state == "EditorSelected" and not former_editor %}
+          {% include "wjs_review/lists/elements/table_item_reviewer.html" %}
+        {% endif %}
+      </td>
+      <td title="Issue (if available)">
+        {% if not former_editor %}{{ article.primary_issue|internal_title|default:"—" }}{% endif %}
+      </td>
+    {% endwith %}
     <td title="Your last note">
       {% last_user_note target=workflow.article as note %}
       {% if note %}

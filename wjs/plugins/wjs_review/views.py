@@ -67,6 +67,7 @@ from utils.setting_handler import get_setting
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
+from wjs.jcom_profile.jpbridge.logic import can_access_my_payments
 from wjs.jcom_profile.mixins import HtmxMixin, PaginatedViewMixin
 from wjs.jcom_profile.models import IssueParameters
 from wjs.jcom_profile.pagination import CountlessPaginator
@@ -228,6 +229,12 @@ class BaseRelatedViewsMixin(AuthenticatedUserPassesTest):
                 for view_name, title in self.related_views[current_role].items()
                 if self._is_available_related_view(request.journal, view_name, request)
             }
+            if (
+                current_role in (constants.SECTION_EDITOR_ROLE, constants.REVIEWER_ROLE)
+                and settings.WJS_JP_URLS.get(request.journal.code)
+                and can_access_my_payments(request.user.id)
+            ):
+                self.extra_links[reverse("my_payments")] = _("My Payments")
         else:
             self.extra_links = {}
 
@@ -716,7 +723,7 @@ class DirectorPending(ArticleWorkflowBaseMixin):
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
             .filter(state__in=states_when_article_is_considered_in_review_for_eo_and_director)
-            .exclude(article__authors=self.request.user)
+            .exclude(article__frozenauthor__author=self.request.user)
         )
 
 
@@ -740,7 +747,7 @@ class DirectorArchived(DirectorPending):
         return (
             ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
             .filter(state__in=states_when_article_is_considered_archived)
-            .exclude(article__authors=self.request.user)
+            .exclude(article__frozenauthor__author=self.request.user)
         ).annotate(
             sort_date=Coalesce(
                 F("article__date_published"),
@@ -3868,11 +3875,18 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
             "article": self.object.article,
         }
 
+    def _get_withdraw_setting_names(self) -> Tuple[str, str]:
+        """Return subject and body setting names: withdrawals after a rejection (appeal) use dedicated texts."""
+        if self.object.has_past_rejection:
+            return "author_withdraws_preprint_after_appeal_subject", "author_withdraws_preprint_after_appeal_body"
+        return "author_withdraws_preprint_subject", "author_withdraws_preprint_body"
+
     def get_initial(self):
         initial = super().get_initial()
+        subject_setting, body_setting = self._get_withdraw_setting_names()
         message_subject = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="author_withdraws_preprint_subject",
+            setting_name=subject_setting,
             journal=self.object.article.journal,
             request=self.request,
             context=self._get_message_context(),
@@ -3880,7 +3894,7 @@ class AuthorWithdrawPreprint(BaseRelatedViewsMixin, UpdateView):
         )
         message_body = render_template_from_setting(
             setting_group_name="wjs_review",
-            setting_name="author_withdraws_preprint_body",
+            setting_name=body_setting,
             journal=self.object.article.journal,
             request=self.request,
             context=self._get_message_context(),

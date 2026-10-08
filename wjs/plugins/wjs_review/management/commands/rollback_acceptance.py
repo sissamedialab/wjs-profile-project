@@ -8,6 +8,7 @@ from submission.models import STAGE_ACCEPTED, STAGE_ASSIGNED, Article
 
 from wjs.jcom_profile.utils import get_eo_user
 
+from ... import ac_service
 from ...communication_utils import log_operation
 from ...models import ArticleWorkflow, EditorDecision, Message
 
@@ -32,10 +33,20 @@ def rollback_accepted(article: Article) -> None:
         raise ValueError(f"Unexpected article state {article.articleworkflow.state}. Quitting!")
 
     with transaction.atomic():
+        old_state = article.articleworkflow.state
         article.stage = STAGE_ASSIGNED
         article.save()
         article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_SELECTED
         article.articleworkflow.save()
+
+        # -- Materialized AC updates --
+        # The paper left its post-acceptance state: that state's ACs no longer
+        # apply (e.g. ACCESS_MODE_TO_CHECK, which is event-based and would never
+        # be resolved otherwise).
+        ac_service.resolve_all_for_article(
+            article,
+            codes=ac_service.ACStateEvaluator.STATE_AC_MAP.get(old_state, ()),
+        )
 
         # Delete acceptance-related core.models.Tasks
         # No specific task found while examinig JCOM_3501.
@@ -46,7 +57,7 @@ def rollback_accepted(article: Article) -> None:
         decision = EditorDecision.objects.filter(workflow=article.articleworkflow).order_by("-review_round").first()
         now = timezone.now()
         log_operation(
-            article,
+            article=article,
             message_subject=f"Rolled-back erroneous acceptance of {now}",
             message_body=decision.decision_editor_report,
             actor=get_eo_user(article),

@@ -1,6 +1,6 @@
 import logging
 
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views import View
 
 from wjs.jcom_profile.models import Correspondence
@@ -12,36 +12,38 @@ logger = logging.getLogger(__name__)
 
 class GetSGPCodeView(View):
     """
-    GET /services/getSGPcodfpf.jsp?wjs_account_id=<id>
+    GET /services/getSGPcodfpf.jsp
 
-    Looks up the Correspondence row with source="sgp" for the given
-    wjs_account_id (populated by the import_sgp_correspondence management
-    command) and returns its user_cod, which holds the SGP code
+    Jp calls this as a server-to-server request, forwarding the cookies it
+    received on the browser request that reached it from MyPaymentsView
+    (WJS and Jp share the same domain in production, so the browser's WJS
+    session cookie is already present on that request). The caller is
+    identified via that forwarded session cookie (request.user), not via
+    any request parameter.
+
+    Looks up the Correspondence row with source="sgp" for the logged-in
+    account (populated by the import_sgp_correspondence management command)
+    and returns its user_cod, which holds the SGP code
     (all_users.codice_utente_sgp).
-
-    No token/auth check: Jp is not modified to send one, keeping this URL
-    and its contract identical to the old wjapp service.
 
     Returns: <SGPCOD>usercod</SGPCOD>
     """
 
     def get(self, request, *args, **kwargs):
-        # --- param validation ---
-        wjs_account_id = request.GET.get("wjs_account_id")
-        if not wjs_account_id:
-            logger.warning("getSGPcodfpf: missing wjs_account_id param")
-            return HttpResponseBadRequest("missing wjs_account_id")
+        if not request.user.is_authenticated:
+            logger.warning("getSGPcodfpf: no authenticated session on request")
+            return HttpResponseForbidden("no authenticated session")
 
         # --- lookup: account_id -> sgp code via Correspondence(source="sgp") ---
         try:
-            correspondence = get_sgp_correspondence(wjs_account_id)
+            correspondence = get_sgp_correspondence(request.user.id)
         except Correspondence.DoesNotExist:
-            logger.error("getSGPcodfpf: no sgp correspondence for account_id=%s", wjs_account_id)
+            logger.error("getSGPcodfpf: no sgp correspondence for account_id=%s", request.user.id)
             return HttpResponseBadRequest("no correspondence found")
         except Correspondence.MultipleObjectsReturned:
             logger.error(
                 "getSGPcodfpf: multiple sgp correspondences for account_id=%s",
-                wjs_account_id,
+                request.user.id,
             )
             return HttpResponseBadRequest("multiple correspondences found")
 

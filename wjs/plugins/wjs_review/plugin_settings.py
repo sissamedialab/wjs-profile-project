@@ -555,6 +555,112 @@ Thank you and best regards,
         )
         return setting_1, setting_2
 
+    def xml_sent_to_publisher_notification() -> tuple[SettingValue, ...]:
+        xml_sent_subject_setting: SettingParams = {
+            "name": "xml_sent_to_publisher_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for XML sent to publisher notification to EO"),
+            "description": _(
+                "Subject of the message sent to EO when an article's production metadata XML "
+                "has been sent to the publisher.",
+            ),
+            "is_translatable": False,
+        }
+        xml_sent_subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Production export package prepared for publisher for article {{ article.pk }}",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            xml_sent_subject_setting,
+            xml_sent_subject_setting_value,
+            xml_sent_subject_setting["name"],
+            force=force,
+        )
+        xml_sent_body_setting: SettingParams = {
+            "name": "xml_sent_to_publisher_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body for XML sent to publisher notification to EO"),
+            "description": _(
+                "Body of the message sent to EO when an article's production metadata XML "
+                "has been sent to the publisher.",
+            ),
+            "is_translatable": False,
+        }
+        xml_sent_body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": (
+                "The production export package (metadata XML and linked files) for article "
+                "{{ article.pk }} ({{ article.title }}) has been prepared for the publisher."
+            ),
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            xml_sent_body_setting,
+            xml_sent_body_setting_value,
+            xml_sent_body_setting["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
+    def ready_for_typesetter_message() -> tuple[SettingValue, ...]:
+        subject_setting: SettingParams = {
+            "name": "ready_for_typesetter_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of the ready for typesetter timeline message"),
+            "description": _(
+                "Subject of the timeline message logged when an accepted article is moved to "
+                "Ready for typesetter, automatically or by the EO confirming production readiness.",
+            ),
+            "is_translatable": False,
+        }
+        subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Paper ready for typesetter",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            subject_setting,
+            subject_setting_value,
+            subject_setting["name"],
+            force=force,
+        )
+        body_setting: SettingParams = {
+            "name": "ready_for_typesetter_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of the ready for typesetter timeline message"),
+            "description": _(
+                "Body of the timeline message logged when an accepted article is moved to "
+                "Ready for typesetter. Context: article, actor (the user who confirmed "
+                "production readiness, empty when the transition is automatic).",
+            ),
+            "is_translatable": False,
+        }
+        body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": (
+                "{% if actor %}Production readiness confirmed by {{ actor.full_name }}."
+                "{% else %}Production requirements verified by the system.{% endif %}"
+                "<br><br>The paper is now ready for typesetter."
+            ),
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            body_setting,
+            body_setting_value,
+            body_setting["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     def hijack_notification_message() -> tuple[SettingValue, ...]:
         hijack_notification_subject: SettingParams = {
             "name": "hijack_notification_subject",
@@ -1039,6 +1145,59 @@ Thank you in advance for your cooperation and best regards,<br>
             due_date_postpone_setting,
             due_date_postpone_setting_value,
             due_date_postpone_setting["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
+    def due_date_postponed_by_reviewer_message() -> tuple[SettingValue, ...]:
+        subject_setting: SettingParams = {
+            "name": "due_date_postponed_by_reviewer_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for the editor notification when the reviewer changes the due date"),
+            "description": _(
+                "The subject of the notification that is sent to the editor, when the reviewer changes the due date",
+            ),
+            "is_translatable": False,
+        }
+        subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "{% if review_assigment.date_accepted %}Review{% else %}Accept/decline{% endif %} due date changed by {{ reviewer.full_name }}",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            subject_setting,
+            subject_setting_value,
+            subject_setting["name"],
+            force=force,
+        )
+        body_setting: SettingParams = {
+            "name": "due_date_postponed_by_reviewer_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Body of the editor notification when the reviewer changes the due date"),
+            "description": _(
+                "The body of the notification that is sent to the editor, when the reviewer changes the due date",
+            ),
+            "is_translatable": False,
+        }
+        body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear {{ editor.full_name }},
+<br><br>
+{{ reviewer.full_name }} has changed the {% if review_assigment.date_accepted %}review{% else %}accept/decline{% endif %} due date for
+the {{ article.section.name }} "{{ article.title }}" from {{ original_due_date }} to {{ date_due }}.
+<br><br>
+{{ journal.code }} Journal
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            body_setting,
+            body_setting_value,
+            body_setting["name"],
             force=force,
         )
         return setting_1, setting_2
@@ -1550,6 +1709,56 @@ Thank you and best regards,
             author_withdraws_preprint_setting["name"],
             force=force,
         )
+        return setting_1, setting_2
+
+    def author_withdraws_preprint_after_appeal_message():
+        # Default text is a copy of author_withdraws_preprint_*: final wording pending from MT (specs#2903)
+        subject_setting: SettingParams = {
+            "name": "author_withdraws_preprint_after_appeal_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for author withdrawing a preprint after an appeal."),
+            "description": _(
+                "The subject of the notification that is sent to the Editor/EO when a preprint is withdrawn "
+                "after a rejection (during or after an appeal).",
+            ),
+            "is_translatable": False,
+        }
+        subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Withdrawn",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            subject_setting, subject_setting_value, subject_setting["name"], force=force
+        )
+        body_setting: SettingParams = {
+            "name": "author_withdraws_preprint_after_appeal_body",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Default message for author withdrawing a preprint after an appeal."),
+            "description": _(
+                "The body of the notification that is sent to the Editor/EO when a preprint is withdrawn after a "
+                "rejection (during or after an appeal). The author can modify it (so don't include the editor's "
+                "name).",
+            ),
+            "is_translatable": False,
+        }
+        body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear Editor, <br><br>
+This is to inform you that I have just withdrawn my {{ article.section.name }} from {{ article.journal.code }}.
+<br>
+<br>
+Thank you and best regards,
+<br><br>
+{{ article.correspondence_author.full_name }}
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(body_setting, body_setting_value, body_setting["name"], force=force)
         return setting_1, setting_2
 
     def preprint_withdrawn_system_message():
@@ -2152,8 +2361,10 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(admin_deems_unimportant())
         csv_writer.write_settings(admin_requires_resubmission())
         csv_writer.write_settings(jcap_ta_pending_notification())
+        csv_writer.write_settings(ready_for_typesetter_message())
         csv_writer.write_settings(prophy_settings())
         csv_writer.write_settings(due_date_postpone_message())
+        csv_writer.write_settings(due_date_postponed_by_reviewer_message())
         csv_writer.write_settings(due_date_far_future_message())
         csv_writer.write_settings(editor_decline_assignment_messages())
         csv_writer.write_settings(editor_assigns_themselves_as_reviewer_message())
@@ -2162,6 +2373,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(editor_deassign_reviewer_messages())
         csv_writer.write_settings(eo_opens_appeal_message())
         csv_writer.write_settings(author_withdraws_preprint_message())
+        csv_writer.write_settings(author_withdraws_preprint_after_appeal_message())
         csv_writer.write_settings(preprint_withdrawn_system_message())
         csv_writer.write_settings(author_submits_appeal_message())
         csv_writer.write_settings(eo_send_back_to_typesetting_message())
@@ -2173,6 +2385,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(reviewer_report_type())
         csv_writer.write_settings(add_access_mode_request_notifications())
         csv_writer.write_settings(expected_galleys())
+        csv_writer.write_settings(xml_sent_to_publisher_notification())
 
 
 def ensure_workflow_elements():

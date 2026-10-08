@@ -29,6 +29,7 @@
           - libxml2-dev
           - libxslt1-dev
           - pandoc
+          - poppler-utils
           - postgresql
           - postgresql-contrib
           - python3-packaging

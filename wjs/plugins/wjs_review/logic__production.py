@@ -24,7 +24,7 @@ import zipfile
 from io import BytesIO
 from itertools import permutations
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 from urllib.parse import urlencode
 from zipfile import ZipFile
 
@@ -44,7 +44,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.module_loading import import_string
-from django_fsm import can_proceed
+from django_fsm import can_proceed, has_transition_perm
 from django_q.tasks import async_task
 from events import logic as events_logic
 from identifiers.logic import get_dois_for_articles
@@ -79,6 +79,9 @@ from wjs.jcom_profile.utils import (
 )
 
 from . import communication_utils
+from .metadata_export.mappers import corresponding_author_affiliation_is_incomplete
+from .metadata_export.service import build_production_export_zip
+from .metadata_export.sftp import SFTPSendError
 from .models import ArticleWorkflow, LatexPreamble, Message
 from .permissions import (
     has_typesetter_role_by_article,
@@ -142,16 +145,233 @@ class VerifyProductionRequirements:
         )
         return message
 
+    def log_ready_for_typesetter(self, actor: Optional[Account] = None) -> Message:
+        """Log on the timeline that the article moved from ACCEPTED to READY_FOR_TYPESETTER.
+
+        Logging only: the caller is responsible for checking that the transition is allowed.
+
+        :param actor: the user who confirmed production readiness; None when the system verified
+            the production requirements automatically (the system user is then the actor)
+        """
+        article = self.articleworkflow.article
+        context = {"article": article, "actor": actor}
+        message_subject = render_template(
+            get_setting(
+                setting_group_name="wjs_review",
+                setting_name="ready_for_typesetter_subject",
+                journal=article.journal,
+            ).processed_value,
+            context,
+        )
+        message_body = render_template(
+            get_setting(
+                setting_group_name="wjs_review",
+                setting_name="ready_for_typesetter_body",
+                journal=article.journal,
+            ).processed_value,
+            context,
+        )
+        return communication_utils.log_operation(
+            article=article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=actor,
+            recipients=[get_eo_user(article)],
+            verbosity=Message.MessageVerbosity.TIMELINE,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+
     def run(self) -> ArticleWorkflow:
         with transaction.atomic():
             if not self._check_conditions():
                 # Here we do not raise an exception, because doing so would prevent an editor from accepting an
                 # article. Instead we send a message to EO.
                 self._log_acceptance_issues()
+
+                # -- Materialized AC updates --
+                from . import ac_service
+
+                # Paper held in Accepted: the EO must check it before production.
+                # ACCESS_MODE_TO_CHECK is event-based: this is its creation point;
+                # ConfirmProductionReadiness resolves it on the way out.
+                evaluator = ac_service.ACStateEvaluator(
+                    state=self.articleworkflow.state, article=self.articleworkflow.article
+                )
+                evaluator._evaluate_code(ac_service.ACCESS_MODE_TO_CHECK)
             else:
                 self.articleworkflow.system_verifies_production_requirements()
                 self.articleworkflow.save()
+                self.log_ready_for_typesetter()
             return self.articleworkflow
+
+
+@dataclasses.dataclass
+class ConfirmProductionReadiness:
+    """EO manually confirms that an accepted article is ready for the typesetter.
+
+    Used for journals where the acceptance checks hold the article in ACCEPTED
+    pending an out-of-band confirmation by the EO (e.g. JCAP TA papers).
+    """
+
+    workflow: ArticleWorkflow
+    user: Account
+
+    def _check_conditions(self) -> bool:
+        """Check that the user can move the article to READY_FOR_TYPESETTER."""
+        return has_transition_perm(self.workflow.system_verifies_production_requirements, self.user)
+
+    def run(self) -> ArticleWorkflow:
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("This article cannot transition to Ready for Typesetter in its current state.")
+            self.workflow.system_verifies_production_requirements()
+            self.workflow.save()
+            VerifyProductionRequirements(self.workflow).log_ready_for_typesetter(actor=self.user)
+
+            # -- Materialized AC updates --
+            from . import ac_service
+
+            # EO confirmed production readiness: the paper left ACCEPTED, the AC
+            # no longer applies to anyone (not only to the current EO members).
+            ac_service.resolve_all_for_article(self.workflow.article, codes=[ac_service.ACCESS_MODE_TO_CHECK])
+
+        return self.workflow
+
+
+@dataclasses.dataclass
+class SendProductionXMLToPublisher:
+    """Generate an accepted article's production export zip and send it to the publisher.
+
+    No-op for any journal without a configured send function in
+    ``settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS``: there is no sensible default publisher
+    integration, so a journal must be a key in that setting for anything (zip generation,
+    sending, message logging) to happen at all.
+    """
+
+    articleworkflow: ArticleWorkflow
+
+    def _get_send_function(self) -> Optional[Callable[[Article, bytes], None]]:
+        """Return the configured per-journal zip-send function, or None if unsupported."""
+        journal_code = self.articleworkflow.article.journal.code
+        function_path = settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS.get(journal_code)
+        if function_path is None:
+            return None
+        return import_string(function_path)
+
+    def _log_operation(self):
+        """Log that the production XML was sent to the publisher."""
+        context = {"article": self.articleworkflow.article}
+        journal = self.articleworkflow.article.journal
+        message_subject = render_template(
+            get_setting(
+                setting_group_name="wjs_review",
+                setting_name="xml_sent_to_publisher_subject",
+                journal=journal,
+            ).processed_value,
+            context,
+        )
+        message_body = render_template(
+            get_setting(
+                setting_group_name="wjs_review",
+                setting_name="xml_sent_to_publisher_body",
+                journal=journal,
+            ).processed_value,
+            context,
+        )
+        communication_utils.log_operation(
+            article=self.articleworkflow.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[get_eo_user(self.articleworkflow.article)],
+            verbosity=Message.MessageVerbosity.FULL,
+        )
+
+    def _log_incomplete_affiliation_warning(self):
+        """Log a second, separate EO message when the corresponding author's affiliation is incomplete."""
+        article = self.articleworkflow.article
+        message_subject = f"Corresponding author affiliation incomplete - article {article.pk}"
+        message_body = (
+            f"The corresponding author's affiliation for {self.articleworkflow} is missing "
+            "institution, city, or country. IOP requires all three for the corresponding author. "
+            "Please check and complete the author's affiliation in Janeway."
+        )
+        communication_utils.log_operation(
+            article=article,
+            message_subject=message_subject,
+            message_body=message_body,
+            actor=None,
+            recipients=[get_eo_user(article)],
+            verbosity=Message.MessageVerbosity.FULL,
+        )
+
+    def _handle_send_failure(self, exc: SFTPSendError) -> None:
+        """Flag delivery failure for EO instead of blocking the ready-for-typesetter transition."""
+        from . import ac_service
+
+        ac_service.upsert_for_role(
+            self.articleworkflow.article,
+            "eo",
+            ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+            message=str(exc),
+            priority=ac_service.PRODUCTION_EXPORT_SEND_FAILED_PRIORITY,
+        )
+
+    def run(self, *, silent: bool = False) -> ArticleWorkflow:
+        """Send the article's production export zip to the publisher, if the journal is configured for it.
+
+        A delivery failure (SFTPSendError) is flagged as an EO attention condition rather than
+        raised: blocking the ACCEPTED -> READY_FOR_TYPESETTER transition over a transient
+        network/SFTP-server issue would be worse than a flagged manual follow-up. XML/zip
+        generation failures still propagate unchanged -- those are real bugs, not transient
+        conditions. The incomplete-affiliation warning describes a data problem, not a delivery
+        one, so it fires regardless of whether the send itself succeeds.
+
+        silent=True skips every side effect below (AC creation/resolution, EO message logging,
+        including the incomplete-affiliation warning) -- used by the export_production_zip
+        management command so a manual test send doesn't pollute the EO's message inbox or
+        attention-condition dashboard. The zip build and the actual send call still happen; only
+        the bookkeeping around them is skipped. Without that bookkeeping there is no attention
+        condition or message to surface a failure through, so silent=True re-raises
+        SFTPSendError instead of swallowing it -- the direct, synchronous caller that opted into
+        silent needs the exception itself to know the send failed.
+        """
+        from . import ac_service
+
+        send_function = self._get_send_function()
+        if send_function is None:
+            return self.articleworkflow
+        # zip-building is DB reads only (plus a pdfinfo shell-out) -- no writes, so it does not
+        # need a transaction of its own. This method opens no transaction around the network call,
+        # but it cannot guarantee there is none: the send is synchronous (the caller needs the
+        # outcome immediately) and both real callers (VerifyProductionRequirements,
+        # ConfirmProductionReadiness) invoke it from inside their own transaction.atomic(). That is
+        # accepted: the send is bounded by the transport's timeouts, and a rollback after a
+        # successful send only means the (idempotent, same-name) upload is repeated on retry.
+        zip_bytes = build_production_export_zip(self.articleworkflow.article)
+        affiliation_incomplete = corresponding_author_affiliation_is_incomplete(self.articleworkflow.article)
+        try:
+            send_function(self.articleworkflow.article, zip_bytes)
+        except SFTPSendError as exc:
+            if silent:
+                raise
+            with transaction.atomic():
+                self._handle_send_failure(exc)
+                if affiliation_incomplete:
+                    self._log_incomplete_affiliation_warning()
+            return self.articleworkflow
+        if not silent:
+            with transaction.atomic():
+                self._log_operation()
+                ac_service.resolve_for_role(
+                    self.articleworkflow.article,
+                    "eo",
+                    ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+                )
+                if affiliation_incomplete:
+                    self._log_incomplete_affiliation_warning()
+        return self.articleworkflow
 
 
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/667

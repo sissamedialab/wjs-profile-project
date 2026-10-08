@@ -330,3 +330,22 @@ class AttentionConditionQuerySet(models.QuerySet):
         if obj is not None and has_eo_role(user):
             owners.append(get_eo_user(obj))
         return self.filter(user__in=owners)
+
+
+class PastEditorAssignmentQuerySet(models.QuerySet):
+    def for_editor(self, article: Article, editor: Account) -> "QuerySet":
+        """
+        Get the past assignments of ``editor`` on ``article``.
+
+        This is the single definition of "the user has a past assignment on the article": the editor type, the
+        former-editor template filters, the role cache and the visibility checks must all go through it.
+
+        :param article: the article the editor was assigned to
+        :type article: Article
+        :param editor: the (former) editor
+        :type editor: Account
+
+        :return: the editor's past assignments for the article
+        :rtype: QuerySet
+        """
+        return self.filter(article=article, editor=editor)

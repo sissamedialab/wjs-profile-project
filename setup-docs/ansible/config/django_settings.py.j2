@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from wjs.defaults.settings import *  # noqa
@@ -96,6 +97,17 @@ CACHES = {
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "session"
 
+
+class FreshExcFormatter(logging.Formatter):
+    """Recompute exception text instead of reusing a (possibly colored) cached one."""
+    def format(self, record):
+        saved, record.exc_text = record.exc_text, None
+        try:
+            return super().format(record)
+        finally:
+            record.exc_text = saved
+
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LOGGING = {
     "version": 1,
@@ -107,6 +119,10 @@ LOGGING = {
     "formatters": {
         "default": {
             "format": "%(levelname)s %(asctime)s %(module)s P:%(process)d T:%(thread)d %(message)s",
+        },
+        "simple": {
+            "()": FreshExcFormatter,
+            "format": "%(levelname)s %(asctime)s %(module)s %(message)s",
         },
         "coloured": {
             "()": "colorlog.ColoredFormatter",
@@ -129,17 +145,34 @@ LOGGING = {
         "log_file": {
             "level": "DEBUG",
             "class": "logging.handlers.RotatingFileHandler",
-            "maxBytes": 1024 * 1024 * 100,  # 50 MB
+            "maxBytes": 1024 * 1024 * 100,  # 100 MB
             "backupCount": 3,
             "filename": os.path.join(BASE_DIR, "..", "logs", "janeway-debug.log"),
             "formatter": "coloured"
+        },
+        "log_file_important": {
+            "level": "WARNING",
+            "class": "logging.handlers.RotatingFileHandler",
+            "maxBytes": 1024 * 1024 * 50,  # 50 MB
+            "backupCount": 2,
+            "filename": os.path.join(BASE_DIR, "..", "logs", "janeway.log"),
+            "formatter": "coloured"
+        },
+        "mail_error": {
+            "level": "ERROR",
+            "formatter": "simple",
+            "class": "logging.handlers.SMTPHandler",
+            "mailhost": "localhost",
+            "fromaddr": "wjs@wjs-prod.ud.sissamedialab.it",
+            "toaddrs": ["wjs-support@sissamedialab.it",],
+            "subject": "wjs-prod errors",
         },
     },
     # to ge the logger names, add "%(name)s" to the formatter
     "loggers": {
         "django.db.backends": {
             "level": "WARNING",
-            "handlers": ["console", "log_file"],
+            "handlers": ["console", "log_file", "log_file_important"],
             "propagate": False,
         },
         "parso.python.diff": {

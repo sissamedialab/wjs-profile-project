@@ -1,16 +1,51 @@
+import zipfile
+
+from core.models import Galley
 from django.db.models import Min
 from plugins.wjs_submission.helpers.collaborations import TABELLONE_FIELDS
 from plugins.wjs_submission.models import Collaboration
 from rest_framework import serializers
 from typesetting.models import TypesettingAssignment
 
-from .const import COLLABORATIONS_EXPORT_KEYS, TYPE_TO_MIME
+from .const import COLLABORATIONS_EXPORT_KEYS, SOURCE_ZIP_MEDIA_TYPES, TYPE_TO_MIME
+from .exceptions import BadRequest, UnsupportedMediaType
 
 #: Keys of an exported collaboration, in the order they are written: the ones listed in the export
 #: order first, then the keys of the import map that are not (yet) listed there.
 COLLABORATION_EXPORT_FIELDS: tuple[str, ...] = tuple(
     key for key in COLLABORATIONS_EXPORT_KEYS if key in TABELLONE_FIELDS
 ) + tuple(key for key in TABELLONE_FIELDS if key not in COLLABORATIONS_EXPORT_KEYS)
+
+
+class ErrorDetailSerializer(serializers.Serializer):
+    """The `"error"` object of this API's error envelope."""
+
+    code = serializers.CharField()
+    message = serializers.CharField()
+    details = serializers.JSONField(required=False)
+
+
+class ErrorSerializer(serializers.Serializer):
+    """This API's error envelope: `{"error": {"code", "message", "details"?}}`."""
+
+    error = ErrorDetailSerializer()
+
+
+class GalleyItemSerializer(serializers.Serializer):
+    """One entry of `ArticleGalleyListSerializer.items`."""
+
+    type = serializers.CharField()  # noqa: A003 (matches the existing JSON contract's key)
+    sequence = serializers.IntegerField()
+    filename = serializers.CharField()
+    contentType = serializers.CharField()  # noqa: N815 (matches the existing JSON contract's key)
+    download_url = serializers.CharField()
+
+
+class ArticleGalleyListSerializer(serializers.Serializer):
+    """Response of `ArticleGalleyListView`: an article's galleys, by type and sequence."""
+
+    article_id = serializers.IntegerField()
+    items = GalleyItemSerializer(many=True)
 
 
 class CollaborationSerializer(serializers.ModelSerializer):
@@ -31,6 +66,13 @@ class CollaborationSerializer(serializers.ModelSerializer):
             key: {"read_only": True, **({} if TABELLONE_FIELDS[key] == key else {"source": TABELLONE_FIELDS[key]})}
             for key in COLLABORATION_EXPORT_FIELDS
         }
+
+
+class CollaborationsExportSerializer(serializers.Serializer):
+    """Response of `CollaborationListView`: the versioned "tabellone.json"-like envelope."""
+
+    version = serializers.FloatField()  # COLLABORATIONS_EXPORT_VERSION is a float (1.0)
+    collaborations = CollaborationSerializer(many=True)
 
 
 class GalleyUploadSerializer(serializers.Serializer):
@@ -141,3 +183,71 @@ class ProductionArticleSerializer(ProductionBaseSerializer):
         """Full name of the typesetter on the latest typesetting assignment, if any."""
         assignment = obj.get_latest_typesetting_assignment()
         return assignment.typesetter.full_name() if assignment else None
+
+
+class SourceZipUploadSerializer(serializers.Serializer):
+    """Validate the raw zip archive uploaded to replace an article's publication-galleys sources.
+
+    The archive is uploaded as the bare request body (see
+    :class:`~.parsers.RawFileUploadParser`), so the content type is read from the request
+    rather than from a multipart part.
+    """
+
+    #: Neither required nor non-empty here: a missing or empty body is reported by `validate()`,
+    #: in this API's own error shape.
+    file = serializers.FileField(write_only=True, required=False, allow_empty_file=True)
+
+    def validate(self, attrs: dict) -> dict:
+        """
+        Check that the request carries a non-empty, well-formed zip archive.
+
+        :param attrs: the deserialized fields.
+        :type attrs: dict
+
+        :return: the validated fields.
+        :rtype: dict
+
+        :raises UnsupportedMediaType: if the content type is not a zip one.
+        :raises BadRequest: if the body is empty or is not a readable zip archive.
+        """
+        request = self.context["request"]
+
+        # e.g. "application/zip; charset=binary" → "application/zip"
+        content_type = (request.content_type or "").split(";")[0].strip().lower()
+        if content_type not in SOURCE_ZIP_MEDIA_TYPES:
+            raise UnsupportedMediaType(
+                "Content-Type does not match expected type for the sources archive.",
+                details={
+                    "expected": list(SOURCE_ZIP_MEDIA_TYPES),
+                    "got": content_type,
+                },
+            )
+
+        uploaded_file = attrs.get("file")
+        if uploaded_file is None or not uploaded_file.size:
+            raise BadRequest("Missing request body.")
+
+        if not zipfile.is_zipfile(uploaded_file):
+            raise BadRequest("Request body is not a readable zip archive.")
+        # `is_zipfile()` reads through the file: rewind it for whoever stores it.
+        uploaded_file.seek(0)
+
+        return attrs
+
+
+class GalleySerializer(serializers.ModelSerializer):
+    """Serialize a galley as it is reported back to the client that triggered its (re)generation."""
+
+    filename = serializers.CharField(source="file.original_filename", read_only=True)
+
+    class Meta:
+        model = Galley
+        fields = ("type", "label", "sequence", "filename")
+        read_only_fields = fields
+
+
+class RegeneratedGalleysSerializer(serializers.Serializer):
+    """Response of `ArticleZipView.put()`: the galleys rebuilt from the uploaded sources."""
+
+    article_id = serializers.IntegerField()
+    galleys = GalleySerializer(many=True)

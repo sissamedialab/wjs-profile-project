@@ -2334,6 +2334,13 @@ class AuthorHandleRevision:
                     ac_service.AUTHOR_METADATA_LATE_ESCALATED,
                 ],
             )
+            if self._was_under_appeal():
+                # Appeal submitted: the paper left UnderAppeal, its ACs no longer
+                # apply to anyone (not only to the current role holders).
+                ac_service.resolve_all_for_article(
+                    article,
+                    codes=[ac_service.APPEAL_TO_SUBMIT, ac_service.APPEAL_LATE],
+                )
 
             # Check for blacklisted authors (non-blocking, creates AC for EO)
             ac_service.evaluate_blacklisted_author(article)
@@ -3298,6 +3305,25 @@ class PostponeRevisionRequestDueDate:
             self._log_author_if_date_due_is_postponed(context)
             self._update_reminder_dates()
 
+            # Materialized AC update:
+            # Postponing the due date affects the author-late time-based
+            # ACs. Re-evaluate them immediately instead of blind-resolving:
+            # the new due date could still be in the past, and conditions
+            # are the single source of truth for which codes apply to which
+            # revision type.
+            from . import ac_service
+
+            article = self.revision_request.article
+            evaluator = ac_service.ACStateEvaluator(state=article.articleworkflow.state, article=article)
+            for code in (
+                ac_service.AUTHOR_REVISION_LATE,
+                ac_service.AUTHOR_REVISION_LATE_ESCALATED,
+                ac_service.AUTHOR_METADATA_LATE,
+                ac_service.AUTHOR_METADATA_LATE_ESCALATED,
+                ac_service.APPEAL_LATE,
+            ):
+                evaluator._evaluate_code(code)
+
 
 @dataclasses.dataclass
 class HandleMessage:
@@ -3714,6 +3740,40 @@ class PostponeReviewerDueDate:
             flag_as_read_by_eo=True,
         )
 
+    def _changed_by_reviewer(self) -> bool:
+        """Check if the due date has been changed by the reviewer of the assignment."""
+        return self.user == self.assignment.reviewer
+
+    def _log_editor_if_date_is_changed_by_reviewer(self) -> None:
+        """Notify the editor if the reviewer changed the due date."""
+        message_subject = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_postponed_by_reviewer_subject",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context={"reviewer": self.assignment.reviewer, "review_assigment": self.assignment},
+            template_is_setting=True,
+        )
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="due_date_postponed_by_reviewer_body",
+            journal=self.assignment.article.journal,
+            request=self.request,
+            context=self._get_message_context(),
+            template_is_setting=True,
+        )
+        communication_utils.log_operation(
+            article=self.assignment.article,
+            message_subject=message_subject,
+            message_body=message_body,
+            verbosity=Message.MessageVerbosity.FULL,
+            actor=self.user,
+            recipients=[self.editor],
+            hijacking_actor=wjs.jcom_profile.permissions.get_hijacker(),
+            notify_actor=communication_utils.should_notify_actor(),
+            flag_as_read_by_eo=True,
+        )
+
     def _log_eo_far_future_date(self) -> None:
         """Log a warning for the EO if the editor postponed due date far in the future."""
         message_subject = render_template_from_setting(
@@ -3781,6 +3841,30 @@ class PostponeReviewerDueDate:
             if self._report_postponed_far_future_date():
                 self._log_eo_far_future_date()
             self._log_reviewer_if_date_is_postponed()
+            if self._changed_by_reviewer():
+                self._log_editor_if_date_is_changed_by_reviewer()
+
+            # Materialized AC update:
+            # Postponing the due date affects the reviewer-late time-based
+            # ACs. These underlying conditions aggregate over ALL review
+            # assignments of the round, so we must re-evaluate them instead
+            # of blind-resolving (another reviewer may still be late).
+            from . import ac_service
+
+            article = self.assignment.article
+            evaluator = ac_service.ACStateEvaluator(
+                state=article.articleworkflow.state,
+                article=article,
+            )
+            for code in (
+                ac_service.REVIEWER_LATE,
+                ac_service.REVIEWER_LATE_ESCALATED,
+                ac_service.REVIEWER_INACTIVE,
+                ac_service.REVIEWER_INVITATION_PENDING,
+                ac_service.REVIEWER_REPORT_OVERDUE,
+                ac_service.EDITOR_REVIEW_OVERDUE,
+            ):
+                evaluator._evaluate_code(code)
 
 
 @dataclasses.dataclass
@@ -3790,6 +3874,7 @@ class BaseDeassignEditor:
     assignment: WjsEditorAssignment
     editor: Account
     request: HttpRequest
+    appeal: bool = False
 
     @staticmethod
     def _check_editor_conditions(assignment: WjsEditorAssignment, editor: Account) -> bool:
@@ -3814,6 +3899,7 @@ class BaseDeassignEditor:
             article=self.assignment.article,
             date_assigned=self.assignment.assigned,
             date_unassigned=timezone.now(),
+            on_appeal=self.appeal,
         )
         migrated_review_rounds = self.assignment.review_rounds.all()
 
@@ -3902,6 +3988,7 @@ class SupervisorChangeEditorAssignment:
             assignment=self.assignment,
             editor=self.assignment.editor,
             request=self.request,
+            appeal=self.appeal,
         ).run()
         if not self.appeal:
             self._log_past_editor()
@@ -4188,11 +4275,11 @@ class OpenAppeal:
             context=self._get_message_context(),
             template_is_setting=True,
         )
+        # No actor: logged by the system user, so the appeal editor doesn't see it (specs#2903)
         communication_utils.log_operation(
             article=self.article,
             message_subject=message_subject,
             message_body=message_body,
-            actor=self.new_editor,
             recipients=[self.article.correspondence_author],
             # refs https://gitlab.sissamedialab.it/wjs/specs/-/work_items/1469
             flag_as_read_by_eo=True,
@@ -4243,21 +4330,14 @@ class WithdrawPreprint:
         """Check if the user is the correspondence author or owner."""
         return self.request.user in [self.workflow.article.correspondence_author, self.workflow.article.owner]
 
-    def _has_past_rejection(self) -> bool:
-        """Check if the article was already rejected one time."""
-        return EditorDecision.objects.filter(
-            workflow=self.workflow,
-            decision=ArticleWorkflow.Decisions.REJECT,
-        ).exists()
-
     def _check_state_conditions(self) -> bool:
         """Check if the FSM transition can be made."""
         withdraw_without_rejection = (
-            can_proceed(self.workflow.author_or_owner_withdraws_preprint) and not self._has_past_rejection()
+            can_proceed(self.workflow.author_or_owner_withdraws_preprint) and not self.workflow.has_past_rejection
         )
         withdraw_after_a_rejection = (
             can_proceed(self.workflow.author_or_owner_withdraws_preprint_after_a_rejection)
-            and self._has_past_rejection()
+            and self.workflow.has_past_rejection
         )
         return withdraw_without_rejection or withdraw_after_a_rejection
 
@@ -4279,7 +4359,7 @@ class WithdrawPreprint:
 
     def _update_state(self):
         """Run FSM transition."""
-        if self._has_past_rejection() and can_proceed(
+        if self.workflow.has_past_rejection and can_proceed(
             self.workflow.author_or_owner_withdraws_preprint_after_a_rejection
         ):
             self.workflow.author_or_owner_withdraws_preprint_after_a_rejection()

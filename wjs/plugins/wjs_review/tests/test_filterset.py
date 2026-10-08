@@ -71,7 +71,7 @@ def test_articleworkflowfilter(
         data={"author": "aaa@a.it"}, queryset=workflows, journal=journal, request=fake_request
     )
     assert article_filterer.qs.exists()
-    assert set(article_filterer.qs) == set(workflows.filter(article__authors__email="aaa@a.it"))
+    assert set(article_filterer.qs) == set(workflows.filter(article__frozenauthor__author__email="aaa@a.it"))
 
     # filter by reviewer email
     article_filterer = EOArticleWorkflowFilter(
@@ -380,13 +380,13 @@ class TestListViews:
                     states_when_article_is_considered_archived_with_under_appeal
                 )
 
-                assert qs.filter(article__authors=user).exists()
+                assert qs.filter(article__frozenauthor__author=user).exists()
             elif role == "section-editor":
                 assert set(qs.values_list("state", flat=True)).issubset(states_when_article_is_considered_in_review)
                 assert qs.filter(article__editorassignment__editor=user).exists()
             elif role == "director":
                 assert set(qs.values_list("state", flat=True)).issubset(states_when_article_is_considered_in_review)
-                assert not qs.filter(article__authors=user).exists()
+                assert not qs.filter(article__frozenauthor__author=user).exists()
 
     @pytest.mark.parametrize(
         "view_class,role",
@@ -430,8 +430,8 @@ class TestListViews:
         else:
             assert set(qs.values_list("state", flat=True)).issubset(states_when_article_is_considered_archived)
             if role == "author":
-                assert qs.filter(article__authors=user).exists()
+                assert qs.filter(article__frozenauthor__author=user).exists()
             elif role == "section-editor":
                 assert qs.filter(article__editorassignment__editor=user).exists()
             elif role == "director":
-                assert not qs.filter(article__authors=user).exists()
+                assert not qs.filter(article__frozenauthor__author=user).exists()

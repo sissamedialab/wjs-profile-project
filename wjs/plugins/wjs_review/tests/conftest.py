@@ -302,6 +302,20 @@ def under_appeal_article(fake_request, rejected_article, eo_user, section_editor
     return _under_appeal_article(rejected_article, fake_request, eo_user, section_editor)
 
 
+@pytest.fixture
+def appeal_editor(create_jcom_user, roles, journal, keywords) -> JCOMProfile:  # noqa: F405
+    """Return a section editor, different from `section_editor`, to be assigned on appeal."""
+    user = create_jcom_user("appeal_editor")
+    user.add_account_role("section-editor", journal)
+    return user
+
+
+@pytest.fixture
+def under_appeal_article_new_editor(fake_request, rejected_article, eo_user, appeal_editor) -> Article:
+    """Return an under appeal article whose appeal has been assigned to a new editor (`appeal_editor`)."""
+    return _under_appeal_article(rejected_article, fake_request, eo_user, appeal_editor)
+
+
 def _appeal_submitted_article(
     article: Article, fake_request: HttpRequest, cleanup_side_effects: bool = False
 ) -> Article:
@@ -325,9 +339,9 @@ def _appeal_submitted_article(
 
 
 @pytest.fixture
-def appeal_submitted_article(fake_request: HttpRequest, open_appeal_article: Article) -> Article:
-    """Return an article with an appeal submitted."""
-    return _appeal_submitted_article(rejected_article, fake_request)
+def appeal_submitted_article(fake_request: HttpRequest, under_appeal_article_new_editor: Article) -> Article:
+    """Return an article whose author resubmitted after an appeal assigned to `appeal_editor`."""
+    return _appeal_submitted_article(under_appeal_article_new_editor, fake_request)
 
 
 def _ready_for_typesetter_article(article: Article, cleanup_side_effects: bool = True) -> Article:

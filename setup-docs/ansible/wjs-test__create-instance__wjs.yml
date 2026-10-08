@@ -38,7 +38,7 @@
     redis_db: "{{ redis }}"
     suffix: "{{ ('-') + instance_name if (instance_name)  else ('') }}"
     full_name: "janeway{{ suffix }}"
-    workon_home: /home/wjs/.virtualenvs/
+    workon_home: /home/wjs/.virtualenvs
     venv_root: "{{ workon_home }}/{{ full_name }}"
     python: "{{ venv_root }}/bin/python"
     pip: "{{ venv_root }}/bin/pip"
@@ -291,7 +291,6 @@
         # which is "shared" by all wjs projects, so all plugins should be linked
         - "{{ python }} -mmanage link_plugins"
         - "{{ python }} -mmanage install_plugins"
-        - rm -f themes/JCOM-theme
         - "{{ python }} -mmanage install_themes"
         - "{{ python }} -mmanage migrate"
         - "{{ python }} -mmanage build_assets"

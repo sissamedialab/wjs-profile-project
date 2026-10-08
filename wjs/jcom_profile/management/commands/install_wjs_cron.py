@@ -69,6 +69,12 @@ class Command(BaseCommand):
                 "task": "send_wjs_reminders",
                 "type": "daily",
             },
+            {
+                "name": f"{cwd}_archive_counter_reports",
+                "time": 3,
+                "task": "archive_counter_reports",
+                "type": "monthly",
+            },
         ]
 
         for job in jobs:
@@ -94,6 +100,8 @@ class Command(BaseCommand):
 
             if job.get("type") == "daily":
                 cron_job.setall(f"0 {job['time']} * * *")
+            elif job.get("type") == "monthly":
+                cron_job.setall(f"0 {job['time']} 1 * *")
             elif job.get("type") == "hourly":
                 cron_job.setall(f"0 */{job['time']} * * *")
             else:

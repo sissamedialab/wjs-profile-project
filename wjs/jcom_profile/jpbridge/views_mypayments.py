@@ -1,6 +1,5 @@
 import logging
 
-import mariadb
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse, HttpResponseRedirect
@@ -9,8 +8,7 @@ from django.views import View
 
 from wjs.jcom_profile.models import Correspondence
 
-from .constants import WJS_IDENTITY_COOKIE
-from .logic import get_sgp_correspondence
+from .logic import get_sgp_correspondence, is_sgp_code_notified
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +21,11 @@ class MyPaymentsView(LoginRequiredMixin, View):
     been notified (i.e. has at least one row in the external `spedizioni`
     table). If not, the redirect is aborted and an error is shown instead.
 
-    If the check passes, sets a cookie `identity` containing the WJS
-    account id, then redirects the user to Jp. WJS and Jp must live under
-    the same domain (or a shared parent domain) for Jp to be able to read
-    this cookie. The cookie name matches what Jp already expects from the
-    old wjapp system, so Jp itself requires no changes.
+    If the check passes, redirects the user to Jp. No new cookie is set:
+    WJS and Jp live under the same domain in production, so the browser's
+    existing WJS session cookie is already present on the request that
+    reaches Jp. Jp is expected to forward that session cookie on its own
+    server-to-server call to services/getSGPcodfpf.jsp (see GetSGPCodeView).
     """
 
     def get(self, request, *args, **kwargs):
@@ -42,42 +40,23 @@ class MyPaymentsView(LoginRequiredMixin, View):
                 content_type="text/plain",
             )
 
-        if not self._sgp_code_was_notified(sgp_code):
+        if not is_sgp_code_notified(sgp_code):
             logger.error(
-                "myPayments: sgp_code=%s (account_id=%s) not found in spedizioni, " "aborting redirect",
+                "myPayments: sgp_code=%s (account_id=%s) not found in spedizioni, aborting redirect",
                 sgp_code,
                 account.id,
             )
             return HttpResponse(
-                "Error: the access to the form is not enabled. " "Please contact support.",
+                "Error: the access to the form is not enabled. Please contact support.",
                 status=400,
                 content_type="text/plain",
             )
 
         jp_url = self._get_jp_url(request, account)
 
-        response = HttpResponseRedirect(jp_url)
-        response.set_cookie(
-            WJS_IDENTITY_COOKIE,
-            str(account.id),
-            # WJS_COOKIE_DOMAIN is only meant for local/test setups where WJS and Jp are
-            # on different subdomains; in a real deployment they share the exact same
-            # domain, so force None outside DEBUG rather than trust every instance's
-            # settings to remember to unset a test-only value.
-            domain=settings.WJS_COOKIE_DOMAIN if settings.DEBUG else None,
-            secure=request.journal.is_secure,
-            httponly=True,  # not needed by JS, only read server-side by Jp
-            samesite="Lax",  # allows the cookie to survive the cross-page redirect
-            max_age=settings.WJS_IDENTITY_COOKIE_MAX_AGE,  # e.g. 300 (seconds), short-lived
-        )
+        logger.info("myPayments: redirecting account_id=%s to %s", account.id, jp_url)
 
-        logger.info(
-            "myPayments: set identity cookie for account_id=%s, redirecting to %s",
-            account.id,
-            jp_url,
-        )
-
-        return response
+        return HttpResponseRedirect(jp_url)
 
     def _get_sgp_code(self, account):
         """
@@ -91,23 +70,6 @@ class MyPaymentsView(LoginRequiredMixin, View):
         except Correspondence.MultipleObjectsReturned:
             logger.error("myPayments: multiple sgp correspondences for account_id=%s", account.id)
             return None
-
-    def _sgp_code_was_notified(self, sgp_code):
-        """
-        Checks the external MariaDB `spedizioni` table for at least one row
-        matching this SGP code. Returns True if found, False otherwise.
-        """
-        query = "SELECT * FROM spedizioni WHERE codice_utente_sgp=?"
-
-        connection = mariadb.connect(**settings.PROD_DB_PAG_CONNECTION_PARAMS)
-        try:
-            cursor = connection.cursor()
-            cursor.execute(query, (sgp_code,))
-            rows = cursor.fetchall()
-        finally:
-            connection.close()
-
-        return len(rows) > 0
 
     def _get_jp_url(self, request, account):
         """

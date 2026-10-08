@@ -8,6 +8,7 @@ https://gitlab.sissamedialab.it/wjs/specs/-/wikis/setup-janeway#set-settings
 import os
 from pathlib import Path
 
+from core.janeway_global_settings import REST_FRAMEWORK as _CORE_REST_FRAMEWORK
 from core.janeway_global_settings import STATIC_URL, TEMPLATES
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
@@ -25,6 +26,10 @@ INSTALLED_APPS = [
     "wjs.themes",
     "wjs.advanced_admin",
     "rest_framework.authtoken",
+    "drf_spectacular",
+    # Ships Swagger UI's and Redoc's assets as local static files, so that the docs pages do not
+    # load unpinned third-party JavaScript from a CDN (see SPECTACULAR_SETTINGS' "SIDECAR" values).
+    "drf_spectacular_sidecar",
 ]
 
 try:
@@ -44,6 +49,29 @@ try:
     )
 except ImportError:
     pass
+
+REST_FRAMEWORK = {
+    **_CORE_REST_FRAMEWORK,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # wjs_review's URLs name their path parameter "pk" (e.g. "article/<int:pk>/zip/"); keep the
+    # generated schema's path parameter named "pk" to match, instead of DRF's default of coercing
+    # it to "id".
+    "SCHEMA_COERCE_PATH_PK": False,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "WJS Review API",
+    "DESCRIPTION": "Internal API for WJS Review production and collaboration data.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Serve Swagger UI's and Redoc's assets from drf-spectacular-sidecar's own static files.
+    # drf-spectacular's defaults point at "https://cdn.jsdelivr.net/npm/<pkg>@latest": unpinned,
+    # unverified third-party JavaScript, loaded on the journal's own origin on an authenticated
+    # page. "SIDECAR" replaces those URLs with local, version-pinned static assets.
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
+}
 
 REDIS_CACHE_URL = os.environ.get("REDIS_CACHE_URL", "redis://localhost:6379/1")
 REDIS_QCLUSTER_URL = os.environ.get("REDIS_QCLUSTER_URL", "redis://localhost:6379/10")
@@ -188,6 +216,52 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
     "JCAP": ("plugins.wjs_review.events.checks_after_acceptance.jcap_ta_not_yet_confirmed",),
 }
 
+# Per-journal functions that send an article's production export zip (metadata XML + linked
+# files) to the publisher, once the article is accepted and ready for the typesetter. Journals
+# with no entry here have no publisher integration: nothing happens (no zip built, no message
+# logged) -- there is no sensible default.
+WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+    "JCAP": "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+}
+
+# Per-journal SFTP endpoint for delivering the production export zip (wjs/specs#2972).
+# JCAP points at IOP's real server: host, username and host_key are not secrets, so they are set here.
+# The credentials (private_key_path/password) are empty here and must be supplied by an instance's own
+# settings override -- never committed here, nor stored in a per-article/per-journal DB field an admin
+# could redirect. An instance that must not deliver to IOP (e.g. wjs-test, which will use its own SFTP
+# server, wjs/specs#3159) must override host/username/host_key as well, not only the credentials.
+# private_key_path takes precedence over password when both are set.
+# host_key pins the server's public host key ("<key-type> <base64>"): when set, it is the only key trusted
+# for that endpoint; when empty, the known_hosts of the OS user running the process is used. To collect it:
+#   1. list the key types the server offers, and pick one (prefer ssh-ed25519, then ecdsa, then ssh-rsa):
+#        ssh-keyscan -p <port> <host> 2>/dev/null
+#   2. compute its fingerprint and check it against the one the publisher gives you out-of-band (on AWS
+#      Transfer Family: AWS console, server details, "Host key") -- ssh-keyscan trusts whoever answers,
+#      so without this check pinning buys nothing:
+#        ssh-keyscan -p <port> -t ed25519 <host> 2>/dev/null | ssh-keygen -lf -
+#   3. drop the leading hostname and use the rest as the value (same value whatever the port):
+#        ssh-keyscan -p <port> -t ed25519 <host> 2>/dev/null | cut -d' ' -f2-
+# An unparseable value fails the send before connecting; if the server rotates its key, the connection is
+# rejected (bad host key) until host_key is updated by repeating the steps above.
+# atomic_rename (default True) uploads to a temp name and posix_rename()s it to the final one; IOP's server
+# (AWS Transfer Family) forbids rename, so JCAP writes the final name directly -- IOP does not process
+# interrupted uploads.
+WJS_REVIEW_IOP_SFTP = {
+    "JCAP": {
+        "host": "sftp.ioppublishing.org",
+        "port": 22,
+        "username": "partner-sissa",
+        "private_key_path": "",
+        "password": "",
+        "host_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDMngTFg/kHt6rSBxJL8gb1xQoxu87OJQwH9U12s/L9GUjktrEosJpKbacc72gC/KBgwEgSf2ed+wY/JjPY3GDavqEPcOczzarKRoBEfscvgOiFyJF08MCWc6CHtSkCiyYF+V1uTYhq9+JZORFN+JmnUf09hnbfuf+FvwbJ2wj757T+izY81/aKyn/J50/zvAqkhIVEwtTT44Nl6H3VccGZeeb7tO3V6yJopHtiMhgctTVZ/7wSg/svWQFLLFIVn2GJaaStp39c2aplcRaNDTwZZQp2MiZIFSeSL435V/fXsPxxaVnl+4qfbEymT+WMlb23lGJ2WEs31IAxqoE/jVFLvVYWUAQcWqcsAwh4IuLLEgPIL8Jb3eZqtaRxEK7sYp506S5QQvQ8F6wbo6rQ2QnyKwZ4sQVCBGYRgN+rOk3aJXqU+Ik8d2NYmDYdRksvgVeDemDYhQRv6ApP5y2SYndckRZFnNk81LL6d/bowS75aTSH9BosDkTSFk92DqtUVeAfjEh7BhRcyrkwId2mOoHnoXOOoYxl3AxK6LLnPuVVCUASrY6hnk98y6Ow2Ql90Jv0e3JMAxhIWi3VYlqE8jkId6Sfaqp8jSOCgCloA4UO1UyIjlYpSe5hVwV3KNTgl0hwCLlFDKSCKjHezuuli26IvgPnLM2pXuQeGuzOuXeAvw==",
+        "atomic_rename": False,
+        "remote_paths": {
+            "accepted-articles": "partner-sissa/jcap/accepted-articles",
+            "final-files": "partner-sissa/jcap/final-files",
+        },
+    },
+}
+
 # Email addresses that must receive the notification when an article is published.
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
 WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {
@@ -310,19 +384,13 @@ WJAPP_JCAP_IMPORT_ARCHIVE_OLD_DEDUP = ""
 WJAPP_JCAP_IMPORT_DEDUP_SCRIPT = ""
 
 # Jp-SGP bridge (issue #2949): lets a logged-in WJS user be redirected to Jp's "myPayments"
-# form, identified via a short-lived cookie, and lets Jp resolve a WJS account id to its SGP
-# code via the services/getSGPcodfpf.jsp endpoint. The URL path, cookie name and lack of any
-# token/auth check match what Jp already used/expected with the old wjapp system
-# (jp.identity_jsp), so Jp itself needs no changes.
-
-# Cookie shared between WJS and Jp to carry the WJS account id across the redirect
-# (jpbridge/views_mypayments.py). In production WJS and Jp live under the exact same
-# domain, so this is only meant for local/test setups that need a shared parent domain
-# across two different hosts, e.g. ".dev.local"; MyPaymentsView ignores this and always
-# uses None (same-host cookie) unless DEBUG is on, so it can't leak into a real deployment.
-WJS_COOKIE_DOMAIN = None
-# Cookie lifetime in seconds: it only needs to survive the redirect to Jp, so keep it short.
-WJS_IDENTITY_COOKIE_MAX_AGE = 300
+# form and lets Jp resolve the request's WJS account to its SGP code via the
+# services/getSGPcodfpf.jsp endpoint. No cookie is set by WJS: it relies entirely on the
+# browser's existing WJS session cookie, which is already present on the request that
+# reaches Jp (WJS and Jp live under the same domain in production). Jp is expected to
+# forward that session cookie on its own server-to-server call back to
+# services/getSGPcodfpf.jsp, which authenticates the caller from it (see
+# jpbridge/views_sgp.py, jpbridge/views_mypayments.py).
 
 # Jp base URL to redirect to, one entry per journal code (jpbridge/views_mypayments.py).
 # JCOM and JCOMAL never have payments/Jp; the others point at the real production Jp.
@@ -330,7 +398,7 @@ WJS_IDENTITY_COOKIE_MAX_AGE = 300
 # For local testing without a real Jp instance, override the journal(s) you're testing
 # in your personal settings to point at jpbridge/views_fake_jp.py's FakeJpView instead,
 # e.g. WJS_JP_URLS = {"JCAP": "http://jcap.local:8000/fake-jp/"} - this simulates the Jp
-# side of the flow end-to-end (reads the identity cookie, calls back
+# side of the flow end-to-end (forwards the session cookie, calls back
 # services/getSGPcodfpf.jsp) without needing a real Jp deployment.
 WJS_JP_URLS = {
     "JCOM": None,

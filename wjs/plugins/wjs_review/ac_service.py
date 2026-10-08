@@ -30,6 +30,7 @@ Design decisions:
 Future extensions anticipated by this design:
   - New Issue 2: EO-configurable AC parameters (thresholds, messages)
   - New Issue 3: Blocking AC for EO OA settings confirmation (IoP)
+    (a first, non-blocking step exists: ACCESS_MODE_TO_CHECK, specs#3174)
   - New Issue 4: AC for author's special copyright/OA request
   - New Issue 5: AC for submission matching EO-defined rules
   - New Issue 7: Manual per-paper custom alerts (source=MANUAL)
@@ -86,9 +87,6 @@ NEEDS_ASSIGNMENT = "needs_assignment"
 REVIEWS_COMPLETED = "reviews_completed_decision_needed"
 """Editor: all active reviews are done; a decision should be made."""
 
-EDITOR_REVIEW_OVERDUE = "editor_review_overdue"
-"""Editor: the editor assigned themselves as reviewer and is late."""
-
 INCOMPLETE_SUBMISSION = "incomplete_submission"
 """Author: the submission was left unfinished."""
 
@@ -106,6 +104,23 @@ MISSING_ENGLISH_CONTENT = "missing_english_content"
 
 APPEAL_TO_SUBMIT = "appeal_to_submit"
 """Author: an appeal needs to be submitted."""
+
+ACCESS_MODE_TO_CHECK = "access_mode_to_check"
+"""EO: the accepted paper is held in Accepted; access mode to be checked before production."""
+
+PRODUCTION_EXPORT_SEND_FAILED = "production_export_send_failed"
+"""EO: delivering the production export zip to the publisher failed (wjs/specs#2972).
+
+Created/resolved only from SendProductionXMLToPublisher.run() -- not registered in
+STATE_ROLE_AC_MAP, since it is purely event-driven (no daily re-evaluation applies).
+"""
+
+PRODUCTION_EXPORT_SEND_FAILED_PRIORITY = 20
+"""Display priority of PRODUCTION_EXPORT_SEND_FAILED.
+
+Not derived from get_ac_priority() (that table is for STATE_ROLE_AC_MAP-registered codes
+only) -- a fixed value, same style as HAS_UNREAD_MESSAGE_PRIORITY*.
+"""
 
 # -- Time-based (fire after elapsed time) --
 
@@ -129,6 +144,9 @@ REVIEWER_REPORT_OVERDUE = "reviewer_report_overdue"
 
 REVIEWER_INACTIVE = "reviewer_inactive_after_reminders"
 """Editor: reviewers stayed inactive even after extended waiting period."""
+
+EDITOR_REVIEW_OVERDUE = "editor_review_overdue"
+"""Editor: the editor assigned themselves as reviewer and is late."""
 
 AUTHOR_REVISION_LATE = "author_revision_late"
 """Author: a requested revision is overdue."""
@@ -181,6 +199,7 @@ TIME_BASED_AC_CODES: set[str] = {
     REVIEWER_INVITATION_PENDING,
     REVIEWER_REPORT_OVERDUE,
     REVIEWER_INACTIVE,
+    EDITOR_REVIEW_OVERDUE,
     AUTHOR_REVISION_LATE,
     AUTHOR_REVISION_LATE_ESCALATED,
     AUTHOR_METADATA_LATE,
@@ -200,6 +219,18 @@ evaluated by the event-driven leg (explicit calls from logic classes).
 # ============================================================================
 # Core API
 # ============================================================================
+
+
+def _fit_message(message: str) -> str:
+    """Truncate ``message`` (with a trailing ellipsis) so it fits ``AttentionCondition.message``.
+
+    Messages can embed arbitrary third-party text (e.g. SFTP/paramiko errors containing host keys) and
+    ``update_or_create`` does not validate lengths: an oversized value would raise ``DataError`` on Postgres.
+    """
+    max_length = AttentionCondition._meta.get_field("message").max_length
+    if len(message) <= max_length:
+        return message
+    return message[: max_length - 1] + "…"
 
 
 def upsert_ac(
@@ -238,7 +269,7 @@ def upsert_ac(
         user=user,
         code=code,
         defaults={
-            "message": message,
+            "message": _fit_message(message),
             "priority": priority,
             "source": source,
             "status": AttentionCondition.Status.ACTIVE,
@@ -751,6 +782,8 @@ STATE_ROLE_AC_MAP: dict[tuple[str, str], list[str]] = {
     # -- UnderAppeal --
     ("UnderAppeal", "author"): [APPEAL_TO_SUBMIT],
     ("UnderAppeal", "eo"): [APPEAL_LATE],
+    # -- Accepted --
+    ("Accepted", "eo"): [ACCESS_MODE_TO_CHECK],
     # -- PaperMightHaveIssues --
     ("PaperMightHaveIssues", "eo"): [SUBMISSION_TO_CHECK, BLACKLISTED_AUTHOR],
     # -- TypesetterSelected --
@@ -1114,6 +1147,16 @@ class ACStateEvaluator:
         """Author: appeal to submit."""
         for role in roles:
             self._upsert_for_role(role, APPEAL_TO_SUBMIT, "Appeal to submit")
+
+    def _evaluate_access_mode_to_check(self, roles: list[str]) -> None:
+        """EO: paper held in Accepted, access mode to check.
+
+        Always active in this state: a paper stays in Accepted only when the
+        acceptance checks block it (e.g. JCAP TA papers), until the EO confirms
+        production readiness.
+        """
+        for role in roles:
+            self._upsert_for_role(role, ACCESS_MODE_TO_CHECK, "Access mode to check")
 
     def _evaluate_appeal_late(self, roles: list[str]) -> None:
         """EO: appeal submission late."""

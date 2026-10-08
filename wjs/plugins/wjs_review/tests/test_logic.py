@@ -21,6 +21,7 @@ from django.core.files import File
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.forms import models as model_forms
 from django.http import HttpRequest
+from django.template import defaultfilters
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import formats, timezone, translation
@@ -2183,6 +2184,20 @@ def test_handle_editor_decision(
         template_is_setting=True,
     )
 
+    # A paper that passes the acceptance checks goes straight to READY_FOR_TYPESETTER and the system logs it on the
+    # timeline (specs#3178). We test it here and then remove it, so that the message counts below stay focused on
+    # the decision-specific messages.
+    if final_state == ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER:
+        ready_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="ready_for_typesetter_subject",
+            journal=assigned_article.journal,
+        ).processed_value
+        ready_message = Message.objects.get(subject=ready_subject)
+        assert ready_message.verbosity == Message.MessageVerbosity.TIMELINE
+        assert ready_message.actor == get_system_user(assigned_article.journal)
+        ready_message.delete()
+
     # In all the cases except technical revision, pending review assignments are
     # withdrawn. In this case the reviewer receive a message to notify this
     # At this stage two messages exist:
@@ -3432,6 +3447,72 @@ def test_postpone_due_date(
             assert updated_reminder_dates[reminder] == reminder_dates[reminder] + date_diff
 
 
+@pytest.mark.django_db
+def test_postpone_due_date_by_reviewer_notifies_editor(
+    assigned_article: submission_models.Article,
+    review_assignment: review_models.ReviewAssignment,
+    fake_request: HttpRequest,
+):
+    """When the reviewer changes the due date, the editor is notified, the reviewer's message is unchanged."""
+    Message.objects.all().delete()
+    review_assignment.refresh_from_db()
+    mail.outbox = []
+    reviewer = review_assignment.reviewer
+    editor = review_assignment.editor
+    initial_date_due = review_assignment.date_due
+    new_date_due = initial_date_due + datetime.timedelta(days=2)
+
+    fake_request.user = reviewer
+    PostponeReviewerDueDate(
+        assignment=review_assignment,
+        editor=editor,
+        user=reviewer,
+        form_data={"date_due": new_date_due},
+        request=fake_request,
+        original_due_date=initial_date_due,
+    ).run()
+
+    review_assignment.refresh_from_db()
+    assert review_assignment.date_due == new_date_due
+    assert Message.objects.count() == 2, "one message for the reviewer and one for the editor"
+    assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1, "reviewer message must be unchanged"
+    editor_messages = Message.objects.filter(recipients__pk=editor.pk)
+    assert editor_messages.count() == 1, "the editor must be notified"
+    editor_message = editor_messages.get()
+    assert editor_message.actor == reviewer, "the reviewer is the author of the change"
+    # the message body is rendered by a template: the date is formatted as {{ date_due }} does
+    new_rendered_due_date = defaultfilters.date(new_date_due)
+    assert new_rendered_due_date in editor_message.body, "the message must report the new due date"
+    assert len(mail.outbox) == 2, "both messages are sent by email"
+
+
+@pytest.mark.django_db
+def test_postpone_due_date_by_editor_does_not_notify_editor(
+    assigned_article: submission_models.Article,
+    review_assignment: review_models.ReviewAssignment,
+    fake_request: HttpRequest,
+):
+    """When the editor changes the due date, only the reviewer is notified."""
+    Message.objects.all().delete()
+    review_assignment.refresh_from_db()
+    mail.outbox = []
+    editor = review_assignment.editor
+    initial_date_due = review_assignment.date_due
+
+    fake_request.user = editor
+    PostponeReviewerDueDate(
+        assignment=review_assignment,
+        editor=editor,
+        user=editor,
+        form_data={"date_due": initial_date_due + datetime.timedelta(days=2)},
+        request=fake_request,
+        original_due_date=initial_date_due,
+    ).run()
+
+    assert Message.objects.count() == 1, "only the reviewer is notified"
+    assert Message.objects.filter(recipients__pk=editor.pk).count() == 0, "the editor must not notify themselves"
+
+
 @pytest.mark.parametrize(
     "postpone_date",
     (
@@ -3542,8 +3623,11 @@ def test_actors_postpone_due_date(
 
     if actor_role == "Reviewer":
         actor_user = review_assignment.reviewer
+        # the reviewer is notified and, as the reviewer changed the date, the editor too
+        expected_emails = 2
     elif actor_role == "Editor":
         actor_user = review_assignment.editor
+        expected_emails = 1
 
     PostponeReviewerDueDate(
         assignment=review_assignment,
@@ -3554,8 +3638,8 @@ def test_actors_postpone_due_date(
         original_due_date=review_assignment.date_due,
     ).run()
 
-    assert len(mail.outbox) == 1
-    assert Message.objects.first().actor == actor_user
+    assert len(mail.outbox) == expected_emails
+    assert Message.objects.exclude(actor=actor_user).count() == 0, "the actor of every message is the acting user"
 
 
 @pytest.mark.django_db

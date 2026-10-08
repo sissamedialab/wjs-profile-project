@@ -3,6 +3,7 @@ import json
 import logging
 import tarfile
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Callable
 from unittest import mock
@@ -23,6 +24,9 @@ from django.urls import reverse
 from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Journal
+from plugins.wjs_review import ac_service
+from plugins.wjs_review.metadata_export import service
+from plugins.wjs_review.metadata_export.sftp import SFTPSendError
 from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
@@ -40,11 +44,13 @@ from ..logic__production import (
     BeginPublication,
     FinishPublication,
     HandleDownloadRevisionFiles,
+    SendProductionXMLToPublisher,
     TypesettedFilesUpload,
     TypesetterTestsGalleyGeneration,
 )
 from ..models import (
     ArticleWorkflow,
+    AttentionCondition,
     LatexPreamble,
     Message,
     MessageThread,
@@ -1860,3 +1866,273 @@ def test_prepare_source_missing_doi_raises(rfp_article: Article, eo_user: Accoun
 
     with pytest.raises(ValueError, match="DOI"):
         service._prepare_source(io.BytesIO(b"source tex"))
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_noop_for_unsupported_journal(accepted_article: Article):
+    """No entry in WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS for the article's journal: nothing happens."""
+    workflow = accepted_article.articleworkflow
+
+    with (
+        mock.patch("plugins.wjs_review.logic__production.build_production_export_zip") as mock_build_zip,
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        result = SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    assert result == workflow
+    mock_build_zip.assert_not_called()
+    mock_log.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_sends_zip_and_logs_message(
+    accepted_article: Article,
+    settings,
+):
+    """A configured journal: the export zip is built, handed to the send function, and logged to EO."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    # The article fixture pre-populates manuscript_files with placeholder File rows that have no
+    # real content on disk (see wjs.jcom_profile.tests.conftest); drop them so building the zip
+    # doesn't try to read a nonexistent file.
+    accepted_article.manuscript_files.clear()
+    workflow = accepted_article.articleworkflow
+
+    with (
+        mock.patch("plugins.wjs_review.metadata_export.publishers.send_zip_to_iop") as mock_send,
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        result = SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    assert result == workflow
+    mock_send.assert_called_once()
+    called_article, called_zip_bytes = mock_send.call_args.args
+    assert called_article == accepted_article
+    xml_entry_name = service.metadata_xml_entry_name(accepted_article.articleworkflow.preprint_id)
+    with zipfile.ZipFile(io.BytesIO(called_zip_bytes)) as archive:
+        assert xml_entry_name in archive.namelist()
+        assert archive.read(xml_entry_name).decode().strip().startswith("<?xml")
+    # Not assert_called_once_with: the accepted_article fixture's corresponding author ends up with
+    # an incomplete affiliation, which adds a second (unrelated) EO message -- see
+    # test_send_production_xml_to_publisher_logs_warning_when_corresponding_author_affiliation_incomplete
+    # below for that behaviour. This only asserts on the "export prepared" message, the first call.
+    export_prepared_call = mock_log.call_args_list[0]
+    assert export_prepared_call.kwargs["article"] == accepted_article
+    assert export_prepared_call.kwargs["actor"] is None
+    assert export_prepared_call.kwargs["recipients"] == [get_eo_user(accepted_article)]
+    assert export_prepared_call.kwargs["verbosity"] == Message.MessageVerbosity.FULL
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_logs_warning_when_corresponding_author_affiliation_incomplete(
+    accepted_article: Article,
+    settings,
+):
+    """IOP feedback: an incomplete corresponding-author affiliation must produce a second EO message."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    # The article fixture pre-populates manuscript_files with placeholder File rows that have no
+    # real content on disk (see wjs.jcom_profile.tests.conftest); drop them so building the zip
+    # doesn't try to read a nonexistent file (same workaround as the sibling test above).
+    accepted_article.manuscript_files.clear()
+    accepted_article.frozenauthor_set.all().delete()
+    FrozenAuthor.objects.create(article=accepted_article, order=1, first_name="Solo")
+    accepted_article.correspondence_author = None
+    accepted_article.save()
+    workflow = accepted_article.articleworkflow
+
+    with (
+        mock.patch("plugins.wjs_review.metadata_export.publishers.send_zip_to_iop"),
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    assert mock_log.call_count == 2, "one 'export prepared' message plus one incomplete-affiliation warning"
+    warning_call = mock_log.call_args_list[1]
+    assert warning_call.kwargs["article"] == accepted_article
+    assert warning_call.kwargs["actor"] is None
+    assert warning_call.kwargs["recipients"] == [get_eo_user(accepted_article)]
+    assert warning_call.kwargs["verbosity"] == Message.MessageVerbosity.FULL
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_send_failure_creates_attention_condition(
+    accepted_article: Article,
+    settings,
+):
+    """An SFTPSendError from the send function creates an EO attention condition and does not raise.
+
+    The incomplete-affiliation warning describes a data problem, not a delivery one, so it still
+    fires even though the send itself failed -- accepted_article's corresponding author ends up
+    with an incomplete affiliation by default (see the sibling test above), so exactly one
+    log_operation call (the warning, not the "export prepared" message, which never fires on
+    failure) is expected here.
+    """
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    accepted_article.manuscript_files.clear()
+    workflow = accepted_article.articleworkflow
+
+    with (
+        mock.patch(
+            "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+            side_effect=SFTPSendError("connection refused"),
+        ),
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        result = SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    assert result == workflow
+    mock_log.assert_called_once_with(
+        article=accepted_article,
+        message_subject=mock.ANY,
+        message_body=mock.ANY,
+        actor=None,
+        recipients=[get_eo_user(accepted_article)],
+        verbosity=Message.MessageVerbosity.FULL,
+    )
+    ac = AttentionCondition.objects.get(
+        article=accepted_article,
+        user=get_eo_user(accepted_article),
+        code=ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+    )
+    assert ac.status == AttentionCondition.Status.ACTIVE
+    assert "connection refused" in ac.message
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_send_failure_truncates_long_message(
+    accepted_article: Article,
+    settings,
+):
+    """An oversized SFTPSendError message (e.g. BadHostKeyException) is truncated, not a DataError."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    accepted_article.manuscript_files.clear()
+    workflow = accepted_article.articleworkflow
+    max_length = AttentionCondition._meta.get_field("message").max_length
+
+    with (
+        mock.patch(
+            "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+            side_effect=SFTPSendError("x" * (max_length + 100)),
+        ),
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation"),
+    ):
+        result = SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    assert result == workflow
+    ac = AttentionCondition.objects.get(
+        article=accepted_article,
+        user=get_eo_user(accepted_article),
+        code=ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+    )
+    assert len(ac.message) == max_length, "message should be truncated to the field's max_length"
+    assert ac.message.endswith("…"), "truncated message should end with an ellipsis"
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_success_resolves_prior_send_failure(
+    accepted_article: Article,
+    settings,
+):
+    """A successful send resolves any PRODUCTION_EXPORT_SEND_FAILED AC left over from an earlier failure."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    accepted_article.manuscript_files.clear()
+    workflow = accepted_article.articleworkflow
+    ac_service.upsert_for_role(
+        accepted_article,
+        "eo",
+        ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+        message="connection refused",
+        priority=ac_service.PRODUCTION_EXPORT_SEND_FAILED_PRIORITY,
+    )
+
+    with (
+        mock.patch("plugins.wjs_review.metadata_export.publishers.send_zip_to_iop"),
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation"),
+    ):
+        SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    ac = AttentionCondition.objects.get(
+        article=accepted_article,
+        user=get_eo_user(accepted_article),
+        code=ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+    )
+    assert ac.status == AttentionCondition.Status.RESOLVED
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_silent_success_skips_logging_and_ac_resolve(
+    accepted_article: Article,
+    settings,
+):
+    """silent=True: the send still happens, but no message is logged and no AC gets resolved."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    accepted_article.manuscript_files.clear()
+    workflow = accepted_article.articleworkflow
+    ac_service.upsert_for_role(
+        accepted_article,
+        "eo",
+        ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+        message="connection refused",
+        priority=ac_service.PRODUCTION_EXPORT_SEND_FAILED_PRIORITY,
+    )
+
+    with (
+        mock.patch("plugins.wjs_review.metadata_export.publishers.send_zip_to_iop") as mock_send,
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        result = SendProductionXMLToPublisher(articleworkflow=workflow).run(silent=True)
+
+    assert result == workflow
+    mock_send.assert_called_once()
+    mock_log.assert_not_called()
+    ac = AttentionCondition.objects.get(
+        article=accepted_article,
+        user=get_eo_user(accepted_article),
+        code=ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+    )
+    assert ac.status == AttentionCondition.Status.ACTIVE, "silent=True must not resolve a pre-existing AC either"
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_silent_failure_reraises_without_ac_or_logging(
+    accepted_article: Article,
+    settings,
+):
+    """silent=True: an SFTPSendError propagates to the caller instead of being swallowed into an AC.
+
+    Unlike the non-silent path, there's no attention condition or EO message to surface the
+    failure, so the direct caller (silent=True implies a synchronous, interactive caller) needs
+    the exception itself to know the send failed.
+    """
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    accepted_article.manuscript_files.clear()
+    workflow = accepted_article.articleworkflow
+
+    with (
+        mock.patch(
+            "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+            side_effect=SFTPSendError("connection refused"),
+        ),
+        mock.patch("plugins.wjs_review.logic__production.communication_utils.log_operation") as mock_log,
+    ):
+        with pytest.raises(SFTPSendError, match="connection refused"):
+            SendProductionXMLToPublisher(articleworkflow=workflow).run(silent=True)
+
+    mock_log.assert_not_called()
+    assert not AttentionCondition.objects.filter(
+        article=accepted_article,
+        code=ac_service.PRODUCTION_EXPORT_SEND_FAILED,
+    ).exists()

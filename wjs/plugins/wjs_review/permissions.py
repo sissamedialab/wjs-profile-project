@@ -1,8 +1,10 @@
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from django.contrib.auth import get_user_model
+from django.db import models
 from django.utils.timezone import now
+from django.utils.translation import gettext_lazy as _
 from journal.models import Journal
 from review.models import ReviewAssignment
 from typesetting.models import TypesettingAssignment
@@ -12,6 +14,8 @@ from wjs.jcom_profile import permissions as base_permissions
 
 logger = getLogger(__name__)
 if TYPE_CHECKING:
+    from submission.models import Article
+
     from .models import ArticleWorkflow, Message, WorkflowReviewAssignment
 
 Account = get_user_model()
@@ -467,8 +471,75 @@ def is_past_article_editor(instance: "ArticleWorkflow", user: Account) -> bool:
 
     return (
         has_any_editor_role_by_article(instance, user)
-        and PastEditorAssignment.objects.filter(article=instance.article, editor=user).exists()
+        and PastEditorAssignment.objects.for_editor(instance.article, user).exists()
     )
+
+
+class EditorType(models.TextChoices):
+    """Kinds of editor relationship a user can have with an article (see specs#2903 glossary)."""
+
+    ASSIGNED = "assigned", _("Assigned editor")
+    APPEAL = "appeal", _("Appeal editor")
+    PAST = "past", _("Past editor")
+    REMOVED_FOR_APPEAL = "removed_for_appeal", _("Removed editor for appeal")
+
+
+def get_editor_type(user: Account, article: "Article") -> Optional[EditorType]:
+    """
+    Return the kind of editor the user is for the given article.
+
+    Assignments only count while the user still has an editor role on the journal (same definition as
+    :py:func:`is_article_editor` and :py:func:`is_past_article_editor`): without it the result is ``None``.
+    A current assignment always wins over past ones:
+
+    - current editor, article has an OPEN_APPEAL decision and the user made no REJECT decision, and the user is
+      the editor of that appeal (see below): APPEAL;
+    - any other current editor (including the editor who rejected and is re-assigned on appeal): ASSIGNED;
+    - past assignment flagged ``on_appeal``: REMOVED_FOR_APPEAL;
+    - other past assignment: PAST;
+    - otherwise ``None``.
+
+    The user is the editor of the appeal when their current assignment was already in force when the
+    OPEN_APPEAL decision was recorded (``OpenAppeal`` assigns the new editor first), or when the appeal is still
+    unresolved (no later decision), e.g. the editor was swapped mid-appeal. An editor assigned after the appeal
+    was resolved (plain workload rebalancing) is an ordinary ASSIGNED editor.
+
+    :param user: The user to classify.
+    :type user: Account
+    :param article: The article to check.
+    :type article: Article
+    :return: The editor type, or None if the user is not a current or past editor of the article.
+    :rtype: Optional[EditorType]
+    """
+    from .models import (
+        ArticleWorkflow,
+        EditorDecision,
+        PastEditorAssignment,
+        WjsEditorAssignment,
+    )
+
+    user_assignments = WjsEditorAssignment.objects.get_all(article).filter(editor=user)
+    past_assignments = PastEditorAssignment.objects.for_editor(article, user)
+    is_current_editor = user_assignments.exists()
+    if not (is_current_editor or past_assignments.exists()):
+        return None
+    if not base_permissions.has_any_editor_role(article.journal, user):
+        # Same definition as is_article_editor / is_past_article_editor: assignments only count while the user
+        # still has an editor role on the journal.
+        return None
+    if is_current_editor:
+        decisions = EditorDecision.objects.filter(workflow__article=article)
+        appeal_decision = decisions.filter(decision=ArticleWorkflow.Decisions.OPEN_APPEAL).order_by("-created").first()
+        rejected_by_user = decisions.filter(decision=ArticleWorkflow.Decisions.REJECT, editor=user).exists()
+        if appeal_decision and not rejected_by_user:
+            assigned_before_appeal = user_assignments.latest().assigned <= appeal_decision.created
+            appeal_unresolved = not decisions.filter(created__gt=appeal_decision.created).exists()
+            if assigned_before_appeal or appeal_unresolved:
+                return EditorType.APPEAL
+        return EditorType.ASSIGNED
+    if past_assignments.filter(on_appeal=True).exists():
+        return EditorType.REMOVED_FOR_APPEAL
+    return EditorType.PAST
 
 
 def is_article_author(instance: "ArticleWorkflow", user: Account) -> bool:
