@@ -1,0 +1,264 @@
+# Fake IOP SFTP server on wjs-test (wjs/specs#3159)
+#
+# Since f40c79b40, the production export zip of JCAP papers is delivered to IOP over SFTP
+# (wjs/plugins/wjs_review/metadata_export/sftp.py). The default settings point JCAP at IOP's
+# real server; on wjs-test we want a local stand-in instead.
+#
+# This playbook:
+# - creates a chrooted, SFTP-only user (iop-fake) whose tree mimics IOP's
+#   (partner-sissa/jcap/{accepted-articles,final-files}, relative to the login dir);
+# - gives user "wjs" (gunicorn/qcluster) a dedicated key to log in as iop-fake;
+# - checks that sshd chroots iop-fake and only iop-fake, and smoke-tests an upload;
+# - installs a monthly cron job deleting delivered files older than sftp_retention_days;
+# - if an instance is given, overrides WJS_REVIEW_IOP_SFTP["JCAP"] in its settings so it
+#   delivers to localhost (host key pinned), and restarts its services.
+#
+# Call as
+#   ansible-playbook wjs-test__fake-iop-sftp.yml                     # server only
+#   ansible-playbook wjs-test__fake-iop-sftp.yml -e instance=t3      # server + point t3 at it
+#
+# Re-run with -e instance=... after creating a new instance (wjs-test__create-instance__*.yml
+# re-renders the settings file, dropping the override). Everything here is idempotent.
+#
+# Delivered files land in /srv/sftp/iop-fake/partner-sissa/jcap/<flow>/;
+# `journalctl -u ssh` shows internal-sftp's log of every open/close/rename.
+#
+---
+- hosts: test
+  remote_user: root
+  vars:
+    wjs_user_id: 1000
+    sftp_user: iop-fake
+    sftp_chroot: "/srv/sftp/{{ sftp_user }}"
+    # Mirrors WJS_REVIEW_IOP_SFTP["JCAP"]["remote_paths"] in wjs/defaults/settings.py
+    sftp_base_dir: partner-sissa/jcap
+    sftp_flow_dirs:
+      - accepted-articles
+      - final-files
+    # Delivered files older than this are deleted by the monthly cleanup cron job
+    sftp_retention_days: 30
+    wjs_key: /home/wjs/.ssh/iop_fake_sftp
+    # IOP's server (AWS Transfer Family) forbids rename, hence JCAP's default False.
+    # OpenSSH allows it: pass -e atomic_rename=true to exercise the temp-file+rename path.
+    sftp_atomic_rename: "{{ atomic_rename | default(false) }}"
+    instance_name: "{{ instance | default('') }}"
+    suffix: "{{ ('-') + instance_name if (instance_name) else ('') }}"
+    full_name: "janeway{{ suffix }}"
+    settings_file: "/home/wjs/{{ full_name }}/src/core/settings/__init__.py"
+
+  tasks:
+    - name: Create the SFTP-only user
+      user:
+        name: "{{ sftp_user }}"
+        system: yes
+        home: /
+        create_home: no
+        shell: /usr/sbin/nologin
+        password: "!"
+
+    - name: Create the chroot dirs (must be root-owned and not group/world-writable)
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - /srv/sftp
+        - "{{ sftp_chroot }}"
+        - "{{ sftp_chroot }}/partner-sissa"
+        - "{{ sftp_chroot }}/{{ sftp_base_dir }}"
+
+    - name: Create the writable flow dirs
+      file:
+        path: "{{ sftp_chroot }}/{{ sftp_base_dir }}/{{ item }}"
+        state: directory
+        owner: "{{ sftp_user }}"
+        group: "{{ sftp_user }}"
+        mode: "0775"
+      loop: "{{ sftp_flow_dirs }}"
+
+    # run-parts (which runs /etc/cron.monthly) skips file names containing dots.
+    # Only regular files go, and only inside the flow dirs: the dirs themselves stay.
+    - name: Install the monthly cleanup of delivered files
+      copy:
+        dest: "/etc/cron.monthly/{{ sftp_user }}-sftp-cleanup"
+        content: |
+          #!/bin/sh
+          # Managed by ansible (wjs-test__fake-iop-sftp.yml): delete files delivered to the
+          # fake IOP SFTP server more than {{ sftp_retention_days }} days ago.
+          set -e
+          {% for flow_dir in sftp_flow_dirs %}
+          find {{ sftp_chroot }}/{{ sftp_base_dir }}/{{ flow_dir }} -mindepth 1 -type f -mtime +{{ sftp_retention_days }} -delete
+          {% endfor %}
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Generate the wjs key used to log in as {{ sftp_user }}
+      become: yes
+      become_user: wjs
+      command: ssh-keygen -q -t ed25519 -N "" -C "wjs@{{ inventory_hostname }} -> {{ sftp_user }}" -f {{ wjs_key }}
+      args:
+        creates: "{{ wjs_key }}"
+
+    - name: Read the wjs public key
+      slurp:
+        src: "{{ wjs_key }}.pub"
+      register: wjs_pubkey
+
+    # Outside the chroot and root-owned: sshd's StrictModes would complain about a
+    # .ssh dir inside the chroot, which must itself be root-owned.
+    - name: Create the authorized_keys dir
+      file:
+        path: /etc/ssh/authorized_keys
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Authorize the wjs key for {{ sftp_user }}
+      copy:
+        dest: "/etc/ssh/authorized_keys/{{ sftp_user }}"
+        content: "{{ wjs_pubkey.content | b64decode }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure sshd for {{ sftp_user }}
+      copy:
+        dest: "/etc/ssh/sshd_config.d/50-{{ sftp_user }}.conf"
+        content: |
+          # Managed by ansible (wjs-test__fake-iop-sftp.yml): fake IOP SFTP endpoint
+          Match User {{ sftp_user }}
+              ChrootDirectory /srv/sftp/%u
+              ForceCommand internal-sftp -d / -l INFO
+              AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+              AuthenticationMethods publickey
+              PasswordAuthentication no
+              AllowTcpForwarding no
+              AllowAgentForwarding no
+              X11Forwarding no
+              PermitTunnel no
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload sshd
+
+    - name: Validate the whole sshd configuration
+      command: sshd -t
+      changed_when: false
+
+    - name: Reload sshd now, so the checks below see the new config
+      meta: flush_handlers
+
+    # Debian includes sshd_config.d/*.conf at the top of sshd_config: make sure the
+    # Match block applies to sftp_user and does not leak onto anybody else.
+    - name: Read the effective sshd config for {{ sftp_user }} and wjs
+      command: sshd -T -C user={{ item }},host=localhost,addr=127.0.0.1
+      loop:
+        - "{{ sftp_user }}"
+        - wjs
+      register: sshd_effective
+      changed_when: false
+
+    # `sshd -T` prints every keyword, unset ones as "none" (e.g. "forcecommand none"), and
+    # keywords are lowercase up to OpenSSH 9.x but CamelCase from 10.x: match case-insensitively.
+    - name: Check that only {{ sftp_user }} is chrooted and SFTP-only
+      assert:
+        that:
+          - "sshd_effective.results[0].stdout is search('(?mi)^chrootdirectory /srv/sftp/')"
+          - "sshd_effective.results[0].stdout is search('(?mi)^forcecommand internal-sftp')"
+          - "sshd_effective.results[1].stdout is search('(?mi)^chrootdirectory none$')"
+          - "sshd_effective.results[1].stdout is search('(?mi)^forcecommand none$')"
+        fail_msg: >-
+          The Match block in /etc/ssh/sshd_config.d/50-{{ sftp_user }}.conf is not scoped as
+          expected; move it to the end of /etc/ssh/sshd_config.
+          sshd -T for {{ sftp_user }}:
+          {{ sshd_effective.results[0].stdout_lines | select('search', '(?i)^(chrootdirectory|forcecommand)') | list }}
+          sshd -T for wjs:
+          {{ sshd_effective.results[1].stdout_lines | select('search', '(?i)^(chrootdirectory|forcecommand)') | list }}
+
+    # The server's own key, read locally rather than with ssh-keyscan:
+    # "ssh-ed25519 AAAA... root@host" -> "ssh-ed25519 AAAA..."
+    - name: Read the server ed25519 host key
+      slurp:
+        src: /etc/ssh/ssh_host_ed25519_key.pub
+      register: server_host_key_file
+
+    - name: Extract the pinnable host key
+      set_fact:
+        server_host_key: "{{ (server_host_key_file.content | b64decode).split()[:2] | join(' ') }}"
+
+    # Not used by WJS (host_key is pinned in settings) but lets wjs use the
+    # sftp CLI by hand, and the smoke test below.
+    - name: Add localhost to the wjs known_hosts
+      become: yes
+      become_user: wjs
+      known_hosts:
+        path: /home/wjs/.ssh/known_hosts
+        name: localhost
+        key: "localhost {{ server_host_key }}"
+        state: present
+
+    - name: Smoke test - upload and remove a file as wjs
+      become: yes
+      become_user: wjs
+      command: sftp -i {{ wjs_key }} -o BatchMode=yes -o StrictHostKeyChecking=yes -b - {{ sftp_user }}@localhost
+      args:
+        stdin: |
+          cd {{ sftp_base_dir }}/{{ sftp_flow_dirs[0] }}
+          put /etc/hostname .ansible-smoke-test
+          rm .ansible-smoke-test
+      changed_when: false
+
+    - name: Point instance {{ instance_name }} at the fake server
+      when: instance_name | length > 0
+      block:
+        - name: Check that the instance settings file exists
+          stat:
+            path: "{{ settings_file }}"
+          register: settings_stat
+
+        - name: Fail if the instance does not exist
+          fail:
+            msg: "{{ settings_file }} not found: is '{{ instance_name }}' the right instance?"
+          when: not settings_stat.stat.exists
+
+        - name: Override WJS_REVIEW_IOP_SFTP for JCAP
+          blockinfile:
+            path: "{{ settings_file }}"
+            marker: "# {mark} ANSIBLE MANAGED BLOCK - fake IOP SFTP (wjs-test__fake-iop-sftp.yml)"
+            block: |
+              # Never deliver to IOP from wjs-test: use the local fake SFTP server instead.
+              WJS_REVIEW_IOP_SFTP["JCAP"].update(
+                  {
+                      "host": "localhost",
+                      "port": 22,
+                      "username": "{{ sftp_user }}",
+                      "private_key_path": "{{ wjs_key }}",
+                      "password": "",
+                      "host_key": "{{ server_host_key }}",
+                      "atomic_rename": {{ sftp_atomic_rename | bool | ternary('True', 'False') }},
+                  }
+              )
+          notify: Restart instance services
+
+  handlers:
+    - name: Reload sshd
+      service:
+        name: ssh
+        state: reloaded
+
+    - name: Restart instance services
+      become: yes
+      become_user: wjs
+      systemd_service:
+        name: "{{ item }}"
+        state: restarted
+        scope: user
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ wjs_user_id }}"
+      loop:
+        - "gunicorn{{ suffix }}.service"
+        - "qcluster{{ suffix }}.service"
