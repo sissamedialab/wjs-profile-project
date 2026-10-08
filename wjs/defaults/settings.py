@@ -418,6 +418,10 @@ PROD_DB_PAG_CONNECTION_PARAMS = {
     "password": "",
     "host": "",
     "database": "",
+    # Short, since this is checked on every editor/reviewer page load (see
+    # jpbridge/logic.py::can_access_my_payments) - fail fast rather than hang the page if this
+    # external DB is unreachable.
+    "connect_timeout": 3,
 }
 
 NO_NOTIFICATION = False
