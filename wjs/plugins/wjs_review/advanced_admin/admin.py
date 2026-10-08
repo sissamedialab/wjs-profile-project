@@ -103,7 +103,12 @@ class EditorRevisionRequestAdmin(admin.ModelAdmin):
     list_display = ["article_title", "pubid", "article_journal", "state"]
     list_filter = ["article__journal", "article__articleworkflow__state"]
     ordering = ("-id",)
-    search_fields = ("article__identifier__identifier", "editor__email")
+    search_fields = (
+        "article__identifier__identifier",
+        "editor__email",
+        "article__id",
+        "article__title",
+    )
 
     def render_change_form(self, request, context, *args, **kwargs):
         context["title"] = "Change authors cover letter"
@@ -191,6 +196,8 @@ class WorkflowReviewAssignmentAdmin(admin.ModelAdmin):
         "id",
         "article__id",
         "article__identifier__identifier",
+        "article__id",
+        "article__title",
     )
     autocomplete_fields = ("tex_report_pdf", "review_file")
 
@@ -298,6 +305,8 @@ class EditorDecisionAdmin(admin.ModelAdmin):
     search_fields = (
         "workflow__article__id",
         "workflow__article__identifier__identifier",
+        "workflow__article__id",
+        "workflow__article__title",
     )
     readonly_fields = ("decision_editor_report_pdf",)
     fields = (
