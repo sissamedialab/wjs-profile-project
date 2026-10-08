@@ -1,4 +1,5 @@
 import pytest
+from identifiers.models import Identifier
 from journal.models import Journal
 from plugins.wjs_submission.models import (
     ArticleCollaboration,
@@ -7,7 +8,8 @@ from plugins.wjs_submission.models import (
 )
 from submission.models import Article
 
-from ..templatetags.wjs_tex import collaborations
+from ..logic__production import HandleDownloadRevisionFiles
+from ..templatetags.wjs_tex import collaborations, identifier
 
 
 @pytest.mark.django_db
@@ -42,3 +44,21 @@ def test_collaborations_filter_returns_only_by_relation(journal: Journal):
     assert set(collaborations(a2)) == {"c1"}
     assert set(collaborations(a3)) == set()
     assert set(collaborations(a4)) == {"c3", "c4"}
+
+
+@pytest.mark.django_db
+def test_identifier_filter_returns_identifier_value(journal: Journal):
+    """Test that identifier() returns the value of the identifier of the requested type, or an empty string."""
+    article = Article.objects.create(title="a1", journal=journal)
+    Identifier.objects.create(article=article, id_type="protonid", identifier="JCAP_123P_0525")
+    Identifier.objects.create(article=article, id_type="doi", identifier="10.1088/1475-7516/2025/05/001")
+
+    assert identifier(article, "protonid") == "JCAP_123P_0525", "Wrong proton id"
+    assert identifier(article, "doi") == "10.1088/1475-7516/2025/05/001", "Wrong DOI"
+    assert identifier(article, "arxiv") == "", "Missing identifier should render as empty string"
+
+    rendered = HandleDownloadRevisionFiles.render_latexpreamble(
+        "{% load wjs_tex %}\\IOPprotonid{{{ article|identifier:'protonid' }}}",
+        {"article": article},
+    )
+    assert rendered == "\\IOPprotonid{JCAP_123P_0525}", f"Unexpected rendering: {rendered}"
