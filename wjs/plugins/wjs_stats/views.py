@@ -24,6 +24,11 @@ from django.utils import timezone
 from django.utils.timezone import now
 from django.views.generic import ListView, TemplateView, View
 from django.views.generic.edit import FormView
+from django_q.brokers import get_broker
+from django_q.brokers.redis_broker import Redis as RedisBroker
+from django_q.conf import Conf
+from django_q.signing import SignedPackage
+from django_q.status import Stat
 from identifiers.models import CrossrefStatus
 from journal.models import Issue, Journal
 from requests.auth import HTTPBasicAuth
@@ -49,6 +54,9 @@ except ImportError:
 
 # All "wjs" projects live in a single group in our forge.
 WJS_FORGE_BASE_URL = "https://gitlab.sissamedialab.it/wjs"
+
+# Max number of queued tasks to decode and show (the queue length is always shown in full).
+QCLUSTER_QUEUE_MAX_SHOWN = 200
 
 
 def _run_git(directory, *args):
@@ -843,4 +851,56 @@ class PackageVersionsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView)
         context = super().get_context_data(**kwargs)
         context["packages"] = get_wjs_packages()
         context["forge_base_url"] = WJS_FORGE_BASE_URL
+        return context
+
+
+def get_queued_tasks(broker, limit=QCLUSTER_QUEUE_MAX_SHOWN):
+    """Return the first ``limit`` tasks waiting in a Redis broker's queue, decoded.
+
+    Reading the list (LRANGE) does not consume it: the tasks stay queued.
+    A task that cannot be decoded (bad signature, missing function module...) is
+    reported with its error instead of breaking the whole page.
+    """
+    tasks = []
+    for position, pack in enumerate(broker.connection.lrange(broker.list_key, 0, limit - 1)):
+        try:
+            task = SignedPackage.loads(pack)
+        except Exception as e:  # noqa: BLE001 - unpickling can raise anything
+            tasks.append({"position": position, "error": f"{type(e).__name__}: {e}"})
+            continue
+        task["position"] = position
+        tasks.append(task)
+    return tasks
+
+
+class QClusterQueueView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Show the tasks waiting in the django-q Redis queue and the running clusters.
+
+    Scheduled tasks (``Schedule`` objects) and finished tasks are already visible in the admin,
+    but the tasks queued in Redis are not.
+    """
+
+    template_name = "wjs_stats/qcluster_queue.html"
+
+    def test_func(self):
+        """Verify that only staff can see the task queue."""
+        return self.request.user.is_staff
+
+    def get_context_data(self, **kwargs):
+        """Add queue length, queued tasks and cluster status."""
+        context = super().get_context_data(**kwargs)
+        broker = get_broker()
+        context["sync"] = Conf.SYNC
+        context["list_key"] = broker.list_key
+        context["max_shown"] = QCLUSTER_QUEUE_MAX_SHOWN
+        if not isinstance(broker, RedisBroker):
+            context["error"] = f"Broker {type(broker).__name__} is not Redis: cannot list the queue."
+            return context
+        try:
+            context["queue_size"] = broker.queue_size()
+            context["tasks"] = get_queued_tasks(broker)
+            context["clusters"] = Stat.get_all(broker=broker)
+        except Exception as e:  # noqa: BLE001 - show any Redis problem on the page
+            logger.exception("Cannot read django-q queue from Redis")
+            context["error"] = f"Cannot read the queue from Redis: {type(e).__name__}: {e}"
         return context
