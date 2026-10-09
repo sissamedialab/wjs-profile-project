@@ -78,5 +78,15 @@ class MyPaymentsView(LoginRequiredMixin, View):
         Journals not configured in WJS_JP_URLS, or configured with a falsy
         value (e.g. JCOM, JCOMAL, which don't use Jp), are silently sent to
         the journal's homepage instead.
+
+        Appends a "sgpservice" query param carrying the path prefix Jp should call
+        services/getSGPcodfpf.jsp back under (several journals can share this one deployment -
+        see GetSGPCodeView and resolve_service_prefix()).
         """
-        return settings.WJS_JP_URLS.get(request.journal.code) or reverse("website_index")
+        entry = settings.WJS_JP_URLS.get(request.journal.code)
+        if not entry:
+            return reverse("website_index")
+
+        base_url, service_prefix = entry
+        separator = "&" if "?" in base_url else "?"
+        return f"{base_url}{separator}sgpservice=/{service_prefix}"
