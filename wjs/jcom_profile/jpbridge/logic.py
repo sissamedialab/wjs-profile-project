@@ -36,6 +36,17 @@ def is_sgp_code_notified(sgp_code):
     return row is not None
 
 
+def resolve_service_prefix(journal_code):
+    """Path prefix Jp must call services/getSGPcodfpf.jsp back under, for this journal.
+
+    Reads the (url, service_prefix) tuple for this journal from settings.WJS_JP_URLS - override
+    the whole dict in a test deployment's local settings for that environment's own convention
+    (see the setting's own comment).
+    """
+    entry = settings.WJS_JP_URLS.get(journal_code)
+    return entry[1] if entry else None
+
+
 def can_access_my_payments(account_id):
     """Whether this account can use the Jp "myPayments" flow.
 

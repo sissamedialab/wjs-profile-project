@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class GetSGPCodeView(View):
     """
-    GET /services/getSGPcodfpf.jsp
+    GET /<service_prefix>/services/getSGPcodfpf.jsp
 
     Jp calls this as a server-to-server request, forwarding the cookies it
     received on the browser request that reached it from MyPaymentsView
@@ -20,6 +20,10 @@ class GetSGPCodeView(View):
     session cookie is already present on that request). The caller is
     identified via that forwarded session cookie (request.user), not via
     any request parameter.
+
+    ``service_prefix`` is only used for routing: the URL pattern itself
+    (jpbridge/urls.py) already restricts it to the known valid values, so
+    there is nothing left to validate against here.
 
     Looks up the Correspondence row with source="sgp" for the logged-in
     account (populated by the import_sgp_correspondence management command)
@@ -29,7 +33,7 @@ class GetSGPCodeView(View):
     Returns: <SGPCOD>usercod</SGPCOD>
     """
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, service_prefix, *args, **kwargs):
         if not request.user.is_authenticated:
             logger.warning("getSGPcodfpf: no authenticated session on request")
             return HttpResponseForbidden("no authenticated session")
