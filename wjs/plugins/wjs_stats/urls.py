@@ -23,6 +23,7 @@ urlpatterns = [
     ),
     path("orcids/", views.OrcidsStatsView.as_view(), name="wjs_stats_orcids"),
     path("package-versions/", views.PackageVersionsView.as_view(), name="wjs_stats_package_versions"),
+    path("qcluster-queue/", views.QClusterQueueView.as_view(), name="wjs_stats_qcluster_queue"),
     path(
         "submissions-and-publications.tsv",
         views.SubmittedPublishedPerMonthTSV.as_view(),
