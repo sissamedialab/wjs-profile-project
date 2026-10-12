@@ -39,6 +39,7 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
+from ..events.handlers import send_notification_when_article_is_published
 from ..logic__production import (
     AttachGalleys,
     BeginPublication,
@@ -937,6 +938,37 @@ def test_publication(
     new_mail_to_check = new_mails[0]
     assert new_mail_to_check.subject == message_subject
     assert new_mail_to_check.body == message_body_text
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("journal_has_social", (True, False))
+def test_social_notification_depends_on_journal_settings(
+    rfp_article: Article,
+    fake_request: HttpRequest,
+    journal_has_social: bool,
+    settings,
+    caplog,
+):
+    """The "social" email is sent only for journals listed in the social-media settings (refs specs#3016)."""
+    journal_code = rfp_article.journal.code
+    recipient = "social@example.com"
+    if journal_has_social:
+        settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {journal_code: (recipient,)}
+    else:
+        settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {"OTHER": (recipient,)}
+    settings.WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES = list(settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS)
+    ArticleWorkflow.objects.filter(pk=rfp_article.articleworkflow.pk).update(
+        state=ArticleWorkflow.ReviewStates.PUBLISHED,
+    )
+    rfp_article.articleworkflow.refresh_from_db()
+    mail.outbox = []
+
+    with caplog.at_level(logging.ERROR):
+        send_notification_when_article_is_published(article=rfp_article, request=fake_request)
+
+    social_mails = [m for m in mail.outbox if recipient in m.recipients()]
+    assert len(social_mails) == (1 if journal_has_social else 0), f"Unexpected social mails: {social_mails}"
+    assert "WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS" not in caplog.text, "No error should be logged"
 
 
 @pytest.mark.django_db

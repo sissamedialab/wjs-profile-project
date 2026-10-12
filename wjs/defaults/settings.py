@@ -264,8 +264,9 @@ WJS_REVIEW_IOP_SFTP = {
 
 # Email addresses that must receive the notification when an article is published.
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
+# Only journals listed here have the "social" features enabled (see WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES):
+# there is deliberately no `None` (default) key.
 WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {
-    None: ("jsocial@sissamedialab.it",),
     "JCOM": ("jsocial@sissamedialab.it",),
     "JCOMAL": ("jsocial@sissamedialab.it",),
 }
@@ -551,7 +552,9 @@ BOOTSTRAP5 = {
 WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]
 
 # The list of journals for which the "send short description and image for social media" feature is enabled
-WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES = ["JCOM", "JCOMAL"]
+# and the "social" email notification is sent on publication.
+# Kept linked to WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS (refs wjs/specs#3016).
+WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES = list(WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS.keys())
 
 # The list of journals for which we should show editor keywords when selecting a new editor
 WJS_SHOW_EDITOR_KEYWORDS = []
