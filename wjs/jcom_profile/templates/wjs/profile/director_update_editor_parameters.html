@@ -2,7 +2,7 @@
 {% load django_bootstrap5 i18n static %}
 
 {% block title %}
-  {% translate "Update editor parameters" %}
+  {% blocktranslate with editor_name=object.user.full_name %}Manage Editor {{ editor_name }}{% endblocktranslate %}
 {% endblock title %}
 
 {% block content %}

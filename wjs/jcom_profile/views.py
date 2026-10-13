@@ -118,6 +118,7 @@ class StaffWorkloadParametersUpdate(KeywordsHierarchyContextMixin, UserPassesTes
     form_class = forms.UpdateAssignmentParametersForm
     template_name = "wjs/profile/update_editor_parameters.html"
     raise_exception = True
+    title = _("Edit assignment parameter")
 
     def test_func(self):
         user, journal = self.request.user, self.request.journal
@@ -152,6 +153,7 @@ class DirectorStaffWorkloadParametersUpdate(UserPassesTestMixin, UpdateView):
     form_class = forms.DirectorStaffWorkloadParametersForm
     template_name = "wjs/profile/director_update_editor_parameters.html"
     raise_exception = True
+    title = _("Update editor parameters")
 
     def test_func(self):
         """Give access to EO and directors."""

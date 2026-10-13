@@ -533,6 +533,16 @@ def test_wjs_journal_editors(journal, eo_user, client):
 
 
 @pytest.mark.django_db
+def test_wjs_journal_editors_title_and_sticky_header(journal, eo_user, client):
+    """The editors page is titled "Editor Management" and keeps the table header visible while scrolling."""
+    client.force_login(eo_user)
+    response = client.get(f"/{journal.code}/plugins/wjs-review-articles/journal_editors/")
+    content = response.content.decode().replace("\n", "")
+    assert "<span>  Editor Management</span>" in content, "page title must be 'Editor Management'"
+    assert '<thead class="sticky-top bg-light z-1">' in content, "editors table header must be sticky"
+
+
+@pytest.mark.django_db
 def test_wjs_typesetter_esm_files(assigned_to_typesetter_article_with_files_to_typeset, client):
     assignment = TypesettingAssignment.objects.get(round__article=assigned_to_typesetter_article_with_files_to_typeset)
     client.force_login(assignment.typesetter)
