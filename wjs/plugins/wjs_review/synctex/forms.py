@@ -42,6 +42,24 @@ if TYPE_CHECKING:
 Account = get_user_model()
 
 
+def get_tex_rights_value(texdata: "MetadataFromTeX", key: str) -> str | None:
+    """
+    Return the value of ``key`` from the ``rights`` dict of the TeX data.
+
+    The TeX data (jmeta schema v3) groups copyright and licence under ``rights``, with keys
+    ``copyright_code``, ``copyright_extra``, ``copyright_text``, ``licence_code``, ``licence_extra`` and
+    ``licence_text``. Return None when ``rights`` or ``key`` is missing (or not of the expected type),
+    so that callers can tell "missing" from "empty".
+    """
+    rights = texdata.data.get("rights")
+    if not isinstance(rights, dict):
+        return None
+    value = rights.get(key)
+    if not isinstance(value, str):
+        return None
+    return value
+
+
 class SyncLanguageForm(forms.ModelForm):
     """
     Form used to synchronize the language between TeX and DB.
@@ -114,7 +132,8 @@ class SyncLicenseForm(forms.Form):
     """
 
     action = forms.CharField(widget=forms.HiddenInput(), initial="sync_license")
-    license = forms.CharField(label=_("License"), disabled=True, required=True)  # noqa: A003 (ruff and flake disagree)
+    # Not required: clean_license() reports a missing/unknown TeX license with a more specific message.
+    license = forms.CharField(label=_("License"), disabled=True, required=False)  # noqa: A003 (ruff/flake)
 
     def __init__(self, texdata, *args, **kwargs):
         """Store the TeX data and bind the matching license's pk to the field."""
@@ -126,9 +145,9 @@ class SyncLicenseForm(forms.Form):
             slugify(licence.short_name): licence
             for licence in submission_models.Licence.objects.filter(journal=journal)
         }
-        # Note that the TeX command sequence from which the license is extracted was
-        # \publicationLicence{{{ article.license.short_name|slugify }}}
-        self.tex_license_slugified = texdata.data.get("licence")
+        # Note that the TeX command sequence from which the license is extracted is
+        # \publicationLicence{{{ article.license.short_name|slugify }}} (e.g. "cc-by-40")
+        self.tex_license_slugified = get_tex_rights_value(texdata, "licence_code")
         self.tex_license = self.licenses_mapping.get(self.tex_license_slugified)
         if self.tex_license:
             self.fields["license"].initial = self.tex_license.name
@@ -140,6 +159,8 @@ class SyncLicenseForm(forms.Form):
 
     def clean_license(self):
         """Ensure the TeX license matches one of the journal's licenses."""
+        if self.tex_license_slugified is None:
+            raise ValidationError("Missing 'rights.licence_code' in TeX data!")
         if self.tex_license_slugified not in self.licenses_mapping:
             raise ValidationError(f"Unknown TeX license '{self.tex_license_slugified}'!")
         return self.cleaned_data["license"]
@@ -175,7 +196,8 @@ class SyncRightsForm(forms.Form):
     """
 
     action = forms.CharField(widget=forms.HiddenInput(), initial="sync_rights")
-    rights = forms.CharField(label=_("Rights"), disabled=True, required=True)  # noqa: A003 (ruff and flake disagree)
+    # Not required: clean_rights() reports a missing/empty TeX copyright with a more specific message.
+    rights = forms.CharField(label=_("Rights"), disabled=True, required=False)
 
     def __init__(self, texdata, *args, **kwargs):
         """Store the TeX data and bind the rights string to the field."""
@@ -188,7 +210,9 @@ class SyncRightsForm(forms.Form):
         self.rights_mapping = {
             "authors": "© Authors",
         }
-        self.tex_rights_raw = texdata.data.get("copyright")  # NB: "copyright" ≈ "rights"
+        # The copyright code is the first argument of \publicationRights{<code>}[<extra>]; the LaTeX class
+        # knows "authors", "open-access" and "oa-cern" (see also rights.copyright_text).
+        self.tex_rights_raw = get_tex_rights_value(texdata, "copyright_code")
         self.tex_rights = self.rights_mapping.get(self.tex_rights_raw, self.tex_rights_raw)
         if self.tex_rights:
             self.fields["rights"].initial = self.tex_rights
@@ -197,6 +221,8 @@ class SyncRightsForm(forms.Form):
 
     def clean_rights(self):
         """Any value vould do."""
+        if self.tex_rights_raw is None:
+            raise ValidationError("Missing 'rights.copyright_code' in TeX data!")
         if not self.tex_rights:
             raise ValidationError("The copyright must have some value!")
         return self.cleaned_data["rights"]
@@ -316,22 +342,55 @@ class SyncCasDasForm(forms.Form):
     validated (also at GET) so that the template can disable the submit button when a TeX value is
     not a known CAS/DAS declaration. The declarations live on the article's ``submission_data``
     (a OneToOne ArticleSubmission).
+
+    The TeX data (jmeta schema v3, see jcomassistant's ``PaperData``) exposes each statement as
+    ``{"type": "<type>", "text": "<text>"}``, as set by ``\\casText{<type>}{<text>}`` /
+    ``\\dasText{<type>}{<text>}``:
+    - ``type`` is one of "no", "esm", "url", "other" (enforced by the LaTeX class), or "" when the
+      paper does not declare the statement at all;
+    - ``text`` is the free statement text, purified from LaTeX markup (``\\url{u}`` becomes ``u``,
+      ``\\href{u}{t}`` becomes ``t (u)``).
+
+    The DB has no "other" declaration nor a field for the free text, so "other" is reported as an
+    unknown declaration and the text is only shown for reference. The DB URL is extracted from the
+    text when the type is "url".
     """
 
     action = forms.CharField(widget=forms.HiddenInput(), initial="sync_casdas")
     cas = forms.CharField(label=_("Code Availability Statement"), disabled=True, required=False)
+    cas_text = forms.CharField(
+        label=_("CAS text"),
+        widget=forms.Textarea(attrs={"rows": 2}),
+        disabled=True,
+        required=False,
+        help_text=_("Statement text from TeX, for reference only: it is not stored in the DB."),
+    )
     cas_url = forms.CharField(label=_("CAS URL"), disabled=True, required=False)
     das = forms.CharField(label=_("Data Availability Statement"), disabled=True, required=False)
+    das_text = forms.CharField(
+        label=_("DAS text"),
+        widget=forms.Textarea(attrs={"rows": 2}),
+        disabled=True,
+        required=False,
+        help_text=_("Statement text from TeX, for reference only: it is not stored in the DB."),
+    )
     das_url = forms.CharField(label=_("DAS URL"), disabled=True, required=False)
+
+    # Characters that can follow a URL in a sentence without being part of it.
+    URL_TRAILING_PUNCTUATION = ".,;:!?'\""
+    URL_RE = re.compile(r"https?://[^\s()<>]+")
 
     def __init__(self, texdata, *args, **kwargs):
         """Store the TeX data and bind the cas/das declarations extracted from it to the fields."""
         self.texdata = texdata
         super().__init__(*args, **kwargs)
-        self.tex_cas = texdata.data.get("cas", "")
-        self.tex_cas_url = texdata.data.get("cas_url", "")
-        self.tex_das = texdata.data.get("das", "")
-        self.tex_das_url = texdata.data.get("das_url", "")
+        # Problems with the shape of the TeX data, keyed by statement ("cas"/"das"). They are not
+        # raised here, but reported as field errors by clean_cas()/clean_das().
+        self.tex_data_errors: dict[str, str] = {}
+        self.tex_cas, self.tex_cas_text = self._extract_statement("cas")
+        self.tex_das, self.tex_das_text = self._extract_statement("das")
+        self.tex_cas_url = self._extract_url(self.tex_cas, self.tex_cas_text)
+        self.tex_das_url = self._extract_url(self.tex_das, self.tex_das_text)
         submission_data = self._get_submission_data()
         self.db_cas = submission_data.cas if submission_data else None
         self.db_cas_url = submission_data.cas_url if submission_data else None
@@ -339,22 +398,68 @@ class SyncCasDasForm(forms.Form):
         self.db_das_url = submission_data.das_url if submission_data else None
         # The fields are disabled, so their values come from self.initial.
         self.initial["cas"] = self.tex_cas
+        self.initial["cas_text"] = self.tex_cas_text
         self.initial["cas_url"] = self.tex_cas_url
         self.initial["das"] = self.tex_das
+        self.initial["das_text"] = self.tex_das_text
         self.initial["das_url"] = self.tex_das_url
         cas_labels = dict(ArticleSubmission.CasDeclaration.choices)
         das_labels = dict(ArticleSubmission.DasDeclaration.choices)
         self.fields["cas"].help_text = (
-            f"TeX: {cas_labels.get(self.tex_cas, self.tex_cas)} " f"vs DB: {cas_labels.get(self.db_cas, self.db_cas)}"
+            f"TeX: {self._display(self.tex_cas, cas_labels)} vs DB: {self._display(self.db_cas, cas_labels)}"
         )
-        self.fields["cas_url"].help_text = f"TeX: {self.tex_cas_url} vs DB: {self.db_cas_url}"
+        self.fields["cas_url"].help_text = (
+            f"TeX (from the statement text): {self._display(self.tex_cas_url)} "
+            f"vs DB: {self._display(self.db_cas_url)}"
+        )
         self.fields["das"].help_text = (
-            f"TeX: {das_labels.get(self.tex_das, self.tex_das)} " f"vs DB: {das_labels.get(self.db_das, self.db_das)}"
+            f"TeX: {self._display(self.tex_das, das_labels)} vs DB: {self._display(self.db_das, das_labels)}"
         )
-        self.fields["das_url"].help_text = f"TeX: {self.tex_das_url} vs DB: {self.db_das_url}"
+        self.fields["das_url"].help_text = (
+            f"TeX (from the statement text): {self._display(self.tex_das_url)} "
+            f"vs DB: {self._display(self.db_das_url)}"
+        )
         # Flag the case where syncing would drop an existing DB URL (the TeX has none).
         self.cas_url_will_be_removed = bool(self.db_cas_url) and not self.tex_cas_url
         self.das_url_will_be_removed = bool(self.db_das_url) and not self.tex_das_url
+
+    def _extract_statement(self, key: str) -> tuple[str, str]:
+        """
+        Return the (type, text) of the statement ``key`` from the TeX data.
+
+        A missing key or an unexpected shape is not equated to an empty statement: it is recorded in
+        self.tex_data_errors (so that the form does not validate) and ("", "") is returned.
+        """
+        if key not in self.texdata.data:
+            self.tex_data_errors[key] = f"Missing '{key}' in TeX data!"
+            return "", ""
+        statement = self.texdata.data[key]
+        if (
+            not isinstance(statement, dict)
+            or not isinstance(statement.get("type"), str)
+            or not isinstance(statement.get("text"), str)
+        ):
+            self.tex_data_errors[key] = f"Unexpected '{key}' in TeX data (expected type and text): {statement!r}"
+            return "", ""
+        return statement["type"], statement["text"]
+
+    def _extract_url(self, statement_type: str, text: str) -> str:
+        """Return the first URL found in the statement text if the statement type is "url", else ""."""
+        if statement_type != "url":
+            return ""
+        match = self.URL_RE.search(text)
+        if not match:
+            return ""
+        return match.group().rstrip(self.URL_TRAILING_PUNCTUATION)
+
+    @staticmethod
+    def _display(value: str | None, labels: dict | None = None) -> str:
+        """Return a human-readable representation of a TeX/DB value for the help texts."""
+        if not value:
+            return "-"
+        if labels is None:
+            return value
+        return labels.get(value, f"'{value}' (unknown)")
 
     def _get_submission_data(self) -> ArticleSubmission | None:
         """Return the article's ArticleSubmission, or None if it does not exist yet."""
@@ -363,22 +468,31 @@ class SyncCasDasForm(forms.Form):
         except ArticleSubmission.DoesNotExist:
             return None
 
+    def _validate_statement(self, key: str, tex_value: str, db_value: str | None, tex_url: str, choices: dict):
+        """Ensure the TeX statement ``key`` is well-formed and is a known declaration."""
+        if key in self.tex_data_errors:
+            raise ValidationError(self.tex_data_errors[key])
+        name = key.upper()
+        # CAS/DAS are not mandatory: if neither TeX nor DB has it set, there is nothing to validate.
+        if not tex_value and not db_value:
+            return
+        if tex_value not in choices:
+            raise ValidationError(f"Unknown {name} declaration '{tex_value}'!")
+        if tex_value == "url" and not tex_url:
+            raise ValidationError(f"{name} declared as 'url', but no URL found in its text!")
+
     def clean_cas(self):
-        """Ensure the TeX CAS is a known Code Availability Statement declaration."""
-        # CAS is not mandatory: if neither TeX nor DB has it set, there is nothing to validate.
-        if not self.tex_cas and not self.db_cas:
-            return self.cleaned_data["cas"]
-        if self.tex_cas not in dict(ArticleSubmission.CasDeclaration.choices):
-            raise ValidationError(f"Unknown CAS declaration '{self.tex_cas}'!")
+        """Ensure the TeX CAS is a well-formed and known Code Availability Statement declaration."""
+        self._validate_statement(
+            "cas", self.tex_cas, self.db_cas, self.tex_cas_url, dict(ArticleSubmission.CasDeclaration.choices)
+        )
         return self.cleaned_data["cas"]
 
     def clean_das(self):
-        """Ensure the TeX DAS is a known Data Availability Statement declaration."""
-        # DAS is not mandatory: if neither TeX nor DB has it set, there is nothing to validate.
-        if not self.tex_das and not self.db_das:
-            return self.cleaned_data["das"]
-        if self.tex_das not in dict(ArticleSubmission.DasDeclaration.choices):
-            raise ValidationError(f"Unknown DAS declaration '{self.tex_das}'!")
+        """Ensure the TeX DAS is a well-formed and known Data Availability Statement declaration."""
+        self._validate_statement(
+            "das", self.tex_das, self.db_das, self.tex_das_url, dict(ArticleSubmission.DasDeclaration.choices)
+        )
         return self.cleaned_data["das"]
 
     def should_sync(self) -> bool:
@@ -655,8 +769,6 @@ class TexAuthor:
     suffix: str
     email: str
     orcid: str
-    biography: str
-    socials_handle: str
 
     @classmethod
     def from_payload(cls, order: int, data: dict) -> "TexAuthor":
@@ -669,9 +781,6 @@ class TexAuthor:
             suffix=data.get("suffix") or "",
             email=data.get("email") or "",
             orcid=data.get("orcid") or "",
-            # bibliography and socials are not used across all journals
-            biography=data.get("biography") or "",
-            socials_handle=data.get("socials_handle") or "",
         )
 
     @property
@@ -699,8 +808,6 @@ class DBAuthor:
     last_name: str
     email: str
     orcid: str
-    biography: str
-    socials_handle: str
     country: str
     institution: str
 
@@ -713,9 +820,6 @@ class DBAuthor:
             last_name=account.last_name or "",
             email=account.email or "",
             orcid=account.orcid or "",
-            biography=account.biography or "",
-            # Janeway's Account has no "socials handle" field: the twitter one is used instead.
-            socials_handle=account.twitter or "",
             country=account.country.name if account.country else "",
             institution=account.institution or "",
         )
@@ -736,26 +840,20 @@ class AuthorRecord:
     last_name: str
     email: str
     orcid: str
-    biography: str
-    socials_handle: str
     country: str
     institution: str
 
     @classmethod
     def from_frozen_author(cls, frozen_author: submission_models.FrozenAuthor) -> "AuthorRecord":
         """Build an instance from an author record of the paper."""
-        account = frozen_author.author
         return cls(
             pk=frozen_author.pk,
             account_id=frozen_author.author_id,
             first_name=frozen_author.first_name or "",
             last_name=frozen_author.last_name or "",
-            # These three fall back onto the account, when the record has one.
+            # These two fall back onto the account, when the record has one.
             email=frozen_author.email or "",
             orcid=frozen_author.orcid or "",
-            biography=frozen_author.biography or "",
-            # Janeway's Account has no "socials handle" field: the twitter one is used instead.
-            socials_handle=account.twitter if account else "",
             country=str(frozen_author.country) if frozen_author.country else "",
             institution=frozen_author.institution or "",
         )
@@ -1319,8 +1417,8 @@ class SyncAuthorsForm(forms.Form):
         Return False when there is no author to take care of and every author record has the values
         and the position of the corresponding TeX author; True otherwise.
 
-        NB: the socials handle is not part of the author record (it lives on the account), so it
-        does not take part in the comparison.
+        NB: biography and socials handle are not synchronized (the TeX data does not have them), so they
+        do not take part in the comparison.
         """
         if self.mapper.orphan_authors:
             return True
@@ -1343,7 +1441,6 @@ class SyncAuthorsForm(forms.Form):
                 ("name_suffix", "suffix"),
                 ("frozen_email", "email"),
                 ("frozen_orcid", "orcid"),
-                ("frozen_biography", "biography"),
             )
         )
 
@@ -1364,18 +1461,6 @@ class SyncAuthorsForm(forms.Form):
         if len(chosen_accounts) != len(set(chosen_accounts)):
             raise ValidationError(_("The same account cannot be linked to two different authors!"))
         self._check_orcid(cleaned_data)
-        # The socials handle is stored as a handle (see _create_author_record) but displayed as a
-        # bluesky URL (see the bluesky_url template filter), so the TeX must declare it as such.
-        bad_handles = [
-            tex_author.socials_handle
-            for tex_author in self.mapper.authors_tex
-            if tex_author.socials_handle and not tex_author.socials_handle.startswith("@")
-        ]
-        if bad_handles:
-            raise ValidationError(
-                _('The socials handle must start with "@": please fix %(handles)s in the TeX source!')
-                % {"handles": "; ".join(bad_handles)},
-            )
         return cleaned_data
 
     def _check_orcid(self, cleaned_data: dict):
@@ -1473,7 +1558,6 @@ class SyncAuthorsForm(forms.Form):
             name_suffix=tex_author.suffix,
             frozen_email=tex_author.email,
             frozen_orcid=tex_author.orcid,
-            frozen_biography=tex_author.biography,
             display_email=account is not None and account == article.correspondence_author,
         )
         if account:
@@ -1483,10 +1567,6 @@ class SyncAuthorsForm(forms.Form):
                 self.mapper.create_correspondence(account=account, tex_author=tex_author)
             account.add_account_role("author", article.journal)
             account.snapshot_affiliations(frozen_author)
-            # Janeway's Account has no "socials handle" field: the twitter one is used instead.
-            if tex_author.socials_handle and tex_author.socials_handle != account.twitter:
-                account.twitter = tex_author.socials_handle
-                account.save()
         if not previous_authors.includes(frozen_author):
             self._log_new_coauthor_created(frozen_author)
         return frozen_author
@@ -1565,10 +1645,12 @@ class SyncFundingsForm(forms.Form):
     """
     Form used to receive the green-light to synchronize the fundings between TeX and DB.
 
-    The TeX fundings come from the ``fundings`` key: a (possibly empty) list of dicts with keys
-    ``name``, ``fundref_id``, ``funding_id`` and ``funding_statement``. The DB fundings are the
-    article's ArticleFunding entries. get_form_context_data() returns both lists so the template
-    can show them side by side; sync() replaces the DB fundings with the TeX ones.
+    The TeX fundings come from the ``funders`` key (jmeta schema v3): a (possibly empty) list of dicts
+    with keys ``name``, ``doi``, ``grant`` and ``note``, as set by ``\\funder{<name>}{<doi>}{<grant>}[<note>]``.
+    They are translated into dicts with the keys of the DB fundings (``name``, ``fundref_id``,
+    ``funding_id`` and ``funding_statement``). The DB fundings are the article's ArticleFunding
+    entries. get_form_context_data() returns both lists so the template can show them side by side;
+    sync() replaces the DB fundings with the TeX ones.
     """
 
     action = forms.CharField(widget=forms.HiddenInput(), initial="sync_fundings")
@@ -1576,16 +1658,58 @@ class SyncFundingsForm(forms.Form):
     # Fundref ids are stored as URIs like https://dx.doi.org/10.13039/501100021082; the funder
     # registry id (used to query Crossref) is the part after the "10.13039/" DOI prefix.
     FUNDREF_ID_RE = re.compile(r"10\.13039/(\S+)")
+    # The TeX has the bare DOI of the funder (e.g. 10.13039/501100021082).
+    FUNDREF_URI_PREFIX = "https://dx.doi.org/"
     CROSSREF_FUNDERS_URL = "https://api.crossref.org/funders/{funder_id}"
 
     FUNDING_KEYS = ("name", "fundref_id", "funding_id", "funding_statement")
+    TEX_FUNDERS_KEY = "funders"
+    #: TeX funder key -> DB funding key
+    TEX_FUNDER_KEYS = {"name": "name", "doi": "fundref_id", "grant": "funding_id", "note": "funding_statement"}
 
     def __init__(self, texdata, *args, **kwargs):
         """Store the TeX data and collect the TeX/DB fundings."""
         self.texdata = texdata
         super().__init__(*args, **kwargs)
-        self.fundings_tex = texdata.data.get("fundings") or []
+        # A problem with the shape of the TeX data; not raised here, but reported by clean().
+        self.tex_data_error: str | None = None
+        self.fundings_tex = self._get_tex_fundings()
         self.fundings_db = self._get_db_fundings()
+
+    def _get_tex_fundings(self) -> list[dict]:
+        """
+        Return the TeX funders as a list of dicts with the keys of the DB fundings.
+
+        A missing ``funders`` key or an unexpected shape is not equated to "no fundings": it is recorded
+        in self.tex_data_error (so that the form does not validate) and an empty list is returned.
+        """
+        if self.TEX_FUNDERS_KEY not in self.texdata.data:
+            self.tex_data_error = f"Missing '{self.TEX_FUNDERS_KEY}' in TeX data!"
+            return []
+        funders = self.texdata.data[self.TEX_FUNDERS_KEY]
+        if not isinstance(funders, list) or not all(
+            isinstance(funder, dict) and all(isinstance(funder.get(key), str) for key in self.TEX_FUNDER_KEYS)
+            for funder in funders
+        ):
+            self.tex_data_error = (
+                f"Unexpected '{self.TEX_FUNDERS_KEY}' in TeX data "
+                f"(expected a list of {', '.join(self.TEX_FUNDER_KEYS)}): {funders!r}"
+            )
+            return []
+        return [
+            {
+                db_key: self._doi_to_uri(funder[tex_key]) if db_key == "fundref_id" else funder[tex_key]
+                for tex_key, db_key in self.TEX_FUNDER_KEYS.items()
+            }
+            for funder in funders
+        ]
+
+    @classmethod
+    def _doi_to_uri(cls, doi: str) -> str:
+        """Turn the bare DOI of a funder into a URI, as the fundref ids are stored in the DB."""
+        if not doi or doi.startswith("http"):
+            return doi
+        return f"{cls.FUNDREF_URI_PREFIX}{doi}"
 
     def _get_db_fundings(self) -> list[dict]:
         """Return the article's fundings as a list of dicts (comparable with the TeX ones)."""
@@ -1596,8 +1720,25 @@ class SyncFundingsForm(forms.Form):
 
     @classmethod
     def _normalize(cls, fundings: list[dict]) -> list[tuple]:
-        """Turn a list of funding dicts into a sorted list of tuples for order-independent comparison."""
-        return sorted(tuple(funding.get(key) or "" for key in cls.FUNDING_KEYS) for funding in fundings)
+        """
+        Turn a list of funding dicts into a sorted list of tuples for order-independent comparison.
+
+        Fundref ids are compared on the funder registry id, so that different URI forms of the same DOI
+        (http/https, dx.doi.org/doi.org, ...) do not make TeX and DB look out of sync.
+        """
+        return sorted(
+            tuple(
+                cls._fundref_registry_id(funding.get(key) or "") if key == "fundref_id" else funding.get(key) or ""
+                for key in cls.FUNDING_KEYS
+            )
+            for funding in fundings
+        )
+
+    @classmethod
+    def _fundref_registry_id(cls, fundref_id: str) -> str:
+        """Return the funder registry id of a fundref id, or the fundref id itself if it is not a fundref DOI."""
+        match = cls.FUNDREF_ID_RE.search(fundref_id)
+        return match.group(1) if match else fundref_id
 
     def _get_crossref_funder_name(self, fundref_id: str) -> str | None:
         """Query Crossref for the funder name of ``fundref_id``, or None if it cannot be resolved."""
@@ -1615,6 +1756,8 @@ class SyncFundingsForm(forms.Form):
     def clean(self):
         """Verify each TeX funding's name against Crossref when a fundref id is present."""
         cleaned_data = super().clean()
+        if self.tex_data_error:
+            raise ValidationError(self.tex_data_error)
         # The Crossref check hits the network, so skip it when there is nothing to sync.
         if not self.should_sync():
             return cleaned_data
@@ -1669,8 +1812,11 @@ class SyncCollaborationsForm(forms.Form):
     """
     Form used to receive the green-light to synchronize the collaborations between TeX and DB.
 
-    The TeX describes the collaborations with two keys: ``collaborations`` (a list of collaboration
-    names) and ``collaborations_type`` (how the article relates to *all* of them). Each name is
+    The TeX (jmeta schema v3) describes the collaborations with two keys: ``collaborations`` (a list
+    of dicts with keys ``name``, ``short`` and ``email``, as set by ``\\collaboration{<name>}[<short>]{<email>}``)
+    and ``collaboration_list_mode`` (how the article relates to *all* of them, as set by
+    ``\\collaborationList{<mode>}``: one of "forthe", "behalf", "author", "regular", "empty", or "" when
+    not set). Only the jsty3 papers can declare collaborations. Each name is
     matched against the DB ``Collaboration`` records (ignoring case and surrounding spaces) and the
     type is mapped onto a ``CollaborationRelation``; syncing attaches the matched collaborations to
     the article (in the TeX order, all with the mapped relation) and drops the other links.
@@ -1685,7 +1831,7 @@ class SyncCollaborationsForm(forms.Form):
     NO_MATCH_ERROR = _("No matching collaboration; please manually create one and retry!")
 
     NAMES_KEY = "collaborations"
-    TYPE_KEY = "collaborations_type"
+    TYPE_KEY = "collaboration_list_mode"
     #: TeX collaboration types that mean "the article is written on behalf of the collaborations".
     ON_BEHALF_OF_TYPES = ("forthe", "behalf")
 
@@ -1700,8 +1846,10 @@ class SyncCollaborationsForm(forms.Form):
         """Store the TeX data and match the TeX collaboration names onto the DB Collaborations."""
         self.texdata = texdata
         super().__init__(*args, **kwargs)
-        self.names_tex = texdata.data.get(self.NAMES_KEY) or []
-        self.type_tex = texdata.data.get(self.TYPE_KEY) or ""
+        # Problems with the shape of the TeX data; not raised here, but reported by clean().
+        self.tex_data_errors: list[str] = []
+        self.names_tex = self._get_tex_names()
+        self.type_tex = self._get_tex_type()
         self.relation_tex = self._map_relation(self.type_tex)
         # NB: these are ArticleCollaboration (the through model), already ordered by "order".
         self.collaborations_db = self.texdata.workflow.article.collaborations.all()
@@ -1709,6 +1857,33 @@ class SyncCollaborationsForm(forms.Form):
             self.CollaborationStruct(name=name, collaboration=Collaboration.objects.by_name(name).first())
             for name in self.names_tex
         ]
+
+    def _get_tex_names(self) -> list[str]:
+        """Return the names of the TeX collaborations, recording any problem with their shape."""
+        collaborations = self.texdata.data.get(self.NAMES_KEY)
+        if collaborations is None:
+            # Reported by clean().
+            return []
+        if not isinstance(collaborations, list) or not all(
+            isinstance(item, dict) and isinstance(item.get("name"), str) for item in collaborations
+        ):
+            self.tex_data_errors.append(
+                f"Unexpected '{self.NAMES_KEY}' in TeX data (expected a list of name, short, email): "
+                f"{collaborations!r}"
+            )
+            return []
+        return [item["name"] for item in collaborations]
+
+    def _get_tex_type(self) -> str:
+        """Return how the article relates to the TeX collaborations, recording any problem with its shape."""
+        type_tex = self.texdata.data.get(self.TYPE_KEY)
+        if type_tex is None:
+            # Reported by clean().
+            return ""
+        if not isinstance(type_tex, str):
+            self.tex_data_errors.append(f"Unexpected '{self.TYPE_KEY}' in TeX data: {type_tex!r}")
+            return ""
+        return type_tex
 
     @classmethod
     def _map_relation(cls, type_tex: str) -> str:
@@ -1726,8 +1901,9 @@ class SyncCollaborationsForm(forms.Form):
         errors.extend(
             ValidationError(f"The TeX has no '{key}'. Please check!")
             for key in (self.NAMES_KEY, self.TYPE_KEY)
-            if key not in self.texdata.data
+            if self.texdata.data.get(key) is None
         )
+        errors.extend(ValidationError(error) for error in self.tex_data_errors)
         errors.extend(
             ValidationError(f"{self.NO_MATCH_ERROR} ({item.name})")
             for item in self.collaborations_tex

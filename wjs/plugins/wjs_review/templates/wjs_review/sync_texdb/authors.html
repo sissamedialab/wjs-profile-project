@@ -24,8 +24,6 @@
           <th scope="col">{% translate "Last name" %}</th>
           <th scope="col">{% translate "Email" %}</th>
           <th scope="col">{% translate "ORCID" %}</th>
-          <th scope="col">{% translate "Biography" %}</th>
-          <th scope="col">{% translate "Socials handle" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -50,13 +48,9 @@
               {% endif %}
             </td>
             <td>{{ row.author_record.orcid }}</td>
-            <td>
-              <textarea class="form-control form-control-sm" rows="2" readonly>{{ row.author_record.biography }}</textarea>
-            </td>
-            <td>{{ row.author_record.socials_handle }}</td>
           </tr>
           <tr class="actions-row">
-            <td colspan="6">
+            <td colspan="4">
               <div class="d-flex flex-row gap-4 align-items-start">
                 <form name="delete_author_record" method="post">
                   {% csrf_token %}
@@ -121,8 +115,6 @@
               <th scope="col">{% translate "Last name" %}</th>
               <th scope="col">{% translate "Email" %}</th>
               <th scope="col">{% translate "ORCID" %}</th>
-              <th scope="col">{% translate "Biography" %}</th>
-              <th scope="col">{% translate "Socials handle" %}</th>
             </tr>
           </thead>
           <tbody>
@@ -134,10 +126,6 @@
               <td>{{ section.tex_author.last_name }}</td>
               <td>{{ section.tex_author.email }}</td>
               <td>{{ section.tex_author.orcid }}</td>
-              <td>
-                <textarea class="form-control form-control-sm" rows="2" readonly>{{ section.tex_author.biography }}</textarea>
-              </td>
-              <td>{{ section.tex_author.socials_handle }}</td>
             </tr>
             {% for row in section.rows %}
               <tr>
@@ -170,12 +158,8 @@
                       {{ row.db_author.orcid }}
                     {% endif %}
                   </td>
-                  <td>
-                    <textarea class="form-control form-control-sm" rows="2" readonly>{{ row.db_author.biography }}</textarea>
-                  </td>
-                  <td>{{ row.db_author.socials_handle }}</td>
                 {% else %}
-                  <td colspan="6" class="fst-italic">
+                  <td colspan="4" class="fst-italic">
                     {% translate "A new author record will be created, not linked to any account." %}
                   </td>
                 {% endif %}

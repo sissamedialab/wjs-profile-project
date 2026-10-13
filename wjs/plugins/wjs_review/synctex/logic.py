@@ -2,6 +2,7 @@
 
 import dataclasses
 import zipfile
+from http import HTTPStatus
 from io import BytesIO
 
 import requests
@@ -21,15 +22,23 @@ class MetadataFromTeX:
     receive the metadata extracted from that.
     """
 
+    #: The version of the schema of the metadata (see jcomassistant's PaperData) that the sync forms know.
+    SCHEMA_VERSION = 3
+
     workflow: ArticleWorkflow
+    #: Set by get_raw_data(): True when jcomassistant could extract only some of the metadata (it then
+    #: replies 206 Partial Content, and the missing metadata have their default - usually empty - value).
+    is_partial: bool = False
 
     # TODO: allow for type-hint TexData without depending from jcomassistant
     def get_raw_data(self) -> dict:
         """
         Ask Jcomassistant to extract structured metadata from TeX.
 
+        Set self.is_partial when jcomassistant could extract only some of the metadata.
+
         Raise:
-          HTTPError: if jcomassistant returned something different that 200
+          HTTPError: if jcomassistant returned something different that 200 or 206
 
         """
         # Use the source file from the latest typesetting round.  We probably will never change these data after
@@ -39,9 +48,10 @@ class MetadataFromTeX:
         files = {"file": tex_source_file}
         url = f"{settings.JCOMASSISTANT_URL}texdata"
         response = requests.post(url=url, files=files, timeout=10)
-        if response.status_code != 200:
+        if response.status_code not in (HTTPStatus.OK, HTTPStatus.PARTIAL_CONTENT):
             msg = f"Unexpected status code {response.status_code} for {url}"
             raise requests.exceptions.HTTPError(msg)
+        self.is_partial = response.status_code == HTTPStatus.PARTIAL_CONTENT
         return response.json()
 
     # TODO: refactor with logic__production.BeginPublication._get_source_file()

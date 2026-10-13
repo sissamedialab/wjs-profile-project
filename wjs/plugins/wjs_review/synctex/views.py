@@ -108,6 +108,29 @@ class SyncTeXDB(AuthenticatedUserPassesTest, DetailView):
         texdata = MetadataFromTeX(self.object)
         # Use the raw data: we only need the extracted values here, not the heavier enriched data.
         texdata.data = texdata.get_raw_data()
+        # Warn only when the page is displayed: a POST redirects to the page itself, that would repeat the warnings.
+        if self.request.method != "GET":
+            return texdata
+        schema_version = texdata.data.get("schema_version")
+        if schema_version != MetadataFromTeX.SCHEMA_VERSION:
+            messages.add_message(
+                self.request,
+                messages.WARNING,
+                _(
+                    "The metadata extracted from the TeX source have schema version %(found)s, but %(expected)s is"
+                    " expected. The following forms are not safe!"
+                )
+                % {"found": schema_version, "expected": MetadataFromTeX.SCHEMA_VERSION},
+            )
+        if texdata.is_partial:
+            messages.add_message(
+                self.request,
+                messages.WARNING,
+                _(
+                    "Jcomassistant could extract only some of the metadata from the TeX source: the missing ones"
+                    " have a default (empty) value. The following forms are not safe!"
+                ),
+            )
         return texdata
 
     def get_context_data(self, **kwargs):
