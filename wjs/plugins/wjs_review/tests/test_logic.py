@@ -3474,8 +3474,9 @@ def test_postpone_due_date_by_reviewer_notifies_editor(
 
     review_assignment.refresh_from_db()
     assert review_assignment.date_due == new_date_due
-    assert Message.objects.count() == 2, "one message for the reviewer and one for the editor"
-    assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1, "reviewer message must be unchanged"
+    assert Message.objects.count() == 1, "only one message is generated"
+    assert Message.objects.filter(recipients__pk=editor.pk).count() == 1, "editor is the recipient"
+    assert Message.objects.filter(actor=reviewer).count() == 1, "reviewer is the sender"
     editor_messages = Message.objects.filter(recipients__pk=editor.pk)
     assert editor_messages.count() == 1, "the editor must be notified"
     editor_message = editor_messages.get()
@@ -3483,7 +3484,7 @@ def test_postpone_due_date_by_reviewer_notifies_editor(
     # the message body is rendered by a template: the date is formatted as {{ date_due }} does
     new_rendered_due_date = defaultfilters.date(new_date_due)
     assert new_rendered_due_date in editor_message.body, "the message must report the new due date"
-    assert len(mail.outbox) == 2, "both messages are sent by email"
+    assert len(mail.outbox) == 1, "only one message is sent by email"
 
 
 @pytest.mark.django_db
@@ -3623,8 +3624,7 @@ def test_actors_postpone_due_date(
 
     if actor_role == "Reviewer":
         actor_user = review_assignment.reviewer
-        # the reviewer is notified and, as the reviewer changed the date, the editor too
-        expected_emails = 2
+        expected_emails = 1
     elif actor_role == "Editor":
         actor_user = review_assignment.editor
         expected_emails = 1

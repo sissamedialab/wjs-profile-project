@@ -3840,9 +3840,10 @@ class PostponeReviewerDueDate:
             self._save_reviewer_date_due()
             if self._report_postponed_far_future_date():
                 self._log_eo_far_future_date()
-            self._log_reviewer_if_date_is_postponed()
             if self._changed_by_reviewer():
                 self._log_editor_if_date_is_changed_by_reviewer()
+            else:
+                self._log_reviewer_if_date_is_postponed()
 
             # Materialized AC update:
             # Postponing the due date affects the reviewer-late time-based
