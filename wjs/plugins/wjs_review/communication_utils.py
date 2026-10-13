@@ -204,8 +204,11 @@ def get_director_user(obj: Union[Article, Journal]) -> Account:
         accountrole__role__slug=constants.DIRECTOR_ROLE,
         accountrole__journal=journal,
     )
+    # NB: chaining filter() on a multi-valued relation creates a new join on AccountRole, so the journal condition
+    # must be repeated here, otherwise a main director of _another_ journal would match
     main_directors = directors.filter(
         accountrole__role__slug=constants.DIRECTOR_MAIN_ROLE,
+        accountrole__journal=journal,
     )
     if directors.count() == 1:
         return directors.first()
