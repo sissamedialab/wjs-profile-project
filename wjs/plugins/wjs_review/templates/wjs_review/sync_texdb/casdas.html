@@ -2,7 +2,7 @@
 {% translate "Update" as update_label %}
 <div>
   <p>
-    {% translate "Code and Data Availability Statements extracted from the TeX source. The update button is enabled only when a value is a known declaration and different from the DB one. Note that if the value is empty both on the DB and in the TeX, then that's considered ok." %}
+    {% translate "Code and Data Availability Statements extracted from the TeX source. The update button is enabled only when a value is a known declaration and different from the DB one. The URL is extracted from the statement text when the declaration is &quot;url&quot;. Note that if the value is empty both on the DB and in the TeX, then that's considered ok." %}
   </p>
 </div>
 <div class="d-flex flex-column justify-content-between">
@@ -10,6 +10,7 @@
     {% csrf_token %}
     {% bootstrap_field form_casdas.action %}
     {% bootstrap_field form_casdas.cas %}
+    {% bootstrap_field form_casdas.cas_text %}
     {% bootstrap_field form_casdas.cas_url %}
     {% if form_casdas.cas_url_will_be_removed %}
       <div class="alert alert-warning" role="alert">
@@ -17,6 +18,7 @@
       </div>
     {% endif %}
     {% bootstrap_field form_casdas.das %}
+    {% bootstrap_field form_casdas.das_text %}
     {% bootstrap_field form_casdas.das_url %}
     {% if form_casdas.das_url_will_be_removed %}
       <div class="alert alert-warning" role="alert">
