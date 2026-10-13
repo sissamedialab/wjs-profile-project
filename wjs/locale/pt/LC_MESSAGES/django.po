@@ -5357,10 +5357,13 @@ msgid "Editor assigned successfully."
 msgstr "Editor atribuído com sucesso."
 
 #: plugins/wjs_review/views.py:3542
-#, fuzzy
-#| msgid "Contact"
-msgid "Journal Editors"
-msgstr "Contatos"
+msgid "Editor Management"
+msgstr "Gestão de editores"
+
+#: jcom_profile/templates/wjs/profile/director_update_editor_parameters.html:5
+#, python-format
+msgid "Manage Editor %(editor_name)s"
+msgstr "Gerir editor %(editor_name)s"
 
 #: plugins/wjs_review/views.py:3600
 #, fuzzy, python-format
