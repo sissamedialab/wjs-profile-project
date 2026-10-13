@@ -261,8 +261,13 @@ class DOIsCount(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 journal=self.request.journal,
             )
             .order_by("date_published")
-            .values_list("date_published", flat=True)[0]
+            .values_list("date_published", flat=True)
+            .first()
         )
+        if oldest_publication_date is None:
+            # Journal has not published anything yet: nothing to count.
+            context["counts"] = []
+            return context
 
         # I was not able to find the appropriate recipe of filter/annotate/aggregate to extract these infor directly
         # from the DB (see experiments in last comments of specs#428).  Shame on me!
