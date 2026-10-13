@@ -23,6 +23,22 @@
             {% include "admin/elements/translations/form_tabs.html" with object=request.journal %}
             <form method="post">
                 {% csrf_token %}
+                {% if form.errors %}
+                    <div class="callout alert" role="alert" tabindex="-1" id="form-errors">
+                        <h5>{% translate "The configuration was not saved. Please fix the following errors:" %}</h5>
+                        <ul>
+                            {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+                            {% for field in form %}
+                                {% for error in field.errors %}
+                                    <li>
+                                        <a href="#{{ field.id_for_label }}"><strong>{{ field.label }}</strong></a>: {{ error }}
+                                    </li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <script>document.getElementById("form-errors").focus();</script>
+                {% endif %}
                 {{ form.as_p }}
                 <button type="submit" class="success button">{% translate "Save" %}</button>
             </form>
