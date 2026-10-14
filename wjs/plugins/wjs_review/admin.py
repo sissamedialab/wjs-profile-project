@@ -94,6 +94,10 @@ class ArticleWorkflowInline(admin.StackedInline):
     """Helper class to "inline" AW in Article."""
 
     model = ArticleWorkflow
+    # publication_galleys_source_file is a plain FK to core.File with no limit_choices_to: without
+    # raw_id_fields, Django renders every core.File row (hundreds of thousands, across all articles)
+    # as a single <select>, hanging the article admin change page regardless of which article.
+    raw_id_fields = ["publication_galleys_source_file"]
     fields = [
         "state",
         "eo_in_charge",
