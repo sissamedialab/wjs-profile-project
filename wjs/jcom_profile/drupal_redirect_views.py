@@ -1,5 +1,7 @@
 """Views that manage redirect from Drupal-style URLs to Janeway."""
 
+import re
+
 from core.models import Account, Galley, SupplementaryFile
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -11,6 +13,35 @@ from submission.models import Article
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# JCOM's earliest years (2002-2006) have archive filenames like
+# "jcom<volume><issue>(<year>)<type><num>.pdf", e.g. "jcom0302(2004)A01.pdf", but the article's
+# actual pubid is "<type><volume><issue><num>", e.g. "A030201" (the type letter moves in front of
+# volume/issue; <num> is omitted for types with a single instance per issue, e.g. editorials:
+# "jcom0302(2004)E.pdf" -> pubid "E0302"). Confirmed against real DB data (specs#3265).
+#
+# 2006-2013 archive filenames have the same shape, but there the pubid IS stored verbatim in this
+# shape, so the direct (untranslated) lookup already matches and this translation is never reached
+# for them - confirmed by grouping identifiers_identifier.identifier by shape and publication year.
+#
+# The "jcom" prefix casing is inconsistent across the old archive ("jcom"/"Jcom"/"JCOM" all occur,
+# confirmed from real pubids), so it is matched case-insensitively; the type letter is not, since
+# it is copied as-is into the rebuilt pubid, and the DB always has it uppercase.
+LEGACY_DRUPAL_PUBID_RE = re.compile(
+    r"^[Jj][Cc][Oo][Mm](?P<volume>\d{2})(?P<issue>\d{2,3})\(\d{4}\)(?P<type>[A-Za-z])(?P<num>\d{0,2})$"
+)
+
+
+def legacy_drupal_pubid_to_pubid(raw_pubid: str) -> str | None:
+    """Translate a very old Drupal-era archive filename's pubid into the article's actual pubid.
+
+    Return None if ``raw_pubid`` does not match the legacy shape (e.g. it is already a modern
+    "JCOM_XXXX_YYYY_Axx"-style pubid, which embeds the real pubid directly and needs no translation).
+    """
+    match = LEGACY_DRUPAL_PUBID_RE.match(raw_pubid)
+    if not match:
+        return None
+    return f"{match['type']}{match['volume']}{match['issue']}{match['num']}"
 
 
 class JcomIssueRedirect(RedirectView):
@@ -72,6 +103,14 @@ class JcomFileRedirect(RedirectView):
             identifier_type="pubid",
             identifier=kwargs["pubid"],
         )
+        if article is None and (legacy_pubid := legacy_drupal_pubid_to_pubid(kwargs["pubid"])):
+            # Very old archive URL (see legacy_drupal_pubid_to_pubid()): the raw filename is not
+            # itself the pubid, translate it before giving up.
+            article = Article.get_article(
+                journal=self.request.journal,
+                identifier_type="pubid",
+                identifier=legacy_pubid,
+            )
         if article is None:
             raise Http404()
 

@@ -6,7 +6,10 @@ import pytest
 from core.models import Galley
 from django.test import Client
 from django.urls import reverse
+from identifiers.models import Identifier
 from submission.models import Keyword
+
+from wjs.jcom_profile.drupal_redirect_views import legacy_drupal_pubid_to_pubid
 
 
 @pytest.mark.parametrize("root", ("archive", "es", "pt-br"))
@@ -85,6 +88,52 @@ def test_redirect_nonexistent_galley_from_jcom_to_janeway_url(journal):
     )
     response = client.get(url, follow=True)
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "raw_pubid,expected",
+    (
+        ("jcom0302(2004)A01", "A030201"),
+        ("jcom0302(2004)F01", "F030201"),
+        # Editorials have no per-article number (one per issue).
+        ("jcom0302(2004)E", "E0302"),
+        # The "jcom" prefix casing is inconsistent in the real archive (confirmed from real pubids).
+        ("JCOM0302(2004)A01", "A030201"),
+        # A pubid that is itself stored in this exact shape (confirmed from real pubids, e.g. "Jcom0502(2006)A01")
+        # is matched too, but get_redirect_url() only uses the translated value as a fallback, after the raw one
+        # has already failed to match directly - so this never overrides an already-correct direct match.
+        ("Jcom0502(2006)A01", "A050201"),
+        # A modern pubid is not a legacy Drupal filename and must not match.
+        ("JCOM_2106_2022_A04", None),
+        ("nonexisting", None),
+    ),
+)
+def test_legacy_drupal_pubid_to_pubid(raw_pubid, expected):
+    """JCOM's 2002-2006 archive filenames encode the pubid differently; see specs#3265."""
+    assert legacy_drupal_pubid_to_pubid(raw_pubid) == expected
+
+
+@pytest.mark.django_db
+def test_redirect_legacy_galley_from_jcom_to_janeway_url(published_article_with_standard_galleys):
+    """A very old archive URL, whose filename is not itself the pubid, still redirects correctly."""
+    article = published_article_with_standard_galleys
+    # Override the fixture's modern-style pubid with the legacy one this article would actually have.
+    identifier = Identifier.objects.get(article=article, id_type="pubid")
+    identifier.identifier = "A030201"
+    identifier.save()
+    expected_galley = Galley.objects.get(article=article, label="PDF")
+
+    client = Client()
+    url = f"/{article.journal.code}/archive/03/02/jcom0302(2004)A01.pdf"
+    response = client.get(url, follow=True)
+    actual_redirect_url, status_code = response.redirect_chain[-1]
+
+    assert status_code == 301
+    expected_redirect_url = reverse(
+        "article_download_galley",
+        kwargs={"article_id": article.pk, "galley_id": expected_galley.pk},
+    )
+    assert expected_redirect_url == actual_redirect_url
 
 
 class TestRedirectCitationPdfUrl:
