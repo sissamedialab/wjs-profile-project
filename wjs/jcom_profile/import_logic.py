@@ -51,7 +51,6 @@ from plugins.wjs_review.logic__production import (
 from plugins.wjs_review.models import (
     ArticleWorkflow,
     Message,
-    MessageRecipients,
     PastEditorAssignment,
     WjsEditorAssignment,
 )
@@ -67,6 +66,7 @@ from utils.setting_handler import get_setting
 import wjs.jcom_profile.import_file_manager as import_file_manager
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
+from wjs.jcom_profile.import_production_hold import release_production_readiness_hold
 from wjs.jcom_profile.import_utils import check_mappings, rome_timezone
 from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
 from wjs.jcom_profile.utils import create_rich_fake_request, get_eo_user
@@ -286,19 +286,6 @@ def account_get_or_create_check_correspondence(
     # saves the account in the global variable used as cache
     already_imported_users[user_cod] = account
     return account
-
-
-def mark_all_messages_read(article: submission_models.Article) -> None:
-    """Mark all messages for the given article as read from each recipient."""
-
-    MessageRecipients.objects.filter(
-        message__content_type=ContentType.objects.get_for_model(article),
-        message__object_id=article.id,
-    ).update(read=True)
-    Message.objects.filter(
-        content_type=ContentType.objects.get_for_model(article),
-        object_id=article.id,
-    ).update(read_by_eo=True)
 
 
 def newlines_text_to_html(message: str) -> str:
@@ -3978,6 +3965,10 @@ class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
                 f"for {self.preprintid}/{self.imported_version_num} (management ed restart - known case)."
             )
             return
+
+        # specs#3131: the replayed acceptance may have held the paper in ACCEPTED; the wjapp history
+        # goes on, so let it through before the typesetter takes it in charge.
+        release_production_readiness_hold(self.article, when=rome_timezone.localize(self.action["actionDate"]))
 
         typesetter_cod = self.action["agentCod"]
         typesetter_lastname = self.action["agentLastname"]

@@ -1152,7 +1152,7 @@ class ACStateEvaluator:
         """EO: paper held in Accepted, access mode to check.
 
         Always active in this state: a paper stays in Accepted only when the
-        acceptance checks block it (e.g. JCAP TA papers), until the EO confirms
+        acceptance checks block it (e.g. JCAP TA and imported papers), until the EO confirms
         production readiness.
         """
         for role in roles:

@@ -192,7 +192,7 @@ class ConfirmProductionReadiness:
     """EO manually confirms that an accepted article is ready for the typesetter.
 
     Used for journals where the acceptance checks hold the article in ACCEPTED
-    pending an out-of-band confirmation by the EO (e.g. JCAP TA papers).
+    pending an out-of-band confirmation by the EO (e.g. JCAP TA and imported papers).
     """
 
     workflow: ArticleWorkflow
