@@ -49,6 +49,7 @@ from django_q.tasks import async_task
 from events import logic as events_logic
 from identifiers.logic import get_dois_for_articles
 from identifiers.models import Identifier
+from journal.models import Issue
 from lxml.html import HtmlElement
 from plugins.wjs_submission.step7.views import get_article_fundings
 from production.logic import save_galley, save_galley_image
@@ -71,6 +72,7 @@ from wjs.jcom_profile.import_utils import (
     process_body,
 )
 from wjs.jcom_profile.permissions import has_eo_role
+from wjs.jcom_profile.templatetags.wjs_tags import how_to_cite
 from wjs.jcom_profile.utils import (
     create_rich_fake_request,
     get_eo_user,
@@ -1810,6 +1812,8 @@ class BeginPublication:
     request: HttpRequest  # we'll end-up calling Janeway's save_galley_image(), that needs a request obj
     assignment: TypesettingAssignment = dataclasses.field(init=False)
     source_files: Path = dataclasses.field(init=False)
+    # Collected once (see set_article_identifiers()), so that pubid, eid and TeX data cannot disagree
+    publication_data: Optional[dict[str, str]] = dataclasses.field(init=False, default=None)
 
     def __post_init__(self):
         """Find the source files."""
@@ -1817,6 +1821,22 @@ class BeginPublication:
         # The source files for the galley are in the latest typesetting assignment
         # Even if the field is a m2m, we alway set at most one item.
         self.source_files = Path(self.assignment.files_to_typeset.get().self_article_path())
+
+    def lock(self):
+        """Lock the article's issue and workflow until the end of the transaction.
+
+        The eid/pubid counter is computed by counting the papers already published in the same issue: without the
+        lock, two papers of the same issue published at the same time would both count N papers and get the same
+        pubid. The same holds if the same paper is published twice at the same time (e.g. a double click).
+
+        Must be called inside a transaction (see run()).
+        """
+        # Always lock the issue before the workflow, to avoid deadlocks.
+        if self.workflow.article.primary_issue_id:
+            Issue.objects.select_for_update().get(pk=self.workflow.article.primary_issue_id)
+        locked_workflow = ArticleWorkflow.objects.select_for_update().get(pk=self.workflow.pk)
+        # While we were waiting for the lock, a concurrent publication of the same paper might have changed its state.
+        self.workflow.state = locked_workflow.state
 
     def check_conditions(self) -> Tuple[bool, Optional[str]]:
         if self.workflow.state not in [
@@ -1846,12 +1866,14 @@ class BeginPublication:
             self.workflow.article.date_published = timezone.now()
             self.workflow.article.save()
         self.ensure_doi()
-        self.workflow.set_pubid()
+        self.publication_data = self.workflow.collect_publication_data()
+        self.workflow.set_pubid(publication_data=self.publication_data)
 
     def prepare_source_files(self):
         """Apply identifiers and publication date to source files.
 
-        We assume that the article already has pubid and DOI.
+        We assume that the article already has pubid and DOI, and that its publication data have already been
+        collected (see set_article_identifiers()).
         Here we add these (and the publication date) to the TeX source.
 
         The prepared source files are then (saved to the filesystem) and linked to the
@@ -1859,7 +1881,7 @@ class BeginPublication:
         """
         try:
             source_file = self._get_source_file()
-            prepared_source_file = self._prepare_source(source_file)
+            prepared_source_file = self._prepare_source(source_file, publication_data=self.publication_data)
             # TODO: save "historical" version of such file (see Janeway's file history) before modification
             self._store_prepared_source(prepared_source_file)
         except Exception as exception:
@@ -1914,9 +1936,12 @@ class BeginPublication:
         self.workflow.save()
         os.unlink(tempfilename)
 
-    def _prepare_source(self, source_file: BytesIO) -> BytesIO:
+    def _prepare_source(self, source_file: BytesIO, publication_data: dict[str, str]) -> BytesIO:
         r"""
         Set pubid, DOI and publication date into the given file and return it.
+
+        The publication data are those already used for the pubid (see set_article_identifiers()): collecting them
+        anew could give a different counter, if another paper of the same issue was published in the meantime.
 
         Placeholders are expected as follow:
         \published{???}
@@ -1928,29 +1953,22 @@ class BeginPublication:
 
         """
         article = self.workflow.article
-        publication_date = self.workflow.article.date_published.strftime("%Y-%m-%d")
-        volume = f"{article.primary_issue.volume:02d}"
-        # TODO: can it ever happen that issue.issue is not in the form "01"?
-        issue = f"{int(article.primary_issue.issue):02d}"
-        # Page numbers should have been set when we set the pubid when we do set_article_identifiers()
-        # ATM, they have the form "A01", "Y02", ... (see AW.compute_eid())
-        # in the TeX source we need them separately: the type "A", "Y"... and the counter "01", "02"...
-        type_and_counter = article.page_numbers
-        counter = type_and_counter[-2:]
-        type_code = type_and_counter[:1]
         doi = article.get_doi()
         if not doi:
             raise ValueError(f"DOI for {article.id} shold already exist at begin-publication!")
 
+        # NB: the eid may already include the section code (e.g. "A01", "E002001"), but we also send the section
+        # code separately.
         injection_data = json.dumps(
             {
                 "publication_data": {
-                    "date_published": publication_date,
-                    "year": publication_date.split("-")[0],
-                    "volume": volume,
-                    "issue": issue,
-                    "eid": counter,
-                    "section": type_code,
+                    "date_published": publication_data["date_published"],
+                    "year": publication_data["year"],
+                    "volume": publication_data["volume"],
+                    "issue": publication_data["issue"],
+                    "eid": publication_data["eid"],
+                    "section": publication_data["section"],
+                    "counter": publication_data["counter"],
                     "doi": doi,
                 },
             }
@@ -2010,6 +2028,7 @@ class BeginPublication:
 
     def run(self):
         with transaction.atomic():
+            self.lock()
             green_light, reason = self.check_conditions()
             if not green_light:
                 raise ValueError(f"Paper cannot be published. {reason}")
@@ -2028,6 +2047,51 @@ class BeginPublication:
         # galley generation has already been started and is proceeding.
         self.trigger_galley_generation()
         return self.workflow
+
+
+class MissingIssueError(ValueError):
+    """The paper is not associated to any issue, so its publication data (pubid, eid, ...) cannot be computed."""
+
+
+@dataclasses.dataclass
+class SimulatePublicationIdentifiers:
+    """Compute the pubid and the how-to-cite that the paper would get if it were published now.
+
+    Nothing is saved: the computation runs on a fresh copy of the workflow, inside a transaction that is always
+    rolled back. Repeated runs can give different results if something changes in the meantime (e.g. if another
+    paper of the same issue gets published).
+    """
+
+    workflow: ArticleWorkflow
+
+    def run(self) -> dict[str, str]:
+        """Return the simulated pubid, eid and how-to-cite (and the DOI, that might be missing).
+
+        Raises:
+          MissingIssueError: if the paper is not associated to any issue.
+          ValueError, NotImplementedError: if the publication data cannot be computed for other reasons.
+
+        """
+        with transaction.atomic():
+            # Work on a private copy, so that the in-memory changes below cannot leak to our caller's objects
+            workflow = ArticleWorkflow.objects.select_related("article").get(pk=self.workflow.pk)
+            article = workflow.article
+            if not article.primary_issue:
+                raise MissingIssueError(f"Paper {article.pk} is not associated to any issue")
+            # The same values that BeginPublication.set_article_identifiers() would set (but we don't save them)
+            if not article.date_published:
+                article.date_published = timezone.now()
+            pubid = workflow.compute_pubid()
+            article.page_numbers = workflow.compute_eid()
+            simulation = {
+                "pubid": pubid,
+                "eid": article.page_numbers,
+                "doi": article.get_doi(),
+                "how_to_cite": how_to_cite(article),
+            }
+            # Belt and braces: whatever happened above, nothing must reach the DB
+            transaction.set_rollback(True)
+        return simulation
 
 
 @dataclasses.dataclass

@@ -81,6 +81,7 @@ from .views__production import (  # noqa F401;
     ListSupplementaryFileView,
     ReadyForProofreadingView,
     ReadyForPublicationView,
+    SimulatePubidView,
     TogglePublishableFlagView,
     TypesetterArchived,
     TypesetterPending,
@@ -305,6 +306,7 @@ urlpatterns = [
     ),
     path("begin_publication/<int:pk>/", BeginPublicationView.as_view(), name="wjs_review_begin_publication"),
     path("finish_publication/<int:pk>/", FinishPublicationView.as_view(), name="wjs_review_finish_publication"),
+    path("simulate-pubid/<int:pk>/", SimulatePubidView.as_view(), name="wjs-simulate-pubid"),
     path(
         "send_back_to_typesetter/<int:pk>/",
         EOSendBackToTypesetterView.as_view(),
