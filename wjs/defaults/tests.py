@@ -84,3 +84,9 @@ CACHES = {
 }
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 LOGIN_URL = reverse_lazy("core_login")  # noqa
+
+# Run async tasks in-process, even if the local settings say otherwise: tests expect their effects,
+# and an async task pushed to the (shared) Redis queue would be picked up by a running dev qcluster,
+# that would then run it against the dev DB.
+# The separate name keeps any test task that still reaches Redis recognizable.
+Q_CLUSTER = {**Q_CLUSTER, "name": "wjs-tests", "sync": True}  # noqa: F405
