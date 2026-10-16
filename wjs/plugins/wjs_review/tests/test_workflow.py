@@ -122,7 +122,6 @@ def test_accepted_workflow_issues(
     # Signal is emitted on acceptance and check functions should run.
     # Even if the checks fail, the logic class should not raise any exception.
     _accept_article(fake_request, assigned_article)
-    # TODO: check for a message to the EO after approach is validated
 
     assigned_article.refresh_from_db()
     assert assigned_article.articleworkflow.state == expected_state

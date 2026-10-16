@@ -41,7 +41,6 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.module_loading import import_string
 from django_fsm import can_proceed, has_transition_perm
@@ -112,40 +111,21 @@ class VerifyProductionRequirements:
         return self._perform_checks()
 
     def _perform_checks(self) -> bool:
-        """Apply functions that verify if an accepted article is ready for typs."""
+        """Apply functions that verify if an accepted article is ready for typs.
+
+        A check function that returns False holds the article in ACCEPTED: it must notify the EO itself
+        (e.g. the JCAP check in ``events/checks_after_acceptance.py``), since nothing else is sent here
+        (specs#3176). The EO also gets the ACCESS_MODE_TO_CHECK attention condition.
+        """
         journal = self.articleworkflow.article.journal.code
         checks_functions = settings.WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS.get(
             journal,
             settings.WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS.get(None, []),
         )
-        # TODO: how do we report issues?
         for check_function in checks_functions:
             if not import_string(check_function)(self.articleworkflow.article):
                 return False
         return True
-
-    def _log_acceptance_issues(self):
-        """Log that something prevented an accepted article to be ready for tyepsetters."""
-        message_subject = (
-            f"Issues after acceptance - article {self.articleworkflow.article.pk} not ready for typesetters."
-        )
-        message_body = f"""Some issues prevented {self.articleworkflow} from being set ready for typesetter.
-
-        Please check {reverse_lazy("wjs_article_details", kwargs={"pk": self.articleworkflow.article.pk})}
-
-        """
-
-        message = communication_utils.log_operation(
-            article=self.articleworkflow.article,
-            message_subject=message_subject,
-            message_body=message_body,
-            actor=None,
-            recipients=[
-                get_eo_user(self.articleworkflow.article),
-            ],
-            verbosity=Message.MessageVerbosity.FULL,
-        )
-        return message
 
     def log_ready_for_typesetter(self, actor: Optional[Account] = None) -> Message:
         """Log on the timeline that the article moved from ACCEPTED to READY_FOR_TYPESETTER.
@@ -188,8 +168,7 @@ class VerifyProductionRequirements:
         with transaction.atomic():
             if not self._check_conditions():
                 # Here we do not raise an exception, because doing so would prevent an editor from accepting an
-                # article. Instead we send a message to EO.
-                self._log_acceptance_issues()
+                # article. The check function that held the article has already notified the EO.
 
                 # -- Materialized AC updates --
                 from . import ac_service
