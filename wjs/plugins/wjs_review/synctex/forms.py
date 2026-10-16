@@ -192,7 +192,7 @@ class SyncRightsForm(forms.Form):
 
     The ``rights`` field is not editable: it just holds the string of the paper's rights indicated by the TeX
     source. The form is validated (also at GET) so that the template can disable the submit button when the TeX
-    copyright does not match any "known" one.
+    copyright does not match any "known" one (see ``rights_mapping``).
     """
 
     action = forms.CharField(widget=forms.HiddenInput(), initial="sync_rights")
@@ -207,24 +207,51 @@ class SyncRightsForm(forms.Form):
         # Apart from the "authors", ATM the latex preamble says (roughly):
         # access_mode.code +
         # if article has collaborations: [for the CMS and ATLAS and LHCb collaboration]
+        # The values are in the form stored by the DB (Article.rights is an HTML field).
         self.rights_mapping = {
-            "authors": "© Authors",
+            "authors": "<p>© Authors</p>",
+            "oa-cern": "<p>© CERN</p>",
+            "sissa": "<p>© Sissa</p>",
         }
         # The copyright code is the first argument of \publicationRights{<code>}[<extra>]; the LaTeX class
         # knows "authors", "open-access" and "oa-cern" (see also rights.copyright_text).
         self.tex_rights_raw = get_tex_rights_value(texdata, "copyright_code")
-        self.tex_rights = self.rights_mapping.get(self.tex_rights_raw, self.tex_rights_raw)
+        # None for an unknown copyright code (refused by clean_rights).
+        self.tex_rights = self.rights_mapping.get(self.tex_rights_raw)
         if self.tex_rights:
-            self.fields["rights"].initial = self.tex_rights
-        self.db_rights = self.texdata.workflow.article.rights
-        self.fields["rights"].help_text = f"TeX: {self.tex_rights_raw} vs DB: {self.db_rights}"
+            # Show the text, not the HTML markup.
+            self.fields["rights"].initial = self._strip_paragraph(self.tex_rights)
+        elif self.tex_rights_raw:
+            self.fields["rights"].initial = self.tex_rights_raw
+        self.db_rights = (self.texdata.workflow.article.rights or "").strip()
+        self.fields["rights"].help_text = f"TeX: {self.tex_rights_raw} vs DB: {self._db_rights_label()}"
+
+    @staticmethod
+    def _strip_paragraph(value: str) -> str:
+        """Return the given value without the <p> element that wraps it (if any)."""
+        value = value.strip()
+        if value.startswith("<p>") and value.endswith("</p>"):
+            return value.removeprefix("<p>").removesuffix("</p>").strip()
+        return value
+
+    def _db_rights_label(self) -> str:
+        """Return the copyright code of the DB rights, or the DB rights themselves when they map to no code."""
+        return next(
+            (code for code, value in self.rights_mapping.items() if value == self.db_rights),
+            self._strip_paragraph(self.db_rights),
+        )
 
     def clean_rights(self):
-        """Any value vould do."""
+        """Refuse a missing, empty or unknown TeX copyright code."""
         if self.tex_rights_raw is None:
-            raise ValidationError("Missing 'rights.copyright_code' in TeX data!")
+            raise ValidationError(_("Missing 'rights.copyright_code' in TeX data!"))
+        if not self.tex_rights_raw:
+            raise ValidationError(_("The copyright must have some value!"))
         if not self.tex_rights:
-            raise ValidationError("The copyright must have some value!")
+            raise ValidationError(
+                _("Unknown copyright code %(code)s (known codes: %(known)s)!")
+                % {"code": self.tex_rights_raw, "known": ", ".join(self.rights_mapping)},
+            )
         return self.cleaned_data["rights"]
 
     def should_sync(self) -> bool:
@@ -1079,7 +1106,7 @@ class AuthorsMapper:
         similaraccounts_warning = """Unsure match!
 If this DB account matches the TeX one,
 either set the orcid (click on the name and come back),
-or "use" it: NB a "correspondence" will be created!.
+or "connect" it: NB a "correspondence" will be created!.
 """
         # Each of the following heuristics is more generic than the previous one, so the first one
         # that finds more than one account can stop the search: any other heuristic would contain
@@ -1136,7 +1163,7 @@ class BaseOrphanAuthorForm(forms.Form):
         author_record_id = self.cleaned_data["author_record_id"]
         if author_record_id not in [orphan.pk for orphan in self.mapper.orphan_authors]:
             raise ValidationError(
-                _("Author record %(pk)s is not an author to take care of!") % {"pk": author_record_id},
+                _("Frozen author %(pk)s is not an author to take care of!") % {"pk": author_record_id},
             )
         return author_record_id
 
@@ -1213,7 +1240,7 @@ class CreateCorrespondenceForm(BaseOrphanAuthorForm):
         email = self.cleaned_data["email"]
         account = self.get_frozen_author().author
         if not account:
-            raise ValidationError(_("This author record has no account to map onto a TeX email!"))
+            raise ValidationError(_("This frozen author has no account to map onto a TeX email!"))
         try:
             correspondence = self.mapper.create_correspondence(
                 account=account,
@@ -1245,6 +1272,20 @@ class AuthorChoiceRow:
 
 
 @dataclass
+class CurrentAuthorRecord:
+    """The author record that the paper has at the position of one TeX author, compared with it."""
+
+    frozen_author: submission_models.FrozenAuthor
+    # The fields (named as TeX author's ones) whose value is not what the sync would write.
+    differing_fields: frozenset[str]
+
+    @property
+    def differs(self) -> bool:
+        """Tell if the sync would change this record."""
+        return bool(self.differing_fields)
+
+
+@dataclass
 class AuthorSection:
     """One TeX author, the accounts that it might be linked to and the "new record" line."""
 
@@ -1253,6 +1294,9 @@ class AuthorSection:
     # True when this TeX author is not an author of the paper yet: adding them to the paper notifies
     # them (see SyncAuthorsForm._log_new_coauthor_created).
     is_new_coauthor: bool = False
+    # The author record at the same position of this TeX author (None when there is none): this is
+    # what SyncAuthorsForm.should_sync compares the TeX author with.
+    current_record: CurrentAuthorRecord | None = None
 
     @property
     def tex_author(self) -> TexAuthor:
@@ -1332,6 +1376,17 @@ class SyncAuthorsForm(forms.Form):
 
     NEW_RECORD = "new"
 
+    #: The fields of an author record that are written from the TeX source: (record field, TeX field).
+    #: NB: the raw frozen_email / frozen_orcid, not the email / orcid properties, that fall back onto
+    #: the account: a sync freezes the TeX values onto the record.
+    SYNCED_FIELDS = (
+        ("first_name", "first_name"),
+        ("last_name", "last_name"),
+        ("name_suffix", "suffix"),
+        ("frozen_email", "email"),
+        ("frozen_orcid", "orcid"),
+    )
+
     action = forms.CharField(widget=forms.HiddenInput(), initial="sync_authors")
 
     def __init__(self, mapper: AuthorsMapper, *args, **kwargs):
@@ -1348,7 +1403,7 @@ class SyncAuthorsForm(forms.Form):
 
     def _build_choice_field(self, mapping: AuthorMapping) -> forms.ChoiceField:
         """Return the radio group of one TeX author: its candidate accounts and/or a new record."""
-        choices = [(str(candidate.pk), _("use")) for candidate in mapping.candidates]
+        choices = [(str(candidate.pk), _("connect")) for candidate in mapping.candidates]
         if not mapping.is_sure_match:
             # A candidate is just a guess, so the operator must be able to refuse all of them.
             choices.append((self.NEW_RECORD, _("new")))
@@ -1373,7 +1428,7 @@ class SyncAuthorsForm(forms.Form):
     def sections(self) -> list[AuthorSection]:
         """Group the radio buttons by TeX author: the template displays one section per author."""
         sections = []
-        for mapping in self.mapper.authors_map:
+        for position, mapping in enumerate(self.mapper.authors_map):
             tex_author = mapping.tex_author
             radios = list(self[self.field_name(tex_author)])
             rows = [
@@ -1397,6 +1452,7 @@ class SyncAuthorsForm(forms.Form):
                         mapping.account_id if mapping.is_sure_match else None,
                         tex_author.email,
                     ),
+                    current_record=self._current_record(position, tex_author),
                 ),
             )
         return sections
@@ -1422,26 +1478,45 @@ class SyncAuthorsForm(forms.Form):
         """
         if self.mapper.orphan_authors:
             return True
-        frozen_authors = list(self.mapper.article.frozen_authors())
-        if len(frozen_authors) != len(self.mapper.authors_tex):
+        if len(self.current_records) != len(self.mapper.authors_tex):
             return True
-        return not all(
-            self._matches_tex_author(frozen_author, tex_author)
-            for frozen_author, tex_author in zip(frozen_authors, self.mapper.authors_tex)
+        return any(
+            self._differing_fields(frozen_author, tex_author)
+            for frozen_author, tex_author in zip(self.current_records, self.mapper.authors_tex)
         )
 
-    @staticmethod
-    def _matches_tex_author(frozen_author: submission_models.FrozenAuthor, tex_author: TexAuthor) -> bool:
-        """Tell if an author record has the values that the given TeX author would write on it."""
-        return all(
-            str(getattr(frozen_author, record_field) or "").strip() == str(getattr(tex_author, tex_field)).strip()
-            for record_field, tex_field in (
-                ("first_name", "first_name"),
-                ("last_name", "last_name"),
-                ("name_suffix", "suffix"),
-                ("frozen_email", "email"),
-                ("frozen_orcid", "orcid"),
-            )
+    @cached_property
+    def current_records(self) -> list[submission_models.FrozenAuthor]:
+        """Return the author records of the paper, in order (i.e. before the sync rebuilds them)."""
+        return list(self.mapper.article.frozen_authors())
+
+    @property
+    def extra_records(self) -> list[submission_models.FrozenAuthor]:
+        """Return the author records that are beyond the last TeX author (the sync drops them)."""
+        tex_count = len(self.mapper.authors_tex)
+        return self.current_records[tex_count:]
+
+    def _current_record(self, position: int, tex_author: TexAuthor) -> CurrentAuthorRecord | None:
+        """Return the author record at the given position, compared with the TeX author at the same position."""
+        if position >= len(self.current_records):
+            return None
+        frozen_author = self.current_records[position]
+        return CurrentAuthorRecord(
+            frozen_author=frozen_author,
+            differing_fields=self._differing_fields(frozen_author, tex_author),
+        )
+
+    @classmethod
+    def _differing_fields(
+        cls,
+        frozen_author: submission_models.FrozenAuthor,
+        tex_author: TexAuthor,
+    ) -> frozenset[str]:
+        """Return the fields (named as TeX author's ones) whose value the given TeX author would change."""
+        return frozenset(
+            tex_field
+            for record_field, tex_field in cls.SYNCED_FIELDS
+            if str(getattr(frozen_author, record_field) or "").strip() != str(getattr(tex_author, tex_field)).strip()
         )
 
     def clean(self):

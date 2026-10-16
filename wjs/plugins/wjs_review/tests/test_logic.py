@@ -5378,11 +5378,88 @@ def test_sync_texdb_authors_template(
     for not_displayed in ("TeX biography", "@texhandle", "DB biography", "@dbhandle", "Biography", "Socials"):
         assert not_displayed not in rendered, f"Biography and socials handle are not displayed ({not_displayed})"
     assert 'name="author_0"' in rendered, "Each TeX author has its own radio group"
-    assert "A new author record will be created" in rendered, "The unknown TeX author gets a new record"
+    assert "A new frozen author will be created" in rendered, "The unknown TeX author gets a new record"
     assert (
         rendered.count("bi-envelope-plus") == 1
     ), "Only the unknown TeX author would add (and notify) a new co-author"
     assert "disabled" in rendered, "Updating is not possible while there are authors to take care of"
+
+
+def _render_sync_authors(mapper: AuthorsMapper) -> str:
+    """Render the authors block of the Sync TeX/DB page (without orphans, whose forms are not needed)."""
+    return render_to_string(
+        "wjs_review/sync_texdb/authors.html",
+        {
+            "form_authors": SyncAuthorsForm(mapper),
+            "orphan_author_rows": [],
+            "authors_errors_db": mapper.errors_db,
+            "authors_errors_tex": mapper.errors_tex,
+            "update_label": "Update",
+        },
+    )
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors_template_record_differences(
+    article_with_keywords: Article,
+):
+    """Display the values of the author records that the TeX source would change."""
+    article = article_with_keywords
+    author = article.owner
+    author.orcid = "0000-0002-1825-0097"
+    author.save()
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": author.orcid,
+            },
+        ],
+    }
+    # A record linked to the account, that does not freeze email and orcid (they fall back onto the
+    # account, so they look like the TeX ones), plus a record that the TeX source does not have.
+    record = submission_models.FrozenAuthor.objects.get(article=article, author=author)
+    record.first_name = author.first_name
+    record.last_name = author.last_name
+    record.name_suffix = ""
+    record.frozen_email = ""
+    record.frozen_orcid = ""
+    record.order = 0
+    record.save()
+    coauthor_record = submission_models.FrozenAuthor.objects.get(article=article, author__isnull=False, order__gt=0)
+    coauthor_record.author = None
+    coauthor_record.frozen_email = author.email
+    coauthor_record.save()
+    assert record.email == author.email, "The record falls back onto the email of the account"
+
+    mapper = AuthorsMapper(texdata)
+    assert mapper.orphan_authors == [], "Both records are known to the TeX source"
+    form_authors = SyncAuthorsForm(mapper)
+    assert form_authors.should_sync(), "Email and orcid are not frozen onto the record"
+    current_record = form_authors.sections[0].current_record
+    assert current_record.frozen_author == record, "The TeX author is compared with the record at its position"
+    assert current_record.differing_fields == {"email", "orcid"}, "Only email and orcid differ"
+    assert form_authors.extra_records == [coauthor_record], "The record beyond the TeX authors is dropped"
+
+    rendered = _render_sync_authors(mapper)
+    assert 'class="current-record"' in rendered, "The record that the update would change is displayed"
+    assert rendered.count("(empty)") == 2, "The empty email and orcid of the record are highlighted"
+    assert "Update will drop these ones" in rendered, "The extra record is displayed"
+    assert "disabled" not in rendered, "The records can be updated"
+
+    form_authors = SyncAuthorsForm(mapper, data={"action": "sync_authors", "author_0": str(author.pk)})
+    form_authors.sync()
+    record = article.frozen_authors().get()
+    assert (record.frozen_email, record.frozen_orcid) == (author.email, author.orcid), "TeX values are frozen"
+    mapper = AuthorsMapper(texdata)
+    assert not SyncAuthorsForm(mapper).should_sync(), "The author records now agree with the TeX source"
+    rendered = _render_sync_authors(mapper)
+    assert 'class="current-record"' not in rendered, "A record that agrees with the TeX source is not displayed"
+    assert "disabled" in rendered, "There is nothing to update"
 
 
 @pytest.mark.django_db
@@ -5658,22 +5735,38 @@ def test_sync_texdb_rights(article: Article):
     texdata.data = {
         "rights": {"copyright_code": "authors", "copyright_extra": "", "copyright_text": "© The Author(s)."}
     }
+    article.rights = "Authors"
+    article.save()
     form = SyncRightsForm(texdata, data={"action": "sync_rights"})
     assert form.is_valid(), f"Unexpected errors {form.errors}"
+    assert form.should_sync(), "A DB value not in the DB form is out of sync"
+    assert form.fields["rights"].help_text == "TeX: authors vs DB: Authors"
+    assert form["rights"].value() == "© Authors", "The field shows the text, without the wrapping <p>"
+    assert "<p>" not in str(form["rights"]), "The rendered field does not show the wrapping <p>"
     form.sync()
     article.refresh_from_db()
-    assert article.rights == "© Authors", "The known copyright codes should be mapped"
+    assert article.rights == "<p>© Authors</p>", "The known copyright codes are saved in the DB form"
 
-    texdata.data = {"rights": {"copyright_code": "open-access"}}
     form = SyncRightsForm(texdata, data={"action": "sync_rights"})
-    assert form.is_valid(), f"Unexpected errors {form.errors}"
-    assert form.tex_rights == "open-access", "Unmapped copyright codes should be kept as they are"
+    assert not form.should_sync(), "The TeX code and its DB form are in sync"
+    assert form.fields["rights"].help_text == "TeX: authors vs DB: authors", "The DB value maps onto the TeX code"
+
+    for code, db_rights in (("oa-cern", "<p>© CERN</p>"), ("sissa", "<p>© Sissa</p>")):
+        texdata.data = {"rights": {"copyright_code": code}}
+        form = SyncRightsForm(texdata, data={"action": "sync_rights"})
+        assert form.is_valid(), f"Unexpected errors {form.errors} for {code}"
+        form.sync()
+        article.refresh_from_db()
+        assert article.rights == db_rights, f"The copyright code {code} is saved in the DB form"
+        form = SyncRightsForm(texdata, data={"action": "sync_rights"})
+        assert form.fields["rights"].help_text == f"TeX: {code} vs DB: {code}", "The DB value maps onto the TeX code"
 
     for data, error in (
         ({}, "Missing"),
         ({"copyright": "authors"}, "Missing"),
         ({"rights": {"licence_code": "cc-by-40"}}, "Missing"),
         ({"rights": {"copyright_code": ""}}, "must have some value"),
+        ({"rights": {"copyright_code": "open-access"}}, "Unknown copyright code open-access"),
     ):
         texdata.data = data
         form = SyncRightsForm(texdata, data={"action": "sync_rights"})

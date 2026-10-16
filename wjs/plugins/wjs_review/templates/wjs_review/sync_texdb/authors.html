@@ -3,12 +3,13 @@
   .sync-authors tr.actions-row > td { border-top: 0; padding-top: 0; }
   .sync-authors td, .sync-authors th { vertical-align: top; }
   .sync-authors .tex-warning { white-space: pre-line; }
+  .sync-authors tr.current-record > td { background-color: var(--bs-warning-bg-subtle); }
 </style>
 <div class="sync-authors">
   {% if orphan_author_rows %}
     <h3 class="fs-6 fw-bolder">{% translate "Authors of the paper that the TeX source does not know" %}</h3>
     <p>
-      {% translate "Either they are not authors of this paper (delete their author record), or the TeX source knows them with another email (create a correspondence). The authors cannot be updated until this list is empty." %}
+      {% translate "Either they are not authors of this paper (delete their frozen author), or the TeX source knows them with another email (create a correspondence). The authors cannot be updated until this list is empty." %}
     </p>
     {% if authors_errors_db %}
       <div class="alert alert-warning" role="alert">
@@ -84,7 +85,7 @@
   {% endif %}
   <h3 class="fs-6 fw-bolder">{% translate "Authors of the TeX source" %}</h3>
   <p>
-    {% translate "The TeX source is the source of truth: updating drops every author record of the paper and creates a new one per TeX author, with the data of the TeX source. Choose the account that each new author record must be linked to." %}
+    {% translate "The TeX source is the source of truth: updating drops every frozen author of the paper and creates a new one per TeX author, with the data of the TeX source. Choose the account that each new frozen author must be linked to." %}
   </p>
   {% if authors_errors_tex %}
     <div class="alert alert-warning" role="alert">
@@ -95,6 +96,10 @@
   {% endif %}
   {% translate "An email will be sent to the new co-author. See settings add_coauthor_manually_*" as new_coauthor_title %}
   {% translate "This orcid differs from the one of the TeX source: this account cannot be this author" as orcid_conflict_title %}
+  {% translate "The frozen author that the paper has now at this position: Update will replace it with the TeX data" as current_record_title %}
+  {% translate "This value differs from the TeX source" as differs_title %}
+  {% translate "Connect the frozen author to this DB account" as dbuse_title %}
+  {% translate "Create a frozen author not connected to any account" as dbnew_title %}
   <form name="sync_authors" method="post">
     {% csrf_token %}
     {{ form_authors.action }}
@@ -104,7 +109,7 @@
           <thead>
             <tr class="small text-muted">
               <th scope="col" class="text-nowrap">
-                <span class="visually-hidden">{% translate "Use" %}</span>
+                <span class="visually-hidden">{% translate "Connect" %}</span>
                 {% if section.is_new_coauthor %}
                   <span class="badge text-bg-warning" title="{{ new_coauthor_title }}">
                     <i class="bi bi-envelope-plus"></i>
@@ -123,14 +128,67 @@
                 <span class="badge text-bg-primary">{% translate "TeX" %}</span>
               </td>
               <td>{{ section.tex_author.first_name }}</td>
-              <td>{{ section.tex_author.last_name }}</td>
+              <td>
+                {{ section.tex_author.last_name }}
+                {% if section.tex_author.suffix %}{{ section.tex_author.suffix }}{% endif %}
+              </td>
               <td>{{ section.tex_author.email }}</td>
               <td>{{ section.tex_author.orcid }}</td>
             </tr>
+            {% with record=section.current_record %}
+              {% if not record %}
+                <tr class="current-record">
+                  <td>
+                    <span class="badge text-bg-secondary">{% translate "Frozen author" %}</span>
+                  </td>
+                  <td colspan="4" class="fst-italic">
+                    {% translate "The paper has no frozen author at this position: Update will create one." %}
+                  </td>
+                </tr>
+              {% elif record.differs %}
+                <tr class="current-record">
+                  <td>
+                    <span class="badge text-bg-secondary" title="{{ current_record_title }}">{% translate "Frozen author" %}</span>
+                  </td>
+                  <td>
+                    {% if "first_name" in record.differing_fields %}
+                      <span class="text-danger fw-bold" title="{{ differs_title }}">{{ record.frozen_author.first_name|default:_("(empty)") }}</span>
+                    {% else %}
+                      {{ record.frozen_author.first_name }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if "last_name" in record.differing_fields or "suffix" in record.differing_fields %}
+                      <span class="text-danger fw-bold" title="{{ differs_title }}">
+                        {{ record.frozen_author.last_name|default:_("(empty)") }}
+                        {% if record.frozen_author.name_suffix %}{{ record.frozen_author.name_suffix }}{% endif %}
+                      </span>
+                    {% else %}
+                      {{ record.frozen_author.last_name }}
+                      {% if record.frozen_author.name_suffix %}{{ record.frozen_author.name_suffix }}{% endif %}
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if "email" in record.differing_fields %}
+                      <span class="text-danger fw-bold" title="{{ differs_title }}">{{ record.frozen_author.frozen_email|default:_("(empty)") }}</span>
+                    {% else %}
+                      {{ record.frozen_author.frozen_email }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if "orcid" in record.differing_fields %}
+                      <span class="text-danger fw-bold" title="{{ differs_title }}">{{ record.frozen_author.frozen_orcid|default:_("(empty)") }}</span>
+                    {% else %}
+                      {{ record.frozen_author.frozen_orcid }}
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endif %}
+            {% endwith %}
             {% for row in section.rows %}
               <tr>
                 <td class="text-nowrap">
-                  {{ row.radio }}
+                  <span title="{% if row.db_author %}{{ dbuse_title }}{% else %}{{ dbnew_title }}{% endif %}">{{ row.radio }}</span>
                   {% if row.db_author and section.mapping.warning %}
                     <span class="badge text-bg-warning tex-warning" title="{{ section.mapping.warning }}">
                       <i class="bi bi-exclamation-triangle"></i>
@@ -160,7 +218,7 @@
                   </td>
                 {% else %}
                   <td colspan="4" class="fst-italic">
-                    {% translate "A new author record will be created, not linked to any account." %}
+                    {% translate "A new frozen author will be created, not linked to any account." %}
                   </td>
                 {% endif %}
               </tr>
@@ -169,6 +227,16 @@
         </table>
       </div>
     {% endfor %}
+    {% if form_authors.extra_records %}
+      <div class="alert alert-warning" role="alert">
+        {% translate "The paper has more frozen authors than the TeX source: Update will drop these ones." %}
+        <ul class="mb-0">
+          {% for record in form_authors.extra_records %}
+            <li>{{ record.first_name }} {{ record.last_name }} {{ record.email|default:"" }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
     <button type="submit"
             class="btn btn-primary"
             value="1"
