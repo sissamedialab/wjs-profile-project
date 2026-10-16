@@ -40,6 +40,7 @@ from typesetting.models import TypesettingAssignment, TypesettingRound
 
 import wjs.jcom_profile.import_file_manager as import_file_manager
 import wjs.jcom_profile.import_logic as import_logic
+import wjs.jcom_profile.import_production_hold as import_production_hold
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.import_utils import (
@@ -599,7 +600,7 @@ class Command(BaseCommand):
                     imported_document_layer_cod_list=self.imported_document_layer_cod_list,
                 ).run()
 
-            import_logic.mark_all_messages_read(article)
+            import_production_hold.mark_all_messages_read(article)
 
             import_logic.ImportPermissionsManager(
                 connection=self.connection,
@@ -712,6 +713,11 @@ class Command(BaseCommand):
                         f"forced fixed review state to '{article.articleworkflow.state}' "
                         f"for published article {preprintid} / {article.id}"
                     )
+
+        # specs#3131: a paper whose wjapp history stopped at acceptance stays held for the EO;
+        # any other paper must keep nothing of the hold.
+        if ArticleWorkflow.objects.filter(article=article).exists():
+            import_production_hold.finalize_production_readiness_hold(article)
 
         if ArticleWorkflow.objects.filter(article=article).exists():
             if article.articleworkflow.state in (

@@ -213,7 +213,7 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
     None: ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
     "JCOM": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
     "JCOMAL": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
-    "JCAP": ("plugins.wjs_review.events.checks_after_acceptance.jcap_ta_not_yet_confirmed",),
+    "JCAP": ("plugins.wjs_review.events.checks_after_acceptance.jcap_production_readiness_not_confirmed",),
 }
 
 # Per-journal functions that send an article's production export zip (metadata XML + linked
