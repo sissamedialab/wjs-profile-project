@@ -4865,12 +4865,26 @@ class ConvertManuscriptToPdf:
             # happens mid-run (e.g. during the Yakunin call above) doesn't surface as Article.DoesNotExist
             # here; it only shows up later, when _save_yakunin_log tries to refresh the now-deleted logfile
             # from the DB.
-            # Only treat this as the known benign race if the article is indeed gone: a logfile missing for
-            # any other reason (e.g. something else deleting File rows while the article is still alive) is
-            # a real bug and must not be silently swallowed.
-            if Article.objects.filter(pk=self.article_id).exists():
+            #
+            # A second, narrower race hits this same except clause without the article ever being deleted:
+            # the author replaces the manuscript file (e.g. a second upload a few seconds later) while this
+            # conversion -- started for the *previous* file, self.file_id -- is still mid-flight. The
+            # replacement deletes the old manuscript File row (and its logfile) out from under this task,
+            # the same way an article deletion would. A conversion for a file that is no longer current is
+            # moot: a new conversion has already started (or will start) for the replacement file.
+            #
+            # Only treat this as one of these known benign races if the article or the source file is
+            # indeed gone: a logfile missing for any other reason (e.g. something else deleting File rows
+            # while both are still alive) is a real bug and must not be silently swallowed.
+            if (
+                Article.objects.filter(pk=self.article_id).exists()
+                and core_models.File.objects.filter(pk=self.file_id).exists()
+            ):
                 raise
-            logger.info(f"Logfile for article {self.article_id} vanished mid-conversion; skipping.")
+            logger.info(
+                f"Logfile for article {self.article_id} (source file {self.file_id}) vanished mid-conversion "
+                "(article deleted or manuscript file superseded by a newer upload); skipping."
+            )
 
         finally:
             if tmpdir:
