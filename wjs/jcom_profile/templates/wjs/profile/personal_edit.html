@@ -27,7 +27,7 @@
               <img alt="ORCID logo" src="{% static "common/img/icons/orcid.png" %}">
               {{ object.orcid }}
             </a>
-          {% else %}
+          {% elif settings.ENABLE_ORCID %}
             {# djlint:off #}
             <a href="{% url_with_next_and_orcid_action 'core_login_orcid' action='connect' %}&next={{ request.path }}" id="id_orcid_button"
               {# djlint:on #}
