@@ -3,12 +3,15 @@
 from core import include_urls
 from django.conf import settings
 from django.urls import include, path, re_path
+from identifiers.models import NON_DOI_IDENTIFIER_TYPES
 from journal import views as journal_views
 
 from . import experimental_views, views
 from .newsletter import views as newsletter_views
 from .profile import views as profile_views
 from .views import AuthorAutocompleteView, AuthorSearchView, KeywordListView
+
+NON_DOI_PIPE_SEPARATED_IDENTIFIERS = "|".join(NON_DOI_IDENTIFIER_TYPES)
 
 urlpatterns = [
     path("profile/", profile_views.ProfilePersonalEditView.as_view(), name="core_edit_profile"),
@@ -61,6 +64,12 @@ urlpatterns = [
         r"^article/(?P<identifier_type>pubid)/(?P<identifier>[\w().-]+)/$",
         journal_views.article,
         name="article_view",
+    ),
+    re_path(
+        r"^article/(?P<identifier_type>{})/(?P<identifier>[\w.()-]+)/(?P<file_name>.+)$"
+        "".format(NON_DOI_PIPE_SEPARATED_IDENTIFIERS),
+        journal_views.identifier_figure,
+        name="article_figure",
     ),
     path(
         "update/newsletters/",
