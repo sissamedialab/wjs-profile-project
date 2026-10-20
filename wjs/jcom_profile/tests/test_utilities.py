@@ -219,14 +219,14 @@ class TestHTC:
         au2 = MockAuthor(*AUTHORS_WITH_INTERESTING_NAMES[4][0:6])
         au3 = MockAuthor(*AUTHORS_WITH_INTERESTING_NAMES[5][0:6])
         mockarticle = MagicMock()
-        mockarticle.date_published.year = 2024
+        mockarticle.date_published.year = 2026
         mockarticle.title = "TITLE"
         # NB: the journal code is JQuant, while the how-to-cite reports JQUANT.
         #     This is desired!
         mockarticle.journal.code = "JQuant"
-        mockarticle.issue.volume = 2026
+        mockarticle.issue.volume = 1
         mockarticle.issue.issue = 4
-        mockarticle.page_numbers = "154"
+        mockarticle.page_numbers = "004001"
         mockarticle.get_doi.return_value = "10.1202020/test"
         mockarticle.frozenauthor_set.exists.return_value = True
         mockarticle.frozenauthor_set.all.return_value = [au1, au2, au3]
@@ -236,8 +236,8 @@ class TestHTC:
             f"{AUTHORS_WITH_INTERESTING_NAMES[5][8]},"
             " <i>TITLE</i>,"
             " <i>JQUANT</i>"
-            " <b>4</b> (2026) 154,"
-            "  doi:10.1202020/test"
+            " <b>1</b> (2026) 004001,"
+            " doi:10.1202020/test"
         )
 
     def test_htc_jquant_more_than_10_authors(self):
@@ -247,14 +247,14 @@ class TestHTC:
             for i in range(11)
         ]
         mockarticle = MagicMock()
-        mockarticle.date_published.year = 2024
+        mockarticle.date_published.year = 2026
         mockarticle.title = "TITLE"
         # NB: the journal code is JQuant, while the how-to-cite reports JQUANT.
         #     This is desired!
         mockarticle.journal.code = "JQuant"
-        mockarticle.issue.volume = 2026
+        mockarticle.issue.volume = 1
         mockarticle.issue.issue = 4
-        mockarticle.page_numbers = "154"
+        mockarticle.page_numbers = "004001"
         mockarticle.get_doi.return_value = "10.1202020/test"
         mockarticle.frozenauthor_set.exists.return_value = True
         mockarticle.frozenauthor_set.all.return_value = authors
@@ -262,8 +262,8 @@ class TestHTC:
             f"{AUTHORS_WITH_INTERESTING_NAMES[0][8]} et al.,"
             " <i>TITLE</i>,"
             " <i>JQUANT</i>"
-            " <b>4</b> (2026) 154,"
-            "  doi:10.1202020/test"
+            " <b>1</b> (2026) 004001,"
+            " doi:10.1202020/test"
         )
 
     def test_htc_jcom_less_than_20_authors(self):
