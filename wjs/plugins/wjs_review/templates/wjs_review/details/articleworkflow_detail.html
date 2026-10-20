@@ -37,3 +37,10 @@
     </div>
   </main>
 {% endblock content_wrapper %}
+
+{% block js %}
+  {{ block.super }}
+  {% if journal_settings.general.enable_mathjax_article_page %}
+    {% include "wjs/base/fragments/mathjax.html" %}
+  {% endif %}
+{% endblock js %}
