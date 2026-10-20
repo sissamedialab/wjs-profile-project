@@ -1826,6 +1826,12 @@ class BeginPublication:
             return (False, "Paper not ready. Please check galleys or queries in the sources.")
         if self.workflow.article.primary_issue is None:
             return (False, "Paper has not issue associated.")
+        # The section code goes into the TeX source (see _prepare_source()): without it the compilation fails.
+        section = self.workflow.article.section
+        if section is None:
+            return (False, "Paper has no section associated.")
+        if not hasattr(section, "wjssection") or not section.wjssection.pubid_and_tex_sectioncode:
+            return (False, f'Section "{section}" has no PUBID code. Please correct from the admin interface.')
         return (True, None)
 
     def ensure_doi(self) -> None:
