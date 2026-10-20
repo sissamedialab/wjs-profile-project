@@ -104,15 +104,13 @@ def has_attr(obj, attr):
 @register.filter
 def how_to_cite(article: Article) -> str:
     """
-    Return a how-to-cite string
+    Return a how-to-cite string.
+
     Format depends on the journal:
-    - JQuant: custom format with initials before last name
-      - <10 authors: full list with "and" before last
-      - >=10 authors: first author + "et al."
-    - JCOM/JCOMAL: APA-style
-    - other journals: author list, title, journal, month (year) page. doi
+    - JCOM/JCOMAL: APA-style, e.g. "Rossi, M. (2026). Title. <i>JCOM</i> 25(01), A01. https://doi.org/..."
+    - other journals (e.g. JQuant): initials before last name, e.g.
+      "M. Rossi, <i>Title</i>, <i>JQUANT</i> <b>1</b> (2026) 002001, doi:..." (volume, year, eid)
     """
-    # Warning: there exist two `citation_name()`: the original from FrozenAuthor and ours from utils
     if not article.frozenauthor_set.exists():
         return ""
     is_apa = article.journal.code.startswith("JCOM")
@@ -120,10 +118,10 @@ def how_to_cite(article: Article) -> str:
     authors = article.frozenauthor_set.all()
     author_names = [citation_name(a, apa=is_apa) for a in authors]
 
-    # --- JCOM/JCOMAL branch (APA7) ---
-    # Applied rules for authors (APA7)
-    # - Up to 20 authors: if more than 20, list first 19, ellipsis, then last author
-    # - Use "&" before the last author instead of "and"
+    # Author list
+    # - JCOM/JCOMAL (APA7): up to 20 authors; if more than 20, list first 19, ellipsis, then last author;
+    #   use "&" before the last author instead of "and"
+    # - other journals: up to 10 authors; if more than 10, first author + "et al."; "and" before the last author
     threshold = 20 if is_apa else 10
     and_separator = ", & " if is_apa else " and "
     if len(author_names) > threshold:
@@ -138,10 +136,10 @@ def how_to_cite(article: Article) -> str:
     else:
         author_str = ", ".join(author_names[:-1]) + and_separator + author_names[-1]
 
-    # BEWARE: Not all rules for APA7 has been applied.(https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/155)
+    # BEWARE: Not all rules for APA7 have been applied (https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/155)
     # Rules applied:
     # - Article title is not italicized, ends with a period
-    # - Journal name is italicized and remain only the journal code not hte entire name of the journal
+    # - Journal name is italicized and only the journal code is used, not the entire name of the journal
     # - Volume and issue: kept as-is (https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/155)
     # - DOI in URL format (https://doi.org/...)
 
@@ -154,12 +152,14 @@ def how_to_cite(article: Article) -> str:
             f" https://doi.org/{article.get_doi()}"
         )
     else:
-        # Note that, for these journals, Issue objects are created with issue=month and volume=year - wjs/specs#2631
+        # For these journals (e.g. JQuant) both volume and issue are ever-increasing numbers: the volume counts the
+        # years since the journal's inception (1 in 2026, 2 in 2027, ...) and the issue is already part of the eid
+        # (e.g. 002001 is the first paper of issue 2) - wjs/specs#3213
         htc = (
             f"{author_str},"
             f" <i>{article.title}</i>,"
             f" <i>{article.journal.code.upper()}</i>"
-            f" <b>{article.issue.issue}</b> ({article.issue.volume}) {article.page_numbers}, "
+            f" <b>{article.issue.volume}</b> ({article.date_published.year}) {article.page_numbers},"
             f" doi:{article.get_doi()}"
         )
     return htc

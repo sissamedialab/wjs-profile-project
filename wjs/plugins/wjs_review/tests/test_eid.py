@@ -9,10 +9,13 @@ import datetime
 
 import pytest
 from django.utils import timezone
+from identifiers.models import Identifier
 from journal.models import Issue, Journal
 from plugins.wjs_review.models import ArticleWorkflow
-from submission.models import Article, Section
+from submission.models import Article, FrozenAuthor, Section
 from utils.install import update_settings, update_xsl_files
+
+from wjs.jcom_profile.templatetags.wjs_tags import how_to_cite
 
 # The section code (i.e. the letter that might appear in the eid) of the sections used in these tests.
 # In real life these come from the DB (WjsSection) and are set by the EO from the admin interface.
@@ -370,3 +373,41 @@ def test_collect_publication_data__counter_with_existing_page_numbers():
     article.save()
     data = article.articleworkflow.collect_publication_data()
     assert (data["eid"], data["counter"]) == ("005007", "002")
+
+
+@pytest.mark.django_db
+def test_how_to_cite__jquant():
+    """In JQuant the how-to-cite has the volume (years since inception), the publication year and the eid.
+
+    The issue number is not repeated: it is already part of the eid (see wjs/specs#3213).
+    """
+    scenario = EidScenario("JQuant")
+    issues = {
+        (1, "01"): scenario.issue,
+        (1, "02"): Issue.objects.create(journal=scenario.journal, volume=1, issue="02"),
+        (2, "04"): Issue.objects.create(journal=scenario.journal, volume=2, issue="04"),
+    }
+    # (volume, issue, publication year, expected how-to-cite piece), in order of publication
+    cases = (
+        (1, "01", 2026, "<b>1</b> (2026) 001001"),
+        (1, "01", 2026, "<b>1</b> (2026) 001002"),
+        (1, "02", 2026, "<b>1</b> (2026) 002001"),
+        (2, "04", 2027, "<b>2</b> (2027) 004001"),
+    )
+
+    for volume, issue_number, year, expected_piece in cases:
+        article = Article.objects.create(
+            journal=scenario.journal,
+            title="TITLE",
+            section=scenario.section("Article"),
+            primary_issue=issues[(volume, issue_number)],
+            date_published=timezone.make_aware(datetime.datetime(year, 6, 1)),
+        )
+        FrozenAuthor.objects.create(article=article, first_name="Mario", last_name="Rossi", order=1)
+        Identifier.objects.create(id_type="doi", identifier="10.1234/test", article=article)
+        article.articleworkflow.compute_eid(save_as_pagenumber=True)
+
+        expected = f"M. Rossi, <i>TITLE</i>, <i>JQUANT</i> {expected_piece}, doi:10.1234/test"
+        assert how_to_cite(article) == expected, f"Wrong how-to-cite for volume {volume} issue {issue_number}"
+        # Publish the article only now, since _publish() sets the publication date to today
+        _publish(article)
