@@ -1005,6 +1005,40 @@ def test_publication_with_fake_galley_generation(
     assert all(workflow.article.galley_set.all().values_list("public", flat=True))
 
 
+@pytest.mark.parametrize("missing", ["section", "wjssection", "section_code"])
+@pytest.mark.django_db
+def test_publication_requires_section_code(
+    rfp_article: Article,
+    fake_request: HttpRequest,
+    eo_user: Account,
+    missing: str,
+):
+    """Publication is not allowed if the paper's section has no PUBID code (the LaTeX compilation would fail)."""
+    if missing == "section":
+        rfp_article.section = None
+        rfp_article.save()
+        expected_reason = "Paper has no section associated."
+    else:
+        if missing == "wjssection":
+            rfp_article.section.wjssection.delete(keep_parents=True)
+        else:
+            rfp_article.section.wjssection.pubid_and_tex_sectioncode = ""
+            rfp_article.section.wjssection.save()
+        expected_reason = "has no PUBID code"
+    workflow = ArticleWorkflow.objects.get(pk=rfp_article.articleworkflow.pk)
+
+    with (
+        mock.patch("plugins.wjs_review.logic__production.BeginPublication.prepare_source_files") as prepare,
+        mock.patch("plugins.wjs_review.logic__production.BeginPublication.trigger_galley_generation"),
+        pytest.raises(ValueError, match=expected_reason),
+    ):
+        BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
+    prepare.assert_not_called()
+    workflow.refresh_from_db()
+    assert workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION, "Paper should not be published"
+    assert workflow.article.get_pubid() is None, "No pubid should be assigned"
+
+
 @pytest.mark.django_db
 def test_publication_multiple_articles(
     journal: Journal,
