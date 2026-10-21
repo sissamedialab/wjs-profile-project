@@ -19,6 +19,7 @@ from utils.logger import get_logger
 from wjs.jcom_profile.utils import render_template_from_setting
 
 from .. import communication_utils
+from ..conditions import journal_requires_social_media_files
 from ..logic import (
     AccessModeSpecialRequestNotification,
     AuthorHandleRevision,
@@ -244,6 +245,8 @@ def send_to_prophy(**kwargs) -> None:
 def send_notification_when_article_is_published(**kwargs):
     """Send notification via email when article is published."""
     article = kwargs["article"]
+    if not journal_requires_social_media_files(article.journal):
+        return
     if article.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED:
         try:
             recipients = settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS[article.journal.code]

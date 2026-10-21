@@ -72,8 +72,7 @@ class Command(BaseCommand):
                     )
 
                 # Use save_base(raw=True) to avoid re-saving the parent Section row
-                # with empty inherited fields (MTI-safe pattern, same as
-                # populate_wjs_section command).
+                # with empty inherited fields (MTI-safe pattern).
                 wjs_section = WjsSection(
                     pubid_and_tex_sectioncode=section_def["pubid_code"],
                     section=section,

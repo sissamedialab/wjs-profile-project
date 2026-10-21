@@ -40,14 +40,17 @@ from .logic__production import (
     ConfirmProductionReadiness,
     HandleDeleteSupplementaryFile,
     HandleDownloadRevisionFiles,
+    MissingIssueError,
     ReadyForPublication,
     RequestProofs,
+    SimulatePublicationIdentifiers,
     TogglePublishableFlag,
     finishpublication_wrapper,
 )
 from .mixins import AuthenticatedUserPassesTest
 from .models import ArticleWorkflow
 from .permissions import (
+    has_eo_role_by_article,
     has_typesetter_role_by_article,
     is_article_author,
     is_article_supervisor,
@@ -726,6 +729,35 @@ class BeginPublicationView(AuthenticatedUserPassesTest, View):
             ),
         )
         return HttpResponseRedirect(f"{redirect_url}")
+
+
+class SimulatePubidView(AuthenticatedUserPassesTest, DetailView):
+    """Show (in a modal) the pubid and how-to-cite that the paper would get if it were published now.
+
+    Nothing is saved.
+    """
+
+    model = ArticleWorkflow
+    template_name = "wjs_review/simulate_pubid/simulate_pubid.html"
+    context_object_name = "workflow"
+
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
+        self.object = get_object_or_404(self.model, pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Only EO can simulate the publication."""
+        return has_eo_role_by_article(self.object, self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        try:
+            context["simulation"] = SimulatePublicationIdentifiers(workflow=self.object).run()
+        except MissingIssueError:
+            context["missing_issue"] = True
+        except (ValueError, NotImplementedError, AssertionError) as e:
+            context["error"] = e
+        return context
 
 
 class FinishPublicationView(AuthenticatedUserPassesTest, UpdateView):

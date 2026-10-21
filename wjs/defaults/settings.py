@@ -213,7 +213,7 @@ WJS_REVIEW_READY_FOR_TYP_CHECK_FUNCTIONS = {
     None: ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
     "JCOM": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
     "JCOMAL": ("plugins.wjs_review.events.checks_after_acceptance.always_pass",),
-    "JCAP": ("plugins.wjs_review.events.checks_after_acceptance.jcap_ta_not_yet_confirmed",),
+    "JCAP": ("plugins.wjs_review.events.checks_after_acceptance.jcap_production_readiness_not_confirmed",),
 }
 
 # Per-journal functions that send an article's production export zip (metadata XML + linked
@@ -264,8 +264,9 @@ WJS_REVIEW_IOP_SFTP = {
 
 # Email addresses that must receive the notification when an article is published.
 # https://gitlab.sissamedialab.it/wjs/specs/-/issues/1705
+# Only journals listed here have the "social" features enabled (see WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES):
+# there is deliberately no `None` (default) key.
 WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {
-    None: ("jsocial@sissamedialab.it",),
     "JCOM": ("jsocial@sissamedialab.it",),
     "JCOMAL": ("jsocial@sissamedialab.it",),
 }
@@ -392,22 +393,31 @@ WJAPP_JCAP_IMPORT_DEDUP_SCRIPT = ""
 # services/getSGPcodfpf.jsp, which authenticates the caller from it (see
 # jpbridge/views_sgp.py, jpbridge/views_mypayments.py).
 
-# Jp base URL to redirect to, one entry per journal code (jpbridge/views_mypayments.py).
-# JCOM and JCOMAL never have payments/Jp; the others point at the real production Jp.
+# Jp base URL to redirect to, and the path prefix Jp must call
+# services/getSGPcodfpf.jsp back under, as one (url, service_prefix) tuple per journal code
+# (jpbridge/views_mypayments.py, jpbridge/views_fake_jp.py - see resolve_service_prefix() in
+# jpbridge/logic.py). JCOM and JCOMAL never have payments/Jp. The prefix is needed because JCAP,
+# JINST, JSTAT and JHEP can all be served by this same Janeway deployment (different domains, same
+# process), so a single fixed value can't tell one journal's callback apart from another's.
 #
-# For local testing without a real Jp instance, override the journal(s) you're testing
-# in your personal settings to point at jpbridge/views_fake_jp.py's FakeJpView instead,
-# e.g. WJS_JP_URLS = {"JCAP": "http://jcap.local:8000/fake-jp/"} - this simulates the Jp
-# side of the flow end-to-end (forwards the session cookie, calls back
+# Override in a test deployment's local settings for that environment's own convention - e.g. on
+# griffo/wjs-test, Jp always calls back under one fixed "test-wjs" prefix regardless of which
+# journal is being tested (there's no real per-journal Jp instance there), so every entry there
+# would use "test-wjs" instead of the journal's own prefix; "test-jcap" etc. is also a valid
+# convention if a test instance does distinguish per journal.
+#
+# For local testing without any real Jp instance, point the url at jpbridge/views_fake_jp.py's
+# FakeJpView instead, e.g. ("http://jcap.local:8000/fake-jp/", "test-jcap") - this simulates the
+# Jp side of the flow end-to-end (forwards the session cookie, calls back
 # services/getSGPcodfpf.jsp) without needing a real Jp deployment.
 WJS_JP_URLS = {
     "JCOM": None,
     "JCOMAL": None,
     "JQuant": None,
-    "JCAP": "https://jcap.sissa.it/jp/intro",
-    "JINST": "https://jinst.sissa.it/jp/intro",
-    "JSTAT": "https://jstat.sissa.it/jp/intro",
-    "JHEP": "https://jhep.sissa.it/jp/intro",
+    "JCAP": ("https://jcap.sissa.it/jp/intro", "jcap"),
+    "JINST": ("https://jinst.sissa.it/jp/intro", "jinst"),
+    "JSTAT": ("https://jstat.sissa.it/jp/intro", "jstat"),
+    "JHEP": ("https://jhep.sissa.it/jp/intro", "jhep"),
 }
 
 # MariaDB connection to the external "pagamenti" database that holds the `spedizioni` table
@@ -418,6 +428,10 @@ PROD_DB_PAG_CONNECTION_PARAMS = {
     "password": "",
     "host": "",
     "database": "",
+    # Short, since this is checked on every editor/reviewer page load (see
+    # jpbridge/logic.py::can_access_my_payments) - fail fast rather than hang the page if this
+    # external DB is unreachable.
+    "connect_timeout": 3,
 }
 
 NO_NOTIFICATION = False
@@ -538,7 +552,9 @@ BOOTSTRAP5 = {
 WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]
 
 # The list of journals for which the "send short description and image for social media" feature is enabled
-WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES = ["JCOM", "JCOMAL"]
+# and the "social" email notification is sent on publication.
+# Kept linked to WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS (refs wjs/specs#3016).
+WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES = list(WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS.keys())
 
 # The list of journals for which we should show editor keywords when selecting a new editor
 WJS_SHOW_EDITOR_KEYWORDS = []

@@ -1,4 +1,5 @@
 import random
+import re
 
 import pytest
 from core import models as core_models
@@ -719,3 +720,21 @@ def test_admin_cannot_login(journal, admin):
     ru = response.wsgi_request.user
     assert ru is not None
     assert ru.is_authenticated
+
+
+@pytest.mark.django_db
+def test_editor_parameters_page_shows_editor_name(journal: Journal, roles, eo_user, section_editor):
+    """The page to manage an editor's parameters says whose parameters are being edited."""
+    StaffWorkloadParameters.objects.create(user=section_editor.janeway_account, journal=journal)
+    client = Client()
+    client.force_login(eo_user)
+
+    response = client.get(f"/{journal.code}/update/parameters/{section_editor.janeway_account.pk}/")
+
+    heading = f"Manage Editor {section_editor.janeway_account.full_name()}"
+    assert response.status_code == 200
+    page_title = re.search(
+        r'<h1 class="wjs-showcase__main-title">\s*<span>\s*(.*?)\s*</span>', response.content.decode(), re.DOTALL
+    )
+    assert page_title, "page must have a main title"
+    assert page_title.group(1) == heading, f"page must be titled {heading!r}"

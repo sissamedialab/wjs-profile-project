@@ -19,19 +19,47 @@ def always_pass(article: submission_models.Article) -> bool:
     return True
 
 
-def jcap_ta_not_yet_confirmed(article: submission_models.Article) -> bool:
-    """Block automatic transition to READY_FOR_TYPESETTER for JCAP TA articles.
-
-    Only blocks if the article's access mode is TA (OA_CODE_TA). In that case,
-    the EO must manually confirm production readiness via the article page.
-    Returns False and notifies EO. For all other access modes, returns True.
-    """
+def _is_ta(article: submission_models.Article) -> bool:
+    """Return whether the article's access mode is the transformative-agreement one."""
     try:
         access_mode = article.submission_data.access_mode
     except ObjectDoesNotExist:
-        return True
+        return False
+    return access_mode is not None and access_mode.code == OA_CODE_TA
 
-    if access_mode is None or access_mode.code != OA_CODE_TA:
+
+def _is_imported(article: submission_models.Article) -> bool:
+    """Return whether the article was imported from wjapp, i.e. it has a populated preprintid."""
+    return bool(article.get_identifier("preprintid"))
+
+
+def _render_setting(setting_name: str, article: submission_models.Article) -> str:
+    """Render a wjs_review setting with the article in the context."""
+    return render_template(
+        get_setting(
+            setting_group_name="wjs_review", setting_name=setting_name, journal=article.journal
+        ).processed_value,
+        {"article": article},
+    )
+
+
+def render_production_readiness_subject(article: submission_models.Article) -> str:
+    """Return the subject of the message sent to the EO when an article is held in ACCEPTED.
+
+    Also used by the wjapp importer to find that message (specs#3131).
+    """
+    return _render_setting("jcap_ta_pending_subject", article)
+
+
+def jcap_production_readiness_not_confirmed(article: submission_models.Article) -> bool:
+    """Block automatic transition to READY_FOR_TYPESETTER for JCAP TA and imported articles.
+
+    Blocks if the article's access mode is TA (OA_CODE_TA, specs#2591) or if the article was
+    imported from wjapp (populated preprintid, specs#3131): imported articles have no affiliation
+    and the EO must set it before production. In both cases the EO must manually confirm
+    production readiness via the article page. Returns False and notifies EO; otherwise returns True.
+    """
+    if not (_is_ta(article) or _is_imported(article)):
         return True
 
     # Local imports to avoid circular import: wjs_review.models is not fully
@@ -39,30 +67,10 @@ def jcap_ta_not_yet_confirmed(article: submission_models.Article) -> bool:
     from .. import communication_utils
     from ..models import Message
 
-    context = {"article": article}
-
-    message_subject = render_template(
-        get_setting(
-            setting_group_name="wjs_review",
-            setting_name="jcap_ta_pending_subject",
-            journal=article.journal,
-        ).processed_value,
-        context,
-    )
-
-    message_body = render_template(
-        get_setting(
-            setting_group_name="wjs_review",
-            setting_name="jcap_ta_pending_body",
-            journal=article.journal,
-        ).processed_value,
-        context,
-    )
-
     communication_utils.log_operation(
         article=article,
-        message_subject=message_subject,
-        message_body=message_body,
+        message_subject=render_production_readiness_subject(article),
+        message_body=_render_setting("jcap_ta_pending_body", article),
         actor=None,
         recipients=[get_eo_user(article)],
         verbosity=Message.MessageVerbosity.FULL,

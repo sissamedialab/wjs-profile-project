@@ -31,3 +31,14 @@ def collaborations(article: Article) -> list[str]:
 def size(esm: SupplementaryFile) -> int:
     """Return the file size in bytes of the given supplementary file."""
     return esm.file.get_file_size(Article.objects.get(pk=esm.file.article_id))
+
+
+@register.filter
+def identifier(article: Article, id_type: str) -> str:
+    """
+    Return the value of the article's identifier of the given type (e.g. "doi", "protonid").
+
+    Return an empty string if the article has no such identifier, so that nothing (not "None") ends up in the
+    rendered LaTeX.
+    """
+    return article.get_identifier(id_type) or ""

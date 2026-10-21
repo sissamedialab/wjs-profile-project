@@ -10,11 +10,13 @@ import freezegun
 import html2text
 import pycountry
 import pytest
+import requests
 from core.files import save_file_to_article
 from core.models import Account, Setting, SettingGroup, SettingValue
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.messages.storage.cookie import CookieStorage
 from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files import File
@@ -23,6 +25,7 @@ from django.forms import models as model_forms
 from django.http import HttpRequest
 from django.template import defaultfilters
 from django.template.loader import render_to_string
+from django.test import RequestFactory
 from django.urls import reverse
 from django.utils import formats, timezone, translation
 from django.utils.timezone import localtime, now
@@ -36,13 +39,19 @@ from plugins.wjs_review.synctex.forms import (
     DeleteAuthorRecordForm,
     OrphanAuthorRow,
     SyncAuthorsForm,
+    SyncCasDasForm,
     SyncCollaborationsForm,
+    SyncFundingsForm,
     SyncKeywordsForm,
+    SyncLicenseForm,
+    SyncRightsForm,
     SyncTitleAbstractForm,
 )
 from plugins.wjs_review.synctex.logic import MetadataFromTeX
+from plugins.wjs_review.synctex.views import SyncTeXDB
 from plugins.wjs_submission.models import (
     ArticleCollaboration,
+    ArticleSubmission,
     Collaboration,
     CollaborationRelation,
     RevisionStorage,
@@ -3474,8 +3483,9 @@ def test_postpone_due_date_by_reviewer_notifies_editor(
 
     review_assignment.refresh_from_db()
     assert review_assignment.date_due == new_date_due
-    assert Message.objects.count() == 2, "one message for the reviewer and one for the editor"
-    assert Message.objects.filter(recipients__pk=reviewer.pk).count() == 1, "reviewer message must be unchanged"
+    assert Message.objects.count() == 1, "only one message is generated"
+    assert Message.objects.filter(recipients__pk=editor.pk).count() == 1, "editor is the recipient"
+    assert Message.objects.filter(actor=reviewer).count() == 1, "reviewer is the sender"
     editor_messages = Message.objects.filter(recipients__pk=editor.pk)
     assert editor_messages.count() == 1, "the editor must be notified"
     editor_message = editor_messages.get()
@@ -3483,7 +3493,7 @@ def test_postpone_due_date_by_reviewer_notifies_editor(
     # the message body is rendered by a template: the date is formatted as {{ date_due }} does
     new_rendered_due_date = defaultfilters.date(new_date_due)
     assert new_rendered_due_date in editor_message.body, "the message must report the new due date"
-    assert len(mail.outbox) == 2, "both messages are sent by email"
+    assert len(mail.outbox) == 1, "only one message is sent by email"
 
 
 @pytest.mark.django_db
@@ -3623,8 +3633,7 @@ def test_actors_postpone_due_date(
 
     if actor_role == "Reviewer":
         actor_user = review_assignment.reviewer
-        # the reviewer is notified and, as the reviewer changed the date, the editor too
-        expected_emails = 2
+        expected_emails = 1
     elif actor_role == "Editor":
         actor_user = review_assignment.editor
         expected_emails = 1
@@ -5013,6 +5022,7 @@ def _texdata_two_authors(article, author):
                 "surname": author.last_name,
                 "email": author.email,
                 "orcid": "",
+                # Not in the TeX data (jmeta schema v3): if JA sends them, they must be ignored.
                 "biography": "TeX biography",
                 "socials_handle": "@texhandle",
             },
@@ -5076,7 +5086,7 @@ def test_sync_texdb_authors(
     assert [frozen_author.order for frozen_author in frozen_authors] == [0, 1], "The TeX order is kept"
     assert [frozen_author.last_name for frozen_author in frozen_authors] == [author.last_name, "Knows"]
     assert frozen_authors[0].author == author, "The mapped author record is linked to its account"
-    assert frozen_authors[0].frozen_biography == "TeX biography"
+    assert frozen_authors[0].frozen_biography in ("", None), "The biography is not synchronized"
     assert frozen_authors[1].author is None, 'The "new" author record is not linked to any account'
     assert frozen_authors[1].name_suffix == "Jr.", "The suffix recognized in the TeX name is kept"
     assert not SyncAuthorsForm(
@@ -5099,7 +5109,7 @@ def test_sync_texdb_authors(
     SyncAuthorsForm(AuthorsMapper(texdata), data=sync_data).sync()
     assert mail.outbox == [], "Nobody is a new co-author anymore"
     author.refresh_from_db()
-    assert author.twitter == "@texhandle", "The socials handle is stored onto the account"
+    assert author.twitter != "@texhandle", "The socials handle is not synchronized"
 
 
 @pytest.mark.django_db
@@ -5332,28 +5342,6 @@ def test_sync_texdb_authors_sure_match_orcid(
 
 
 @pytest.mark.django_db
-def test_sync_texdb_authors_socials_handle(
-    article_with_keywords: Article,
-):
-    """Refuse to sync when the socials handle of the TeX is not a handle."""
-    article = article_with_keywords
-    author = article.owner
-    coauthor = article.author_accounts.exclude(id=author.id).get()
-    texdata = _texdata_two_authors(article, author)
-    texdata.data["authors_data"][0]["socials_handle"] = "texhandle"
-    # Get rid of the author that the TeX does not know, or the sync would be refused for that
-    submission_models.FrozenAuthor.objects.filter(article=article, author=coauthor).delete()
-
-    form_authors = SyncAuthorsForm(
-        AuthorsMapper(texdata),
-        data={"action": "sync_authors", "author_0": str(author.pk), "author_1": "new"},
-    )
-    assert form_authors.can_sync()
-    with pytest.raises(ValidationError, match="socials handle"):
-        form_authors.sync()
-
-
-@pytest.mark.django_db
 def test_sync_texdb_authors_template(
     article_with_keywords: Article,
 ):
@@ -5361,6 +5349,9 @@ def test_sync_texdb_authors_template(
     article = article_with_keywords
     author = article.owner
     coauthor = article.author_accounts.exclude(id=author.id).get()
+    author.biography = "DB biography"
+    author.twitter = "@dbhandle"
+    author.save()
     texdata = _texdata_two_authors(article, author)
     mapper = AuthorsMapper(texdata)
     rendered = render_to_string(
@@ -5384,14 +5375,91 @@ def test_sync_texdb_authors_template(
     coauthor_record = submission_models.FrozenAuthor.objects.get(article=article, author=coauthor)
     assert f'value="{coauthor_record.pk}"' in rendered, "The record of the co-author must be taken care of"
     assert "nobody@example.com" in rendered, "Its correspondence can use the unmatched TeX email"
-    assert "TeX biography" in rendered, "The TeX biography is displayed"
-    assert "@texhandle" in rendered, "The TeX socials handle is displayed"
+    for not_displayed in ("TeX biography", "@texhandle", "DB biography", "@dbhandle", "Biography", "Socials"):
+        assert not_displayed not in rendered, f"Biography and socials handle are not displayed ({not_displayed})"
     assert 'name="author_0"' in rendered, "Each TeX author has its own radio group"
-    assert "A new author record will be created" in rendered, "The unknown TeX author gets a new record"
+    assert "A new frozen author will be created" in rendered, "The unknown TeX author gets a new record"
     assert (
         rendered.count("bi-envelope-plus") == 1
     ), "Only the unknown TeX author would add (and notify) a new co-author"
     assert "disabled" in rendered, "Updating is not possible while there are authors to take care of"
+
+
+def _render_sync_authors(mapper: AuthorsMapper) -> str:
+    """Render the authors block of the Sync TeX/DB page (without orphans, whose forms are not needed)."""
+    return render_to_string(
+        "wjs_review/sync_texdb/authors.html",
+        {
+            "form_authors": SyncAuthorsForm(mapper),
+            "orphan_author_rows": [],
+            "authors_errors_db": mapper.errors_db,
+            "authors_errors_tex": mapper.errors_tex,
+            "update_label": "Update",
+        },
+    )
+
+
+@pytest.mark.django_db
+def test_sync_texdb_authors_template_record_differences(
+    article_with_keywords: Article,
+):
+    """Display the values of the author records that the TeX source would change."""
+    article = article_with_keywords
+    author = article.owner
+    author.orcid = "0000-0002-1825-0097"
+    author.save()
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "authors_data": [
+            {
+                "fullname": author.full_name(),
+                "first_name": author.first_name,
+                "surname": author.last_name,
+                "email": author.email,
+                "orcid": author.orcid,
+            },
+        ],
+    }
+    # A record linked to the account, that does not freeze email and orcid (they fall back onto the
+    # account, so they look like the TeX ones), plus a record that the TeX source does not have.
+    record = submission_models.FrozenAuthor.objects.get(article=article, author=author)
+    record.first_name = author.first_name
+    record.last_name = author.last_name
+    record.name_suffix = ""
+    record.frozen_email = ""
+    record.frozen_orcid = ""
+    record.order = 0
+    record.save()
+    coauthor_record = submission_models.FrozenAuthor.objects.get(article=article, author__isnull=False, order__gt=0)
+    coauthor_record.author = None
+    coauthor_record.frozen_email = author.email
+    coauthor_record.save()
+    assert record.email == author.email, "The record falls back onto the email of the account"
+
+    mapper = AuthorsMapper(texdata)
+    assert mapper.orphan_authors == [], "Both records are known to the TeX source"
+    form_authors = SyncAuthorsForm(mapper)
+    assert form_authors.should_sync(), "Email and orcid are not frozen onto the record"
+    current_record = form_authors.sections[0].current_record
+    assert current_record.frozen_author == record, "The TeX author is compared with the record at its position"
+    assert current_record.differing_fields == {"email", "orcid"}, "Only email and orcid differ"
+    assert form_authors.extra_records == [coauthor_record], "The record beyond the TeX authors is dropped"
+
+    rendered = _render_sync_authors(mapper)
+    assert 'class="current-record"' in rendered, "The record that the update would change is displayed"
+    assert rendered.count("(empty)") == 2, "The empty email and orcid of the record are highlighted"
+    assert "Update will drop these ones" in rendered, "The extra record is displayed"
+    assert "disabled" not in rendered, "The records can be updated"
+
+    form_authors = SyncAuthorsForm(mapper, data={"action": "sync_authors", "author_0": str(author.pk)})
+    form_authors.sync()
+    record = article.frozen_authors().get()
+    assert (record.frozen_email, record.frozen_orcid) == (author.email, author.orcid), "TeX values are frozen"
+    mapper = AuthorsMapper(texdata)
+    assert not SyncAuthorsForm(mapper).should_sync(), "The author records now agree with the TeX source"
+    rendered = _render_sync_authors(mapper)
+    assert 'class="current-record"' not in rendered, "A record that agrees with the TeX source is not displayed"
+    assert "disabled" in rendered, "There is nothing to update"
 
 
 @pytest.mark.django_db
@@ -5469,6 +5537,11 @@ def test_sync_texdb_lang(
         assert article.abstract == article.abstract_es == new_abstract_es
 
 
+def _tex_collaboration(name: str) -> dict:
+    """Return a collaboration as described by the TeX data."""
+    return {"name": name, "short": "", "email": "spokesperson@example.com"}
+
+
 @pytest.mark.django_db
 def test_sync_texdb_collaborations(
     article: Article,
@@ -5489,8 +5562,8 @@ def test_sync_texdb_collaborations(
     texdata = MetadataFromTeX(workflow=article.articleworkflow)
     texdata.data = {
         # The match on the name ignores case and surrounding spaces.
-        "collaborations": [" cms collaboration ", "ATLAS collaboration"],
-        "collaborations_type": "forthe",
+        "collaborations": [_tex_collaboration(" cms collaboration "), _tex_collaboration("ATLAS collaboration")],
+        "collaboration_list_mode": "forthe",
     }
     form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
     assert [item.collaboration for item in form.collaborations_tex] == [cms, atlas]
@@ -5506,7 +5579,7 @@ def test_sync_texdb_collaborations(
     assert not SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"}).should_sync()
 
     # Any other collaborations type maps to "by".
-    texdata.data["collaborations_type"] = "regular"
+    texdata.data["collaboration_list_mode"] = "regular"
     form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
     assert form.relation_tex == CollaborationRelation.BY
     # Same collaborations, but a different relation: still out of sync.
@@ -5516,7 +5589,7 @@ def test_sync_texdb_collaborations(
     assert [link.relation for link in links] == [CollaborationRelation.BY] * 2
 
     # A collaboration that exists only in the TeX blocks the sync: it must be created by hand.
-    texdata.data = {"collaborations": ["LHCb collaboration"], "collaborations_type": "forthe"}
+    texdata.data = {"collaborations": [_tex_collaboration("LHCb collaboration")], "collaboration_list_mode": "forthe"}
     form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
     assert form.collaborations_tex[0].collaboration is None
     assert not form.is_valid()
@@ -5524,19 +5597,325 @@ def test_sync_texdb_collaborations(
         form.sync()
 
     # A missing TeX key blocks the sync...
-    for texdata.data in ({"collaborations": ["CMS collaboration"]}, {"collaborations_type": "forthe"}, {}):
+    for texdata.data in (
+        {"collaborations": [_tex_collaboration("CMS collaboration")]},
+        {"collaboration_list_mode": "forthe"},
+        {"collaborations": [_tex_collaboration("CMS collaboration")], "collaboration_list_mode": None},
+        {},
+    ):
         form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
         assert not form.is_valid()
         with pytest.raises(ValueError, match="Please check"):
             form.sync()
 
+    # ...as does an unexpected shape (e.g. the old list of names)...
+    for texdata.data in (
+        {"collaborations": ["CMS collaboration"], "collaboration_list_mode": "forthe"},
+        {"collaborations": [{"short": "CMS"}], "collaboration_list_mode": "forthe"},
+        {"collaborations": [_tex_collaboration("CMS collaboration")], "collaboration_list_mode": ["forthe"]},
+    ):
+        form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
+        assert not form.is_valid(), f"Form should not validate with {texdata.data}"
+        with pytest.raises(ValueError, match="Unexpected"):
+            form.sync()
+
     # ...but an empty collaborations list is fine: syncing detaches all of them.
-    texdata.data = {"collaborations": [], "collaborations_type": ""}
+    texdata.data = {"collaborations": [], "collaboration_list_mode": ""}
     form = SyncCollaborationsForm(texdata, data={"action": "sync_collaborations"})
     assert form.collaborations_tex == []
     assert form.should_sync()
     form.sync()
     assert not ArticleCollaboration.objects.filter(article=article).exists()
+
+
+@pytest.mark.parametrize(
+    "tex_data,error_field",
+    (
+        # Missing keys are never equated to empty statements.
+        ({"das": {"type": "", "text": ""}}, "cas"),
+        ({"cas": {"type": "", "text": ""}}, "das"),
+        # Old (flat) shape.
+        ({"cas": "no", "das": {"type": "", "text": ""}}, "cas"),
+        # Partial dict.
+        ({"cas": {"type": "", "text": ""}, "das": {"type": "no"}}, "das"),
+        # Declaration unknown to the DB.
+        ({"cas": {"type": "other", "text": "Ask me."}, "das": {"type": "", "text": ""}}, "cas"),
+        # Declared as "url", but no URL in the text.
+        ({"cas": {"type": "", "text": ""}, "das": {"type": "url", "text": "Somewhere."}}, "das"),
+    ),
+)
+@pytest.mark.django_db
+def test_sync_texdb_casdas_invalid(article: Article, tex_data: dict, error_field: str):
+    """SyncCasDasForm does not validate when the TeX cas/das are missing, malformed or unknown."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = tex_data
+    form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+    assert not form.is_valid(), f"Form should not validate with {tex_data}"
+    assert list(form.errors) == [error_field], f"Unexpected errors {form.errors}"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_casdas(article: Article):
+    """SyncCasDasForm extracts the declarations and the URL from the TeX statements and saves them."""
+    submission_data = article.submission_data
+    submission_data.cas = ArticleSubmission.CasDeclaration.NO
+    submission_data.das = ArticleSubmission.DasDeclaration.URL
+    submission_data.das_url = "https://old.example.org/data"
+    submission_data.save()
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "cas": {"type": "url", "text": "Code available at https://github.com/example/repo."},
+        "das": {"type": "esm", "text": "Data in the supplementary material."},
+    }
+
+    form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+    assert form.is_valid(), f"Unexpected errors {form.errors}"
+    assert form.tex_cas_url == "https://github.com/example/repo", "Trailing punctuation should be dropped"
+    assert form.tex_das_url == "", "URL should be extracted only for 'url' declarations"
+    assert form.should_sync(), "TeX and DB differ"
+    assert form.das_url_will_be_removed, "The DB DAS URL is not in the TeX"
+    assert not form.cas_url_will_be_removed, "There is no DB CAS URL to remove"
+
+    form.sync()
+    submission_data.refresh_from_db()
+    assert submission_data.cas == "url", "CAS should be taken from the TeX"
+    assert submission_data.cas_url == "https://github.com/example/repo", "CAS URL should be taken from the TeX text"
+    assert submission_data.das == "esm", "DAS should be taken from the TeX"
+    assert submission_data.das_url == "", "DAS URL should be cleared"
+
+    form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+    assert not form.should_sync(), "TeX and DB should be in sync after the sync"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_casdas_href(article: Article):
+    """An \\href in the statement text is purified as "text (url)": the URL is extracted from the parentheses."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "cas": {"type": "", "text": ""},
+        "das": {"type": "url", "text": "Data on Zenodo (https://zenodo.org/record/000000)."},
+    }
+    form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+    assert form.is_valid(), f"Unexpected errors {form.errors}"
+    assert form.tex_das_url == "https://zenodo.org/record/000000", "URL should not include the parentheses"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_license(article: Article):
+    """SyncLicenseForm reads the license from rights.licence_code and refuses missing/unknown ones."""
+    # A short name not used by the licenses of the journal fixture (the mapping is on the slugified short name).
+    test_licence = submission_models.Licence.objects.create(
+        journal=article.journal, name="Test License 9.0", short_name="TEST 9.0", url="https://example.org"
+    )
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {"rights": {"licence_code": "test-90", "licence_extra": "", "licence_text": "..."}}
+    form = SyncLicenseForm(texdata, data={"action": "sync_license"})
+    assert form.is_valid(), f"Unexpected errors {form.errors}"
+    assert form.tex_license == test_licence, "The TeX license should match the slugified short name"
+    form.sync()
+    article.refresh_from_db()
+    assert article.license == test_licence, "The license should be taken from the TeX"
+
+    for data, error in (
+        ({}, "Missing"),
+        ({"licence": "cc-by-40"}, "Missing"),
+        ({"rights": {"copyright_code": "authors"}}, "Missing"),
+        ({"rights": {"licence_code": "no-such-licence"}}, "Unknown"),
+    ):
+        texdata.data = data
+        form = SyncLicenseForm(texdata, data={"action": "sync_license"})
+        assert not form.is_valid(), f"Form should not validate with {data}"
+        assert error in form.errors["license"][0], f"Unexpected errors {form.errors} for {data}"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_rights(article: Article):
+    """SyncRightsForm reads the copyright from rights.copyright_code and refuses missing/empty ones."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "rights": {"copyright_code": "authors", "copyright_extra": "", "copyright_text": "© The Author(s)."}
+    }
+    article.rights = "Authors"
+    article.save()
+    form = SyncRightsForm(texdata, data={"action": "sync_rights"})
+    assert form.is_valid(), f"Unexpected errors {form.errors}"
+    assert form.should_sync(), "A DB value not in the DB form is out of sync"
+    assert form.fields["rights"].help_text == "TeX: authors vs DB: Authors"
+    assert form["rights"].value() == "© Authors", "The field shows the text, without the wrapping <p>"
+    assert "<p>" not in str(form["rights"]), "The rendered field does not show the wrapping <p>"
+    form.sync()
+    article.refresh_from_db()
+    assert article.rights == "<p>© Authors</p>", "The known copyright codes are saved in the DB form"
+
+    form = SyncRightsForm(texdata, data={"action": "sync_rights"})
+    assert not form.should_sync(), "The TeX code and its DB form are in sync"
+    assert form.fields["rights"].help_text == "TeX: authors vs DB: authors", "The DB value maps onto the TeX code"
+
+    for code, db_rights in (("oa-cern", "<p>© CERN</p>"), ("sissa", "<p>© Sissa</p>")):
+        texdata.data = {"rights": {"copyright_code": code}}
+        form = SyncRightsForm(texdata, data={"action": "sync_rights"})
+        assert form.is_valid(), f"Unexpected errors {form.errors} for {code}"
+        form.sync()
+        article.refresh_from_db()
+        assert article.rights == db_rights, f"The copyright code {code} is saved in the DB form"
+        form = SyncRightsForm(texdata, data={"action": "sync_rights"})
+        assert form.fields["rights"].help_text == f"TeX: {code} vs DB: {code}", "The DB value maps onto the TeX code"
+
+    for data, error in (
+        ({}, "Missing"),
+        ({"copyright": "authors"}, "Missing"),
+        ({"rights": {"licence_code": "cc-by-40"}}, "Missing"),
+        ({"rights": {"copyright_code": ""}}, "must have some value"),
+        ({"rights": {"copyright_code": "open-access"}}, "Unknown copyright code open-access"),
+    ):
+        texdata.data = data
+        form = SyncRightsForm(texdata, data={"action": "sync_rights"})
+        assert not form.is_valid(), f"Form should not validate with {data}"
+        assert error in form.errors["rights"][0], f"Unexpected errors {form.errors} for {data}"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_fundings(article: Article):
+    """SyncFundingsForm translates the TeX funders onto the DB fundings."""
+    submission_models.ArticleFunding.objects.create(
+        article=article,
+        name="European Research Council",
+        # An older form of the same DOI: it must not make TeX and DB look out of sync.
+        fundref_id="http://dx.doi.org/10.13039/501100000781",
+        funding_id="ERC-2021-STG",
+        funding_statement="",
+    )
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "funders": [
+            {"name": "European Research Council", "doi": "10.13039/501100000781", "grant": "ERC-2021-STG", "note": ""},
+        ],
+    }
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    assert form.fundings_tex == [
+        {
+            "name": "European Research Council",
+            "fundref_id": "https://dx.doi.org/10.13039/501100000781",
+            "funding_id": "ERC-2021-STG",
+            "funding_statement": "",
+        },
+    ], "The TeX funders should be translated onto the DB keys"
+    assert not form.should_sync(), "Different URIs of the same fundref DOI are the same funder"
+
+    texdata.data["funders"].append({"name": "Some Foundation", "doi": "", "grant": "42", "note": "Thanks!"})
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    assert form.should_sync(), "TeX has one more funder"
+    with patch.object(SyncFundingsForm, "_get_crossref_funder_name", return_value="European Research Council"):
+        form.sync()
+    fundings = set(
+        article.funders.values_list("name", "fundref_id", "funding_id", "funding_statement"),
+    )
+    assert fundings == {
+        ("European Research Council", "https://dx.doi.org/10.13039/501100000781", "ERC-2021-STG", ""),
+        ("Some Foundation", "", "42", "Thanks!"),
+    }, "The DB fundings should be replaced with the TeX ones"
+
+    for data in (
+        {},
+        {"fundings": []},
+        {"funders": None},
+        {"funders": [{"name": "Some Foundation", "grant": "42"}]},
+    ):
+        texdata.data = data
+        form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+        assert not form.is_valid(), f"Form should not validate with {data}"
+        with pytest.raises(ValueError, match="funders"):
+            form.sync()
+    assert article.funders.count() == 2, "Nothing should be deleted when the TeX data is broken"
+
+
+@pytest.mark.parametrize(
+    "status_code,is_partial",
+    (
+        (200, False),
+        (206, True),
+    ),
+)
+@pytest.mark.django_db
+def test_metadata_from_tex_status(article: Article, status_code: int, is_partial: bool):
+    """MetadataFromTeX accepts the partial metadata of jcomassistant (206), and takes note of it."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    with (
+        patch.object(MetadataFromTeX, "_get_source_file", return_value=BytesIO(b"")),
+        patch("plugins.wjs_review.synctex.logic.requests.post") as post,
+    ):
+        post.return_value.status_code = status_code
+        post.return_value.json.return_value = {"title": "A title"}
+        assert texdata.get_raw_data() == {"title": "A title"}, "The metadata should be returned"
+    assert texdata.is_partial == is_partial, f"Unexpected is_partial for status {status_code}"
+
+
+@pytest.mark.django_db
+def test_metadata_from_tex_status_error(article: Article):
+    """MetadataFromTeX refuses any jcomassistant reply but 200 and 206."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    with (
+        patch.object(MetadataFromTeX, "_get_source_file", return_value=BytesIO(b"")),
+        patch("plugins.wjs_review.synctex.logic.requests.post") as post,
+    ):
+        post.return_value.status_code = 400
+        with pytest.raises(requests.exceptions.HTTPError, match="400"):
+            texdata.get_raw_data()
+
+
+def _sync_texdb_view(article: Article, method: str) -> SyncTeXDB:
+    """Return a SyncTeXDB view for the given article, set up for a request with the given method."""
+    request = getattr(RequestFactory(), method.lower())("/")
+    request._messages = CookieStorage(request)
+    view = SyncTeXDB()
+    view.setup(request, pk=article.articleworkflow.pk)
+    view.object = article.articleworkflow
+    return view
+
+
+@pytest.mark.parametrize(
+    "method,is_partial,warned",
+    (
+        ("GET", False, False),
+        ("GET", True, True),
+        # A POST redirects to the page itself, that shows the warning again.
+        ("POST", True, False),
+    ),
+)
+@pytest.mark.django_db
+def test_sync_texdb_partial_warning(article: Article, method: str, is_partial: bool, warned: bool):
+    """Warn when jcomassistant could extract only some of the metadata."""
+    view = _sync_texdb_view(article, method)
+
+    def get_raw_data(texdata):
+        texdata.is_partial = is_partial
+        return {"schema_version": 3}
+
+    with patch.object(MetadataFromTeX, "get_raw_data", get_raw_data):
+        view.get_texdata()
+    warnings = [str(message) for message in view.request._messages]
+    assert any("only some of the metadata" in warning for warning in warnings) == warned, f"Unexpected {warnings}"
+
+
+@pytest.mark.parametrize(
+    "method,data,warned",
+    (
+        ("GET", {"schema_version": 3}, False),
+        ("GET", {"schema_version": 2}, True),
+        ("GET", {"schema_version": "3"}, True),
+        ("GET", {}, True),
+        # A POST redirects to the page itself, that shows the warning again.
+        ("POST", {"schema_version": 2}, False),
+    ),
+)
+@pytest.mark.django_db
+def test_sync_texdb_schema_version_warning(article: Article, method: str, data: dict, warned: bool):
+    """Warn when the metadata extracted from the TeX have a schema version that the sync forms do not know."""
+    view = _sync_texdb_view(article, method)
+    with patch.object(MetadataFromTeX, "get_raw_data", return_value=data):
+        view.get_texdata()
+    warnings = [str(message) for message in view.request._messages]
+    assert any("schema version" in warning for warning in warnings) == warned, f"Unexpected {warnings}"
 
 
 @pytest.mark.django_db

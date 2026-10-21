@@ -71,6 +71,17 @@ MEDIALAB_DOI_JOURNAL_NUMBER = {
     "JCOMAL": "3",
 }
 
+# The form of the pubid of each family of journals; the placeholders are filled with the journal code (as-is or
+# uppercased) and with the values returned by ArticleWorkflow.collect_publication_data().
+PUBID_FORMATS = {
+    "JCOM": "{code}_{volume}{issue}_{year}_{eid}",  # JCOM_0102_2026_A01
+    "JHEP": "{CODE}{issue}({volume}){eid}",  # JHEP01(2026)003
+    "JQuant": "{CODE}{volume}({year}){eid}",  # JQUANT1(2026)002001
+}
+
+# Starting from this (publication) year, JCAP pubids and eids have the same form as JQuant's.
+JCAP_JQUANT_STYLE_SINCE = 2027
+
 
 class WjsBleachCharField(JanewayBleachCharField):
     """
@@ -721,143 +732,216 @@ class ArticleWorkflow(TimeStampedModel):
             and self.production_flag_no_queries
         )
 
-    def compute_pubid(self, save_eid: bool = False) -> str:
+    def compute_pubid(self, save_eid: bool = False, publication_data: Optional[dict[str, str]] = None) -> str:
         """
         Compute and return the pubid that the Article would get now.
 
-        The form of the pubid depends on the journal (see the per-journal methods).
+        The pubid is assembled from the publication data (see collect_publication_data()), in a form that depends on
+        the journal (see PUBID_FORMATS). If `publication_data` is given, it is used instead of collecting it anew
+        (e.g. to be sure that the pubid agrees with other data computed from the same publication data).
 
-        Pass along `save_eid` to compute_eid, so that the computed eid is stored as page number.
+        If `save_eid` is true, the eid is stored as page number (if it isn't already).
         This is useful during publication, but let the computation be free of side-effects otherwise.
+        """
+        data = publication_data if publication_data is not None else self.collect_publication_data()
+        if save_eid:
+            self._save_page_numbers(data["eid"])
+        return PUBID_FORMATS[data["pubid_format"]].format(
+            code=self.article.journal.code,
+            CODE=self.article.journal.code.upper(),
+            **data,
+        )
+
+    def compute_eid(self, save_as_pagenumber: bool = False) -> str:
+        """
+        Return the Electronic IDentifier as intended by biblatex, which is similar to the concept of page number.
+
+        The form of the eid depends on the journal (see collect_publication_data()).
+
+        If page_numbers has already been set (manually or otherwise), then just use it (see submission.Article).
+        """
+        eid = self.collect_publication_data()["eid"]
+        if save_as_pagenumber:
+            self._save_page_numbers(eid)
+        return eid
+
+    def _save_page_numbers(self, page_numbers: str):
+        """Store the given eid as the article's page numbers, unless they have already been set."""
+        if not self.article.page_numbers:
+            self.article.page_numbers = page_numbers
+            self.article.save()
+
+    def collect_publication_data(self) -> dict[str, str]:
+        """
+        Return the data that identifies the publication of the article, already padded as the journal requires.
+
+        The returned dictionary has the keys
+        - date_published: the publication date in the form "2026-01-31" (today, if the article is not yet published)
+        - year: the publication year
+        - volume, issue: the article's issue
+        - section: the section code (e.g. "A" for articles, "E" for errata), possibly empty
+        - eid: the eid, i.e. the article's page numbers (it may include the section code, the issue and a counter)
+        - counter: the position of the article among the papers published in the same issue (and section, depending
+          on the journal), i.e. 1 + the number of papers already published there; it is the counter in the eid
+        - pubid_format: the key in PUBID_FORMATS of the form of the pubid
+
+        If page_numbers has already been set (manually or otherwise), then that is the eid
+        (but the counter is always computed).
         """
         # This function would probably be better placed in the Journal model,
         # but since we don't yet have a o2o/wrapper on that model I'm leaving it here.
         #
         # Also, feel free to fail badly.
         # Exceptions should be dealt with upstream.
-
-        func_name = f"_compute_pubid_{self.article.journal.code}"
+        func_name = f"_collect_publication_data_{self.article.journal.code}"
         if not hasattr(self, func_name):
-            raise NotImplementedError(f"Don't know how to compute pubid for {self.article.journal.code}")
-        return getattr(self, func_name)(save_eid)
+            raise NotImplementedError(f"Don't know how to compute publication data for {self.article.journal.code}")
 
-    def _compute_pubid_JCOM(self, save_eid: bool = False) -> str:  # noqa: N802
-        """Compute pubid similar to JCOM_VVII_2026_A01."""
-        volume = f"{self.article.issue.volume:02d}"
-        issue = f"{int(self.article.issue.issue):02d}"
-        eid = self.compute_eid(save_as_pagenumber=save_eid)
-        pubid = f"{self.article.journal.code}_{volume}{issue}_{timezone.now().year}_{eid}"
-        return pubid
+        date_published = self.article.date_published or timezone.now()
+        data = {
+            "date_published": date_published.strftime("%Y-%m-%d"),
+            "year": f"{date_published.year}",
+            "section": self._get_section_code(),
+        }
+        data.update(getattr(self, func_name)(year=date_published.year, section=data["section"]))
+        return data
 
-    def _compute_pubid_JCOMAL(self, save_eid: bool = False) -> str:  # noqa: N802
-        """Compute pubid similar to JCOM."""
-        return self._compute_pubid_JCOM(save_eid)
+    def _collect_publication_data_JCOM(self, year: int, section: str) -> dict[str, str]:  # noqa: N802
+        """
+        Return publication data for pubids similar to JCOM_0102_2026_A01.
 
-    def _compute_pubid_JHEP(self, save_eid: bool = False) -> str:  # noqa: N802
-        """Compute pubid in the form JHEP01(2000)003."""
+        The eid has the form "A01", "C03", ...: it includes info about the paper section and the number of papers
+        published in the same section/issue.
+        """
+        self._require_section_code(section)
+        counter = self._count_published_papers_in_same_issue_and_section() + 1
+        eid = self.article.page_numbers
+        if not eid:
+            # Editorials are special:
+            # there always is at most one, so they are not E01 E02,
+            # but just "E" (without any number)
+            if section == "E":
+                assert counter == 1, f"Impossible number of editorials ({counter}) for issue of article {self.id}"
+                eid = section
+            else:
+                eid = f"{section}{counter:02d}"
+        return {
+            "volume": f"{self.article.issue.volume:02d}",
+            "issue": f"{int(self.article.issue.issue):02d}",
+            "eid": eid,
+            "counter": f"{counter:02d}",
+            "pubid_format": "JCOM",
+        }
+
+    def _collect_publication_data_JCOMAL(self, year: int, section: str) -> dict[str, str]:  # noqa: N802
+        """Return publication data similar to JCOM."""
+        return self._collect_publication_data_JCOM(year=year, section=section)
+
+    def _collect_publication_data_JHEP(self, year: int, section: str) -> dict[str, str]:  # noqa: N802
+        """
+        Return publication data for pubids similar to JHEP01(2000)003.
+
+        The eid has the form "003": no section code, papers are counted per-issue.
+        """
+        counter = f"{self._published_papers_in_same_issue().count() + 1:03d}"
+        eid = self.article.page_numbers or counter
+        return self._jhep_style_publication_data(year=year, eid=eid, counter=counter)
+
+    def _collect_publication_data_JCAP(self, year: int, section: str) -> dict[str, str]:  # noqa: N802
+        """
+        Return publication data similar to JHEP (until 2026) or to JQuant (since 2027).
+
+        Until 2026, the eid has the form "003" or, for errata and addenda only, of the form "E01"/"A01":
+        "normal" papers are counted per-issue (ignoring errata and addenda),
+        while errata and addenda are counted per-issue and per-section.
+        """
+        if year >= JCAP_JQUANT_STYLE_SINCE:
+            return self._collect_publication_data_JQuant(year=year, section=section)
+
+        has_lettered_eid = self.article.section.name in SECTIONS_WITH_LETTERED_EID
+        if has_lettered_eid:
+            self._require_section_code(section)
+        base_qs = self._published_papers_in_same_issue()
+        if has_lettered_eid:
+            counter = f"{base_qs.filter(section_id=self.article.section.pk).count() + 1:02d}"
+            eid = self.article.page_numbers or f"{section}{counter}"
+        else:
+            counter = f"{base_qs.exclude(section__name__in=SECTIONS_WITH_LETTERED_EID).count() + 1:03d}"
+            eid = self.article.page_numbers or counter
+        return self._jhep_style_publication_data(year=year, eid=eid, counter=counter)
+
+    def _jhep_style_publication_data(self, year: int, eid: str, counter: str) -> dict[str, str]:
+        """Return publication data for pubids in the form JHEP01(2000)003 (i.e. the volume is the year)."""
         volume = f"{self.article.issue.volume:04d}"
         # Sanity check, but don't block:
-        year = timezone.now().year
         if year != int(volume):
             logger.error(
                 f"Article {self.article.id} pubid has different volume ({volume}) and publication year ({year})",
             )
-        issue = f"{int(self.article.issue.issue):02d}"
-        eid = self.compute_eid(save_as_pagenumber=save_eid)
-        # NB: note the "upper" for the journal code!
-        #     It's useful for JQuant.
-        return f"{self.article.journal.code.upper()}{issue}({volume}){eid}"
+        return {
+            "volume": volume,
+            "issue": f"{int(self.article.issue.issue):02d}",
+            "eid": eid,
+            "counter": counter,
+            "pubid_format": "JHEP",
+        }
 
-    def _compute_pubid_JCAP(self, save_eid: bool = False) -> str:  # noqa: N802
-        """Compute pubid similar to JHEP."""
-        return self._compute_pubid_JHEP(save_eid=save_eid)
+    def _collect_publication_data_JINST(self, year: int, section: str) -> dict[str, str]:  # noqa: N802
+        """Return publication data similar to JQuant."""
+        return self._collect_publication_data_JQuant(year=year, section=section)
 
-    def _compute_pubid_JINST(self, save_eid: bool = False) -> str:  # noqa: N802
-        """Compute pubid similar to JHEP."""
-        return self._compute_pubid_JHEP(save_eid=save_eid)
+    def _collect_publication_data_JSTAT(self, year: int, section: str) -> dict[str, str]:  # noqa: N802
+        """Return publication data similar to JQuant."""
+        return self._collect_publication_data_JQuant(year=year, section=section)
 
-    def _compute_pubid_JQuant(self, save_eid: bool = False) -> str:  # noqa: N802
-        """Compute pubid similar to JHEP."""
-        return self._compute_pubid_JHEP(save_eid=save_eid)
-
-    def compute_eid(self, save_as_pagenumber: bool = False) -> str:
+    def _collect_publication_data_JQuant(self, year: int, section: str) -> dict[str, str]:  # noqa: N802
         """
-        Return the Electronic IDentifier as intended by biblatex, which is similar to the concept of page number.
+        Return publication data for pubids in the form "JQUANT1(2026)002001" (see wjs/specs#3213).
 
-        The form of the eid depends on the journal (see the per-journal methods).
+        The parts are:
+        - volume (years since journal inception)
+        - publication year
+        - eid: issue (3 digits) + serial (3 digits)
 
-        If page_numbers has already been set (manually or otherwise), then just use it (see submission.Article).
+        The serial counts the papers already published in the same issue, irrespective of their section.
+        The how-to-cite is "JQUANT 1 (2026) 002001".
+
+        The eid could also start with the section code (e.g. "E002001" for errata), but for the time being we leave
+        it out: it would be too easy for a misconfigured section to leak a wrong code into the pubid.
+        The section code is still returned separately (see collect_publication_data()).
         """
-        # See compute_pubid() for the rationale of this dispatch.
-        if self.article.page_numbers:
-            return self.article.page_numbers
-
-        func_name = f"_compute_eid_{self.article.journal.code}"
-        if not hasattr(self, func_name):
-            raise NotImplementedError(f"Don't know how to compute eid for {self.article.journal.code}")
-        eid = getattr(self, func_name)()
-
-        if save_as_pagenumber:
-            self.article.page_numbers = eid
-            self.article.save()
-
-        return eid
-
-    def _compute_eid_JCOM(self) -> str:  # noqa: N802
-        """
-        Compute an eid of the form "A01", "C03", ...
-
-        It includes info about the paper section and the number of papers published in the same section/issue.
-        """
-        counter = self._count_published_papers_in_same_issue_and_section() + 1
-        type_code = self._get_section_code()
-        # Editorials are special:
-        # there always is at most one, so they are not E01 E02,
-        # but just "E" (without any number)
-        if type_code == "E":
-            assert counter == 1, f"Impossible number of editorials ({counter}) for issue of article {self.id}"
-            return type_code
-        return f"{type_code}{counter:02d}"
-
-    def _compute_eid_JCOMAL(self) -> str:  # noqa: N802
-        """Compute eid similar to JCOM."""
-        return self._compute_eid_JCOM()
-
-    def _compute_eid_JHEP(self) -> str:  # noqa: N802
-        """Compute an eid of the form "003": no section code, papers are counted per-issue."""
-        counter = self._published_papers_in_same_issue().count() + 1
-        return f"{counter:03d}"
-
-    def _compute_eid_JQuant(self) -> str:  # noqa: N802
-        """Compute eid similar to JHEP."""
-        return self._compute_eid_JHEP()
-
-    def _compute_eid_JCAP(self) -> str:  # noqa: N802
-        """Compute an eid of the form "003" or, for errata and addenda only, of the form "E01"/"A01".
-
-        "Normal" papers are counted per-issue (ignoring errata and addenda),
-        while errata and addenda are counted per-issue and per-section.
-        """
-        base_qs = self._published_papers_in_same_issue()
-        if self.article.section.name in SECTIONS_WITH_LETTERED_EID:
-            counter = base_qs.filter(section_id=self.article.section.pk).count() + 1
-            return f"{self._get_section_code()}{counter:02d}"
-        counter = base_qs.exclude(section__name__in=SECTIONS_WITH_LETTERED_EID).count() + 1
-        return f"{counter:03d}"
-
-    def _compute_eid_JINST(self) -> str:  # noqa: N802
-        """Compute eid similar to JCAP."""
-        return self._compute_eid_JCAP()
+        issue = self.article.issue
+        issue_number = f"{int(issue.issue):03d}"
+        # Sanity check, but don't block:
+        if issue.date and issue.date.year != year:
+            logger.error(
+                f"Article {self.article.id} pubid has different issue year ({issue.date.year})"
+                f" and publication year ({year})",
+            )
+        counter = f"{self._published_papers_in_same_issue().count() + 1:03d}"
+        eid = self.article.page_numbers or f"{issue_number}{counter}"
+        return {
+            "volume": f"{int(issue.volume)}",
+            "issue": issue_number,
+            "eid": eid,
+            "counter": counter,
+            "pubid_format": "JQuant",
+        }
 
     def _get_section_code(self) -> str:
-        """Return the section code (the letter used in eid and pubid) of the article's section."""
-        type_code = self.article.section.wjssection.pubid_and_tex_sectioncode
-        if not type_code:
+        """Return the section code (the letter used in eid and pubid) of the article's section, possibly empty.
+
+        Not all sections have a code (e.g. JQuant's), see _require_section_code() for those that must have one.
+        """
+        return self.article.section.wjssection.pubid_and_tex_sectioncode or ""
+
+    def _require_section_code(self, section_code: str):
+        """Log an error if the article's section is missing a code that the journal needs for eid and pubid."""
+        if not section_code:
             logger.error(
                 f'Section "{self.article.section}" is missing PUBID code. PUBID will be wrong!'
                 "Please correct from the admin interface.",
             )
-        return type_code
 
     def _published_papers_in_same_issue(self) -> QuerySet[Article]:
         """Return the papers of the same issue as this article that have already been published.
@@ -903,12 +987,13 @@ class ArticleWorkflow(TimeStampedModel):
                 return base_qs.filter(section__in=pesky_sections).count()
         return base_qs.filter(section_id=self.article.section.pk).count()
 
-    def set_pubid(self):
+    def set_pubid(self, publication_data: Optional[dict[str, str]] = None):
+        """Create the pubid identifier of the article (see compute_pubid()) and save its eid as page numbers."""
         identifier, created = Identifier.objects.get_or_create(
             id_type="pubid",
             # pubid depends on eid/page_numbers
             # if we have to compute it now, we also save it to maintain coherence
-            identifier=self.compute_pubid(save_eid=True),
+            identifier=self.compute_pubid(save_eid=True, publication_data=publication_data),
             article=self.article,
         )
         if not created:

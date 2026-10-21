@@ -4,48 +4,63 @@
 {% translate "Send message" as send_message_label %}
 {% translate "Close" as close_modal %}
 
-<div class="border-bottom mb-3">
-<div class="d-flex flex-row justify-content-between align-items-center gap-4 mb-2">
-  <div class="d-flex flex-column">
-    <div class="d-flex flex-row align-items-center gap-1">
-      <span class="fw-bold">{{ frozen_author.full_name }}</span>
-      {% if frozen_author.orcid %}
-        <a href="https://orcid.org/{{ frozen_author.orcid }}" class="text-decoration-none">
-          <img class="mb-1" src="https://orcid.org/sites/default/files/images/orcid_16x16.png" alt="orcid logo" width="16" height="16"/>
-        </a>
-      {% endif %}
-
-      <!-- djlint:off -->
-      {% if corresponding and add_message %}
-        {% bootstrap_button content="<i class=\"bi bi-envelope-fill\"></i>" type=link href=add_message title=send_message_label button_class="btn border-0 p-0 text-primary" %}
-      {% endif %}
-      <!-- djlint:on -->
-    </div>
-
-    <div class="d-block">
-      {# FIXME: profession field must be update to reflect actual content #}
-      {% with affiliations=frozen_author.affiliations %}
-        {% if journal|is_field_available:"career_stage" %}
-          {% if author.jcomprofile.career_stage %}<span class="text-primary">{{ author.jcomprofile.get_career_stage_display }}</span>{% if journal|is_field_available:"profession" and author.jcomprofile.profession or affiliations %} <strong>·</strong> {% endif %}{% endif %}
+<div class="border-bottom mb-3 pb-3">
+  <div class="d-flex flex-row justify-content-between align-items-center gap-4 mb-2">
+    <div class="d-flex flex-column gap-2 w-100">
+      <div class="d-flex flex-row align-items-center gap-1">
+        <span class="fw-bold">{{ frozen_author.full_name }}</span>
+        {% if frozen_author.orcid %}
+          <a href="https://orcid.org/{{ frozen_author.orcid }}" class="text-decoration-none">
+            <img class="mb-1" src="https://orcid.org/sites/default/files/images/orcid_16x16.png" alt="orcid logo" width="16" height="16"/>
+          </a>
         {% endif %}
-        {% if journal|is_field_available:"profession" %}
-          {% if author.jcomprofile.profession %}<span class="text-primary">{{ author.jcomprofile.get_profession_display }}</span>{% if affiliations %} <strong>·</strong> {% endif %}{% endif %}
-        {% endif %}
-        {% for affiliation in affiliations %}<span class="text-primary">{{ affiliation }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}
-      {% endwith %}
-    </div>
-  </div>
 
-  {% with modal_pk=frozen_author.pk|stringformat:"s" %}
-    {% bootstrap_button type="button" button_class="btn-primary" data_bs_toggle="modal" data_bs_target="#modal-"|add:modal_pk content=contacts_label title=contacts_label %}
-  {% endwith %}
+        <!-- djlint:off -->
+        {% if corresponding and add_message %}
+          {% bootstrap_button content="<i class=\"bi bi-envelope-fill\"></i>" type=link href=add_message title=send_message_label button_class="btn border-0 p-0 text-primary" %}
+        {% endif %}
+        <!-- djlint:on -->
+
+        {% with modal_pk=frozen_author.pk|stringformat:"s" %}
+          {% bootstrap_button type="button" button_class="btn-primary ms-auto" data_bs_toggle="modal" data_bs_target="#modal-"|add:modal_pk content=contacts_label title=contacts_label %}
+        {% endwith %}
+      </div>
+
+      <div class="d-block px-3">
+        {# FIXME: profession field must be update to reflect actual content #}
+        {% with affiliations=frozen_author.affiliations %}
+          {% if journal|is_field_available:"career_stage" and author.jcomprofile.career_stage %}
+            <div>
+              <strong class="small">{% translate "Career stage" %}</strong>
+              <div class="text-primary ms-3 ps-3">{{ author.jcomprofile.get_career_stage_display }}</div>
+            </div>
+          {% endif %}
+          {% if journal|is_field_available:"profession" and author.jcomprofile.profession %}
+            <div>
+              <strong class="small">{% translate "Profession" %}</strong>
+              <div class="text-primary ms-3 ps-3">{{ author.jcomprofile.get_profession_display }}</div>
+            </div>
+          {% endif %}
+          {% if affiliations %}
+          <div>
+            <strong class="small">{% translate "Affiliations" %}</strong>
+            <ul>
+              {% for affiliation in affiliations %}
+                <li class="text-primary">{{ affiliation }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+        {% endwith %}
+      </div>
+    </div>
   </div>
 
   {% if frozen_author.biography and journal|is_field_available:"biography" %}
     <div class="accordion accordion-flush" id="accordionAuthor{{ frozen_author.id }}">
       <div class="accordion-item">
         <div class="accordion-header" id="headingBio{{ frozen_author.id }}">
-          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBio{{ frozen_author.id }}" aria-expanded="false" aria-controls="collapseBio{{ frozen_author.id }}">
+          <button class="accordion-button collapsed px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBio{{ frozen_author.id }}" aria-expanded="false" aria-controls="collapseBio{{ frozen_author.id }}">
             <strong class="small">{% translate "Biography" %}</strong>
           </button>
         </div>
@@ -56,9 +71,9 @@
         </div>
       </div>
     </div>
-    {% endif %}
+  {% endif %}
 
-  </div>
+</div>
 
 <div class="modal fade" id="modal-{{ frozen_author.pk }}" tabindex="-1" aria-labelledby="modalLabel-{{ frozen_author.pk }}" aria-hidden="true">
   <div class="modal-dialog">
@@ -70,51 +85,51 @@
       <div class="modal-body">
         <ul class="list-group list-group-flush list-unstyled">
           {% if author.jcomprofile.records_arxiv and journal|is_field_available:"records_arxiv" %}
-          <li class="border-bottom py-2 d-flex flex-row gap-3">
-            <img src="{% static "img/icons/arxiv_logo.png" %}" alt="arxiv logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_arxiv|ensure_https }}">
-              {% blocktranslate with name=frozen_author.full_name %}{{ name }}'s <span class="visually-hidden">archive</span><span aria-hidden="true">arXiv</span> page{% endblocktranslate %}
-            </a>
-          </li>
+            <li class="border-bottom py-2 d-flex flex-row gap-3">
+              <img src="{% static "img/icons/arxiv_logo.png" %}" alt="arxiv logo">
+              <a target="_blank" href="{{ author.jcomprofile.records_arxiv|ensure_https }}">
+                {% blocktranslate with name=frozen_author.full_name %}{{ name }}'s <span class="visually-hidden">archive</span><span aria-hidden="true">arXiv</span> page{% endblocktranslate %}
+              </a>
+            </li>
           {% endif %}
           {% if author.jcomprofile.records_inspire and journal|is_field_available:"records_inspire" %}
-          <li class="border-bottom py-2 d-flex flex-row gap-3">
-            <img src="{% static "img/icons/inspire_logo.png" %}" alt="inspire logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_inspire|ensure_https }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s Inspire page{% endblocktranslate %}</a>
-          </li>
+            <li class="border-bottom py-2 d-flex flex-row gap-3">
+              <img src="{% static "img/icons/inspire_logo.png" %}" alt="inspire logo">
+              <a target="_blank" href="{{ author.jcomprofile.records_inspire|ensure_https }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s Inspire page{% endblocktranslate %}</a>
+            </li>
           {% endif %}
           {% if author.jcomprofile.records_scix and journal|is_field_available:"records_scix" %}
-          <li class="border-bottom py-2 d-flex flex-row gap-3">
-            <img src="{% static "img/icons/scix_logo.png" %}" alt="scix logo">
-            <a target="_blank" href="{{ author.jcomprofile.records_scix|ensure_https }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s SciX page{% endblocktranslate %}</a>
-          </li>
+            <li class="border-bottom py-2 d-flex flex-row gap-3">
+              <img src="{% static "img/icons/scix_logo.png" %}" alt="scix logo">
+              <a target="_blank" href="{{ author.jcomprofile.records_scix|ensure_https }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s SciX page{% endblocktranslate %}</a>
+            </li>
           {% endif %}
           {% if author.linkedin and journal|is_field_available:"linkedin" %}
-          <li class="border-bottom py-2 d-flex flex-row gap-3">
-            <img src="{% static "img/icons/linkedin_logo.png" %}" alt="linkedin logo">
-            <a target="_blank" href="{{ author.linkedin|ensure_https }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s LinkedIn{% endblocktranslate %}</a>
-          </li>
+            <li class="border-bottom py-2 d-flex flex-row gap-3">
+              <img src="{% static "img/icons/linkedin_logo.png" %}" alt="linkedin logo">
+              <a target="_blank" href="{{ author.linkedin|ensure_https }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s LinkedIn{% endblocktranslate %}</a>
+            </li>
           {% endif %}
           {% if author.facebook and journal|is_field_available:"facebook" %}
-          <li class="border-bottom py-2 d-flex flex-row gap-3">
-            <img src="{% static "img/icons/facebook_logo.png" %}" alt="facebook logo">
-            <a target="_blank" href="{{ author.facebook|ensure_https }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s facebook{% endblocktranslate %}</a>
-          </li>
+            <li class="border-bottom py-2 d-flex flex-row gap-3">
+              <img src="{% static "img/icons/facebook_logo.png" %}" alt="facebook logo">
+              <a target="_blank" href="{{ author.facebook|ensure_https }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s facebook{% endblocktranslate %}</a>
+            </li>
           {% endif %}
           {% if author.twitter and journal|is_field_available:"twitter" %}
-          <li class="border-bottom py-2 d-flex flex-row gap-3"><i class="bi bi-link-45deg"></i>
-            <a target="_blank" href="{{ author.twitter|bluesky_url }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s bluesky{% endblocktranslate %}</a>
-          </li>
+            <li class="border-bottom py-2 d-flex flex-row gap-3"><i class="bi bi-link-45deg"></i>
+              <a target="_blank" href="{{ author.twitter|bluesky_url }}">{% blocktranslate with name=frozen_author.full_name %}{{ name }}'s bluesky{% endblocktranslate %}</a>
+            </li>
           {% endif %}
           {% if author.jcomprofile.records_other and journal|is_field_available:"records_other" %}
-          <li class="border-bottom py-2 d-flex flex-row gap-3"><i class="bi bi-link-45deg"></i>
-            <a target="_blank" href="{{ author.jcomprofile.records_other|ensure_https }}">{{ author.jcomprofile.records_other }}</a>
-          </li>
+            <li class="border-bottom py-2 d-flex flex-row gap-3"><i class="bi bi-link-45deg"></i>
+              <a target="_blank" href="{{ author.jcomprofile.records_other|ensure_https }}">{{ author.jcomprofile.records_other }}</a>
+            </li>
           {% endif %}
           {% if frozen_author.email and journal|is_field_available:"email" %}
-          <li class="py-2 d-flex flex-row gap-3 text-primary"><i class="bi bi-envelope-fill"></i>
-            {{ frozen_author.email }}
-          </li>
+            <li class="py-2 d-flex flex-row gap-3 text-primary"><i class="bi bi-envelope-fill"></i>
+              {{ frozen_author.email }}
+            </li>
           {% endif %}
         </ul>
       </div>

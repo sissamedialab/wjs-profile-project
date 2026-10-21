@@ -52,8 +52,9 @@ JCOM_SECTION_TO_PUBIDSECTIONCODE = {
     "addendum": "Z",
 }
 
-# In JCAP and JINST, the eid contains a section code only for these sections
+# In JCAP (until JCAP_JQUANT_STYLE_SINCE), the eid contains a section code only for these sections
 # (all the other papers get a plain progressive number).
+# JQuant-style eids (JQuant, JINST, JSTAT and later JCAP) never contain the section code.
 SECTIONS_WITH_LETTERED_EID = ("Erratum", "Addendum")
 
 # Obsolete!

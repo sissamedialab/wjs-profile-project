@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.views import View
 
 from ..permissions import get_hijacker
+from .logic import resolve_service_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,10 @@ class FakeJpView(LoginRequiredMixin, UserPassesTestMixin, View):
     def get(self, request, *args, **kwargs):
         # Same host/scheme this view was itself reached on: FakeJpView and the real
         # getSGPcodfpf endpoint are served by the same WJS instance, so this always
-        # matches, with no per-environment setting to keep in sync.
-        sgp_url = request.build_absolute_uri(reverse("get_sgp_code"))
+        # matches. There's no real Jp here to have received a "sgpservice" query param, so this
+        # builds the same prefix the real Jp would have been told to use (see resolve_service_prefix()).
+        service_prefix = resolve_service_prefix(request.journal.code)
+        sgp_url = request.build_absolute_uri(reverse("get_sgp_code", kwargs={"service_prefix": service_prefix}))
 
         try:
             response = requests.get(

@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.timezone import now
 from hijack.middleware import HijackUserMiddleware
+from journal.models import Journal
 from plugins.wjs_review import views
 from plugins.wjs_review.forms import MessageForm, SupervisorAssignEditorForm
 from plugins.wjs_review.logic import (
@@ -50,6 +51,7 @@ from wjs.jcom_profile.permissions import get_hijacker, has_director_role, has_eo
 from wjs.jcom_profile.utils import get_eo_user
 
 from ..communication_utils import (
+    get_director_user,
     get_messages_related_to_me,
     log_operation,
     role_for_article,
@@ -1679,3 +1681,31 @@ def test_message_initial_body(
     fake_request.user = editor
     initial_body = view.get_initial_body()
     assert "Editor-in-charge" in initial_body
+
+
+@pytest.mark.django_db
+def test_get_director_user_picks_main_director(
+    article: Article,
+    director: JCOMProfile,
+    main_director: JCOMProfile,
+):
+    """With multiple directors, the main director of the journal is returned."""
+    assert get_director_user(article) == main_director.janeway_account
+
+
+@pytest.mark.django_db
+def test_get_director_user_ignores_main_director_of_other_journals(
+    article: Article,
+    director: JCOMProfile,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    journal_factory: Callable[[str], Journal],
+):
+    """A director who is main director only of another journal is not the main director of this journal."""
+    other_director = create_jcom_user("Other director")
+    other_director.add_account_role(constants.DIRECTOR_ROLE, article.journal)
+    journal2 = journal_factory("J2")
+    other_director.add_account_role(constants.DIRECTOR_ROLE, journal2)
+    other_director.add_account_role(constants.DIRECTOR_MAIN_ROLE, journal2)
+
+    # No main director in the article's journal: fallback on the director with the lowest id
+    assert get_director_user(article) == director.janeway_account

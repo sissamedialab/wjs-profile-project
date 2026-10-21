@@ -3,9 +3,11 @@ import json
 import logging
 import tarfile
 import tempfile
+import threading
+import time
 import zipfile
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 from unittest import mock
 
 import html2text
@@ -16,6 +18,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
 from django.core import mail
+from django.db import connection
 from django.db.models import QuerySet
 from django.http import HttpRequest
 from django.test import override_settings
@@ -39,12 +42,15 @@ from wjs.jcom_profile.models import JCOMProfile
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
+from ..events.handlers import send_notification_when_article_is_published
 from ..logic__production import (
     AttachGalleys,
     BeginPublication,
     FinishPublication,
     HandleDownloadRevisionFiles,
+    MissingIssueError,
     SendProductionXMLToPublisher,
+    SimulatePublicationIdentifiers,
     TypesettedFilesUpload,
     TypesetterTestsGalleyGeneration,
 )
@@ -940,6 +946,37 @@ def test_publication(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("journal_has_social", (True, False))
+def test_social_notification_depends_on_journal_settings(
+    rfp_article: Article,
+    fake_request: HttpRequest,
+    journal_has_social: bool,
+    settings,
+    caplog,
+):
+    """The "social" email is sent only for journals listed in the social-media settings (refs specs#3016)."""
+    journal_code = rfp_article.journal.code
+    recipient = "social@example.com"
+    if journal_has_social:
+        settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {journal_code: (recipient,)}
+    else:
+        settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS = {"OTHER": (recipient,)}
+    settings.WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES = list(settings.WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS)
+    ArticleWorkflow.objects.filter(pk=rfp_article.articleworkflow.pk).update(
+        state=ArticleWorkflow.ReviewStates.PUBLISHED,
+    )
+    rfp_article.articleworkflow.refresh_from_db()
+    mail.outbox = []
+
+    with caplog.at_level(logging.ERROR):
+        send_notification_when_article_is_published(article=rfp_article, request=fake_request)
+
+    social_mails = [m for m in mail.outbox if recipient in m.recipients()]
+    assert len(social_mails) == (1 if journal_has_social else 0), f"Unexpected social mails: {social_mails}"
+    assert "WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS" not in caplog.text, "No error should be logged"
+
+
+@pytest.mark.django_db
 def test_publication_with_fake_galley_generation(
     rfp_article: Article,
     fake_request: HttpRequest,
@@ -966,6 +1003,40 @@ def test_publication_with_fake_galley_generation(
     assert workflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
     assert workflow.article.galley_set.count() == 3
     assert all(workflow.article.galley_set.all().values_list("public", flat=True))
+
+
+@pytest.mark.parametrize("missing", ["section", "wjssection", "section_code"])
+@pytest.mark.django_db
+def test_publication_requires_section_code(
+    rfp_article: Article,
+    fake_request: HttpRequest,
+    eo_user: Account,
+    missing: str,
+):
+    """Publication is not allowed if the paper's section has no PUBID code (the LaTeX compilation would fail)."""
+    if missing == "section":
+        rfp_article.section = None
+        rfp_article.save()
+        expected_reason = "Paper has no section associated."
+    else:
+        if missing == "wjssection":
+            rfp_article.section.wjssection.delete(keep_parents=True)
+        else:
+            rfp_article.section.wjssection.pubid_and_tex_sectioncode = ""
+            rfp_article.section.wjssection.save()
+        expected_reason = "has no PUBID code"
+    workflow = ArticleWorkflow.objects.get(pk=rfp_article.articleworkflow.pk)
+
+    with (
+        mock.patch("plugins.wjs_review.logic__production.BeginPublication.prepare_source_files") as prepare,
+        mock.patch("plugins.wjs_review.logic__production.BeginPublication.trigger_galley_generation"),
+        pytest.raises(ValueError, match=expected_reason),
+    ):
+        BeginPublication(workflow=workflow, user=eo_user, request=fake_request).run()
+    prepare.assert_not_called()
+    workflow.refresh_from_db()
+    assert workflow.state == ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION, "Paper should not be published"
+    assert workflow.article.get_pubid() is None, "No pubid should be assigned"
 
 
 @pytest.mark.django_db
@@ -1084,6 +1155,104 @@ def test_publication_multiple_articles(
     a2.refresh_from_db()
     assert a2.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLISHED
     assert a2.get_identifier("pubid").endswith("A02")
+
+
+def _publish_concurrently(workflows: list[ArticleWorkflow], user: Account, request: HttpRequest) -> list[Exception]:
+    """Run BeginPublication on the given workflows at the same time, each in its own thread (and DB connection).
+
+    The injection into the TeX source is slow, so that, without locks, each publication would compute its pubid
+    before the others commit. Return the exceptions raised by the publications.
+    """
+    services = [BeginPublication(workflow=workflow, user=user, request=request) for workflow in workflows]
+    errors = []
+
+    def slow_injection(*args, **kwargs):
+        time.sleep(1)
+        return "modified tex"
+
+    def publish(service: BeginPublication):
+        try:
+            service.run()
+        except Exception as e:
+            errors.append(e)
+        finally:
+            connection.close()
+
+    with (
+        mock.patch.object(BeginPublication, "_jcom_assistant_injection", side_effect=slow_injection),
+        mock.patch.object(BeginPublication, "trigger_galley_generation"),
+    ):
+        threads = [threading.Thread(target=publish, args=(service,)) for service in services]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    return errors
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_publications_get_different_pubids(
+    journal: Journal,
+    jcom_doi_prefix: Callable,  # noqa: ARG001
+    article_factory: Callable,
+    section_factory: Callable,
+    issue_factory: Callable,
+    review_settings: Callable,  # noqa: ARG001
+    fake_request: HttpRequest,
+    create_jcom_user: Callable,
+    review_sections: list[Section],  # noqa: ARG001
+    install_wjs_submission_settings: Callable,  # noqa: ARG001
+):
+    """Two papers of the same issue published at the same time get different pubids and coherent TeX data."""
+    author = create_jcom_user("AUTHOR")
+    typ = create_jcom_user("TYP")
+    typ.add_account_role(constants.TYPESETTER_ROLE, journal)
+    issue = issue_factory(journal=journal, volume=1, issue="02")
+    article_section = section_factory(name="article", journal=journal)
+    article_section.refresh_from_db()  # see test_publication_multiple_articles
+    article_section.wjssection.pubid_and_tex_sectioncode = "A"
+    article_section.wjssection.save()
+    articles = []
+    for title in ["Article 1", "Article 2"]:
+        article = article_factory(
+            title=title,
+            journal=journal,
+            section=article_section,
+            primary_issue=issue,
+            correspondence_author=author,
+        )
+        articles.append(_jump_article_to_rfp(article, typ, fake_request))
+
+    errors = _publish_concurrently([article.articleworkflow for article in articles], typ, fake_request)
+
+    assert not errors, f"Unexpected errors in concurrent publications: {errors}"
+    pubids = sorted(article.get_identifier("pubid") for article in articles)
+    assert pubids == [f"JCOM_0102_{timezone.now().year}_A01", f"JCOM_0102_{timezone.now().year}_A02"], pubids
+    for article in articles:
+        article.refresh_from_db()
+        assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
+        assert article.get_identifier("pubid").endswith(article.page_numbers), "eid and pubid disagree"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_publications_of_the_same_paper(
+    rfp_article: Article,
+    eo_user: Account,
+    fake_request: HttpRequest,
+    review_sections: list[Section],  # noqa: ARG001
+):
+    """A paper published twice at the same time (e.g. a double click) is published once, with one pubid."""
+    workflows = [ArticleWorkflow.objects.get(pk=rfp_article.articleworkflow.pk) for _ in range(2)]
+
+    errors = _publish_concurrently(workflows, eo_user, fake_request)
+
+    assert len(errors) == 1, f"Expected exactly one publication to fail, got {errors}"
+    assert "Paper not in expected state" in str(errors[0]), errors[0]
+    assert (
+        identifiers_models.Identifier.objects.filter(article=rfp_article, id_type="pubid").count() == 1
+    ), "Duplicated pubid"
+    rfp_article.articleworkflow.refresh_from_db()
+    assert rfp_article.articleworkflow.state == ArticleWorkflow.ReviewStates.PUBLICATION_IN_PROGRESS
 
 
 @pytest.mark.skip(reason="Only tests the helper server.")
@@ -1815,7 +1984,12 @@ def test_jcom_assistant_injection_non_200_raises(rfp_article: Article, eo_user: 
 
 
 @pytest.mark.django_db
-def test_prepare_source_injection_data_structure(rfp_article: Article, eo_user: Account, fake_request: HttpRequest):
+def test_prepare_source_injection_data_structure(
+    rfp_article: Article,
+    eo_user: Account,
+    fake_request: HttpRequest,
+    review_sections: list[Section],  # noqa: ARG001 (JCOM's counter needs its review sections)
+):
     """_prepare_source passes a correctly structured JSON payload to the injection service."""
     workflow = rfp_article.articleworkflow
     article = workflow.article
@@ -1834,7 +2008,7 @@ def test_prepare_source_injection_data_structure(rfp_article: Article, eo_user: 
         return "modified tex"
 
     with mock.patch.object(service, "_jcom_assistant_injection", side_effect=fake_injection):
-        result = service._prepare_source(io.BytesIO(b"source tex"))
+        result = service._prepare_source(io.BytesIO(b"source tex"), workflow.collect_publication_data())
 
     pub = captured["data"]["publication_data"]
     expected_date = article.date_published.strftime("%Y-%m-%d")
@@ -1842,12 +2016,57 @@ def test_prepare_source_injection_data_structure(rfp_article: Article, eo_user: 
     assert pub["year"] == expected_date.split("-")[0]
     assert pub["volume"] == f"{article.primary_issue.volume:02d}"
     assert pub["issue"] == f"{int(article.primary_issue.issue):02d}"
-    assert pub["eid"] == "01"
-    assert pub["section"] == "A"
+    assert pub["eid"] == "A01"
+    assert pub["counter"] == "01"
+    assert pub["section"] == article.section.wjssection.pubid_and_tex_sectioncode
     assert pub["doi"] == article.get_doi()
 
     assert isinstance(result, io.BytesIO)
     assert result.read() == b"modified tex"
+
+
+@pytest.mark.parametrize(
+    ("section_code", "page_numbers"),
+    [
+        (None, "002001"),
+        ("E", "010003"),
+    ],
+)
+@pytest.mark.django_db
+def test_prepare_source_injection_data_jquant(
+    rfp_article: Article,
+    eo_user: Account,
+    fake_request: HttpRequest,
+    section_code: Optional[str],
+    page_numbers: str,
+):
+    """For JQuant, the eid is the whole tail of the pubid (the section code is sent separately)."""
+    workflow = rfp_article.articleworkflow
+    article = workflow.article
+    article.journal.code = "JQuant"  # not saved: only _prepare_source needs to see it
+    article.section.wjssection.pubid_and_tex_sectioncode = section_code
+    article.section.wjssection.save()
+    article.date_published = article.date_published or timezone.now()
+    article.page_numbers = page_numbers
+    article.save()
+
+    service = BeginPublication(workflow=workflow, user=eo_user, request=fake_request)
+
+    captured = {}
+
+    def fake_injection(source_file, data):
+        captured["data"] = json.loads(data)
+        return "modified tex"
+
+    with mock.patch.object(service, "_jcom_assistant_injection", side_effect=fake_injection):
+        service._prepare_source(io.BytesIO(b"source tex"), workflow.collect_publication_data())
+
+    pub = captured["data"]["publication_data"]
+    assert pub["volume"] == f"{int(article.primary_issue.volume)}"
+    assert pub["issue"] == f"{int(article.primary_issue.issue):03d}"
+    assert pub["section"] == (section_code or "")
+    assert pub["eid"] == page_numbers
+    assert pub["counter"] == "001"
 
 
 @pytest.mark.django_db
@@ -1865,7 +2084,8 @@ def test_prepare_source_missing_doi_raises(rfp_article: Article, eo_user: Accoun
     service = BeginPublication(workflow=workflow, user=eo_user, request=fake_request)
 
     with pytest.raises(ValueError, match="DOI"):
-        service._prepare_source(io.BytesIO(b"source tex"))
+        # the DOI is checked before the publication data are used
+        service._prepare_source(io.BytesIO(b"source tex"), publication_data={})
 
 
 @pytest.mark.django_db
@@ -2136,3 +2356,127 @@ def test_send_production_xml_to_publisher_silent_failure_reraises_without_ac_or_
         article=accepted_article,
         code=ac_service.PRODUCTION_EXPORT_SEND_FAILED,
     ).exists()
+
+
+# ---------------------------------------------------------------------------
+# Simulate pubid
+# ---------------------------------------------------------------------------
+
+
+def _assert_nothing_published(article: Article):
+    """The article has no publication date, no page numbers and no pubid."""
+    article.refresh_from_db()
+    assert article.date_published is None, "the simulation saved the publication date"
+    assert not article.page_numbers, "the simulation saved the page numbers"
+    assert article.get_pubid() is None, "the simulation created the pubid"
+
+
+@pytest.mark.django_db
+def test_simulate_publication_identifiers(
+    rfp_article: Article,
+    review_sections: list[Section],  # noqa: ARG001 (JCOM's eid needs its review sections)
+):
+    """The simulation returns the pubid and how-to-cite that the paper would get, and saves nothing."""
+    workflow = rfp_article.articleworkflow
+    year = timezone.now().year
+    volume = f"{rfp_article.issue.volume:02d}"
+    issue = f"{int(rfp_article.issue.issue):02d}"
+
+    simulation = SimulatePublicationIdentifiers(workflow=workflow).run()
+
+    assert simulation["pubid"] == f"JCOM_{volume}{issue}_{year}_A01", "unexpected pubid"
+    assert simulation["eid"] == "A01", "unexpected eid"
+    assert simulation["doi"] == rfp_article.get_doi(), "unexpected DOI"
+    assert f"({year})" in simulation["how_to_cite"], "the how-to-cite has no publication year"
+    assert "A01" in simulation["how_to_cite"], "the how-to-cite has no eid"
+    _assert_nothing_published(rfp_article)
+    # ...and the caller's objects are not touched either
+    assert workflow.article.date_published is None, "the simulation changed the caller's article"
+
+
+@pytest.mark.django_db
+def test_simulate_pubid_view(
+    client: Client,
+    eo_user: JCOMProfile,
+    rfp_article: Article,
+    review_sections: list[Section],  # noqa: ARG001 (JCOM's eid needs its review sections)
+):
+    """EO sees the simulated pubid in the modal; calling the view twice gives the same result and saves nothing."""
+    url = reverse("wjs-simulate-pubid", kwargs={"pk": rfp_article.articleworkflow.pk})
+    client.force_login(eo_user.janeway_account)
+
+    responses = [client.get(url, headers={"HX-Request": "true"}) for _ in range(2)]
+
+    assert [response.status_code for response in responses] == [200, 200], "the EO cannot simulate the pubid"
+    pubid = f"JCOM_{rfp_article.issue.volume:02d}{int(rfp_article.issue.issue):02d}_{timezone.now().year}_A01"
+    for response in responses:
+        assert pubid in response.content.decode(), "the modal does not show the pubid"
+    _assert_nothing_published(rfp_article)
+
+
+@pytest.mark.django_db
+def test_simulate_pubid_view_shows_errors(client: Client, eo_user: JCOMProfile, rfp_article: Article):
+    """If the publication data cannot be computed, the modal shows the reason.
+
+    Here JCOM's eid cannot be computed because the journal has no "Book Review" and "Conference Review" sections.
+    """
+    url = reverse("wjs-simulate-pubid", kwargs={"pk": rfp_article.articleworkflow.pk})
+    client.force_login(eo_user.janeway_account)
+
+    response = client.get(url, headers={"HX-Request": "true"})
+
+    assert response.status_code == 200, "the modal should be shown anyway"
+    assert "Cannot compute the publication data" in response.content.decode(), "the modal does not show the error"
+
+
+@pytest.mark.django_db
+def test_simulate_pubid_view_is_for_eo_only(client: Client, normal_user: JCOMProfile, rfp_article: Article):
+    """Users other than EO cannot simulate the pubid."""
+    url = reverse("wjs-simulate-pubid", kwargs={"pk": rfp_article.articleworkflow.pk})
+    client.force_login(normal_user.janeway_account)
+
+    response = client.get(url, headers={"HX-Request": "true"})
+
+    assert response.status_code == 403, "a non-EO user could simulate the pubid"
+
+
+@pytest.mark.django_db
+def test_simulate_pubid_action(eo_user: JCOMProfile, rfp_article: Article):
+    """The "Simulate pubid" action is available to EO in Ready for publication."""
+    workflow = rfp_article.articleworkflow
+    state_class = BaseState.get_state_class(workflow)
+    action = state_class.get_action_by_name("simulate pubid")
+
+    assert action is not None, "the action is missing from Ready for publication"
+    assert action.is_available(workflow, eo_user.janeway_account), "the action is not available to EO"
+    assert action.get_url(workflow, eo_user.janeway_account) == reverse(
+        "wjs-simulate-pubid", kwargs={"pk": workflow.pk}
+    ), "unexpected action URL"
+
+
+@pytest.mark.django_db
+def test_simulate_publication_identifiers_without_issue(rfp_article: Article):
+    """The simulation requires the paper to be associated to an issue."""
+    rfp_article.primary_issue = None
+    rfp_article.save()
+
+    with pytest.raises(MissingIssueError):
+        SimulatePublicationIdentifiers(workflow=rfp_article.articleworkflow).run()
+    _assert_nothing_published(rfp_article)
+
+
+@pytest.mark.django_db
+def test_simulate_pubid_view_without_issue(client: Client, eo_user: JCOMProfile, rfp_article: Article):
+    """If the paper has no issue, the modal shows a warning and a link to Janeway's issue manager."""
+    rfp_article.primary_issue = None
+    rfp_article.save()
+    url = reverse("wjs-simulate-pubid", kwargs={"pk": rfp_article.articleworkflow.pk})
+    client.force_login(eo_user.janeway_account)
+
+    response = client.get(url, headers={"HX-Request": "true"})
+
+    assert response.status_code == 200, "the modal should be shown anyway"
+    content = response.content.decode()
+    assert "is not associated to any issue" in content, "the modal does not warn about the missing issue"
+    assert f'href="{reverse("manage_issues")}"' in content, "the modal does not link to the issue manager"
+    assert "Cannot compute the publication data" not in content, "the missing issue is shown as a generic error"

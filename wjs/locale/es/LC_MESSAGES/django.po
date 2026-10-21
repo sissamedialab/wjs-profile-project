@@ -5313,10 +5313,13 @@ msgid "Editor assigned successfully."
 msgstr "Editor asignado con éxito."
 
 #: plugins/wjs_review/views.py:3542
-#, fuzzy
-#| msgid "Contact"
-msgid "Journal Editors"
-msgstr "Contáctanos"
+msgid "Editor Management"
+msgstr "Gestión de editores"
+
+#: jcom_profile/templates/wjs/profile/director_update_editor_parameters.html:5
+#, python-format
+msgid "Manage Editor %(editor_name)s"
+msgstr "Gestionar editor %(editor_name)s"
 
 #: plugins/wjs_review/views.py:3600
 #, fuzzy, python-format

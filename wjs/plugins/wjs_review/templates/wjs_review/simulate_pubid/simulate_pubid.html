@@ -1,0 +1,49 @@
+{% load django_bootstrap5 i18n %}
+{% translate "Close" as close_label %}
+<div class="modal-header">
+  <h5 class="modal-title" id="htmxModalLabel">{% translate "Simulate pubid" %}</h5>
+  {% bootstrap_button button_class="btn-close" data_bs_dismiss="modal" button_type="button" aria_label=close_label content="" %}
+</div>
+<div class="modal-body">
+  {% if missing_issue %}
+    <div class="alert alert-warning" role="alert">
+      {% translate "The paper is not associated to any issue, so its pubid cannot be computed." %}
+      <a href="{% url "manage_issues" %}" target="_blank">{% translate "Go to the issue manager" %}</a>
+    </div>
+  {% elif error %}
+    <div class="alert alert-danger" role="alert">
+      {% translate "Cannot compute the publication data:" %} {{ error }}
+    </div>
+  {% else %}
+    <p class="text-muted">
+      {% blocktranslate trimmed %}
+        This is what the paper would get if it were published now. Nothing has been saved:
+        the actual values might differ if something changes before publication
+        (e.g. if other papers of the same issue are published first).
+      {% endblocktranslate %}
+    </p>
+    <dl>
+      <dt>{% translate "Pubid" %}</dt>
+      <dd>
+        <code>{{ simulation.pubid }}</code>
+      </dd>
+      <dt>{% translate "eid (page numbers)" %}</dt>
+      <dd>
+        <code>{{ simulation.eid }}</code>
+      </dd>
+      <dt>{% translate "How to cite" %}</dt>
+      <dd>
+        {% if simulation.how_to_cite %}
+          {{ simulation.how_to_cite|safe }}
+        {% else %}
+          <span class="text-muted">{% translate "Not available: the paper has no authors." %}</span>
+        {% endif %}
+      </dd>
+    </dl>
+    {% if not simulation.doi %}
+      <div class="alert alert-warning" role="alert">
+        {% translate "The paper has no DOI yet: it will be created at publication, so the how-to-cite above is incomplete." %}
+      </div>
+    {% endif %}
+  {% endif %}
+</div>

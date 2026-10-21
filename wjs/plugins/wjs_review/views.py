@@ -3666,7 +3666,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
 
 
 class JournalEditorsView(BaseRelatedViewsMixin, ListView):
-    title = _("Journal Editors")
+    title = _("Editor Management")
     model = Account
     template_name = "wjs_review/journal_editors/editor_list.html"
     context_object_name = "editor_list"

@@ -1,0 +1,116 @@
+{% extends "admin/core/base.html" %}
+{% block title %}
+  WJS Stats - Task queue
+{% endblock title %}
+{% block css %}
+  <style type="text/css" media="screen">
+    table {
+        width: auto;
+    }
+    td.code {
+        font-family: monospace;
+    }
+    .warning {
+        color: #b00;
+        font-weight: bold;
+    }
+  </style>
+{% endblock css %}
+{% block body %}
+  <section>
+    {# poor-man nav #}
+    <div>
+      <a href="{% url 'wjs_stats_manager' %}">Back to Stats</a>
+    </div>
+  </section>
+  <section>
+    <h2>django-q task queue</h2>
+    <p>
+      Tasks waiting in the Redis list <code>{{ list_key }}</code> to be picked up by a <code>qcluster</code>.
+      Scheduled tasks and finished tasks (successful or failed) are not here: see the admin.
+      A task already picked up by a cluster but still running is not here either.
+    </p>
+    {% if sync %}
+      <p class="warning">
+        <code>Q_CLUSTER["sync"]</code> is true: tasks run synchronously when they are created and are never queued.
+      </p>
+    {% endif %}
+    {% if error %}
+      <p class="warning">{{ error }}</p>
+    {% else %}
+      <h3>Clusters</h3>
+      <div class="row expanded">
+        <div class="large-8 columns end">
+          <table border="1">
+            <thead>
+              <tr>
+                <th>Cluster</th>
+                <th>Host</th>
+                <th>Status</th>
+                <th>Workers</th>
+                <th>Tasks in memory</th>
+                <th>Results to save</th>
+                <th>Last seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for cluster in clusters %}
+                <tr>
+                  <td class="code">{{ cluster.cluster_id }}</td>
+                  <td>{{ cluster.host }}</td>
+                  <td>{{ cluster.status }}</td>
+                  <td>{{ cluster.workers|length }}</td>
+                  <td>{{ cluster.task_q_size }}</td>
+                  <td>{{ cluster.done_q_size }}</td>
+                  <td>{{ cluster.timestamp }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="7" class="warning">No running cluster: queued tasks are not being processed.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <h3>Queued tasks: {{ queue_size }}</h3>
+      {% if queue_size > max_shown %}<p>Showing only the first {{ max_shown }}.</p>{% endif %}
+      <div class="row expanded">
+        <div class="large-12 columns end">
+          <table border="1">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Enqueued</th>
+                <th>Name</th>
+                <th>Function</th>
+                <th>Args</th>
+                <th>Kwargs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for task in tasks %}
+                <tr>
+                  <td>{{ task.position }}</td>
+                  {% if task.error %}
+                    <td colspan="5" class="warning">Cannot decode task: {{ task.error }}</td>
+                  {% else %}
+                    <td>{{ task.started }}</td>
+                    <td class="code" title="{{ task.id }}">{{ task.name }}</td>
+                    <td class="code">{{ task.func }}</td>
+                    <td class="code">{{ task.args }}</td>
+                    <td class="code">{{ task.kwargs }}</td>
+                  {% endif %}
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6">The queue is empty.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </section>
+{% endblock body %}

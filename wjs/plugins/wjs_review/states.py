@@ -1295,6 +1295,14 @@ class ReadyForPublication(BaseState):
         ),
         ArticleAction(
             permission=permissions.has_eo_role_by_article,
+            name="simulate pubid",
+            label="Simulate pubid",
+            tooltip="Show the pubid and how-to-cite that the paper would get if published now (nothing is saved)",
+            view_name="wjs-simulate-pubid",
+            is_modal=True,
+        ),
+        ArticleAction(
+            permission=permissions.has_eo_role_by_article,
             name="Send paper back to Typesetter",
             label="Send paper back to Typesetter",
             tooltip="Ask the typesetter for some changes...",
