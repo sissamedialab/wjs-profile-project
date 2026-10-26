@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from django import forms
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from easy_select2 import Select2Multiple
 
 
@@ -15,12 +15,12 @@ class FilterForm(forms.Form):
     from_date = forms.DateField(
         label="From Date",
         widget=forms.DateInput(attrs={"type": "date"}),
-        initial=now().date() - timedelta(days=30),
+        initial=localtime(now()).date() - timedelta(days=30),
     )
     to_date = forms.DateField(
         label="To Date",
         widget=forms.DateInput(attrs={"type": "date"}),
-        initial=now().date(),
+        initial=localtime(now()).date(),
     )
     issues = forms.ModelMultipleChoiceField(
         queryset=None,

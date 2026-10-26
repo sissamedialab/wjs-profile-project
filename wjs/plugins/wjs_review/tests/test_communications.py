@@ -20,7 +20,7 @@ from django.http import HttpRequest
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from hijack.middleware import HijackUserMiddleware
 from journal.models import Journal
 from plugins.wjs_review import views
@@ -939,7 +939,7 @@ def test_message_addressing(
         reviewer=reviewer,
         editor=editor,
         form_data={
-            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -1062,7 +1062,7 @@ def test_allowed_recipients_director_editor(
             reviewer=reviewer,
             editor=main_director,
             form_data={
-                "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+                "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
                 "message": "random message",
             },
             request=fake_request,
@@ -1145,7 +1145,7 @@ def test_allowed_recipients_for_actor(
             reviewer=reviewer,
             editor=editor,
             form_data={
-                "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+                "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
                 "message": "random message",
             },
             request=fake_request,
@@ -1300,7 +1300,7 @@ def test_message_attachment_access(
             reviewer=reviewer,
             editor=editor,
             form_data={
-                "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+                "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
                 "message": "random message",
             },
             request=fake_request,

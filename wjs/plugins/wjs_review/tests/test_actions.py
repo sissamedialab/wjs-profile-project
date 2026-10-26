@@ -4,7 +4,7 @@ from typing import Literal
 import pytest
 from core.models import Account
 from django.http import HttpRequest
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from submission.models import Article
 
 from .. import conditions
@@ -63,7 +63,7 @@ def test_pending_revision_request(
         "decision": decision,
         "decision_editor_report": "random message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -138,7 +138,7 @@ def test_pending_edit_metadata_request(
         "decision": decision,
         "decision_editor_report": "random message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -225,7 +225,7 @@ def test_revision_actions(
         "decision": decision,
         "decision_editor_report": "random message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,

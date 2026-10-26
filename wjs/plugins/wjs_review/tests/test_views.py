@@ -14,7 +14,7 @@ from django.test.client import Client
 from django.urls import reverse
 from django.utils import translation
 from django.utils.formats import date_format
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from journal.models import Journal
 from press.models import Press
 from review import models as review_models
@@ -65,11 +65,11 @@ def test_editor_requests_revision_but_date_due_in_the_past(
     assigned_article: submission_models.Article,
     decision: ArticleWorkflow.Decisions,
 ):
-    """An editor cannot set the minor/major/technical revision request's date_due in the past wrt now().date()."""
+    """An editor cannot set the minor/major/technical revision request's date_due in the past wrt today."""
     url = reverse("wjs_article_decision", args=(assigned_article.pk,))
     post_data = {
         "decision": decision.value,
-        "date_due": now().date() - datetime.timedelta(days=1),
+        "date_due": localtime(now()).date() - datetime.timedelta(days=1),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
@@ -101,7 +101,7 @@ def test_editor_requests_revision_but_date_due_too_much_in_the_future(
     ).processed_value
     post_data = {
         "decision": decision.value,
-        "date_due": now().date() + datetime.timedelta(days=revision_days_max + 1),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=revision_days_max + 1),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
@@ -139,7 +139,7 @@ def test_editor_requests_revision_date_due_is_in_the_right_range(
     assert how_many_days_in_the_future < revision_days_max
     post_data = {
         "decision": decision.value,
-        "date_due": now().date() + datetime.timedelta(days=how_many_days_in_the_future),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=how_many_days_in_the_future),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
@@ -179,7 +179,7 @@ def test_editor_requests_revision_date_due_renders_iso_in_non_default_language(
         setting_name=days_setting_name,
         journal=assigned_article.journal,
     ).processed_value
-    initial_date = now().date() + datetime.timedelta(days=revision_days)
+    initial_date = localtime(now()).date() + datetime.timedelta(days=revision_days)
     client.force_login(section_editor.janeway_account)
     with translation.override("fr"):
         response = client.get(url, {"decision": decision.value})
@@ -205,10 +205,10 @@ def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_in_the_past(
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
 ):
-    """An editor cannot set the acceptance_due_date in the past wrt now().date()."""
+    """An editor cannot set the acceptance_due_date in the past wrt localtime(now()).date()."""
     url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
     post_data = {
-        "acceptance_due_date": now().date() - datetime.timedelta(days=1),
+        "acceptance_due_date": localtime(now()).date() - datetime.timedelta(days=1),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
@@ -228,7 +228,7 @@ def test_editor_assigns_themselves_as_reviewer_with_a_date_much_in_the_future(
     This is valid also for the Editor as reviewer
     """
     url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
-    today = now().date()
+    today = localtime(now()).date()
     date_max = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
     post_data = {
         "acceptance_due_date": date_max + datetime.timedelta(days=100),
@@ -341,12 +341,12 @@ def test_select_reviewer_acceptance_due_date_in_the_past(
     reviewer: JCOMProfile,
     assigned_article: submission_models.Article,
 ):
-    """An editor cannot set the acceptance_due_date in the past wrt now().date()."""
+    """An editor cannot set the acceptance_due_date in the past wrt localtime(now()).date()."""
     url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
     post_data = {
         "reviewer": reviewer.pk,
         "message": "test_select_reviewer_acceptance_due_date_in_the_past() test message",
-        "acceptance_due_date": now().date() - datetime.timedelta(days=1),
+        "acceptance_due_date": localtime(now()).date() - datetime.timedelta(days=1),
         "state": "",
         "author_note_visible": False,
     }
@@ -363,9 +363,9 @@ def test_select_reviewer_acceptance_due_date_too_much_in_the_future(
     reviewer: JCOMProfile,
     assigned_article: submission_models.Article,
 ):
-    """An editor cannot set the acceptance_due_date after settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX wrt now().date()."""
+    """An editor cannot set the acceptance_due_date after DEFAULT_ACCEPTANCE_DUE_DATE_MAX wrt today."""
     url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
-    today = now().date()
+    today = localtime(now()).date()
     date_min = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
     date_max = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
     post_data = {
@@ -417,7 +417,7 @@ def test_invite_function_creates_inactive_user(
         "suffix": "Suffix",
         "email": "email@email.it",
         "message": "random message",
-        "acceptance_due_date": now().date()
+        "acceptance_due_date": localtime(now()).date()
         + datetime.timedelta(
             days=fake_request.journal.get_setting("wjs_review", "default_review_acceptance_days"),
         ),
@@ -485,7 +485,7 @@ def test_wjs_evaluate_review_date_due_initial_value(
         setting_name="default_review_days",
         journal=review_assignment_invited_user.article.journal,
     ).processed_value
-    initial_date = now().date() + datetime.timedelta(days=default_review_days)
+    initial_date = localtime(now()).date() + datetime.timedelta(days=default_review_days)
     assert response.context["form"].initial["date_due"] == initial_date
 
 
@@ -516,7 +516,7 @@ def test_wjs_evaluate_review_date_due_renders_iso_in_non_default_language(
         setting_name="default_review_days",
         journal=review_assignment_invited_user.article.journal,
     ).processed_value
-    initial_date = now().date() + datetime.timedelta(days=default_review_days)
+    initial_date = localtime(now()).date() + datetime.timedelta(days=default_review_days)
     with translation.override("fr"):
         response = client.get(url)
     assert f'value="{initial_date.isoformat()}"' in response.content.decode()
@@ -1362,7 +1362,7 @@ def test_assigns_themselves_as_reviewer_no_double_assignation(
     response = client.get(url)
     assert response.status_code == 200
 
-    response = client.post(url, data={"acceptance_due_date": now().date() + datetime.timedelta(days=7)})
+    response = client.post(url, data={"acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7)})
     assert response.status_code == 200
 
     assert (
@@ -1373,7 +1373,7 @@ def test_assigns_themselves_as_reviewer_no_double_assignation(
         == 1
     )
 
-    response = client.post(url, data={"acceptance_due_date": now().date() + datetime.timedelta(days=7)})
+    response = client.post(url, data={"acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7)})
     assert response.status_code == 200
 
     assert (

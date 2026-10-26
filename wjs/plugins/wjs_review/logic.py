@@ -60,7 +60,7 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
@@ -885,7 +885,7 @@ class EvaluateReview:
         """Check if the review is postponed far in the future"""
         date_due = self.form_data.get("date_due", None)
         if date_due:
-            return date_due > timezone.now().date() + datetime.timedelta(
+            return date_due > timezone.localtime(timezone.now()).date() + datetime.timedelta(
                 days=settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD,
             )
         return False
@@ -1018,7 +1018,7 @@ class EvaluateReview:
             group_name="general",
             setting_name="default_review_days",
         )
-        default_date_due = now().date() + datetime.timedelta(days=default_review_days)
+        default_date_due = localtime(now()).date() + datetime.timedelta(days=default_review_days)
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -4242,7 +4242,7 @@ class OpenAppeal:
             "decision": ArticleWorkflow.Decisions.OPEN_APPEAL,
             "decision_editor_report": "",
             "acceptance_due_date": None,
-            "date_due": timezone.now().date() + datetime.timedelta(days=appeal_revision_days),
+            "date_due": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=appeal_revision_days),
         }
         HandleDecision(
             workflow=self.article.articleworkflow,

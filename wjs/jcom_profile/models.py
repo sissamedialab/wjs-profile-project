@@ -259,7 +259,7 @@ class StaffWorkloadParameters(models.Model):
             otherwise False.
         :rtype: bool
         """
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()
         on_vacancy = False
         if self.vacancy_start and self.vacancy_end:
             on_vacancy = self.vacancy_start <= today <= self.vacancy_end

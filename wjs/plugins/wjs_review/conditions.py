@@ -372,7 +372,7 @@ def author_revision_is_late(article: Article) -> str:
     """
     late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
-        date_due__lt=timezone.now().date(),
+        date_due__lt=timezone.localtime(timezone.now()).date(),
         date_completed__isnull=True,
         type__in=(
             ArticleWorkflow.Decisions.MAJOR_REVISION,
@@ -396,7 +396,7 @@ def author_revision_is_late_all_reminders_sent(article: Article, late_after_days
     """
     late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
-        date_due__lt=timezone.now().date(),
+        date_due__lt=timezone.localtime(timezone.now()).date(),
         date_completed__isnull=True,
         type__in=(
             ArticleWorkflow.Decisions.MAJOR_REVISION,
@@ -431,7 +431,7 @@ def author_technicalrevision_is_late(article: Article) -> str:
     """
     late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
-        date_due__lt=timezone.now().date(),
+        date_due__lt=timezone.localtime(timezone.now()).date(),
         date_completed__isnull=True,
         type__in=(ArticleWorkflow.Decisions.TECHNICAL_REVISION,),
     )
@@ -450,7 +450,7 @@ def author_technicalrevision_is_late_all_reminders_sent(article: Article, late_a
     """
     late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
-        date_due__lt=timezone.now().date(),
+        date_due__lt=timezone.localtime(timezone.now()).date(),
         date_completed__isnull=True,
         type__in=(ArticleWorkflow.Decisions.TECHNICAL_REVISION,),
     )
@@ -471,7 +471,7 @@ def author_appealsubmission_is_late(article: Article) -> str:
     """Tell if the author is late in submission an appeal."""
     late_revision_request = EditorRevisionRequest.objects.filter(
         article_id=article.id,
-        date_due__lt=timezone.now().date(),
+        date_due__lt=timezone.localtime(timezone.now()).date(),
         date_completed__isnull=True,
         type=ArticleWorkflow.Decisions.OPEN_APPEAL,
     )

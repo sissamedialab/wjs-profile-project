@@ -19,7 +19,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.formats import date_format
 from django.utils.safestring import mark_safe
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from django.utils.translation import gettext_lazy as _
 from PIL import Image
 from review.forms import GeneratedForm
@@ -160,7 +160,7 @@ class BaseInviteSelectReviewerForm(forms.Form):
         if reviewer := self.request.GET.get("reviewer"):
             c_data["reviewer"] = reviewer
         self.data = c_data
-        self._today = now().date()
+        self._today = localtime(now()).date()
         # specs #648 #1158
         self.default_acceptance_due_date = self._today + datetime.timedelta(
             days=self.request.journal.get_setting("wjs_review", "default_review_acceptance_days"),
@@ -222,7 +222,7 @@ class BaseInviteSelectReviewerForm(forms.Form):
         acceptance_due_date = self.cleaned_data["acceptance_due_date"]
         if not acceptance_due_date:
             return acceptance_due_date
-        if acceptance_due_date < now().date():
+        if acceptance_due_date < localtime(now()).date():
             raise forms.ValidationError(_("Date must be in the future"))
         if (self.date_min and self.date_max) and not (self.date_min <= acceptance_due_date <= self.date_max):
             raise forms.ValidationError(
@@ -264,7 +264,7 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
         fields = ["state"]
 
     def __init__(self, *args, **kwargs):
-        self._today = now().date()
+        self._today = localtime(now()).date()
         self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
         self.revision = kwargs.pop("revision")
         super().__init__(*args, **kwargs)
@@ -542,7 +542,7 @@ class EvaluateReviewForm(forms.ModelForm):
             group_name="general",
             setting_name="default_review_days",
         )
-        self.initial["date_due"] = now().date() + datetime.timedelta(days=default_review_days)
+        self.initial["date_due"] = localtime(now()).date() + datetime.timedelta(days=default_review_days)
 
     def clean_date_due(self):
         date_due = self.cleaned_data.get("date_due", None)
@@ -690,7 +690,7 @@ class DecisionForm(forms.ModelForm):
         fields = ["state"]
 
     def __init__(self, *args, **kwargs):
-        self.today = now().date()
+        self.today = localtime(now()).date()
         self.user = kwargs.pop("user", None)
         self.request = kwargs.pop("request", None)
         self.admin_form = kwargs.pop("admin_form", False)
@@ -1272,7 +1272,7 @@ class UpdateReviewerDueDateForm(forms.ModelForm):
         """
         cleaned_data = super().clean()
         date_due = cleaned_data.get("date_due")
-        if date_due and date_due <= now().date():
+        if date_due and date_due <= localtime(now()).date():
             raise ValidationError(_("The due date must be in the future."))
         return cleaned_data
 
@@ -1315,7 +1315,7 @@ class EditorRevisionRequestDueDateForm(forms.ModelForm):
 
     def clean_date_due(self):
         date_due = self.cleaned_data["date_due"]
-        if date_due and date_due < now().date():
+        if date_due and date_due < localtime(now()).date():
             raise forms.ValidationError(_("Date must be in the future"))
         return date_due
 

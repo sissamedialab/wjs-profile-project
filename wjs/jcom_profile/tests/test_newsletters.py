@@ -138,7 +138,7 @@ def test_no_newsletters_must_be_sent_when_no_new_articles_with_interesting_keywo
     management.call_command("send_newsletter_notifications", journal.code)
 
     newsletter.refresh_from_db()
-    assert newsletter.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter.last_sent).date() == timezone.localtime(timezone.now()).date()
     assert len(mail.outbox) == 0
 
 
@@ -173,7 +173,7 @@ def test_newsletters_with_news_items_only_must_be_sent(
 
     management.call_command("send_newsletter_notifications", journal.code)
     newsletter.refresh_from_db()
-    assert newsletter.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter.last_sent).date() == timezone.localtime(timezone.now()).date()
 
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [news_recipient.newsletter_destination_email]
@@ -238,7 +238,7 @@ def test_newsletters_with_articles_only_must_be_sent(
 
     management.call_command("send_newsletter_notifications", journal.code)
     newsletter.refresh_from_db()
-    assert newsletter.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter.last_sent).date() == timezone.localtime(timezone.now()).date()
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [newsletter_article_recipient.newsletter_destination_email]
 
@@ -299,7 +299,7 @@ def test_newsletters_are_correctly_sent_with_both_news_and_articles_for_subscrib
     management.call_command("send_newsletter_notifications", journal.code)
 
     newsletter.refresh_from_db()
-    assert newsletter.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter.last_sent).date() == timezone.localtime(timezone.now()).date()
     filtered_articles = submission_models.Article.objects.filter(date_published__date__gt=timezone.now())
     emailed_subscribers = Recipient.objects.filter(
         Q(topics__in=filtered_articles.values_list("keywords")) | Q(news=True),
@@ -344,7 +344,7 @@ def test_two_recipients_one_news(
 
     management.call_command("send_newsletter_notifications", journal.code)
     newsletter.refresh_from_db()
-    assert newsletter.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter.last_sent).date() == timezone.localtime(timezone.now()).date()
     assert len(mail.outbox) == 2
     # msg.to is a list (i.e. a message can have multiple "To:")
     # here I just assume that there is only one To per message
@@ -396,7 +396,7 @@ def test_two_recipients_one_article(
 
     management.call_command("send_newsletter_notifications", journal.code)
     newsletter.refresh_from_db()
-    assert newsletter.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter.last_sent).date() == timezone.localtime(timezone.now()).date()
     assert len(mail.outbox) == 2
     check_email_body(mail.outbox, journal)
 
@@ -446,7 +446,7 @@ def test_one_recipient_one_article_two_topics(
 
     management.call_command("send_newsletter_notifications", journal.code)
     newsletter.refresh_from_db()
-    assert newsletter.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter.last_sent).date() == timezone.localtime(timezone.now()).date()
     assert len(mail.outbox) == 2
     check_email_body(mail.outbox, journal)
 
@@ -1128,7 +1128,7 @@ def test_check_authors_list_in_publication_alert(
 
     management.call_command("send_newsletter_notifications", journal.code)
     newsletter.refresh_from_db()
-    assert newsletter.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter.last_sent).date() == timezone.localtime(timezone.now()).date()
     assert len(mail.outbox) == 1
 
     expected_authors_list = (
@@ -1352,7 +1352,7 @@ def test_order_of_articles(
 
     management.call_command("send_newsletter_notifications", journal.code)
     newsletter_service.refresh_from_db()
-    assert newsletter_service.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter_service.last_sent).date() == timezone.localtime(timezone.now()).date()
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [newsletter_article_recipient.newsletter_destination_email]
 
@@ -1416,7 +1416,7 @@ def test_order_of_news(
 
     management.call_command("send_newsletter_notifications", journal.code)
     newsletter_service.refresh_from_db()
-    assert newsletter_service.last_sent.date() == timezone.now().date()
+    assert timezone.localtime(newsletter_service.last_sent).date() == timezone.localtime(timezone.now()).date()
     assert len(mail.outbox) == 1
 
     # News items are ordered oldest-first:
