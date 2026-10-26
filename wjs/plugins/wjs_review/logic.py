@@ -1995,6 +1995,11 @@ class PopulateRevisionStep6(BasePopulateRevisionStep):
 class PopulateRevisionStep7(BasePopulateRevisionStep):
     def run(self):
         if access_mode := self.revision_storage.data.get("access_mode"):
+            if self.article.submission_data.access_mode_id != access_mode:
+                # access mode recalculated (e.g. the affiliation changed): licence and copyright follow the new access
+                # mode instead of being kept from the previous one
+                self.article.submission_data.license_override = False
+                self.article.submission_data.rights_override = False
             self.article.submission_data.access_mode_id = access_mode
         if special_request := self.revision_storage.data.get("special_request"):
             modified = (
