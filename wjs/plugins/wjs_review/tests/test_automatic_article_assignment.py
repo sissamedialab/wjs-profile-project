@@ -4,6 +4,7 @@ import random
 from datetime import timedelta
 from typing import Callable
 
+import freezegun
 import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -14,18 +15,22 @@ from django.utils import timezone
 from journal.models import Issue, IssueType
 from plugins.hydra.models import LinkedArticle, LinkType
 from plugins.wjs_review.models import Message
-from submission.models import Article, Section
+from submission import models as submission_models
+from submission.models import Article, KeywordArticle, Section
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.constants import EO_GROUP
-from wjs.jcom_profile.models import JCOMProfile, StaffWorkloadParameters
+from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
 
 from ..communication_utils import get_system_user
 from ..events.assignment import (
+    annotate_keyword_ranking,
+    annotate_workload_availability,
     get_available_editor_parameters,
     get_eo_selection_function,
     get_select_eo_by_workload,
     get_selected_editor_by_workload,
+    rank_editor_parameters,
     select_eo_by_linked_article,
 )
 from ..logic import (
@@ -33,7 +38,12 @@ from ..logic import (
     states_where_article_needs_editor,
     states_where_article_needs_eo_in_charge,
 )
-from ..models import ArticleWorkflow, Reminder, WjsEditorAssignment
+from ..models import (
+    ArticleWorkflow,
+    PastEditorAssignment,
+    Reminder,
+    WjsEditorAssignment,
+)
 from ..plugin_settings import STAGE
 
 Account = get_user_model()
@@ -1175,3 +1185,762 @@ def test_automatic_assignment_no_author_msg(
         actor = messages_to_editor.first().actor
         assert actor != author
         assert actor == get_system_user(journal=article.journal)
+
+
+@pytest.mark.django_db
+def test_annotate_keyword_ranking_keeps_no_match_editors(article, editors, keywords):
+    """Editors with no keyword overlap with the article are annotated, not excluded."""
+    article.keywords.add(keywords[0])
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors)
+
+    result = annotate_keyword_ranking(article, parameters)
+
+    assert result.count() == 3
+    for parameter in result:
+        assert parameter.matching_keywords_count == 0
+        assert parameter.max_matching_keyword_weight is None
+
+
+@pytest.mark.django_db
+def test_annotate_keyword_ranking_annotates_weight_and_count(article, editors, keywords):
+    """Each parameter is annotated with its own matching-keyword count and max weight."""
+    article.keywords.add(keywords[0], keywords[1], keywords[2])
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors)
+    param_two_matches, param_one_match, param_no_match = parameters.order_by("id")
+
+    StaffKeyword.objects.create(parameters=param_two_matches, keyword=keywords[0], weight=1)
+    StaffKeyword.objects.create(parameters=param_two_matches, keyword=keywords[1], weight=1)
+    StaffKeyword.objects.create(parameters=param_one_match, keyword=keywords[0], weight=5)
+    # param_no_match's keyword isn't one of the article's, so it must still be annotated at
+    # zero/None, not excluded.
+    StaffKeyword.objects.create(parameters=param_no_match, keyword=keywords[9], weight=99)
+
+    result = {p.pk: p for p in annotate_keyword_ranking(article, parameters)}
+
+    assert result[param_two_matches.pk].matching_keywords_count == 2
+    assert result[param_two_matches.pk].max_matching_keyword_weight == 1
+    assert result[param_one_match.pk].matching_keywords_count == 1
+    assert result[param_one_match.pk].max_matching_keyword_weight == 5
+    assert result[param_no_match.pk].matching_keywords_count == 0
+    assert result[param_no_match.pk].max_matching_keyword_weight is None
+
+
+@pytest.mark.django_db
+def test_default_assign_editors_prefers_keyword_match_over_workload(
+    review_settings,
+    admin,
+    article,
+    editors,
+    coauthors_setting,
+):
+    """
+    An editor with a matching keyword is picked over an editor with more available workload
+    but no matching keyword.
+
+    Goes through the real HTTP submission pipeline (like the other tests in this file), rather than
+    calling `default_assign_editors_to_articles` directly, so the automatic assignment runs with the
+    request context that `get_current_request()` needs.
+    """
+    keyword = submission_models.Keyword.objects.create(word="test-keyword")
+    article.journal.keywords.add(keyword)
+    article.keywords.add(keyword)
+    article.primary_issue = None
+    article.save()
+
+    high_workload_no_match, low_workload_with_match, _ = StaffWorkloadParameters.objects.filter(
+        user__in=editors
+    ).order_by("id")
+    high_workload_no_match.workload = 10
+    high_workload_no_match.save()
+    low_workload_with_match.workload = 1
+    low_workload_with_match.save()
+    StaffKeyword.objects.create(parameters=low_workload_with_match, keyword=keyword, weight=1)
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+    editor_assignment = WjsEditorAssignment.objects.get(article=article)
+    assert editor_assignment.editor == low_workload_with_match.user
+
+
+@pytest.mark.django_db
+def test_default_assign_editors_prefers_broad_weighted_coverage(
+    review_settings,
+    admin,
+    article,
+    editors,
+    keywords,
+    coauthors_setting,
+):
+    """Through the submission pipeline, the editor covering more weighted keywords is assigned."""
+    article.primary_issue = None
+    article.save()
+    article.keywords.clear()
+    _set_article_keyword_weights(article, {keywords[0]: 100, keywords[1]: 75, keywords[2]: 50})
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors, journal=article.journal)
+    parameters.update(workload=10, brake_on=0)
+    param_narrow, param_broad, _ = parameters.order_by("id")
+    StaffKeyword.objects.create(parameters=param_narrow, keyword=keywords[0], weight=100)
+    for keyword in (keywords[0], keywords[1], keywords[2]):
+        StaffKeyword.objects.create(parameters=param_broad, keyword=keyword, weight=90)
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+        response = client.post(reverse("submit_review", args=(article.pk,)), data={"next_step": "next_step"})
+        assert response.status_code == 302, "submission accepted"
+
+    assert WjsEditorAssignment.objects.get(article=article).editor == param_broad.user, "0.9 beats 0.444"
+
+
+@pytest.mark.django_db
+def test_default_assign_editors_picks_best_workload_when_no_keyword_match(
+    review_settings,
+    admin,
+    article,
+    editors,
+    coauthors_setting,
+):
+    """
+    With no keyword overlap for any candidate, all candidates tie on keyword ranking (0 matches,
+    no weight) and selection falls through to the workload tie-break within the same ranked
+    queryset -- there is no separate "fallback" code path or metric anymore.
+
+    Goes through the real HTTP submission pipeline (like the other tests in this file), rather
+    than calling default_assign_editors_to_articles directly, so the automatic assignment runs
+    with the request context that get_current_request() needs.
+    """
+    article.primary_issue = None
+    article.save()
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors)
+    expected_editor = (
+        rank_editor_parameters(annotate_workload_availability(annotate_keyword_ranking(article, parameters)))
+        .filter(available_workload_month__gt=0)
+        .first()
+        .user
+    )
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+    editor_assignment = WjsEditorAssignment.objects.get(article=article)
+    assert editor_assignment.editor == expected_editor
+
+
+@pytest.mark.django_db
+def test_default_assign_editors_no_assignment_when_all_editors_over_monthly_cap(
+    review_settings,
+    admin,
+    article,
+    editors,
+    coauthors_setting,
+):
+    """
+    No assignment is made -- and the article stays EDITOR_TO_BE_SELECTED -- when every available
+    section editor is already at their monthly workload cap.
+
+    default_assign_editors_to_articles's own .filter(available_workload_month__gt=0) step can still
+    empty the candidate pool even though `parameters` (before that filter) is non-empty -- removing
+    the old keyword-exclusion fallback did not remove this path, it just means there is no longer a
+    separate "no keyword match" reason for an empty pool. This is a regression guard for that.
+
+    Goes through the real HTTP submission pipeline (like the other tests in this file), rather than
+    calling default_assign_editors_to_articles directly, so the automatic assignment runs with the
+    request context that get_current_request() needs.
+    """
+    article.primary_issue = None
+    article.save()
+
+    for editor in editors:
+        parameters = StaffWorkloadParameters.objects.get(user=editor, journal=article.journal)
+        parameters.workload = 1
+        parameters.brake_on = 0
+        parameters.save()
+
+        prior_article = Article.objects.create(
+            journal=article.journal,
+            title=f"Prior article for {editor.username}",
+            owner=editor,
+            correspondence_author=editor,
+        )
+        WjsEditorAssignment.objects.create(
+            article=prior_article,
+            editor=editor,
+            editor_type="section-editor",
+        )
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+    article.refresh_from_db()
+    assert not WjsEditorAssignment.objects.filter(article=article).exists()
+    assert article.articleworkflow.state == ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+
+
+@pytest.mark.django_db
+def test_default_assign_editors_excludes_eo_disabled_editor(
+    review_settings,
+    admin,
+    article,
+    editors,
+    coauthors_setting,
+):
+    """
+    An editor with brake_on == -1 (EO-disabled, wjs/specs#3184) is never picked by automatic
+    assignment, even with an otherwise-empty workload and no keyword competition -- it must be
+    hard-excluded by annotate_workload_availability's effective_workload_cap, the same way an
+    over-cap editor is (see test_default_assign_editors_no_assignment_when_all_editors_over_monthly_cap).
+    """
+    article.primary_issue = None
+    article.save()
+
+    disabled_editor, other_disabled_editor, available_editor = editors
+    for editor in (disabled_editor, other_disabled_editor):
+        parameters = StaffWorkloadParameters.objects.get(user=editor, journal=article.journal)
+        parameters.workload = 10
+        parameters.brake_on = -1
+        parameters.save()
+
+    available_parameters = StaffWorkloadParameters.objects.get(user=available_editor, journal=article.journal)
+    available_parameters.workload = 10
+    available_parameters.brake_on = 0
+    available_parameters.save()
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+    editor_assignment = WjsEditorAssignment.objects.get(article=article)
+    assert editor_assignment.editor == available_editor
+
+
+@pytest.mark.django_db
+def test_jcom_assign_editors_ignores_keywords(
+    review_settings, admin, article, main_director, director_editor, coauthors_setting
+):
+    """
+    JCOM/JCOMAL director assignment must keep ignoring keywords: a director with a matching
+    keyword but less available workload must NOT be preferred over the higher-workload one.
+
+    Uses the `main_director`/`director_editor` fixtures (both grant DIRECTOR_MAIN_ROLE) rather than
+    `directors` (which only grants the plain DIRECTOR_ROLE): `jcom_assign_editors_to_articles`
+    filters on DIRECTOR_MAIN_ROLE, so `directors` would yield no candidates at all.
+
+    Goes through the real HTTP submission pipeline (like the other tests in this file), rather than
+    calling `jcom_assign_editors_to_articles` directly, so the automatic assignment runs with the
+    request context that `get_current_request()` needs. The `journal` fixture's code is already
+    "JCOM" by default, so no journal-code override is needed here.
+    """
+    keyword = submission_models.Keyword.objects.create(word="test-keyword")
+    article.journal.keywords.add(keyword)
+    article.keywords.add(keyword)
+    article.primary_issue = None
+    article.save()
+
+    high_workload_no_match = StaffWorkloadParameters.objects.get(
+        user=main_director.janeway_account,
+        journal=article.journal,
+    )
+    low_workload_with_match = StaffWorkloadParameters.objects.get(
+        user=director_editor.janeway_account,
+        journal=article.journal,
+    )
+    high_workload_no_match.workload = 10
+    high_workload_no_match.save()
+    low_workload_with_match.workload = 1
+    low_workload_with_match.save()
+    StaffKeyword.objects.create(parameters=low_workload_with_match, keyword=keyword, weight=99)
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=JCOM_WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin.janeway_account)
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+    editor_assignment = WjsEditorAssignment.objects.get(article=article)
+    assert editor_assignment.editor == main_director.janeway_account
+
+
+@pytest.mark.django_db
+def test_default_special_issue_assignment_ignores_keywords(
+    review_settings,
+    admin,
+    article,
+    directors,
+    editors,
+    coauthors_setting,
+    special_issue,
+):
+    """
+    Special-issue assignment must keep ignoring keywords: a managing editor with a matching
+    keyword but less available workload must NOT be preferred over the higher-workload one.
+
+    Uses the `special_issue` fixture (whose managing editors are the `editors` fixture, giving 3
+    candidates) to prove the special-issue branch of `default_assign_editors_to_articles` never
+    invokes keyword matching at all, not merely that it happens to pick the same editor by
+    coincidence (see `test_jcom_assign_editors_ignores_keywords` for the analogous JCOM/director
+    case).
+    """
+    keyword = submission_models.Keyword.objects.create(word="test-keyword")
+    article.journal.keywords.add(keyword)
+    article.keywords.add(keyword)
+
+    low_workload_with_match, high_workload_no_match, third_editor = list(
+        special_issue.managing_editors.all().order_by("id"),
+    )
+
+    low_workload_param = StaffWorkloadParameters.objects.get(user=low_workload_with_match, journal=article.journal)
+    high_workload_param = StaffWorkloadParameters.objects.get(user=high_workload_no_match, journal=article.journal)
+    third_param = StaffWorkloadParameters.objects.get(user=third_editor, journal=article.journal)
+    low_workload_param.workload = 1
+    low_workload_param.save()
+    high_workload_param.workload = 10
+    high_workload_param.save()
+    # Keep the third candidate's workload well below the high-workload editor's, so it cannot
+    # accidentally tie with (and win over, by id) the expected editor.
+    third_param.workload = 2
+    third_param.save()
+    StaffKeyword.objects.create(parameters=low_workload_param, keyword=keyword, weight=99)
+
+    with override_settings(WJS_ARTICLE_ASSIGNMENT_FUNCTIONS=WJS_ARTICLE_ASSIGNMENT_FUNCTIONS):
+        client = Client()
+        client.force_login(admin)
+        url = reverse("submit_review", args=(article.pk,))
+        response = client.post(url, data={"next_step": "next_step"})
+        assert response.status_code == 302
+
+    editor_assignment = WjsEditorAssignment.objects.get_current(article=article)
+    assert editor_assignment.editor == high_workload_no_match
+
+
+@pytest.mark.django_db
+def test_annotate_workload_availability_uses_smaller_of_workload_and_brake_on(article, editors, journal):
+    """When brake_on is set (> 0), the effective cap is min(workload, brake_on), not workload alone."""
+    parameters = StaffWorkloadParameters.objects.filter(user=editors[0]).first()
+    parameters.workload = 10
+    parameters.brake_on = 3
+    parameters.save()
+
+    result = annotate_workload_availability(StaffWorkloadParameters.objects.filter(pk=parameters.pk)).get()
+
+    assert result.effective_workload_cap == 3
+    assert result.available_workload_month == 3
+    assert result.available_workload_30d == 3
+
+
+@pytest.mark.django_db
+def test_annotate_workload_availability_brake_on_minus_one_forces_zero_cap(article, editors, journal):
+    """A brake_on of -1 is the EO-disabled sentinel: the effective cap is forced to 0 regardless of workload."""
+    parameters = StaffWorkloadParameters.objects.filter(user=editors[0]).first()
+    parameters.workload = 10
+    parameters.brake_on = -1
+    parameters.save()
+
+    result = annotate_workload_availability(StaffWorkloadParameters.objects.filter(pk=parameters.pk)).get()
+
+    assert result.effective_workload_cap == 0
+    assert result.available_workload_month <= 0
+    assert result.available_workload_30d <= 0
+
+
+@pytest.mark.django_db
+def test_annotate_workload_availability_ignores_zero_brake_on(article, editors, journal):
+    """A brake_on of 0 (the model default) means "no EO override": fall back to plain workload."""
+    parameters = StaffWorkloadParameters.objects.filter(user=editors[0]).first()
+    parameters.workload = 10
+    parameters.brake_on = 0
+    parameters.save()
+
+    result = annotate_workload_availability(StaffWorkloadParameters.objects.filter(pk=parameters.pk)).get()
+
+    assert result.effective_workload_cap == 10
+    assert result.available_workload_month == 10
+    assert result.available_workload_30d == 10
+
+
+@pytest.mark.django_db
+def test_annotate_workload_availability_counts_only_current_month(article, editors, journal, fake_request):
+    """Only WjsEditorAssignment rows assigned in the current calendar month count against the monthly cap."""
+    parameters = StaffWorkloadParameters.objects.filter(user=editors[0]).first()
+    parameters.workload = 1
+    parameters.brake_on = 0
+    parameters.save()
+
+    last_month_article = Article.objects.create(
+        journal=journal,
+        title="Old article",
+        owner=editors[0],
+        correspondence_author=editors[0],
+    )
+    old_assignment = WjsEditorAssignment.objects.create(
+        article=last_month_article,
+        editor=editors[0],
+        editor_type="section-editor",
+    )
+    WjsEditorAssignment.objects.filter(pk=old_assignment.pk).update(
+        assigned=timezone.now() - timedelta(days=45),
+    )
+
+    result = annotate_workload_availability(StaffWorkloadParameters.objects.filter(pk=parameters.pk)).get()
+
+    assert result.assignment_count_month == 0
+    assert result.available_workload_month == 1
+
+
+@pytest.mark.django_db
+def test_annotate_workload_availability_scoped_to_journal(
+    article,
+    editors,
+    journal,
+    journal_factory,
+):
+    """
+    The monthly assignment count must be scoped to each StaffWorkloadParameters' own journal.
+
+    An editor who also works for another journal (e.g. JCOM and JCOMAL) must not have an assignment
+    made in that other journal count against their capacity here: `StaffWorkloadParameters` is unique
+    per (user, journal), so the subquery must correlate on the outer row's own journal, not just the
+    editor.
+    """
+    other_journal = journal_factory("JOTHER")
+    editor = editors[0]
+
+    parameters = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
+    parameters.workload = 1
+    parameters.brake_on = 0
+    parameters.save()
+
+    StaffWorkloadParameters.objects.create(user=editor, journal=other_journal, workload=1)
+
+    other_journal_article = Article.objects.create(
+        journal=other_journal,
+        title="Other journal article",
+        owner=editor,
+        correspondence_author=editor,
+    )
+    WjsEditorAssignment.objects.create(
+        article=other_journal_article,
+        editor=editor,
+        editor_type="section-editor",
+    )
+
+    result = annotate_workload_availability(StaffWorkloadParameters.objects.filter(pk=parameters.pk)).get()
+
+    assert result.assignment_count_month == 0
+    assert result.available_workload_month == 1
+
+
+@pytest.mark.django_db
+def test_annotate_workload_availability_does_not_exclude_exhausted_editors(article, editors, journal):
+    """
+    An editor with no availability left this month is annotated, not filtered out.
+
+    Filtering on available_workload_month is now the caller's job (default_assign_editors_to_articles),
+    not this function's — the manual selection view deliberately does NOT filter on it (EO can
+    override the cap), so the annotation function itself must stay non-filtering.
+    """
+    parameters = StaffWorkloadParameters.objects.filter(user=editors[0]).first()
+    parameters.workload = 1
+    parameters.brake_on = 0
+    parameters.save()
+
+    WjsEditorAssignment.objects.create(article=article, editor=editors[0], editor_type="section-editor")
+
+    result = annotate_workload_availability(StaffWorkloadParameters.objects.filter(pk=parameters.pk)).get()
+
+    assert result.available_workload_month == 0
+
+
+@pytest.mark.django_db
+def test_annotate_workload_availability_excludes_withdrawn_papers(article, editors, journal):
+    """A withdrawn paper does not count against either workload window."""
+    parameters = StaffWorkloadParameters.objects.filter(user=editors[0]).first()
+    parameters.workload = 1
+    parameters.brake_on = 0
+    parameters.save()
+
+    withdrawn_article = Article.objects.create(
+        journal=journal,
+        title="Withdrawn article",
+        owner=editors[0],
+        correspondence_author=editors[0],
+    )
+    withdrawn_article.articleworkflow.state = ArticleWorkflow.ReviewStates.WITHDRAWN
+    withdrawn_article.articleworkflow.save()
+    WjsEditorAssignment.objects.create(
+        article=withdrawn_article,
+        editor=editors[0],
+        editor_type="section-editor",
+    )
+
+    result = annotate_workload_availability(StaffWorkloadParameters.objects.filter(pk=parameters.pk)).get()
+
+    assert result.assignment_count_month == 0
+    assert result.available_workload_month == 1
+    assert result.assignment_count_30d == 0
+    assert result.available_workload_30d == 1
+
+
+@pytest.mark.django_db
+def test_annotate_workload_availability_30d_and_month_windows_diverge(article, editors, journal):
+    """
+    An assignment from 25 days ago, but before the start of the current calendar month, counts
+    against the 30-day window but not the calendar-month window — proving the two windows are
+    genuinely independent, not the same count read twice.
+
+    Frozen at a fixed date (2026-01-20) so the scenario doesn't depend on which day of the month
+    the test suite happens to run on.
+    """
+    parameters = StaffWorkloadParameters.objects.filter(user=editors[0]).first()
+    parameters.workload = 1
+    parameters.brake_on = 0
+    parameters.save()
+
+    with freezegun.freeze_time("2026-01-20T12:00:00+00:00"):
+        other_article = Article.objects.create(
+            journal=journal,
+            title="Other article",
+            owner=editors[0],
+            correspondence_author=editors[0],
+        )
+        old_assignment = WjsEditorAssignment.objects.create(
+            article=other_article,
+            editor=editors[0],
+            editor_type="section-editor",
+        )
+        WjsEditorAssignment.objects.filter(pk=old_assignment.pk).update(
+            assigned=timezone.now() - timedelta(days=25),
+        )
+
+        result = annotate_workload_availability(StaffWorkloadParameters.objects.filter(pk=parameters.pk)).get()
+
+    assert result.assignment_count_month == 0
+    assert result.available_workload_month == 1
+    assert result.assignment_count_30d == 1
+    assert result.available_workload_30d == 0
+
+
+@pytest.mark.django_db
+def test_rank_editor_parameters_orders_by_keyword_score_then_workload(article, editors, keywords, journal):
+    """
+    Final order: highest keyword_score, then highest 30-day availability, then id.
+
+    Replaces the previous "highest single weight, then count" rule (spec 2026-09-29): broad weighted
+    coverage (three keywords at 80) now beats a single strong keyword (one at 100).
+    """
+    _set_article_keyword_weights(article, {keywords[0]: 100, keywords[1]: 100, keywords[2]: 100})
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors, journal=journal)
+    parameters.update(workload=10, brake_on=0)
+    param_broad, param_narrow, param_no_match = parameters.order_by("id")
+    for keyword in (keywords[0], keywords[1], keywords[2]):
+        StaffKeyword.objects.create(parameters=param_broad, keyword=keyword, weight=80)
+    StaffKeyword.objects.create(parameters=param_narrow, keyword=keywords[0], weight=100)
+
+    ranked = list(
+        rank_editor_parameters(annotate_workload_availability(annotate_keyword_ranking(article, parameters)))
+    )
+
+    assert ranked == [param_broad, param_narrow, param_no_match], "0.8 beats 0.333; no match last"
+
+
+@pytest.mark.django_db
+def test_rank_editor_parameters_breaks_score_ties_by_30d_availability(article, editors, keywords, journal):
+    """With equal keyword_score, the editor with more 30-day availability ranks first."""
+    _set_article_keyword_weights(article, {keywords[0]: 100})
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors, journal=journal)
+    parameters.update(workload=10, brake_on=0)
+    param_busy, param_free, _ = parameters.order_by("id")
+    for parameter in (param_busy, param_free):
+        StaffKeyword.objects.create(parameters=parameter, keyword=keywords[0], weight=100)
+    busy_article = Article.objects.create(journal=journal, title="Busy", owner=param_busy.user)
+    WjsEditorAssignment.objects.create(article=busy_article, editor=param_busy.user, editor_type="section-editor")
+
+    ranked = list(
+        rank_editor_parameters(annotate_workload_availability(annotate_keyword_ranking(article, parameters)))
+    )
+
+    assert ranked.index(param_free) < ranked.index(param_busy), "tie on score broken by 30-day availability"
+
+
+@pytest.mark.django_db
+def test_rank_editor_parameters_breaks_score_ties_by_shared_keyword_count(article, editors, keywords, journal):
+    """With an equal keyword_score (all weights 0), more shared keywords beats more 30-day availability."""
+    _set_article_keyword_weights(article, {keywords[0]: 100, keywords[1]: 100})
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors, journal=journal)
+    parameters.update(workload=10, brake_on=0)
+    param_two, param_one, _ = parameters.order_by("id")
+    StaffKeyword.objects.create(parameters=param_two, keyword=keywords[0], weight=0)
+    StaffKeyword.objects.create(parameters=param_two, keyword=keywords[1], weight=0)
+    StaffKeyword.objects.create(parameters=param_one, keyword=keywords[0], weight=0)
+    # The one-keyword editor is the less busy one, so workload alone would rank it first.
+    busy_article = Article.objects.create(journal=journal, title="Busy", owner=param_two.user)
+    WjsEditorAssignment.objects.create(article=busy_article, editor=param_two.user, editor_type="section-editor")
+
+    ranked = list(
+        rank_editor_parameters(annotate_workload_availability(annotate_keyword_ranking(article, parameters)))
+    )
+
+    scores = {p.pk: p.keyword_score for p in ranked}
+    assert scores[param_two.pk] == scores[param_one.pk], "precondition: the two editors tie on keyword_score"
+    assert ranked.index(param_two) < ranked.index(
+        param_one
+    ), "shared keyword count breaks the score tie before workload"
+
+
+@pytest.mark.django_db
+def test_rank_editor_parameters_puts_no_keyword_match_last_not_first(article, editors, keywords):
+    """
+    Regression guard: a NULL keyword_score (no keyword match at all) must sort
+    LAST, not first. Postgres sorts NULLs FIRST under a plain "-keyword_score"
+    DESC order_by — rank_editor_parameters must use nulls_last=True explicitly, or a
+    non-matching editor would rank ahead of any editor with a real match.
+    """
+    article.keywords.add(keywords[0])
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors)
+    for parameter in parameters:
+        parameter.workload = 10
+        parameter.save()
+    param_no_match, param_low_weight_match, _ = parameters.order_by("id")
+    StaffKeyword.objects.create(parameters=param_low_weight_match, keyword=keywords[0], weight=1)
+
+    ranked = list(
+        rank_editor_parameters(annotate_workload_availability(annotate_keyword_ranking(article, parameters))),
+    )
+
+    assert ranked[0] == param_low_weight_match
+    assert ranked[0].max_matching_keyword_weight == 1
+    assert ranked[0].keyword_score is not None, "the matched editor has a score"
+    assert param_no_match in ranked[1:]
+
+
+def _set_article_keyword_weights(article, weights_by_keyword):
+    """Attach keywords to the article with the given KeywordArticle weights (None allowed)."""
+    for keyword, weight in weights_by_keyword.items():
+        article.keywords.add(keyword)
+        KeywordArticle.objects.filter(article=article, keyword=keyword).update(weight=weight)
+
+
+def _score_for(article, editor):
+    """Return the keyword_score of one editor for the article."""
+    return (
+        Account.objects.get_editors_with_keywords(article, include_matching_keywords=False)
+        .get(pk=editor.pk)
+        .keyword_score
+    )
+
+
+@pytest.mark.django_db
+def test_keyword_score_matches_worked_example(article, editors, keywords, journal):
+    """Spec example: article weights 100/75/50/25, editor shares k0 (80) and k2 (100) -> 13000 / 25000 = 0.52."""
+    _set_article_keyword_weights(article, {keywords[0]: 100, keywords[1]: 75, keywords[2]: 50, keywords[3]: 25})
+    parameters = StaffWorkloadParameters.objects.get(user=editors[0], journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords[0], weight=80)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords[2], weight=100)
+
+    assert _score_for(article, editors[0]) == pytest.approx(0.52), "weighted coverage of the article's keywords"
+
+
+@pytest.mark.django_db
+def test_keyword_score_caps_editor_weight_at_100(article, editors, keywords, journal):
+    """An editor weight of 999 counts as 100, so full coverage scores exactly 1."""
+    _set_article_keyword_weights(article, {keywords[0]: 100})
+    parameters = StaffWorkloadParameters.objects.get(user=editors[0], journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords[0], weight=999)
+
+    assert _score_for(article, editors[0]) == pytest.approx(1.0), "editor weights above 100 are capped"
+
+
+@pytest.mark.django_db
+def test_keyword_score_null_article_weight_counts_as_100(article, editors, keywords, journal):
+    """A NULL KeywordArticle.weight counts as 100: (100*100) / ((100 + 50) * 100) = 2/3."""
+    _set_article_keyword_weights(article, {keywords[0]: None, keywords[1]: 50})
+    parameters = StaffWorkloadParameters.objects.get(user=editors[0], journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords[0], weight=100)
+
+    assert _score_for(article, editors[0]) == pytest.approx(2 / 3), "NULL article weight counts as 100"
+
+
+@pytest.mark.django_db
+def test_keyword_score_is_none_without_shared_keywords(article, editors, keywords, journal):
+    """No shared keyword, or an article without keywords, gives None rather than 0."""
+    parameters = StaffWorkloadParameters.objects.get(user=editors[0], journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords[5], weight=100)
+    article.keywords.clear()
+
+    assert _score_for(article, editors[0]) is None, "article without keywords has no score"
+
+    _set_article_keyword_weights(article, {keywords[0]: 100})
+
+    assert _score_for(article, editors[0]) is None, "editor without a shared keyword has no score"
+
+
+@pytest.mark.django_db
+def test_keyword_score_is_none_when_all_article_weights_are_zero(article, editors, keywords, journal):
+    """All-zero article weights give no score instead of a division-by-zero error."""
+    _set_article_keyword_weights(article, {keywords[0]: 0})
+    parameters = StaffWorkloadParameters.objects.get(user=editors[0], journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords[0], weight=100)
+
+    assert _score_for(article, editors[0]) is None, "zero denominator must not crash"
+
+
+@pytest.mark.django_db
+def test_keyword_score_ignores_other_journal_keywords(article, editors, keywords, journal, journal_factory):
+    """Keywords the editor holds only in another journal's parameters don't count."""
+    _set_article_keyword_weights(article, {keywords[0]: 100, keywords[1]: 100})
+    parameters = StaffWorkloadParameters.objects.get(user=editors[0], journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords[0], weight=100)
+    other_parameters = StaffWorkloadParameters.objects.create(user=editors[0], journal=journal_factory("JOTHER"))
+    StaffKeyword.objects.create(parameters=other_parameters, keyword=keywords[1], weight=100)
+
+    assert _score_for(article, editors[0]) == pytest.approx(0.5), "only this journal's editor keywords count"
+
+
+@pytest.mark.django_db
+def test_keyword_score_not_inflated_by_past_assignments(article, editors, keywords, journal):
+    """Being a past editor of the article must not multiply the score (join-multiplication guard)."""
+    _set_article_keyword_weights(article, {keywords[0]: 100, keywords[1]: 100})
+    parameters = StaffWorkloadParameters.objects.get(user=editors[0], journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords[0], weight=100)
+    before = _score_for(article, editors[0])
+    now = timezone.now()
+    for days in (10, 5):
+        PastEditorAssignment.objects.create(
+            article=article,
+            editor=editors[0],
+            date_assigned=now - timedelta(days=days + 1),
+            date_unassigned=now - timedelta(days=days),
+        )
+
+    assert before == pytest.approx(0.5), "precondition: half coverage"
+    assert _score_for(article, editors[0]) == pytest.approx(before), "past assignments must not change the score"
+
+
+@pytest.mark.django_db
+def test_annotate_keyword_ranking_carries_keyword_score(article, editors, keywords, journal):
+    """annotate_keyword_ranking exposes keyword_score on the StaffWorkloadParameters rows."""
+    _set_article_keyword_weights(article, {keywords[0]: 100, keywords[1]: 100})
+    parameters = StaffWorkloadParameters.objects.filter(user__in=editors, journal=journal)
+    matched, unmatched, _ = parameters.order_by("id")
+    StaffKeyword.objects.create(parameters=matched, keyword=keywords[0], weight=100)
+
+    result = {p.pk: p for p in annotate_keyword_ranking(article, parameters)}
+
+    assert result[matched.pk].keyword_score == pytest.approx(0.5), "score carried onto parameters"
+    assert result[unmatched.pk].keyword_score is None, "no match keeps None"

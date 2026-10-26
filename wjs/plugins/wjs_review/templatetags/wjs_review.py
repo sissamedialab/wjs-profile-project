@@ -127,6 +127,24 @@ def is_enabled_as_editor(user: Account, journal: Journal) -> bool:
 
 
 @register.filter
+def is_disabled_by_eo(user: Account, journal: Journal) -> bool:
+    """
+    Check if the EO has disabled a user as an editor for a journal.
+
+    This is the EO/director-only ``brake_on == -1`` override, separate from (and invisible
+    to) the editor's own self-disable checked by `is_enabled_as_editor`.
+
+    :param user: The account to check for EO-level disablement.
+    :type user: Account
+    :param journal: The journal to evaluate the disablement for.
+    :type journal: Journal
+    :return: True if the EO has disabled this user as an editor for the journal.
+    :rtype: bool
+    """
+    return user.jcomprofile.is_disabled_by_eo(journal)
+
+
+@register.filter
 def user_vacancy_dates(user: Account, journal: Journal) -> str:
     """
     Format editor vacancy dates for the specified journal if set.
