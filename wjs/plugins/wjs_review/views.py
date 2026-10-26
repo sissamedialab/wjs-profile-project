@@ -69,13 +69,14 @@ from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.jpbridge.logic import can_access_my_payments
 from wjs.jcom_profile.mixins import HtmxMixin, PaginatedViewMixin
-from wjs.jcom_profile.models import IssueParameters
+from wjs.jcom_profile.models import IssueParameters, StaffWorkloadParameters
 from wjs.jcom_profile.pagination import CountlessPaginator
 from wjs.jcom_profile.utils import get_eo_user
 
 from . import ac_service, permissions
 from .communication_utils import get_messages_related_to_me, group_messages_by_version
 from .conversion import LatexReportConvertService
+from .events.assignment import annotate_workload_availability
 from .filters import (
     AuthorArticleWorkflowFilter,
     EOArticleWorkflowFilter,
@@ -3609,17 +3610,57 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
 
     def _editors_with_keywords(self, search_text) -> QuerySet[Account]:
         """
-        Provides a list of available editors annotated with related keywords.
+        Provide every SECTION_EDITOR_ROLE editor, ranked and annotated with availability info.
 
-        The list is filtered by removing current editor, if any.
+        Matches wjs-develop's pre-existing behavior: every SECTION_EDITOR_ROLE editor stays
+        visible and selectable regardless of availability (disabled, on vacation, over their
+        monthly cap, or with no StaffWorkloadParameters configured at all) — availability only
+        differentiates via the workload annotation and the template's existing "self disabled"/
+        "unavailable" badges (see editor_list.html), it never excludes. This is a deliberate
+        difference from automatic assignment, which does hard-exclude on availability
+        (get_available_editor_parameters): the EO needs to see everyone to make an informed
+        manual override.
+
+        Reuses Account.objects.get_editors_with_keywords for the keyword annotation (unchanged,
+        still shared with automatic assignment via annotate_keyword_ranking) and
+        annotate_workload_availability for the workload figures (also unchanged/shared), but does
+        not filter on either.
+
+        The list is filtered by removing the current editor, if any, and any of the article's authors.
         """
-        article_authors = self.object.article.author_accounts.all()
+        article = self.object.article
+        article_authors = article.author_accounts.all()
         try:
             current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
         except WjsEditorAssignment.DoesNotExist:
             current_editor = None
-        qs = Account.objects.get_editors_with_keywords(self.object.article, current_editor).exclude(
-            pk__in=article_authors
+
+        section_editors = core_models.AccountRole.objects.filter(
+            journal=article.journal,
+            role=core_models.Role.objects.get(slug=constants.SECTION_EDITOR_ROLE),
+        ).values_list("user")
+        section_editor_parameters = annotate_workload_availability(
+            StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=section_editors),
+        )
+
+        qs = (
+            Account.objects.get_editors_with_keywords(article, current_editor)
+            .filter(pk__in=section_editors)
+            .exclude(pk__in=article_authors)
+            .annotate(
+                available_workload_month=Subquery(
+                    section_editor_parameters.filter(user=OuterRef("pk")).values("available_workload_month")[:1],
+                ),
+                available_workload_30d=Subquery(
+                    section_editor_parameters.filter(user=OuterRef("pk")).values("available_workload_30d")[:1],
+                ),
+            )
+            .order_by(
+                F("keyword_score").desc(nulls_last=True),
+                F("num_shared_kwds").desc(),
+                F("available_workload_30d").desc(nulls_last=True),
+                "id",
+            )
         )
         if search_text:
             search_filters = Q(Q(first_name__icontains=search_text) | Q(last_name__icontains=search_text))

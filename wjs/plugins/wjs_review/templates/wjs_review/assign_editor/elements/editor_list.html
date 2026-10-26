@@ -10,11 +10,14 @@
       {{ user.get_full_name }} {% if user.article_editor %}[ {% translate "past editor" %} ]{% endif %}
       {% if user|user_vacancy_dates:journal %} - <span class="text-muted">{% translate "Unavailable" %} {{ user|user_vacancy_dates:journal }}</span>{% endif %}
       {% if not user|is_enabled_as_editor:journal %} - <span class="text-danger">{% translate "Permanently self disabled" %}</span>{% endif %}
+      {% if user|is_disabled_by_eo:journal %} - <span class="text-danger">{% translate "Disabled by EO" %}</span>{% endif %}
     </td>
     {% if workflow.article.journal|show_editor_keywords %}
       <td>{{ user.matching_keywords|join:", " }}</td>
       <td>{{ user.num_shared_kwds }}</td>
+      <td>{% if user.keyword_score is not None %}{% widthratio user.keyword_score 1 100 %}%{% else %}—{% endif %}</td>
     {% endif %}
+    <td>{{ user.available_workload_month }}</td>
     <td>
       {{ user.managed_issue.issue_title }}
     </td>

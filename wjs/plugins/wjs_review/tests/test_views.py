@@ -10,6 +10,7 @@ from django.core import mail
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponseRedirect, QueryDict
 from django.template.loader import render_to_string
+from django.test import override_settings
 from django.test.client import Client
 from django.urls import reverse
 from django.utils import translation
@@ -23,7 +24,8 @@ from submission import models as submission_models
 from submission.models import Article
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile import constants
+from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
@@ -1188,6 +1190,27 @@ def test_editor_with_kdws_list_retrieval(article_with_keywords, editors_with_key
 
 
 @pytest.mark.django_db
+def test_editor_with_kdws_scoped_to_article_journal(article_with_keywords, editors_with_keywords, keywords, press):
+    """
+    Keyword matches from a different journal's StaffWorkloadParameters must not count towards
+    num_shared_kwds/max_matching_keyword_weight for an article in a different journal.
+    """
+    other_journal = _journal_factory("OTHERJ", press)
+    cross_journal_editor = editors_with_keywords[0]
+    # editors_with_keywords[0] already matches k0/k1/k2 (all weight 0) via StaffKeyword rows in
+    # `journal`. Give them an additional, higher-weight match to the same keyword, but in a
+    # different journal, and confirm it is not counted for an article in `journal`.
+    other_params = StaffWorkloadParameters.objects.create(user=cross_journal_editor, journal=other_journal)
+    StaffKeyword.objects.create(parameters=other_params, keyword=keywords[0], weight=99)
+
+    editors_list = Account.objects.get_editors_with_keywords(article_with_keywords)
+    matched = editors_list.get(pk=cross_journal_editor.janeway_account.pk)
+
+    assert matched.num_shared_kwds == 3
+    assert matched.max_matching_keyword_weight == 0
+
+
+@pytest.mark.django_db
 def test_editor_archived(
     assigned_article: Article,
     section_editor: JCOMProfile,
@@ -1265,6 +1288,11 @@ def test_eo_select_editor(
         "note_for_past_editor": "test",
         "note_for_new_editor": "test",
     }
+    StaffWorkloadParameters.objects.create(
+        user=section_editor.janeway_account,
+        journal=submitted_workflow.article.journal,
+        workload=10,
+    )
     view = SupervisorAssignEditor()
     view.request = fake_request
     view.args = (submitted_workflow.article.pk,)
@@ -1290,6 +1318,11 @@ def test_eo_select_new_editor(
 ):
     """An EO can select an editor for an article with an existing editor."""
     normal_user.janeway_account.add_account_role("section-editor", assigned_article.journal)
+    StaffWorkloadParameters.objects.create(
+        user=normal_user.janeway_account,
+        journal=assigned_article.journal,
+        workload=10,
+    )
     old_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = eo_user.janeway_account
     fake_request.method = "POST"
@@ -1316,6 +1349,271 @@ def test_eo_select_new_editor(
         == normal_user.janeway_account
     )
     assert PastEditorAssignment.objects.get(article=assigned_article.articleworkflow.article).editor == old_editor
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_keeps_unavailable_visible_excludes_non_section_editor(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    review_settings,
+):
+    """
+    _editors_with_keywords keeps every SECTION_EDITOR_ROLE editor visible regardless of
+    availability (matching wjs-develop's pre-existing behavior — availability differentiates,
+    it never excludes) but still restricts the role set to SECTION_EDITOR_ROLE only (D6).
+    """
+    journal = submitted_workflow.article.journal
+    StaffWorkloadParameters.objects.create(user=section_editor.janeway_account, journal=journal, workload=10)
+
+    disabled_editor = create_jcom_user("disabled_section_editor")
+    disabled_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.create(
+        user=disabled_editor.janeway_account,
+        journal=journal,
+        workload=10,
+        enabled=False,
+    )
+
+    unconfigured_editor = create_jcom_user("unconfigured_section_editor")
+    unconfigured_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    # Deliberately no StaffWorkloadParameters row at all for this one.
+
+    plain_editor_role_user = create_jcom_user("plain_editor_role")
+    plain_editor_role_user.add_account_role(constants.EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.create(user=plain_editor_role_user.janeway_account, journal=journal, workload=10)
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = view._editors_with_keywords(search_text=None)
+
+    assert section_editor.janeway_account in candidates
+    assert disabled_editor.janeway_account in candidates
+    assert unconfigured_editor.janeway_account in candidates
+    assert plain_editor_role_user.janeway_account not in candidates
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_annotates_and_orders_by_workload(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    review_settings,
+):
+    """
+    _editors_with_keywords annotates available_workload_month and orders candidates with no
+    keyword match (both editors here have none) by descending 30-day workload availability.
+    """
+    journal = submitted_workflow.article.journal
+    StaffWorkloadParameters.objects.create(
+        user=section_editor.janeway_account,
+        journal=journal,
+        workload=1,
+    )
+
+    high_availability_editor = create_jcom_user("high_availability_editor")
+    high_availability_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.create(
+        user=high_availability_editor.janeway_account,
+        journal=journal,
+        workload=10,
+    )
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = list(view._editors_with_keywords(search_text=None))
+
+    section_editor_candidate = next(c for c in candidates if c.pk == section_editor.janeway_account.pk)
+    high_availability_candidate = next(c for c in candidates if c.pk == high_availability_editor.janeway_account.pk)
+    assert section_editor_candidate.available_workload_month == 1
+    assert high_availability_candidate.available_workload_month == 10
+    assert candidates.index(high_availability_candidate) < candidates.index(section_editor_candidate)
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_ranks_keyword_match_ahead_of_no_match(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    keywords,
+    review_settings,
+):
+    """
+    _editors_with_keywords must rank a real keyword match ahead of a non-match.
+
+    Regression guard for the manual-view ordering mirroring rank_editor_parameters: the view orders by
+    keyword_score nulls-last. Postgres sorts NULLs FIRST under a plain DESC order_by, so a non-matching
+    editor (keyword_score is NULL) would otherwise rank ahead of any editor with a real, even low-weight, match.
+    """
+    journal = submitted_workflow.article.journal
+    submitted_workflow.article.keywords.add(keywords[0])
+
+    matched_editor = create_jcom_user("matched_section_editor")
+    matched_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    matched_parameters = StaffWorkloadParameters.objects.create(
+        user=matched_editor.janeway_account,
+        journal=journal,
+        workload=10,
+        enabled=True,
+    )
+    StaffKeyword.objects.create(parameters=matched_parameters, keyword=keywords[0], weight=1)
+
+    unmatched_editor = create_jcom_user("unmatched_section_editor")
+    unmatched_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.create(
+        user=unmatched_editor.janeway_account,
+        journal=journal,
+        workload=10,
+        enabled=True,
+    )
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = list(view._editors_with_keywords(search_text=None))
+
+    matched_candidate = next(c for c in candidates if c.pk == matched_editor.janeway_account.pk)
+    unmatched_candidate = next(c for c in candidates if c.pk == unmatched_editor.janeway_account.pk)
+    assert matched_candidate.max_matching_keyword_weight == 1
+    assert unmatched_candidate.max_matching_keyword_weight is None
+    assert candidates.index(matched_candidate) < candidates.index(unmatched_candidate)
+    assert matched_candidate.keyword_score is not None, "matched editor has a score"
+    assert unmatched_candidate.keyword_score is None, "unmatched editor has no score"
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_ranks_by_keyword_score(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    keywords,
+    review_settings,
+):
+    """The manual list orders by keyword_score: broad weighted coverage ahead of one strong keyword."""
+    journal = submitted_workflow.article.journal
+    for keyword in (keywords[0], keywords[1], keywords[2]):
+        submitted_workflow.article.keywords.add(keyword)
+
+    def _editor(name, weights):
+        editor = create_jcom_user(name)
+        editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+        parameters = StaffWorkloadParameters.objects.create(
+            user=editor.janeway_account, journal=journal, workload=10, enabled=True
+        )
+        for keyword, weight in weights:
+            StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=weight)
+        return editor.janeway_account
+
+    narrow = _editor("narrow_section_editor", [(keywords[0], 100)])
+    broad = _editor("broad_section_editor", [(keywords[0], 80), (keywords[1], 80), (keywords[2], 80)])
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = list(view._editors_with_keywords(search_text=None))
+
+    assert candidates.index(broad) < candidates.index(narrow), "keyword_score orders the manual list"
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_breaks_score_ties_by_shared_keyword_count(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    keywords,
+    review_settings,
+):
+    """With an equal keyword_score (all weights 0), the manual list ranks more shared keywords first."""
+    journal = submitted_workflow.article.journal
+    for keyword in (keywords[0], keywords[1]):
+        submitted_workflow.article.keywords.add(keyword)
+
+    def _editor(name, workload, kwds):
+        editor = create_jcom_user(name)
+        editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+        parameters = StaffWorkloadParameters.objects.create(
+            user=editor.janeway_account, journal=journal, workload=workload, enabled=True
+        )
+        for keyword in kwds:
+            StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=0)
+        return editor.janeway_account
+
+    # The one-keyword editor has the higher workload capacity, so availability alone would rank it first.
+    one_kwd = _editor("one_kwd_section_editor", 20, [keywords[0]])
+    two_kwds = _editor("two_kwds_section_editor", 5, [keywords[0], keywords[1]])
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = list(view._editors_with_keywords(search_text=None))
+
+    scores = {c.pk: c.keyword_score for c in candidates}
+    assert scores[one_kwd.pk] == scores[two_kwds.pk], "precondition: equal keyword_score"
+    assert candidates.index(two_kwds) < candidates.index(one_kwd), "shared keyword count breaks the score tie"
+
+
+@pytest.mark.django_db
+def test_select_new_editor_page_shows_keyword_score(
+    submitted_workflow: ArticleWorkflow,
+    eo_user: JCOMProfile,
+    create_jcom_user: Callable,
+    keywords,
+    review_settings,
+):
+    """The manual editor table shows each editor's keyword score as a percentage, or a dash."""
+    journal = submitted_workflow.article.journal
+    submitted_workflow.article.keywords.add(keywords[0], keywords[1])
+    for name, weights in (("scored_editor", [(keywords[0], 100)]), ("unscored_editor", [])):
+        editor = create_jcom_user(name)
+        editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+        parameters = StaffWorkloadParameters.objects.create(
+            user=editor.janeway_account, journal=journal, workload=10, enabled=True
+        )
+        for keyword, weight in weights:
+            StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=weight)
+    client = Client()
+    client.force_login(eo_user.janeway_account)
+
+    with override_settings(WJS_SHOW_EDITOR_KEYWORDS=[journal.code]):
+        response = client.get(reverse("wjs_assign_editor", args=(submitted_workflow.pk,)))
+
+    content = response.content.decode()
+    assert response.status_code == 200, "EO can open the page"
+    assert "Keyword score" in content, "column header shown"
+    assert "50%" in content, "one of two equally weighted keywords at full weight = 50%"
+    assert "—" in content, "editors without a shared keyword show a dash"
 
 
 @pytest.mark.django_db

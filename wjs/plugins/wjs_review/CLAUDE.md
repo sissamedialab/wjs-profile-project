@@ -132,6 +132,15 @@ assuming every `run()` is race-safe.
   Classes implement `check()`/`check_default()`, not `run()`. `PermissionChecker` (`logic__visibility.py:579`)
   is the one genuine registry in the permission system — see "Permissions & visibility" below.
 
+### Editor candidate ranking
+
+Editor candidates are ranked by `keyword_score` (weighted keyword coverage, see
+`users.py::_keyword_score_expression`, highest first, no shared keyword ranks last), then the
+shared-keyword count (`num_shared_kwds`/`matching_keywords_count`, breaks exact score ties, e.g. all-zero editor weights),
+then `available_workload_30d`, then `id`. The same order is used by automatic assignment
+(`events/assignment.py::rank_editor_parameters`) and by the manual Select new editor page, which shows the score.
+`max_matching_keyword_weight` is still annotated but no longer orders anything.
+
 ### Invocation
 
 Forms call `self.get_logic_instance(cleaned_data)` to build the logic object, then `save()` calls

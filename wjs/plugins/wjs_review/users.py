@@ -7,23 +7,29 @@ from django.db.models import (
     Case,
     Count,
     Exists,
+    ExpressionWrapper,
+    F,
+    FloatField,
     IntegerField,
+    Max,
     OuterRef,
     Q,
     QuerySet,
     Subquery,
+    Sum,
     Value,
     When,
 )
 from django.db.models.expressions import NegatedExpression
+from django.db.models.functions import Least
 from django.http import QueryDict
 from django.utils.timezone import now
 from journal.models import Journal
-from submission.models import Article, Keyword
+from submission.models import Article, Keyword, KeywordArticle
 from utils.logger import get_logger
 
 from wjs.jcom_profile import constants
-from wjs.jcom_profile.models import StaffWorkloadParameters
+from wjs.jcom_profile.models import StaffKeyword, StaffWorkloadParameters
 
 from .models import (
     ArticleWorkflow,
@@ -310,12 +316,76 @@ def annotate_is_only_prophy(self):
     )
 
 
-def get_editors_with_keywords(self, article: Article, current_editor: Optional[Account] = None) -> QuerySet[Account]:
+KEYWORD_WEIGHT_CAP = 100
+
+
+def _keyword_score_expression(article: Article):
+    """
+    Build the weighted keyword score of an editor (OuterRef("pk")) for ``article``.
+
+    score = sum over shared keywords of article_weight * min(editor_weight, 100),
+    divided by sum over all article keywords of article_weight * 100. A NULL article weight
+    counts as 100. The result is None when the editor shares no keyword, the article has none, or every
+    article keyword has weight 0 (the denominator would be 0 and the SQL division would fail).
+    Computed in a correlated subquery so the joins of the outer editors query cannot multiply it.
+    """
+    article_weights = {
+        keyword_id: KEYWORD_WEIGHT_CAP if weight is None else weight
+        for keyword_id, weight in KeywordArticle.objects.filter(article=article).values_list("keyword_id", "weight")
+    }
+    denominator = float(sum(article_weights.values()) * KEYWORD_WEIGHT_CAP)
+    if not denominator:
+        return Value(None, output_field=FloatField())
+    article_weight = Case(
+        *[When(keyword_id=keyword_id, then=Value(weight)) for keyword_id, weight in article_weights.items()],
+        default=Value(0),
+        output_field=IntegerField(),
+    )
+    weighted_sum = (
+        StaffKeyword.objects.filter(
+            parameters__user=OuterRef("pk"),
+            parameters__journal=article.journal,
+            keyword_id__in=list(article_weights),
+        )
+        .values("parameters__user")
+        .annotate(total=Sum(Least(F("weight"), Value(KEYWORD_WEIGHT_CAP)) * article_weight))
+        .values("total")
+    )
+    return ExpressionWrapper(
+        Subquery(weighted_sum, output_field=IntegerField()) / Value(denominator),
+        output_field=FloatField(),
+    )
+
+
+def get_editors_with_keywords(
+    self,
+    article: Article,
+    current_editor: Optional[Account] = None,
+    include_matching_keywords: bool = True,
+) -> QuerySet[Account]:
     """
     Return the list of editors ordered by number of matching keywords they have with the article.
-    The list of matching keywords and the count are also returned.
+
+    Annotates each editor with ``num_shared_kwds`` (count of distinct article keywords they
+    share) and ``max_matching_keyword_weight`` (the highest configured weight among those
+    matches, or None if there is no match). Both are scoped to the editor's StaffWorkloadParameters
+    for the article's own journal: an editor with StaffWorkloadParameters (and keywords) in a
+    different journal must not have those counted here.
+
+    Also annotates ``keyword_score``: the weighted coverage of the article's keywords by the editor's
+    keywords, in 0-1, or None when the editor shares no keyword or the article has none (see
+    :py:func:`_keyword_score_expression`). Same journal scoping as above.
+
+    :param include_matching_keywords: When True (the default, used for manual editor selection),
+        each returned row is also annotated with a ``.matching_keywords`` list of matched keyword
+        words, at the cost of one extra query per row. Callers that only need the counts/weights
+        (e.g. automatic-assignment ranking) should pass False to skip that cost.
     """
     article_keywords_ids = list(article.keywords.values_list("id", flat=True))
+    keyword_match_filter = Q(
+        staffworkloadparameters__journal=article.journal,
+        staffworkloadparameters__staffkeyword__keyword__id__in=article_keywords_ids,
+    )
 
     editors = self.filter(
         accountrole__role__slug__in=[constants.EDITOR_ROLE, constants.SECTION_EDITOR_ROLE],
@@ -329,11 +399,16 @@ def get_editors_with_keywords(self, article: Article, current_editor: Optional[A
 
     editors = editors.annotate(
         num_shared_kwds=Count(
-            "staffworkloadparameters__keywords",
-            filter=Q(staffworkloadparameters__keywords__id__in=article_keywords_ids),
+            "staffworkloadparameters__staffkeyword__keyword",
+            filter=keyword_match_filter,
             distinct=True,
         ),
+        max_matching_keyword_weight=Max(
+            "staffworkloadparameters__staffkeyword__weight",
+            filter=keyword_match_filter,
+        ),
     )
+    editors = editors.annotate(keyword_score=_keyword_score_expression(article))
 
     editors = editors.annotate(
         article_editor=Count(
@@ -345,13 +420,18 @@ def get_editors_with_keywords(self, article: Article, current_editor: Optional[A
 
     editors = editors.order_by("-num_shared_kwds", "first_name", "last_name")
 
-    for editor in editors:
-        matching_keywords = (
-            Keyword.objects.filter(staffworkloadparameters__user=editor, id__in=article_keywords_ids)
-            .distinct()
-            .values_list("word", flat=True)
-        )
-        editor.matching_keywords = list(matching_keywords)
+    if include_matching_keywords:
+        for editor in editors:
+            matching_keywords = (
+                Keyword.objects.filter(
+                    staffworkloadparameters__user=editor,
+                    staffworkloadparameters__journal=article.journal,
+                    id__in=article_keywords_ids,
+                )
+                .distinct()
+                .values_list("word", flat=True)
+            )
+            editor.matching_keywords = list(matching_keywords)
 
     return editors
 
