@@ -538,11 +538,11 @@ class RequestProofs:
     def _create_proofing_assignment(self):
         self.proofreader = self.article.correspondence_author
         if self.assignment.round.round_number == 1:
-            due = timezone.now().date() + datetime.timedelta(
+            due = timezone.localdate() + datetime.timedelta(
                 days=settings.PROOFING_ASSIGNMENT_MAX_DUE_DAYS,
             )
         else:
-            due = timezone.now().date() + datetime.timedelta(
+            due = timezone.localdate() + datetime.timedelta(
                 days=settings.PROOFING_ASSIGNMENT_MIN_DUE_DAYS,
             )
         proofing_assignment = GalleyProofing.objects.create(
