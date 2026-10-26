@@ -29,6 +29,8 @@ from plugins.wjs_submission.correction.logic import (
     SECTION_NAME_BY_RELATIONSHIP,
     get_or_create_linked_article,
 )
+from plugins.wjs_submission.models import AccessMode, AccessModeJournal
+from plugins.wjs_submission.settings import OA_CODE
 from press.models import Press
 from submission import models as submission_models
 from submission.logic import add_author_using_email
@@ -693,7 +695,15 @@ def published_articles(author, editor, journal, sections, keywords):
 
 
 @pytest.fixture
-def published_article_with_standard_galleys(journal, article_factory, author):
+def access_mode_oa(journal):
+    licence = submission_models.Licence.objects.filter(journal=journal).first()
+    am, __ = AccessMode.objects.get_or_create(code=OA_CODE, name=OA_CODE)
+    AccessModeJournal.objects.create(journal=journal, access_mode=am, licence=licence, copyright="all mine")
+    return am
+
+
+@pytest.fixture
+def published_article_with_standard_galleys(journal, article_factory, author, access_mode_oa):
     """Create articles in published stage with PDF and EPUB galleys."""
     article = article_factory(
         journal=journal,
@@ -702,6 +712,8 @@ def published_article_with_standard_galleys(journal, article_factory, author):
         correspondence_author=author.janeway_account,
         owner=author.janeway_account,
     )
+    article.submission_data.access_mode = access_mode_oa
+    article.submission_data.save()
     pubid = "JCOM_0102_2023_A04"
     Identifier.objects.create(
         id_type="pubid",

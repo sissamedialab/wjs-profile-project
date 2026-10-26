@@ -135,6 +135,10 @@ class Command(BaseCommand):
                     "licence": "CC BY 4.0",
                     "copyright": "Authors",
                 },
+                "free-to-read": {
+                    "licence": "CC BY 4.0",
+                    "copyright": "Authors",
+                },
             },
             "JINST": {
                 "subscription": {
@@ -156,6 +160,10 @@ class Command(BaseCommand):
                 "oa-cern-affiliated": {
                     "licence": "CC BY 4.0",
                     "copyright": "CERN",
+                },
+                "free-to-read": {
+                    "licence": "CC BY 4.0",
+                    "copyright": "Authors",
                 },
             },
             "JCOM": {
@@ -182,10 +190,14 @@ class Command(BaseCommand):
                     journal=journal, short_name=data["licence"], defaults={"name": data["licence"]}
                 )
                 user_selectable = access_mode_code in ["open-access", "subscription", "open-access-paid"]
-                access_mode, __ = AccessMode.objects.get_or_create(
+                access_mode, created = AccessMode.objects.get_or_create(
                     code=access_mode_code,
                     defaults={"name": access_modes[access_mode_code], "user_selectable": user_selectable},
                 )
+                if not created and access_mode.user_selectable != user_selectable:
+                    # e.g. access modes created by the importer (default user_selectable=True) must not be offered
+                    access_mode.user_selectable = user_selectable
+                    access_mode.save(update_fields=["user_selectable"])
                 AccessModeJournal.objects.update_or_create(
                     access_mode=access_mode, journal=journal, licence=licence, copyright=data["copyright"]
                 )

@@ -6118,6 +6118,44 @@ def test_submission_special_request_revision_status(
         assert not Message.objects.all().exists()
 
 
+@pytest.mark.parametrize("access_mode_changed", [True, False])
+@pytest.mark.django_db
+def test_populate_revision_step7_access_mode_overrides(
+    editor_revision: EditorRevisionRequest,
+    review_settings,
+    access_mode_changed: bool,
+):
+    """
+    License and rights overrides are dropped only if the revision changes the access mode.
+
+    When the access mode is recalculated (e.g. the affiliation changed), licence and copyright follow the new access
+    mode; otherwise the overrides (e.g. set by the EO) are preserved.
+    """
+    from plugins.wjs_submission.models import AccessMode  # noqa: PLC0415
+
+    article = editor_revision.article
+    current = AccessMode.objects.create(code="current-mode", name="Current")
+    new = AccessMode.objects.create(code="new-mode", name="New")
+    article.submission_data.access_mode = current
+    article.submission_data.license_override = True
+    article.submission_data.rights_override = True
+    article.submission_data.save()
+    revision_storage = RevisionStorage.objects.create(
+        article=article,
+        revision_flow_type=RevisionStorage.RevisionFlowType.FULL,
+        data={"access_mode": (new if access_mode_changed else current).pk},
+    )
+
+    PopulateRevisionStep7(
+        article=article,
+        revision=editor_revision,
+        revision_storage=revision_storage,
+    ).run()
+
+    assert article.submission_data.license_override is not access_mode_changed
+    assert article.submission_data.rights_override is not access_mode_changed
+
+
 @pytest.mark.parametrize(
     "storage_special_request,existing_special_request,expect_notification",
     (
