@@ -566,30 +566,47 @@ def reviewer_report_is_late(article: Article) -> str:
         return ""
 
 
+def _days(days: int) -> str:
+    """Return "1 day" / "N days"."""
+    return f"{days} day{'' if days == 1 else 's'}"
+
+
 def is_typesetter_late(assignment: TypesettingAssignment, for_typesetter: bool = False) -> str:
     """Tell if the typesetter is late with the assignment.
+
+    The typesetter is late from the day after the due date (specs#3264): since ``due`` is set to the assignment
+    date + ``TYPESETTING_ASSIGNMENT_DEFAULT_DUE_DAYS``, the AC starts on the last action + 4 days.
 
     With for_typesetter=True the message addresses the typesetter directly
     (the AC is shown to the typesetter themselves).
     """
     if not assignment or not assignment.due:
         return ""
-    today = timezone.now().date()
-    if today >= assignment.due:
+    today = timezone.localdate()
+    if today > assignment.due:
         days = (today - assignment.due).days
+        days_late = f"{_days(days)} late"
         if for_typesetter:
-            return f"You are {days} days late"
-        return f"Typesetter is {days} days late"
+            return f"You are {days_late}"
+        return f"Typesetter is {days_late}"
     else:
         return ""
 
 
 def is_author_proofing_late(assignment: GalleyProofing) -> str:
-    """Tell if the author is late with the proofing assignment."""
-    if assignment and assignment.due and timezone.now() >= assignment.due:
+    """Tell if the author is late with the proofing assignment.
+
+    As for :py:func:`is_typesetter_late`, the author is late from the day after the due date (specs#3264).
+    ``due`` is a datetime (production stores the local midnight of the due day): compare local dates.
+    """
+    if not assignment or not assignment.due:
+        return ""
+    due = timezone.localtime(assignment.due).date()
+    today = timezone.localdate()
+    if today > due:
         return (
-            f"Proofing is late by {(timezone.now() - assignment.due).days} days."
-            f" Was expected by {assignment.due.strftime('%F')}."
+            f"Proofing is late by {_days((today - due).days)}."
+            f" Was expected by {due.strftime('%F')}."
             " Please contact the author."
         )
     else:
