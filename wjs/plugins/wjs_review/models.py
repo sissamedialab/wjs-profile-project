@@ -2153,10 +2153,11 @@ class WorkflowReviewAssignment(ReviewAssignment):
         if self.is_complete:
             return
 
-        if self.date_due < timezone.now().date():
+        if self.date_due < timezone.localtime(timezone.now()).date():
             return ReviewAssignmentAttentionCondition(
                 code="late",
-                message=_("No feedback after %s day(s).") % (timezone.now().date() - self.date_due).days,
+                message=_("No feedback after %s day(s).")
+                % (timezone.localtime(timezone.now()).date() - self.date_due).days,
                 style="border border-danger",
                 icon_value='<span class="ra-condition-icon"><i class="bi bi-clock-fill"></i></span>',
             )

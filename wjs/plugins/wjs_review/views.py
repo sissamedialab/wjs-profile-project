@@ -604,7 +604,7 @@ class BaseWorkOnIssue(BaseRelatedViewsMixin, ListView):
             .get_queryset()
             .filter(
                 Q(journal=self.request.journal)
-                & (Q(date__gte=timezone.now().date()) | Q(current_issue=self.request.journal))
+                & (Q(date__gte=timezone.localtime(timezone.now()).date()) | Q(current_issue=self.request.journal))
             )
             .order_by("date")
         )
@@ -1982,7 +1982,7 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()
         # kwargs["data"] "wins" over self.request.GET because it's the form data sent by the user.
         # But kwargs["data"] is not always present, so I try to be as safe as possible. Hope this is not "unreadable"
         decision = kwargs.get("data", {}).get("decision", self.request.GET.get("decision", None))
@@ -3818,7 +3818,7 @@ class AdminOpensAppealView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
             setting_name="default_author_appeal_revision_days",
             journal=self.object.article.journal,
         ).process_value()
-        date_due = timezone.now().date() + datetime.timedelta(days=appeal_revision_days)
+        date_due = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=appeal_revision_days)
         context["date_due"] = date_due
         return context
 

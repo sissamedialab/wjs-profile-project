@@ -2122,7 +2122,7 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
 
             # wjapp does not record a due-date, so we set a fictitious date that simulates what wjs would do
             # using freeze_time now() is refereeAssignDate
-            date_due = timezone.now().date() + datetime.timedelta(days=21)
+            date_due = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=21)
 
             form_data = {
                 "acceptance_due_date": date_due,
@@ -2395,7 +2395,9 @@ ORDER BY dl.submissionDate
             )
             # wjapp does not record a due-date, so we set a fictitious date that simulates what wjs would do
             # using freeze_time now() is refereeAssignDate
-            date_due = timezone.now().date() + datetime.timedelta(days=interval_days.process_value())
+            date_due = timezone.localtime(timezone.now()).date() + datetime.timedelta(
+                days=interval_days.process_value()
+            )
 
             if reviewer_message:
                 message = newlines_text_to_html(reviewer_message.get("documentLayerText"))
@@ -2450,7 +2452,7 @@ ORDER BY dl.submissionDate
                             "reviewer_decision": "1",
                             "additional_comments": "",
                             "accept_gdpr": True,
-                            "date_due": timezone.now().date() + datetime.timedelta(days=21),
+                            "date_due": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=21),
                         },
                         request=request,
                         token=None,
@@ -3439,7 +3441,7 @@ ORDER BY dl.submissionDate
                     object_id=review_assignment.id,
                 ).delete()
 
-            date_due = timezone.now().date()
+            date_due = timezone.localtime(timezone.now()).date()
             if self.requires_revision:
                 date_due = date_due + datetime.timedelta(days=self.revision_interval_days)
 

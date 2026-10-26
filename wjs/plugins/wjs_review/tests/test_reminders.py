@@ -57,6 +57,18 @@ from . import test_helpers
 from .conftest import _apply_decision
 from .test_helpers import jcom_report_form_data
 
+# Instants when the UTC date and the local (Europe/Rome) date differ: just before midnight UTC in winter (UTC+1) and
+# summer (UTC+2) time. Reminder dates must be computed on the local date: the tests fail if some code takes the date
+# of the UTC datetime. Freezing the time also keeps the tests stable whatever the day (or time) they are run.
+CRITICAL_INSTANTS = ["2026-01-15 23:30:00+00:00", "2026-07-15 22:30:00+00:00"]
+
+
+@pytest.fixture(autouse=True, params=CRITICAL_INSTANTS, ids=["winter-23:30Z", "summer-22:30Z"])
+def critical_time(request):
+    """Run every reminder test when the UTC and the local date differ."""
+    with freezegun.freeze_time(request.param) as frozen_time:
+        yield frozen_time
+
 
 def test_render_template():
     """Test the simple render_template() function."""
@@ -257,7 +269,7 @@ def test_assign_reviewer_creates_reminders(
     from django.urls import reverse
 
     print(reverse("wjs_evaluate_review", kwargs={"assignment_id": 34}))
-    acceptance_due_date = timezone.now().date() + datetime.timedelta(days=7)
+    acceptance_due_date = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7)
 
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
@@ -344,7 +356,7 @@ def test_reminders_know_their_article(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
             "message": "random message",
             "author_note_visible": False,
         },
@@ -398,7 +410,7 @@ def test_send_reminders__simple_case(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
             "message": "random message",
             "author_note_visible": False,
         },
@@ -441,8 +453,8 @@ def test_reviewer_accepts__deletes_some_reminders(
     # test what comes next easily.
     Reminder.objects.all().delete()
 
-    acceptance_due_date = timezone.now().date() + datetime.timedelta(days=7)
-    review_completion_due_date = timezone.now().date() + datetime.timedelta(days=21)
+    acceptance_due_date = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7)
+    review_completion_due_date = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=21)
 
     service__assign_reviewer = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
@@ -666,7 +678,7 @@ class TestReviewerDeclines:
             reviewer=normal_user.janeway_account,
             editor=section_editor.janeway_account,
             form_data={
-                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -694,7 +706,7 @@ class TestReviewerDeclines:
             reviewer=create_jcom_user("Bernardo Da Corleone").janeway_account,
             editor=section_editor.janeway_account,
             form_data={
-                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -762,7 +774,7 @@ class TestReviewerDeclines:
             reviewer=normal_user.janeway_account,
             editor=section_editor.janeway_account,
             form_data={
-                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -790,7 +802,7 @@ class TestReviewerDeclines:
             reviewer=create_jcom_user("Bernardo Da Corleone").janeway_account,
             editor=section_editor.janeway_account,
             form_data={
-                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -853,7 +865,7 @@ class TestReviewerDeclines:
             reviewer=normal_user.janeway_account,
             editor=section_editor.janeway_account,
             form_data={
-                "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -996,7 +1008,7 @@ class TestReviewerSubmits:
             reviewer=r1,
             editor=editor,
             form_data={
-                "acceptance_due_date": timezone.now().date(),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date(),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -1007,7 +1019,7 @@ class TestReviewerSubmits:
             reviewer=r2,
             editor=editor,
             form_data={
-                "acceptance_due_date": timezone.now().date(),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date(),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -1066,7 +1078,7 @@ class TestReviewerSubmits:
             reviewer=r1,
             editor=editor,
             form_data={
-                "acceptance_due_date": timezone.now().date(),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date(),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -1077,7 +1089,7 @@ class TestReviewerSubmits:
             reviewer=r2,
             editor=editor,
             form_data={
-                "acceptance_due_date": timezone.now().date(),
+                "acceptance_due_date": timezone.localtime(timezone.now()).date(),
                 "message": "random message",
                 "author_note_visible": False,
             },
@@ -1184,7 +1196,7 @@ def test_reminders_handling_for_reviewer_cycle(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": timezone.now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=7),
             "message": "random message",
             "author_note_visible": False,
         },
@@ -1218,7 +1230,7 @@ def test_reminders_handling_for_reviewer_cycle(
         form_data={
             "reviewer_decision": "1",
             "additional_comments": "Additional comments",
-            "date_due": timezone.now().date() + datetime.timedelta(days=21),
+            "date_due": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=21),
         },
         request=fake_request,
         token="",
@@ -2312,7 +2324,7 @@ class TestResetDate:
                 "reviewer_decision": "1",
                 "accept_gdpr": 1,
                 "additional_comments": "Additional comments",
-                "date_due": timezone.now().date() + datetime.timedelta(days=21),
+                "date_due": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=21),
             },
             request=fake_request,
             token="",

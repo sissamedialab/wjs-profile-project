@@ -187,11 +187,19 @@ class ReminderSetting:
                 journal,
             ).processed_value
 
-    def get_date_due(self, target, journal: Journal):
-        base_date = timezone.now()
+    def get_date_due(self, target, journal: Journal) -> datetime.date:
+        """
+        Return the date when the reminder is due.
+
+        All the datetimes are converted to the local time before taking the date, so that the due date is always
+        computed (and compared) against the same calendar day, whatever the time of the day.
+        """
+        base_date = timezone.localtime(timezone.now()).date()
         if offset_days := self._get_date_base_setting(journal):
             base_date += timezone.timedelta(days=offset_days)
         date_due = getattr(target, "date_due", base_date)
+        if isinstance(date_due, datetime.datetime):
+            date_due = timezone.localtime(date_due).date()
         date_due += timezone.timedelta(days=self.days_after)
         return date_due
 

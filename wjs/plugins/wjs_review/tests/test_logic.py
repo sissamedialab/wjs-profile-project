@@ -161,7 +161,7 @@ def test_articleworkflow__get_sorted_review_assignments(
     We change the dates of the two assignments in each state,
     and verify that the sorting function behaves correctly.
     """
-    today = now().date()
+    today = localtime(now()).date()
 
     reviewers = [create_jcom_user(f"reviewer_{i}") for i in range(6)]
     # Submitted assignments
@@ -467,7 +467,7 @@ def test_assign_to_reviewer_hijacked(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
             "message": "random message",
             "author_note_visible": False,
         },
@@ -604,7 +604,7 @@ def test_assign_to_reviewer(
     """A reviewer can be assigned to an article and objects states are updated."""
     fake_request.user = section_editor.janeway_account
 
-    acceptance_due_date = now().date() + datetime.timedelta(days=7)
+    acceptance_due_date = localtime(now()).date() + datetime.timedelta(days=7)
     service = AssignToReviewer(
         workflow=assigned_article.articleworkflow,
         # we must pass the Account object linked to the JCOMProfile instance, to ensure it
@@ -707,7 +707,7 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
         "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
         "decision_editor_report": "random message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     handle = HandleDecision(
         workflow=assigned_article.articleworkflow,
@@ -725,7 +725,7 @@ def test_cannot_assign_to_reviewer_if_revision_requested(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -969,7 +969,7 @@ def test_assign_to_reviewer_fails_no_form(
         reviewer=normal_user.janeway_account,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -1007,7 +1007,7 @@ def test_assign_to_reviewer_no_editor(
         reviewer=normal_user.janeway_account,
         editor=normal_user.janeway_account,
         form_data={
-            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -1049,7 +1049,7 @@ def test_assign_to_reviewer_author(
         reviewer=author,
         editor=section_editor.janeway_account,
         form_data={
-            "acceptance_due_date": now().date() + datetime.timedelta(days=7),
+            "acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7),
             "message": "random message",
         },
         request=fake_request,
@@ -2148,7 +2148,7 @@ def test_handle_editor_decision(
         ArticleWorkflow.ReviewStates.REJECTED,
         ArticleWorkflow.ReviewStates.NOT_SUITABLE,
     ):
-        form_data["date_due"] = now().date() + datetime.timedelta(days=7)
+        form_data["date_due"] = localtime(now()).date() + datetime.timedelta(days=7)
     # Reset email and messages just before calling HandleDecision.run()
     mail.outbox = []
     Message.objects.all().delete()
@@ -2570,7 +2570,7 @@ def test_multiple_metadata_changes(
     form_data = {
         "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION,
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     HandleDecision(
         workflow=article.articleworkflow,
@@ -2691,7 +2691,7 @@ def test_article_stage_and_metadata_change(
     form_data = {
         "decision": ArticleWorkflow.Decisions.TECHNICAL_REVISION,
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     HandleDecision(
         workflow=article.articleworkflow,
@@ -3262,7 +3262,7 @@ def test_handle_withdraw_review_assignment(
         "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
         "decision_editor_report": "random message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     mail.outbox = []
     handle = HandleDecision(
@@ -3305,7 +3305,7 @@ def test_article_snapshot_on_revision_request(
         "decision": ArticleWorkflow.Decisions.MINOR_REVISION,
         "decision_editor_report": "random message",
         "withdraw_notice": "notice",
-        "date_due": now().date() + datetime.timedelta(days=7),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=7),
     }
     mail.outbox = []
     handle = HandleDecision(
@@ -3834,7 +3834,7 @@ def test_deassign_reviewer(
                 "reviewer_decision": "1",
                 "accept_gdpr": True,
                 "additional_comments": "Additional comments",
-                "date_due": now().date() + datetime.timedelta(days=21),
+                "date_due": localtime(now()).date() + datetime.timedelta(days=21),
             },
             token="",
         ).run()
@@ -3923,7 +3923,7 @@ def test_deassign_reviewer_existing_assignment(
                 "reviewer_decision": "1",
                 "accept_gdpr": True,
                 "additional_comments": "Additional comments",
-                "date_due": now().date() + datetime.timedelta(days=21),
+                "date_due": localtime(now()).date() + datetime.timedelta(days=21),
             },
             token="",
         ).run()
@@ -4012,7 +4012,7 @@ def test_deassign_reviewer_no_editor(
                 "reviewer_decision": "1",
                 "accept_gdpr": True,
                 "additional_comments": "Additional comments",
-                "date_due": now().date() + datetime.timedelta(days=21),
+                "date_due": localtime(now()).date() + datetime.timedelta(days=21),
             },
             token="",
         ).run()
@@ -4089,7 +4089,7 @@ def test_assign_different_editor(
             "reviewer_decision": "1",
             "accept_gdpr": True,
             "additional_comments": "Additional comments",
-            "date_due": now().date() + datetime.timedelta(days=21),
+            "date_due": localtime(now()).date() + datetime.timedelta(days=21),
         },
         token="",
     ).run()
@@ -4315,7 +4315,7 @@ def test_open_appeal(rejected_article: Article, normal_user: JCOMProfile, eo_use
         setting_name="default_author_appeal_revision_days",
         journal=rejected_article.journal,
     ).process_value()
-    date_due = now().date() + datetime.timedelta(days=appeal_revision_days)
+    date_due = localtime(now()).date() + datetime.timedelta(days=appeal_revision_days)
     form_data = {
         "editor": normal_user.pk,
         "state": rejected_article.articleworkflow.state,

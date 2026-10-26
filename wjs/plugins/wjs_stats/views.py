@@ -21,7 +21,7 @@ from django.db.models.functions import Lower, TruncMonth
 from django.http import FileResponse, HttpResponse
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from django.views.generic import ListView, TemplateView, View
 from django.views.generic.edit import FormView
 from django_q.brokers import get_broker
@@ -332,8 +332,8 @@ class BaseStatsFormView(FormView):
     def get_initial(self):
         # Set initial data for the form
         initial = super().get_initial()
-        initial["from_date"] = now().date() - timedelta(days=30)
-        initial["to_date"] = now().date()
+        initial["from_date"] = localtime(now()).date() - timedelta(days=30)
+        initial["to_date"] = localtime(now()).date()
         try:
             initial["issues"] = Issue.objects.latest("id")
         except Issue.DoesNotExist:
@@ -770,7 +770,7 @@ class KeywordsUsageChart(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         journal = self.request.journal
 
         # The 120 months (10 years) ending with the current one, oldest first.
-        today = now().date()
+        today = localtime(now()).date()
         year, month = today.year, today.month
         months = []
         for _ in range(120):

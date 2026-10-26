@@ -573,7 +573,7 @@ def test_reviewer_is_late(
     ).run()
 
     assert assignment.date_accepted is None
-    assert assignment.date_due > timezone.now().date()
+    assert assignment.date_due > timezone.localtime(timezone.now()).date()
 
     attention_conditions_rebuild(article)
     assert attention_condition_ignoring_unread(article=article, user=reviewer) == ""
