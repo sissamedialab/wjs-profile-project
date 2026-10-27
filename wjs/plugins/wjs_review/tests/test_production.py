@@ -2142,6 +2142,33 @@ def test_send_production_xml_to_publisher_sends_zip_and_logs_message(
     assert export_prepared_call.kwargs["actor"] is None
     assert export_prepared_call.kwargs["recipients"] == [get_eo_user(accepted_article)]
     assert export_prepared_call.kwargs["verbosity"] == Message.MessageVerbosity.FULL
+    assert export_prepared_call.kwargs["flag_as_read_by_eo"] is True, "the EO is informed, not asked to act"
+
+
+@pytest.mark.django_db
+def test_send_production_xml_to_publisher_message_is_read_by_eo(
+    accepted_article: Article,
+    settings,
+):
+    """The 'XML sent to publisher' message is created already read by the EO (wjs-profile-project#298)."""
+    settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS = {
+        accepted_article.journal.code: "plugins.wjs_review.metadata_export.publishers.send_zip_to_iop",
+    }
+    # Same placeholder-file workaround as test_send_production_xml_to_publisher_sends_zip_and_logs_message.
+    accepted_article.manuscript_files.clear()
+    workflow = accepted_article.articleworkflow
+    existing_message_ids = set(Message.objects.filter(object_id=accepted_article.pk).values_list("pk", flat=True))
+
+    with mock.patch("plugins.wjs_review.metadata_export.publishers.send_zip_to_iop"):
+        SendProductionXMLToPublisher(articleworkflow=workflow).run()
+
+    new_messages = (
+        Message.objects.filter(object_id=accepted_article.pk)
+        .exclude(pk__in=existing_message_ids)
+        .exclude(subject__startswith="Corresponding author affiliation incomplete")
+    )
+    assert new_messages.count() == 1, "exactly one 'XML sent to publisher' message is expected"
+    assert new_messages.get().read_by_eo, "the 'XML sent to publisher' message must be flagged as read by the EO"
 
 
 @pytest.mark.django_db
