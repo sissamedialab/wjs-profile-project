@@ -576,6 +576,11 @@ class AssignToReviewer:
     request: HttpRequest
     assignment: Optional[WorkflowReviewAssignment] = None
     log_operation: bool = True
+    # A reviewer cannot be an author of the article (see check_reviewer_conditions()). Set to
+    # False only by the importer (import_wjapp.import_logic.ReviewAssignmentAction.set_reviewer()):
+    # some old wjapp papers actually have an author assigned as reviewer, and the importer must
+    # replay that history as-is.
+    check_reviewer_author: bool = True
 
     @staticmethod
     def check_reviewer_conditions(workflow: ArticleWorkflow, reviewer: Account) -> bool:
@@ -611,7 +616,9 @@ class AssignToReviewer:
 
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
-        reviewer_conditions = self.check_reviewer_conditions(self.workflow, self.reviewer)
+        reviewer_conditions = not self.check_reviewer_author or self.check_reviewer_conditions(
+            self.workflow, self.reviewer
+        )
         editor_conditions = self.check_editor_conditions(self.workflow, self.editor)
         article_state = self.check_article_conditions(self.workflow)
         return reviewer_conditions and editor_conditions and article_state
@@ -4212,6 +4219,13 @@ class OpenAppeal:
     new_editor: Account
     article: Article
     request: HttpRequest
+    # An appeal must not be opened again once the paper has already been rejected more than
+    # once (see _has_another_past_rejection()): past the first rejection, a further appeal
+    # cycle is no longer allowed. Set to False only to bypass this current-policy check for a
+    # historical wjapp action being replayed by the importer (see
+    # import_wjapp.import_logic.AdminOpensAppealAction), where the action happened under
+    # wjapp's older, more permissive rule and must be imported as-is.
+    check_past_rejection: bool = True
 
     @staticmethod
     def _is_current_editor(article: Article, editor: Account) -> bool:
@@ -4234,7 +4248,8 @@ class OpenAppeal:
     def check_conditions(self):
         """Check if the selected editor is an actual editor for the article's journal."""
         editor_conditions = has_any_editor_role_by_article(self.article.articleworkflow, self.new_editor)
-        return editor_conditions and not self._is_articles_author() and not self._has_another_past_rejection()
+        no_past_rejections = not self.check_past_rejection or not self._has_another_past_rejection()
+        return editor_conditions and not self._is_articles_author() and no_past_rejections
 
     def _handle_decision(self):
         """Instantiate HandleDecision to create the EditorRevisionRequest and the other collateral effects."""

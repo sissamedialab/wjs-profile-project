@@ -24,14 +24,22 @@ logger = get_logger(__name__)
 def mark_all_messages_read(article: submission_models.Article) -> None:
     """Mark all messages for the given article as read from each recipient."""
 
+    content_type = ContentType.objects.get_for_model(article)
     MessageRecipients.objects.filter(
-        message__content_type=ContentType.objects.get_for_model(article),
+        message__content_type=content_type,
         message__object_id=article.id,
     ).update(read=True)
     Message.objects.filter(
-        content_type=ContentType.objects.get_for_model(article),
+        content_type=content_type,
         object_id=article.id,
     ).update(read_by_eo=True)
+
+    # The bulk .update() calls above bypass ac_service, so any HAS_UNREAD_MESSAGE
+    # attention condition created earlier in the import (while replaying the
+    # historical workflow, when these messages were still unread) is never
+    # resolved. Re-sync it now that everything is actually read.
+    for message in Message.objects.filter(content_type=content_type, object_id=article.id):
+        ac_service.sync_unread_message_acs_for_message(message)
 
 
 def release_production_readiness_hold(
