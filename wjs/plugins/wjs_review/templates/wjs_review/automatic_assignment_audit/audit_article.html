@@ -1,0 +1,104 @@
+{% extends "wjs_review/base/base.html" %}
+{% load i18n %}
+
+{% block title %}
+  {{ view.title }}
+{% endblock title %}
+
+{% block content %}
+  <div class="col-sm-12 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+      <h2 class="fs-4 mb-0">
+        {{ article.pk }} - {{ article.title }}
+        {% blocktranslate asvar article_page_label with article_pk=article.pk %}Article page for article {{ article_pk }}{% endblocktranslate %}
+        <a class="ms-2"
+           href="{% url "wjs_article_details" pk=article.articleworkflow.pk %}"
+           title="{{ article_page_label }}"><i class="bi bi-clipboard2-data" aria-hidden="true"></i><span class="visually-hidden">{{ article_page_label }}</span></a>
+      </h2>
+      <a class="ms-auto" href="{% url "wjs-automatic-assignment-audit" %}?{{ request.GET.urlencode }}">{% translate "Back to the audit list" %}</a>
+    </div>
+    <div class="d-flex justify-content-end mb-2">
+      {% include "wjs_review/automatic_assignment_audit/elements/scores_help.html" %}
+    </div>
+    {% for audit in audits %}
+      <section class="card mb-4" aria-labelledby="audit-{{ audit.pk }}-heading">
+        <div class="card-header">
+          <h3 id="audit-{{ audit.pk }}-heading" class="fs-5 mb-0">
+            {{ audit.created_at|date:"Y-m-d H:i" }}
+            · {{ audit.get_algorithm_display }}
+          </h3>
+        </div>
+        <div class="card-body">
+          <dl class="row mb-3">
+            <dt class="col-sm-3">{% translate "Editor" %}</dt>
+            <dd class="col-sm-9">{{ audit.editor.full_name|default:"—" }}</dd>
+            <dt class="col-sm-3">{% translate "Matched by keyword" %}</dt>
+            <dd class="col-sm-9">{{ audit.matched_by_keyword|yesno }}</dd>
+            <dt class="col-sm-3">{% translate "Matching keywords" %}</dt>
+            <dd class="col-sm-9">{{ audit.matching_keywords_count|default_if_none:"—" }}</dd>
+            <dt class="col-sm-3">{% translate "Max keyword weight" %}</dt>
+            <dd class="col-sm-9">{{ audit.max_matching_keyword_weight|default_if_none:"—" }}</dd>
+            <dt class="col-sm-3">{% translate "Keyword score" %}</dt>
+            <dd class="col-sm-9">
+              {% if audit.keyword_score is not None %}{% widthratio audit.keyword_score 1 100 %}%{% else %}—{% endif %}
+            </dd>
+            <dt class="col-sm-3">{% translate "Available workload" %}</dt>
+            <dd class="col-sm-9">{{ audit.workload_available|default_if_none:"—" }}</dd>
+            <dt class="col-sm-3">{% translate "Workload cap" %}</dt>
+            <dd class="col-sm-9">{{ audit.workload_cap|default_if_none:"—" }}</dd>
+            <dt class="col-sm-3">{% translate "Available (30-day)" %}</dt>
+            <dd class="col-sm-9">{{ audit.workload_available_30d|default_if_none:"—" }}</dd>
+          </dl>
+          {% with candidates=audit.candidates.all %}
+            {% if candidates %}
+              <h4 class="fs-6" id="audit-{{ audit.pk }}-candidates">{% translate "Editors sharing at least 1 keyword with the manuscript" %}</h4>
+              <div class="table-responsive"
+                   role="region"
+                   aria-labelledby="audit-{{ audit.pk }}-candidates"
+                   tabindex="0">
+                <table class="table table-sm table-striped align-middle">
+                  <caption class="visually-hidden">{% translate "Candidates, best ranked first" %}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">{% translate "Rank" %}</th>
+                      <th scope="col">{% translate "Editor" %}</th>
+                      <th scope="col">{% translate "Outcome" %}</th>
+                      <th scope="col">{% translate "Matching keywords" %}</th>
+                      <th scope="col">{% translate "Keyword score" %}</th>
+                      <th scope="col">{% translate "Workload cap" %}</th>
+                      <th scope="col">{% translate "Available workload" %}</th>
+                      <th scope="col">{% translate "Available (30-day)" %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for candidate in candidates %}
+                      <tr{% if candidate.selected %} class="table-success"{% endif %}>
+                        <td>{{ candidate.rank|default_if_none:"—" }}</td>
+                        <th scope="row" class="fw-normal">{{ candidate.editor.full_name|default:"—" }}</th>
+                        <td>{{ candidate.reason }}</td>
+                        <td>
+                          {{ candidate.matching_keywords_count }}
+                          {% if candidate.shared_keywords %}<br>
+                            <small>{{ candidate.shared_keywords_display }}</small>
+                          {% endif %}
+                        </td>
+                        <td>
+                          {% if candidate.keyword_score is not None %}{% widthratio candidate.keyword_score 1 100 %}%{% else %}—{% endif %}
+                        </td>
+                        <td>{{ candidate.workload_cap|default_if_none:"—" }}</td>
+                        <td>{{ candidate.monthly_workload|default_if_none:"—" }}</td>
+                        <td>{{ candidate.workload_30d|default_if_none:"—" }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p class="mb-0">{% translate "No candidates were recorded for this assignment." %}</p>
+            {% endif %}
+          {% endwith %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% endblock content %}

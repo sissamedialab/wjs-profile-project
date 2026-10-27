@@ -14,7 +14,7 @@ from wjs.jcom_profile.utils import get_eo_user
 if TYPE_CHECKING:
     from journal.models import Journal
 
-    from .models import ArticleWorkflow, WjsEditorAssignment
+    from .models import ArticleWorkflow, AutomaticAssignmentAudit, WjsEditorAssignment
 
 
 class ArticleWorkflowQuerySet(models.QuerySet):
@@ -349,3 +349,26 @@ class PastEditorAssignmentQuerySet(models.QuerySet):
         :rtype: QuerySet
         """
         return self.filter(article=article, editor=editor)
+
+
+class AutomaticAssignmentAuditQuerySet(models.QuerySet):
+    def for_journal(self, journal: "Journal") -> QuerySet:
+        """Return the audit rows for articles of the given journal."""
+        return self.filter(article__journal=journal)
+
+    def for_article_id(self, article_id: int) -> QuerySet:
+        """Return the audit rows of the given article, newest first, with their candidates."""
+        return (
+            self.filter(article_id=article_id)
+            .select_related("article__articleworkflow", "editor")
+            .prefetch_related("candidates__editor")
+            .order_by("-created_at", "-pk")
+        )
+
+    def for_article_and_editor(self, article: Article, editor: Account) -> QuerySet:
+        """Return the audit rows in which ``editor`` was picked for ``article``."""
+        return self.filter(article=article, editor=editor)
+
+    def latest_for_article(self, article: Article) -> Optional["AutomaticAssignmentAudit"]:
+        """Return the most recent audit row for the given article, or None."""
+        return self.filter(article=article).order_by("-created_at", "-pk").first()

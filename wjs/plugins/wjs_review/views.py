@@ -79,6 +79,7 @@ from .conversion import LatexReportConvertService
 from .events.assignment import annotate_workload_availability
 from .filters import (
     AuthorArticleWorkflowFilter,
+    AutomaticAssignmentAuditFilter,
     EOArticleWorkflowFilter,
     MessageFilter,
     MessagesOverviewFilter,
@@ -144,6 +145,7 @@ from .mixins import (
 from .models import (
     ArticleWorkflow,
     AttentionCondition,
+    AutomaticAssignmentAudit,
     EditorDecision,
     EditorRevisionRequest,
     LatexPreamble,
@@ -2282,6 +2284,55 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, Lis
 
         context = self.get_context_data(filter=self.filterset, object_list=self.object_list)
         return self.render_to_response(context)
+
+
+class AutomaticAssignmentAuditList(BaseRelatedViewsMixin, FilterView):
+    """List why each automatic editor assignment picked its editor, for EO/directors."""
+
+    title = _("Automatic assignment audit")
+    model = AutomaticAssignmentAudit
+    template_name = "wjs_review/automatic_assignment_audit/audit_list.html"
+    context_object_name = "audits"
+    filterset_class = AutomaticAssignmentAuditFilter
+    paginate_by = 50
+
+    def test_func(self):
+        """Allow access only to EO or directors."""
+        return base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+
+    def get_queryset(self):
+        """Return the current journal's audit rows, newest first."""
+        return (
+            AutomaticAssignmentAudit.objects.for_journal(self.request.journal)
+            .select_related("article__articleworkflow", "editor")
+            .order_by("-created_at", "-pk")
+        )
+
+
+class AutomaticAssignmentAuditArticle(BaseRelatedViewsMixin, ListView):
+    """Show every automatic assignment audit of one article, with the candidates the algorithm explained."""
+
+    title = _("Automatic assignment audit")
+    model = AutomaticAssignmentAudit
+    template_name = "wjs_review/automatic_assignment_audit/audit_article.html"
+    context_object_name = "audits"
+    allow_empty = False
+
+    def test_func(self):
+        """Allow access only to EO or directors."""
+        return base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+
+    def get_queryset(self):
+        """Return the article's audit rows in the current journal, newest first."""
+        return AutomaticAssignmentAudit.objects.for_journal(self.request.journal).for_article_id(
+            self.kwargs["article_pk"]
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add the article the audits belong to."""
+        context = super().get_context_data(**kwargs)
+        context["article"] = context["audits"][0].article
+        return context
 
 
 class MessageAttachmentDownloadView(AuthenticatedUserPassesTest, DetailView):

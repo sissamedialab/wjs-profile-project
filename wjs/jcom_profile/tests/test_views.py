@@ -653,6 +653,60 @@ def test_director_editor_parameters_post_without_keyword_id_reports_form_error(
         assert keyword.weight != 7
 
 
+def _director_parameters_post_data(client, url, **fields) -> dict:
+    """Build the POST data of the editor parameters page, including the keywords formset management form."""
+    response = client.get(url)
+    data = {"csrf_token": response.context["csrf_token"], **fields}
+    formset = response.context["formset"]
+    for field in "TOTAL_FORMS", "INITIAL_FORMS", "MIN_NUM_FORMS", "MAX_NUM_FORMS":
+        data[f"{formset.management_form.prefix}-{field}"] = formset.management_form[field].value()
+    return data
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "user_role,can_edit_brake_on",
+    (("staff", True), ("eo", True), ("director", False)),
+)
+def test_brake_on_is_editable_only_by_eo(
+    journal: Journal,
+    roles,
+    user: Account,
+    eo_group,
+    section_editor,
+    user_role,
+    can_edit_brake_on,
+):
+    """The EO (and staff) can disable an editor with brake_on, directors only see it."""
+    user.jcomprofile.gdpr_checkbox = True
+    user.is_active = True
+    if user_role == "staff":
+        user.is_staff = True
+        user.save()
+    elif user_role == "director":
+        user.add_account_role(user_role, journal)
+        user.refresh_from_db()
+    elif user_role == "eo":
+        user.groups.add(Group.objects.get(name=constants.EO_GROUP))
+    parameters = StaffWorkloadParameters.objects.create(user=section_editor.janeway_account, journal=journal)
+    client = Client()
+    client.force_login(user)
+    url = f"/{journal.code}/update/parameters/{section_editor.janeway_account.pk}/"
+
+    response = client.get(url)
+    assert (
+        response.context["form"].fields["brake_on"].disabled is not can_edit_brake_on
+    ), "brake_on must be disabled for directors only"
+
+    data = _director_parameters_post_data(client, url, workload=parameters.workload, brake_on=-1)
+    response_post = client.post(url, data)
+    assert response_post.status_code == 302
+
+    parameters.refresh_from_db()
+    expected = -1 if can_edit_brake_on else 0
+    assert parameters.brake_on == expected, f"brake_on should be {expected} when changed by {user_role}"
+
+
 @pytest.mark.parametrize(
     "user_role,hijacked,success",
     (

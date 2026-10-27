@@ -173,6 +173,13 @@ class DirectorStaffWorkloadParametersUpdate(UserPassesTestMixin, UpdateView):
         parameters, _ = StaffWorkloadParameters.objects.get_or_create(user=editor, journal=journal)
         return parameters
 
+    def get_form_kwargs(self):
+        """Allow only the EO (and staff) to change ``brake_on``: directors can only see it."""
+        kwargs = super().get_form_kwargs()
+        user = self.request.user
+        kwargs["can_edit_brake_on"] = user.is_staff or base_permissions.has_eo_role(user)
+        return kwargs
+
     def get_context_data(self, **kwargs):  # noqa
         context = super().get_context_data()
         if self.request.POST:

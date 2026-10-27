@@ -19,7 +19,7 @@ from wjs.jcom_profile.settings_helpers import get_journal_language_choices
 
 from .logic__visibility import get_recipient_label
 from .managers import ArticleWorkflowQuerySet
-from .models import ArticleWorkflow, Message, Reminder
+from .models import ArticleWorkflow, AutomaticAssignmentAudit, Message, Reminder
 
 
 class SpecialIssueFilterField(ModelChoiceField):
@@ -593,3 +593,41 @@ class ReminderFilter(django_filters.FilterSet):
         super().__init__(*args, **kwargs)
         recipients = self.queryset.values_list("recipient", flat=True)
         self.filters["recipient"].queryset = Account.objects.filter(pk__in=recipients)
+
+
+class AutomaticAssignmentAuditFilter(django_filters.FilterSet):
+    """Filters for the automatic-assignment audit page."""
+
+    editor = django_filters.ModelChoiceFilter(
+        label=_("Editor"),
+        empty_label=_("All editors"),
+        queryset=Account.objects.none(),
+    )
+    algorithm = django_filters.ChoiceFilter(
+        label=_("Algorithm"),
+        empty_label=_("All algorithms"),
+        choices=AutomaticAssignmentAudit.Algorithms.choices,
+    )
+    matched_by_keyword = django_filters.BooleanFilter(label=_("Matched by keyword"))
+    from_date = django_filters.DateFilter(
+        field_name="created_at",
+        lookup_expr="date__gte",
+        label=_("From date"),
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    to_date = django_filters.DateFilter(
+        field_name="created_at",
+        lookup_expr="date__lte",
+        label=_("To date"),
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+
+    class Meta:
+        model = AutomaticAssignmentAudit
+        fields = ["editor", "algorithm", "matched_by_keyword"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.filters["editor"].queryset = Account.objects.filter(
+            pk__in=self.queryset.values_list("editor", flat=True)
+        ).order_by("last_name", "first_name")

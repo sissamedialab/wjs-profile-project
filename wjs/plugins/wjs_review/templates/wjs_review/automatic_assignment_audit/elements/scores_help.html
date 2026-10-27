@@ -1,0 +1,4 @@
+{% load django_bootstrap5 i18n %}
+{% translate "What do the scores mean?" as scores_help_label %}
+{% bootstrap_button button_type="button" button_class="btn-outline-secondary btn-sm" data_bs_toggle="modal" data_bs_target="#audit-scores-help" content=scores_help_label %}
+{% include "wjs_review/base/elements/modal.html" with modal_id="audit-scores-help" modal_title=scores_help_label modal_title_tag=2 modal_size="modal-xl" include_path="wjs_review/automatic_assignment_audit/elements/scores_help_body.html" %}
