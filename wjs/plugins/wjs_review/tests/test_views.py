@@ -22,6 +22,7 @@ from review import models as review_models
 from review.models import ReviewAssignment, ReviewForm, ReviewRound
 from submission import models as submission_models
 from submission.models import Article
+from utils import setting_handler
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import constants
@@ -38,6 +39,7 @@ from ..models import (
     Message,
     PastEditorAssignment,
     WjsEditorAssignment,
+    WorkflowReviewAssignment,
 )
 from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
@@ -1998,6 +2000,75 @@ def test_decision_form_decisioneditorreport(
     )
     assert form.is_valid(), form.errors
     assert form.cleaned_data["decision_editor_report"] == text_with_pesky_chars
+
+
+DECISION_INTRO_WITHOUT_REPORTS = "Please write your report to motivate your decision."
+DECISION_INTRO_WITH_REPORTS = "The following form includes any reports that you have just decided to send the authors."
+DECISION_LATEX_HINT = "The report can be written in LaTeX."
+
+
+@pytest.mark.parametrize(
+    "reviewer_report_type,latex_hint_expected",
+    (
+        ("text", False),
+        ("tex", True),
+        ("tex+text", True),
+    ),
+)
+@pytest.mark.django_db
+def test_decision_page_without_reports_intro(
+    client: Client,
+    assigned_article: Article,
+    reviewer_report_type: str,
+    latex_hint_expected: bool,
+):
+    """Without referee reports the decision page asks to motivate the decision, mentioning LaTeX if allowed."""
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="reviewer_report_type",
+        journal=assigned_article.journal,
+        value=reviewer_report_type,
+    )
+    client.force_login(WjsEditorAssignment.objects.get_current(assigned_article).editor)
+    url = reverse("wjs_article_decision", args=(assigned_article.articleworkflow.pk,))
+
+    content = client.get(url, {"decision": ArticleWorkflow.Decisions.ACCEPT}).content.decode()
+
+    assert DECISION_INTRO_WITHOUT_REPORTS in content, "The intro for a decision without reports is shown"
+    assert DECISION_INTRO_WITH_REPORTS not in content, "The intro for a decision with reports is not shown"
+    assert (DECISION_LATEX_HINT in content) is latex_hint_expected, "LaTeX is mentioned only if the journal allows it"
+    expected_intro = (
+        f"{DECISION_INTRO_WITHOUT_REPORTS} {DECISION_LATEX_HINT}"
+        if latex_hint_expected
+        else DECISION_INTRO_WITHOUT_REPORTS
+    )
+    assert f'<p class="mb-1">{expected_intro}</p>' in content, "The intro is its own block above the field"
+
+
+@pytest.mark.django_db
+def test_decision_page_with_reports_intro_is_unchanged(
+    client: Client,
+    submitted_review_assignment: WorkflowReviewAssignment,
+):
+    """With a submitted referee report the decision page keeps its original intro."""
+    article = submitted_review_assignment.article
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="reviewer_report_type",
+        journal=article.journal,
+        value="tex",
+    )
+    client.force_login(WjsEditorAssignment.objects.get_current(article).editor)
+    url = reverse("wjs_article_decision", args=(article.articleworkflow.pk,))
+
+    content = client.get(url, {"decision": ArticleWorkflow.Decisions.ACCEPT}).content.decode()
+
+    assert DECISION_INTRO_WITH_REPORTS in content, "The original intro is shown when there are reports"
+    assert DECISION_INTRO_WITHOUT_REPORTS not in content, "The no-reports intro is not shown"
+    assert DECISION_LATEX_HINT not in content, "The LaTeX hint belongs to the no-reports intro only"
+    assert (
+        '<p class="mb-1">The following form includes any reports' in content
+    ), "The intro is its own block above the field"
 
 
 @pytest.mark.django_db
