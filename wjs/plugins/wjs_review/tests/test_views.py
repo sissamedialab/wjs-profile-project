@@ -1202,7 +1202,9 @@ def test_editor_with_kdws_scoped_to_article_journal(article_with_keywords, edito
     # editors_with_keywords[0] already matches k0/k1/k2 (all weight 0) via StaffKeyword rows in
     # `journal`. Give them an additional, higher-weight match to the same keyword, but in a
     # different journal, and confirm it is not counted for an article in `journal`.
-    other_params = StaffWorkloadParameters.objects.create(user=cross_journal_editor, journal=other_journal)
+    other_params = StaffWorkloadParameters.objects.update_or_create(user=cross_journal_editor, journal=other_journal)[
+        0
+    ]
     StaffKeyword.objects.create(parameters=other_params, keyword=keywords[0], weight=99)
 
     editors_list = Account.objects.get_editors_with_keywords(article_with_keywords)
@@ -1290,10 +1292,12 @@ def test_eo_select_editor(
         "note_for_past_editor": "test",
         "note_for_new_editor": "test",
     }
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=section_editor.janeway_account,
         journal=submitted_workflow.article.journal,
-        workload=10,
+        defaults={
+            "workload": 10,
+        },
     )
     view = SupervisorAssignEditor()
     view.request = fake_request
@@ -1320,10 +1324,12 @@ def test_eo_select_new_editor(
 ):
     """An EO can select an editor for an article with an existing editor."""
     normal_user.janeway_account.add_account_role("section-editor", assigned_article.journal)
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=normal_user.janeway_account,
         journal=assigned_article.journal,
-        workload=10,
+        defaults={
+            "workload": 10,
+        },
     )
     old_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = eo_user.janeway_account
@@ -1367,24 +1373,30 @@ def test_supervisor_assign_editor_keeps_unavailable_visible_excludes_non_section
     it never excludes) but still restricts the role set to SECTION_EDITOR_ROLE only (D6).
     """
     journal = submitted_workflow.article.journal
-    StaffWorkloadParameters.objects.create(user=section_editor.janeway_account, journal=journal, workload=10)
+    StaffWorkloadParameters.objects.update_or_create(
+        user=section_editor.janeway_account, journal=journal, defaults={"workload": 10}
+    )
 
     disabled_editor = create_jcom_user("disabled_section_editor")
     disabled_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=disabled_editor.janeway_account,
         journal=journal,
-        workload=10,
-        enabled=False,
+        defaults={
+            "workload": 10,
+            "enabled": False,
+        },
     )
 
     unconfigured_editor = create_jcom_user("unconfigured_section_editor")
     unconfigured_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-    # Deliberately no StaffWorkloadParameters row at all for this one.
+    # Never configured by hand: only the default row (workload 0) created by the role signal.
 
     plain_editor_role_user = create_jcom_user("plain_editor_role")
     plain_editor_role_user.add_account_role(constants.EDITOR_ROLE, journal)
-    StaffWorkloadParameters.objects.create(user=plain_editor_role_user.janeway_account, journal=journal, workload=10)
+    StaffWorkloadParameters.objects.update_or_create(
+        user=plain_editor_role_user.janeway_account, journal=journal, defaults={"workload": 10}
+    )
 
     fake_request.user = section_editor.janeway_account
     view = SupervisorAssignEditor()
@@ -1415,18 +1427,22 @@ def test_supervisor_assign_editor_annotates_and_orders_by_workload(
     keyword match (both editors here have none) by descending 30-day workload availability.
     """
     journal = submitted_workflow.article.journal
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=section_editor.janeway_account,
         journal=journal,
-        workload=1,
+        defaults={
+            "workload": 1,
+        },
     )
 
     high_availability_editor = create_jcom_user("high_availability_editor")
     high_availability_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=high_availability_editor.janeway_account,
         journal=journal,
-        workload=10,
+        defaults={
+            "workload": 10,
+        },
     )
 
     fake_request.user = section_editor.janeway_account
@@ -1467,21 +1483,25 @@ def test_supervisor_assign_editor_ranks_keyword_match_ahead_of_no_match(
 
     matched_editor = create_jcom_user("matched_section_editor")
     matched_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-    matched_parameters = StaffWorkloadParameters.objects.create(
+    matched_parameters = StaffWorkloadParameters.objects.update_or_create(
         user=matched_editor.janeway_account,
         journal=journal,
-        workload=10,
-        enabled=True,
-    )
+        defaults={
+            "workload": 10,
+            "enabled": True,
+        },
+    )[0]
     StaffKeyword.objects.create(parameters=matched_parameters, keyword=keywords[0], weight=1)
 
     unmatched_editor = create_jcom_user("unmatched_section_editor")
     unmatched_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=unmatched_editor.janeway_account,
         journal=journal,
-        workload=10,
-        enabled=True,
+        defaults={
+            "workload": 10,
+            "enabled": True,
+        },
     )
 
     fake_request.user = section_editor.janeway_account
@@ -1520,9 +1540,14 @@ def test_supervisor_assign_editor_ranks_by_keyword_score(
     def _editor(name, weights):
         editor = create_jcom_user(name)
         editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-        parameters = StaffWorkloadParameters.objects.create(
-            user=editor.janeway_account, journal=journal, workload=10, enabled=True
-        )
+        parameters = StaffWorkloadParameters.objects.update_or_create(
+            user=editor.janeway_account,
+            journal=journal,
+            defaults={
+                "workload": 10,
+                "enabled": True,
+            },
+        )[0]
         for keyword, weight in weights:
             StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=weight)
         return editor.janeway_account
@@ -1560,9 +1585,14 @@ def test_supervisor_assign_editor_breaks_score_ties_by_shared_keyword_count(
     def _editor(name, workload, kwds):
         editor = create_jcom_user(name)
         editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-        parameters = StaffWorkloadParameters.objects.create(
-            user=editor.janeway_account, journal=journal, workload=workload, enabled=True
-        )
+        parameters = StaffWorkloadParameters.objects.update_or_create(
+            user=editor.janeway_account,
+            journal=journal,
+            defaults={
+                "workload": workload,
+                "enabled": True,
+            },
+        )[0]
         for keyword in kwds:
             StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=0)
         return editor.janeway_account
@@ -1600,9 +1630,14 @@ def test_select_new_editor_page_shows_keyword_score(
     for name, weights in (("scored_editor", [(keywords[0], 100)]), ("unscored_editor", [])):
         editor = create_jcom_user(name)
         editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-        parameters = StaffWorkloadParameters.objects.create(
-            user=editor.janeway_account, journal=journal, workload=10, enabled=True
-        )
+        parameters = StaffWorkloadParameters.objects.update_or_create(
+            user=editor.janeway_account,
+            journal=journal,
+            defaults={
+                "workload": 10,
+                "enabled": True,
+            },
+        )[0]
         for keyword, weight in weights:
             StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=weight)
     client = Client()

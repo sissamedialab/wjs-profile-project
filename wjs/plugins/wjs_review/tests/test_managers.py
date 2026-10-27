@@ -228,10 +228,10 @@ def test_reviewer_is_available(user: Account, article: Article, vacancy: str, ex
     :param expected: Boolean value denoting expected availability result.
     :return: None
     """
-    params = StaffWorkloadParameters.objects.create(
+    params = StaffWorkloadParameters.objects.update_or_create(
         journal=article.journal,
         user=user,
-    )
+    )[0]
     if vacancy in ["no_start", "in_range"]:
         params.vacancy_end = timezone.now() + datetime.timedelta(days=10)
     if vacancy in ["no_end", "in_range"]:
@@ -263,10 +263,12 @@ def test_reviewer_is_available_depends_on_enabled(user: Account, article: Articl
     :type enabled: bool
     :return: None
     """
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         journal=article.journal,
         user=user,
-        enabled=enabled,
+        defaults={
+            "enabled": enabled,
+        },
     )
     annotated = Account.objects.annotate_is_reviewer_available(article).filter(pk=user.pk).get()
     assert annotated.is_available_as_reviewer is enabled
@@ -287,7 +289,7 @@ def test_reviewer_is_available_with_params(user: Account, article: Article, with
     :return: None
     """
     if with_staff:
-        StaffWorkloadParameters.objects.create(
+        StaffWorkloadParameters.objects.update_or_create(
             journal=article.journal,
             user=user,
         )

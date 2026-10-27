@@ -743,10 +743,10 @@ def test_get_selected_eo_by_article_section(
 
     eo_1 = create_jcom_user("eo_1")
     eo_1.groups.add(eo_group)
-    StaffWorkloadParameters.objects.create(user=eo_1, journal=journal, workload=12)
+    StaffWorkloadParameters.objects.update_or_create(user=eo_1, journal=journal, defaults={"workload": 12})
     eo_2 = create_jcom_user("eo_2")
     eo_2.groups.add(eo_group)
-    StaffWorkloadParameters.objects.create(user=eo_2, journal=journal, workload=1)
+    StaffWorkloadParameters.objects.update_or_create(user=eo_2, journal=journal, defaults={"workload": 1})
     # Assigning base eo user zero workload to exclude it
     StaffWorkloadParameters.objects.filter(user=eo_user, journal=journal).update(workload=0)
 
@@ -791,7 +791,9 @@ def test_select_eo_by_linked_article(
 
     eo_1 = create_jcom_user("eo_1")
     eo_1.groups.add(eo_group)
-    parameters = StaffWorkloadParameters.objects.create(user=eo_1, journal=journal, workload=12)
+    parameters = StaffWorkloadParameters.objects.update_or_create(
+        user=eo_1, journal=journal, defaults={"workload": 12}
+    )[0]
     corrected_article.articleworkflow.eo_in_charge = eo_1.janeway_account
     corrected_article.articleworkflow.save()
 
@@ -842,10 +844,10 @@ def test_get_selected_eo_by_workload(
 
     eo_1 = create_jcom_user("eo_1")
     eo_1.groups.add(eo_group)
-    StaffWorkloadParameters.objects.create(user=eo_1, journal=journal, workload=12)
+    StaffWorkloadParameters.objects.update_or_create(user=eo_1, journal=journal, defaults={"workload": 12})
     eo_2 = create_jcom_user("eo_2")
     eo_2.groups.add(eo_group)
-    StaffWorkloadParameters.objects.create(user=eo_2, journal=journal, workload=1)
+    StaffWorkloadParameters.objects.update_or_create(user=eo_2, journal=journal, defaults={"workload": 1})
     # Assigning base eo user zero workload to exclude it
     StaffWorkloadParameters.objects.filter(user=eo_user, journal=journal).update(workload=0)
 
@@ -902,10 +904,10 @@ def test_get_selected_eo_by_workload_include_by_state(
         submitted.articleworkflow.save()
     eo_1 = create_jcom_user("eo_1")
     eo_1.groups.add(eo_group)
-    StaffWorkloadParameters.objects.create(user=eo_1, journal=journal, workload=10)
+    StaffWorkloadParameters.objects.update_or_create(user=eo_1, journal=journal, defaults={"workload": 10})
     eo_2 = create_jcom_user("eo_2")
     eo_2.groups.add(eo_group)
-    StaffWorkloadParameters.objects.create(user=eo_2, journal=journal, workload=10)
+    StaffWorkloadParameters.objects.update_or_create(user=eo_2, journal=journal, defaults={"workload": 10})
     # Assigning base eo user zero workload to exclude it
     StaffWorkloadParameters.objects.filter(user=eo_user, journal=journal).update(workload=0)
 
@@ -1109,10 +1111,10 @@ def test_workload_decrease_eo(
         submitted.articleworkflow.save()
     eo_1 = create_jcom_user("eo_1")
     eo_1.groups.add(eo_group)
-    StaffWorkloadParameters.objects.create(user=eo_1, journal=journal, workload=100)
+    StaffWorkloadParameters.objects.update_or_create(user=eo_1, journal=journal, defaults={"workload": 100})
     eo_2 = create_jcom_user("eo_2")
     eo_2.groups.add(eo_group)
-    StaffWorkloadParameters.objects.create(user=eo_2, journal=journal, workload=100)
+    StaffWorkloadParameters.objects.update_or_create(user=eo_2, journal=journal, defaults={"workload": 100})
     StaffWorkloadParameters.objects.filter(user=eo_user, journal=journal).update(workload=101)
 
     for x, article in enumerate(submitted_articles):
@@ -1789,7 +1791,7 @@ def test_annotate_workload_availability_scoped_to_journal(
     parameters.brake_on = 0
     parameters.save()
 
-    StaffWorkloadParameters.objects.create(user=editor, journal=other_journal, workload=1)
+    StaffWorkloadParameters.objects.update_or_create(user=editor, journal=other_journal, defaults={"workload": 1})
 
     other_journal_article = Article.objects.create(
         journal=other_journal,
@@ -2095,7 +2097,9 @@ def test_keyword_score_ignores_other_journal_keywords(article, editors, keywords
     _set_article_keyword_weights(article, {keywords[0]: 100, keywords[1]: 100})
     parameters = StaffWorkloadParameters.objects.get(user=editors[0], journal=journal)
     StaffKeyword.objects.create(parameters=parameters, keyword=keywords[0], weight=100)
-    other_parameters = StaffWorkloadParameters.objects.create(user=editors[0], journal=journal_factory("JOTHER"))
+    other_parameters = StaffWorkloadParameters.objects.update_or_create(
+        user=editors[0], journal=journal_factory("JOTHER")
+    )[0]
     StaffKeyword.objects.create(parameters=other_parameters, keyword=keywords[1], weight=100)
 
     assert _score_for(article, editors[0]) == pytest.approx(0.5), "only this journal's editor keywords count"
