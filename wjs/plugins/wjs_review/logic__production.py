@@ -267,6 +267,7 @@ class SendProductionXMLToPublisher:
             actor=None,
             recipients=[get_eo_user(self.articleworkflow.article)],
             verbosity=Message.MessageVerbosity.FULL,
+            flag_as_read_by_eo=True,
         )
 
     def _log_incomplete_affiliation_warning(self):
