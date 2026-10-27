@@ -4,14 +4,14 @@ from core.models import Account
 from django import template
 from django.db import models
 
-from .. import conditions
+from .. import conditions, permissions
 from ..custom_types import (
     AllowedBinaryPermissionType,
     AllowedPermissionType,
     ButtonSize,
 )
 from ..logic__visibility import PermissionChecker
-from ..models import ArticleWorkflow
+from ..models import ArticleWorkflow, AutomaticAssignmentAudit
 
 register = template.Library()
 
@@ -129,3 +129,37 @@ def user_can_set_permission(
     """
 
     return bool(conditions.can_edit_permissions(workflow, user))
+
+
+@register.simple_tag(takes_context=True)
+def user_can_view_assignment_audit(
+    context: dict,
+    workflow: ArticleWorkflow,
+    user: Account,
+    editor: Optional[Account],
+) -> bool:
+    """
+    Check if the user can open the automatic assignment audit for the article's current editor.
+
+    The audit pages are only for EO and directors, and the link is only worth showing (the page would be a 404
+    otherwise) when an automatic assignment picked this very editor for the article.
+
+    .. block:: html
+
+        {% user_can_view_assignment_audit workflow user editor as can_view_audit %}
+        {% if can_view_audit %}<a href="...">Audit</a>{% endif %}
+
+    :param workflow: The workflow whose article is checked.
+    :type workflow: ArticleWorkflow
+    :param user: The user to check access for.
+    :type user: Account
+    :param editor: The article's current editor, if any.
+    :type editor: Optional[Account]
+    :return: True if the user can see the link to the audit, False otherwise.
+    :rtype: bool
+    """
+    return bool(
+        editor
+        and permissions.has_eo_or_director_role_by_article(workflow, user)
+        and AutomaticAssignmentAudit.objects.for_article_and_editor(workflow.article, editor).exists()
+    )

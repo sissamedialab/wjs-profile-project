@@ -1,0 +1,842 @@
+article_id,editor,rank,selected,reason,keyword_score,matching_keywords_count,matching_keywords,monthly_workload,workload_30d,workload_cap
+4391,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,1,True,selected,0.900,2,"Gravitational waves in GR and beyond: theory (article 50, editor 100); Physics of the early universe (article 50, editor 80)",3,0,3
+4391,Jaume Garriga <jaume.garriga@ub.edu>,2,False,lower keyword score,0.500,1,"Physics of the early universe (article 50, editor 100)",4,4,5
+4391,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,3,False,lower keyword score,0.500,1,"Gravitational waves in GR and beyond: theory (article 50, editor 100)",3,3,5
+4391,Esteban Roulet <eroulet@gmail.com>,4,False,lower keyword score,0.500,1,"Physics of the early universe (article 50, editor 100)",4,3,4
+4391,Tanja Hinderer <t.p.hinderer@uu.nl>,5,False,lower keyword score,0.500,1,"Gravitational waves in GR and beyond: theory (article 50, editor 100)",3,0,5
+4391,Nathalie Deruelle <deruelle@ihes.fr>,6,False,lower keyword score,0.450,1,"Gravitational waves in GR and beyond: theory (article 50, editor 90)",3,3,3
+4391,Dmitry Gorbunov <gorby@cern.ch>,7,False,lower keyword score,0.450,1,"Physics of the early universe (article 50, editor 90)",5,1,5
+4391,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,8,False,lower keyword score,0.400,1,"Physics of the early universe (article 50, editor 80)",3,2,4
+4391,Erminia Calabrese <calabresee@cardiff.ac.uk>,9,False,lower keyword score,0.350,1,"Physics of the early universe (article 50, editor 70)",5,4,5
+4391,Mark Trodden <trodden@physics.upenn.edu>,10,False,lower keyword score,0.350,1,"Physics of the early universe (article 50, editor 70)",3,1,3
+4391,Alexander Vikman <alexander.vikman@gmail.com>,11,False,lower keyword score,0.300,1,"Physics of the early universe (article 50, editor 60)",5,2,5
+4391,Anne Green <ppzamg@gmail.com>,12,False,lower keyword score,0.300,1,"Physics of the early universe (article 50, editor 60)",3,1,4
+4391,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,13,False,lower keyword score,0.300,1,"Physics of the early universe (article 50, editor 60)",3,0,3
+4391,Shi Pi <shi.pi@itp.ac.cn>,14,False,lower keyword score,0.250,1,"Physics of the early universe (article 50, editor 50)",2,2,3
+4391,Cedric Deffayet <cedric.deffayet@ens.fr>,15,False,lower keyword score,0.250,1,"Physics of the early universe (article 50, editor 50)",2,-2,3
+4391,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,16,False,lower keyword score,0.200,1,"Physics of the early universe (article 50, editor 40)",5,4,5
+4391,Andrei Barvinsky <barvin@td.lpi.ru>,17,False,lower keyword score,0.200,1,"Physics of the early universe (article 50, editor 40)",4,3,5
+4391,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,18,False,lower keyword score,0.200,1,"Physics of the early universe (article 50, editor 40)",3,2,3
+4391,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,19,False,lower keyword score,0.100,1,"Physics of the early universe (article 50, editor 20)",3,3,3
+4391,Claudia de Rham <c.de-rham@imperial.ac.uk>,,False,monthly limit reached,0.650,2,"Gravitational waves in GR and beyond: theory (article 50, editor 70); Physics of the early universe (article 50, editor 60)",0,-1,3
+4391,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.500,1,"Gravitational waves in GR and beyond: theory (article 50, editor 100)",0,0,3
+4542,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,1,True,selected,0.500,1,"Modified gravity (article 100, editor 100)",5,5,5
+4542,Alexander Vikman <alexander.vikman@gmail.com>,2,False,"same score and shared keywords, less 30-day availability",0.500,1,"Modified gravity (article 100, editor 100)",5,2,5
+4542,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,3,False,"same score and shared keywords, less 30-day availability",0.500,1,"Modified gravity (article 100, editor 100)",4,1,4
+4542,Asantha Cooray <acooray@uci.edu>,4,False,"same score and shared keywords, less 30-day availability",0.500,1,"Gravitational lensing (article 100, editor 100)",1,1,4
+4542,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,5,False,"same score and shared keywords, less 30-day availability",0.500,1,"Modified gravity (article 100, editor 100)",2,0,3
+4542,Cedric Deffayet <cedric.deffayet@ens.fr>,6,False,"same score and shared keywords, less 30-day availability",0.500,1,"Modified gravity (article 100, editor 100)",1,0,3
+4542,Zoltan Haiman <zh2007@columbia.edu>,7,False,lower keyword score,0.450,1,"Gravitational lensing (article 100, editor 90)",3,3,3
+4542,David Langlois <langlois@apc.univ-paris7.fr>,8,False,lower keyword score,0.450,1,"Modified gravity (article 100, editor 90)",3,2,4
+4542,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,9,False,lower keyword score,0.450,1,"Modified gravity (article 100, editor 90)",3,-1,3
+4542,Andrei Barvinsky <barvin@td.lpi.ru>,10,False,lower keyword score,0.400,1,"Modified gravity (article 100, editor 80)",4,4,5
+4542,Ruth Durrer <ruth.durrer@unige.ch>,11,False,lower keyword score,0.350,2,"Gravitational lensing (article 100, editor 40); Modified gravity (article 100, editor 30)",2,1,3
+4542,Stefano Liberati <liberati@sissa.it>,12,False,lower keyword score,0.350,1,"Modified gravity (article 100, editor 70)",2,1,5
+4542,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,13,False,lower keyword score,0.350,1,"Modified gravity (article 100, editor 70)",2,0,4
+4542,Uros Seljak <useljak@berkeley.edu>,14,False,lower keyword score,0.300,1,"Gravitational lensing (article 100, editor 60)",3,3,3
+4542,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,15,False,lower keyword score,0.300,1,"Modified gravity (article 100, editor 60)",3,3,3
+4542,Benjamin Wandelt <wandelt@jhu.edu>,16,False,lower keyword score,0.300,1,"Gravitational lensing (article 100, editor 60)",3,1,5
+4542,Jochen Weller <jochen.weller@lmu.de>,17,False,lower keyword score,0.300,1,"Gravitational lensing (article 100, editor 60)",2,-2,4
+4542,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,18,False,lower keyword score,0.250,1,"Modified gravity (article 100, editor 50)",3,1,4
+4542,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,19,False,lower keyword score,0.200,1,"Gravitational lensing (article 100, editor 40)",5,5,5
+4542,Stephon Alexander <stephon_alexander@brown.edu>,20,False,lower keyword score,0.200,1,"Modified gravity (article 100, editor 40)",3,3,4
+4542,Mark Trodden <trodden@physics.upenn.edu>,21,False,lower keyword score,0.200,1,"Modified gravity (article 100, editor 40)",3,2,3
+4542,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,22,False,lower keyword score,0.100,1,"Gravitational lensing (article 100, editor 20)",5,5,5
+4542,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,23,False,lower keyword score,0.050,1,"Gravitational lensing (article 100, editor 10)",5,3,5
+4542,Claudia de Rham <c.de-rham@imperial.ac.uk>,,False,monthly limit reached,0.500,1,"Modified gravity (article 100, editor 100)",0,0,3
+4563,Vladimir Usov <Vladimir.Usov@weizmann.ac.il>,1,True,selected,0.800,3,"Magnetic fields (article 100, editor 70); Neutron stars (article 100, editor 70); Pulsar magnetosphere (article 100, editor 100)",2,2,3
+4563,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,2,False,lower keyword score,0.400,3,"Magnetic fields (article 100, editor 40); Neutron stars (article 100, editor 30); Pulsar magnetosphere (article 100, editor 50)",5,3,5
+4563,Tanja Hinderer <t.p.hinderer@uu.nl>,3,False,lower keyword score,0.333,1,"Neutron stars (article 100, editor 100)",4,3,5
+4563,Maria Alessandra Papa <Maria.Alessandra.Papa@aei.mpg.de>,4,False,lower keyword score,0.300,1,"Neutron stars (article 100, editor 90)",2,1,4
+4563,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,5,False,lower keyword score,0.267,1,"Neutron stars (article 100, editor 80)",2,2,5
+4563,Pasquale Blasi <pasquale.blasi@gssi.it>,6,False,lower keyword score,0.267,1,"Pulsar magnetosphere (article 100, editor 80)",1,1,4
+4563,Esteban Roulet <eroulet@gmail.com>,7,False,lower keyword score,0.233,1,"Magnetic fields (article 100, editor 70)",3,3,4
+4563,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,8,False,lower keyword score,0.233,1,"Neutron stars (article 100, editor 70)",3,3,3
+4563,Ariel Goobar <ariel@fysik.su.se>,9,False,lower keyword score,0.233,1,"Neutron stars (article 100, editor 70)",3,3,3
+4810,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,1,True,selected,0.567,2,"Modified gravity (article 100, editor 90); Physics of the early universe (article 100, editor 80)",3,-2,3
+4810,Alexander Vikman <alexander.vikman@gmail.com>,2,False,lower keyword score,0.533,2,"Modified gravity (article 100, editor 100); Physics of the early universe (article 100, editor 60)",3,1,5
+4810,Cedric Deffayet <cedric.deffayet@ens.fr>,3,False,lower keyword score,0.500,2,"Modified gravity (article 100, editor 100); Physics of the early universe (article 100, editor 50)",2,0,3
+4810,Andrei Barvinsky <barvin@td.lpi.ru>,4,False,lower keyword score,0.400,2,"Modified gravity (article 100, editor 80); Physics of the early universe (article 100, editor 40)",5,5,5
+4810,Mark Trodden <trodden@physics.upenn.edu>,5,False,lower keyword score,0.367,2,"Modified gravity (article 100, editor 40); Physics of the early universe (article 100, editor 70)",3,0,3
+4810,Jaume Garriga <jaume.garriga@ub.edu>,6,False,lower keyword score,0.333,1,"Physics of the early universe (article 100, editor 100)",4,4,5
+4810,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,7,False,lower keyword score,0.333,1,"Modified gravity (article 100, editor 100)",3,3,5
+4810,Esteban Roulet <eroulet@gmail.com>,8,False,lower keyword score,0.333,1,"Physics of the early universe (article 100, editor 100)",4,3,4
+4810,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,9,False,lower keyword score,0.333,1,"Modified gravity (article 100, editor 100)",4,2,4
+4810,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,10,False,lower keyword score,0.333,1,"Modified gravity (article 100, editor 100)",3,-4,3
+4810,David Langlois <langlois@apc.univ-paris7.fr>,11,False,lower keyword score,0.300,1,"Modified gravity (article 100, editor 90)",4,2,4
+4810,Dmitry Gorbunov <gorby@cern.ch>,12,False,lower keyword score,0.300,1,"Physics of the early universe (article 100, editor 90)",4,-4,5
+4810,Erminia Calabrese <calabresee@cardiff.ac.uk>,13,False,lower keyword score,0.233,1,"Physics of the early universe (article 100, editor 70)",5,5,5
+4810,Stefano Liberati <liberati@sissa.it>,14,False,lower keyword score,0.233,1,"Modified gravity (article 100, editor 70)",4,1,5
+4810,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,15,False,lower keyword score,0.233,1,"Modified gravity (article 100, editor 70)",3,0,4
+4810,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,16,False,lower keyword score,0.200,1,"Modified gravity (article 100, editor 60)",2,2,3
+4810,Anne Green <ppzamg@gmail.com>,17,False,lower keyword score,0.200,1,"Physics of the early universe (article 100, editor 60)",2,0,4
+4810,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,18,False,lower keyword score,0.200,1,"Physics of the early universe (article 100, editor 60)",2,0,3
+4810,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,19,False,lower keyword score,0.167,1,"Modified gravity (article 100, editor 50)",3,1,4
+4810,Nathalie Deruelle <deruelle@ihes.fr>,20,False,lower keyword score,0.167,1,"Quantum fields in curved spacetimes (article 100, editor 50)",2,0,3
+4810,Shi Pi <shi.pi@itp.ac.cn>,21,False,lower keyword score,0.167,1,"Physics of the early universe (article 100, editor 50)",1,-3,3
+4810,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,22,False,lower keyword score,0.133,1,"Physics of the early universe (article 100, editor 40)",5,5,5
+4810,Stephon Alexander <stephon_alexander@brown.edu>,23,False,lower keyword score,0.133,1,"Modified gravity (article 100, editor 40)",4,3,4
+4810,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,24,False,lower keyword score,0.133,1,"Physics of the early universe (article 100, editor 40)",3,2,3
+4810,Ruth Durrer <ruth.durrer@unige.ch>,25,False,lower keyword score,0.100,1,"Modified gravity (article 100, editor 30)",2,-1,3
+4810,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,26,False,lower keyword score,0.067,1,"Physics of the early universe (article 100, editor 20)",3,3,3
+4810,Claudia de Rham <c.de-rham@imperial.ac.uk>,,False,monthly limit reached,0.833,3,"Modified gravity (article 100, editor 100); Physics of the early universe (article 100, editor 60); Quantum fields in curved spacetimes (article 100, editor 90)",0,0,3
+4810,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,,False,monthly limit reached,0.267,1,"Physics of the early universe (article 100, editor 80)",0,-1,4
+4815,Maria Alessandra Papa <Maria.Alessandra.Papa@aei.mpg.de>,1,True,selected,0.364,1,"Gravitational waves / sources (article 100, editor 100)",4,4,4
+4815,Vera Gluscevic <verag@ias.edu>,2,False,lower keyword score,0.327,1,"Axions (article 100, editor 90)",5,5,5
+4815,Zoltan Haiman <zh2007@columbia.edu>,3,False,lower keyword score,0.327,1,"Gravitational waves / sources (article 100, editor 90)",3,3,3
+4815,Martin S. Sloth <sloth@sdu.dk>,4,False,lower keyword score,0.218,1,"Dark matter theory (article 75, editor 80)",3,3,4
+4815,José Luis Bernal <jlbernal@ifca.es>,5,False,lower keyword score,0.218,1,"Dark matter theory (article 75, editor 80)",3,3,3
+4815,Anne Green <ppzamg@gmail.com>,6,False,lower keyword score,0.218,1,"Dark matter theory (article 75, editor 80)",2,0,4
+4815,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,7,False,lower keyword score,0.218,1,"Gravitational waves / sources (article 100, editor 60)",3,0,4
+4815,Alexander Vikman <alexander.vikman@gmail.com>,8,False,lower keyword score,0.218,1,"Dark matter theory (article 75, editor 80)",2,0,5
+4815,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,9,False,lower keyword score,0.191,1,"Dark matter theory (article 75, editor 70)",2,-3,3
+4815,Dmitry Gorbunov <gorby@cern.ch>,10,False,lower keyword score,0.191,1,"Dark matter theory (article 75, editor 70)",4,-4,5
+4815,Michael Dine <dine@scipp.ucsc.edu>,11,False,lower keyword score,0.182,1,"Axions (article 100, editor 50)",3,2,4
+4815,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,12,False,lower keyword score,0.182,1,"Axions (article 100, editor 50)",3,1,4
+4815,Shi Pi <shi.pi@itp.ac.cn>,13,False,lower keyword score,0.182,1,"Gravitational waves / sources (article 100, editor 50)",1,-2,3
+4815,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,14,False,lower keyword score,0.164,1,"Dark matter theory (article 75, editor 60)",2,2,3
+4815,Stephon Alexander <stephon_alexander@brown.edu>,15,False,lower keyword score,0.127,2,"Axions (article 100, editor 20); Dark matter theory (article 75, editor 20)",4,3,4
+4815,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,16,False,lower keyword score,0.109,1,"Dark matter theory (article 75, editor 40)",4,4,4
+4815,Yaron Oz <yaronoz@tauex.tau.ac.il>,17,False,lower keyword score,0.109,1,"Dark matter theory (article 75, editor 40)",4,4,4
+4815,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,,False,monthly limit reached,0.218,1,"Dark matter theory (article 75, editor 80)",0,0,4
+4997,Alexander Vikman <alexander.vikman@gmail.com>,1,True,selected,0.833,3,"Alternatives to inflation (article 100, editor 100); Dark energy theory (article 100, editor 80); Inflation (article 100, editor 70)",1,0,5
+4997,Martin S. Sloth <sloth@sdu.dk>,2,False,lower keyword score,0.633,3,"Alternatives to inflation (article 100, editor 80); Dark energy theory (article 100, editor 70); Inflation (article 100, editor 40)",3,3,4
+4997,Dmitry Gorbunov <gorby@cern.ch>,3,False,lower keyword score,0.567,2,"Dark energy theory (article 100, editor 90); Inflation (article 100, editor 80)",2,-3,5
+4997,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,4,False,lower keyword score,0.500,3,"Alternatives to inflation (article 100, editor 70); Dark energy theory (article 100, editor 40); Inflation (article 100, editor 40)",2,1,4
+4997,Jaume Garriga <jaume.garriga@ub.edu>,5,False,lower keyword score,0.500,2,"Dark energy theory (article 100, editor 50); Inflation (article 100, editor 100)",3,3,5
+4997,David Langlois <langlois@apc.univ-paris7.fr>,6,False,lower keyword score,0.500,2,"Dark energy theory (article 100, editor 90); Inflation (article 100, editor 60)",3,1,4
+4997,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,7,False,lower keyword score,0.500,2,"Alternatives to inflation (article 100, editor 80); Inflation (article 100, editor 70)",3,0,3
+4997,Mark Trodden <trodden@physics.upenn.edu>,8,False,lower keyword score,0.467,3,"Alternatives to inflation (article 100, editor 40); Dark energy theory (article 100, editor 40); Inflation (article 100, editor 60)",1,1,3
+4997,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,9,False,lower keyword score,0.433,3,"Alternatives to inflation (article 100, editor 50); Dark energy theory (article 100, editor 30); Inflation (article 100, editor 50)",3,0,4
+4997,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,10,False,lower keyword score,0.333,2,"Dark energy theory (article 100, editor 50); Inflation (article 100, editor 50)",3,3,4
+4997,Asantha Cooray <acooray@uci.edu>,11,False,lower keyword score,0.333,2,"Dark energy theory (article 100, editor 50); Inflation (article 100, editor 50)",4,2,4
+4997,Shi Pi <shi.pi@itp.ac.cn>,12,False,lower keyword score,0.333,1,"Inflation (article 100, editor 100)",2,-2,3
+4997,Licia Verde <liciaverde@gmail.com>,13,False,lower keyword score,0.333,1,"Dark energy theory (article 100, editor 999)",1,-2,5
+4997,Andrei Barvinsky <barvin@td.lpi.ru>,14,False,lower keyword score,0.300,2,"Dark energy theory (article 100, editor 40); Inflation (article 100, editor 50)",3,3,5
+4997,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,15,False,lower keyword score,0.300,1,"Dark energy theory (article 100, editor 90)",3,3,5
+4997,Stephon Alexander <stephon_alexander@brown.edu>,16,False,lower keyword score,0.267,2,"Alternatives to inflation (article 100, editor 50); Dark energy theory (article 100, editor 30)",4,4,4
+4997,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,17,False,lower keyword score,0.267,2,"Alternatives to inflation (article 100, editor 50); Dark energy theory (article 100, editor 30)",3,3,3
+4997,Marilena LoVerde <mloverde@uw.edu>,18,False,lower keyword score,0.267,1,"Dark energy theory (article 100, editor 80)",3,3,3
+4997,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,19,False,lower keyword score,0.233,1,"Dark energy theory (article 100, editor 70)",3,-1,3
+4997,Jai-chan Hwang <jchan@knu.ac.kr>,20,False,lower keyword score,0.167,2,"Dark energy theory (article 100, editor 20); Inflation (article 100, editor 30)",3,3,3
+4997,Ofer Lahav <o.lahav@ucl.ac.uk>,21,False,lower keyword score,0.167,1,"Dark energy theory (article 100, editor 50)",4,4,5
+4997,Jochen Weller <jochen.weller@lmu.de>,22,False,lower keyword score,0.167,1,"Dark energy theory (article 100, editor 50)",3,1,4
+4997,Cedric Deffayet <cedric.deffayet@ens.fr>,23,False,lower keyword score,0.133,2,"Dark energy theory (article 100, editor 10); Inflation (article 100, editor 30)",2,-1,3
+4997,Yaron Oz <yaronoz@tauex.tau.ac.il>,24,False,lower keyword score,0.133,1,"Dark energy theory (article 100, editor 40)",4,3,4
+4997,Uros Seljak <useljak@berkeley.edu>,25,False,lower keyword score,0.133,1,"Dark energy theory (article 100, editor 40)",2,2,3
+4997,Marc Henneaux <marc.henneaux@ulb.be>,26,False,lower keyword score,0.133,1,"Dark energy theory (article 100, editor 40)",3,1,4
+4997,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,27,False,lower keyword score,0.133,1,"Inflation (article 100, editor 40)",1,-1,3
+4997,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,28,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 30)",4,4,5
+4997,Nathalie Deruelle <deruelle@ihes.fr>,29,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 30)",3,0,3
+4997,Anne Green <ppzamg@gmail.com>,30,False,lower keyword score,0.067,1,"Inflation (article 100, editor 20)",3,3,4
+4997,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.667,2,"Dark energy theory (article 100, editor 100); Inflation (article 100, editor 100)",0,-3,3
+4997,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,,False,monthly limit reached,0.500,2,"Dark energy theory (article 100, editor 80); Inflation (article 100, editor 70)",-1,-2,4
+4997,Ruth Durrer <ruth.durrer@unige.ch>,,False,monthly limit reached,0.300,2,"Alternatives to inflation (article 100, editor 60); Dark energy theory (article 100, editor 30)",0,-3,3
+4997,Claudia de Rham <c.de-rham@imperial.ac.uk>,,False,monthly limit reached,0.233,1,"Alternatives to inflation (article 100, editor 70)",0,0,3
+5325,Martin S. Sloth <sloth@sdu.dk>,1,True,selected,0.875,4,"Baryon acoustic oscillations (article 100, editor 999); Dark energy theory (article 100, editor 70); Dark matter theory (article 100, editor 80); Supernova type Ia - standard candles (article 100, editor 999)",4,4,4
+5325,Kyle Dawson <kdawson@astro.utah.edu>,2,False,lower keyword score,0.475,2,"Baryon acoustic oscillations (article 100, editor 100); Supernova type Ia - standard candles (article 100, editor 90)",2,2,3
+5325,Alexander Vikman <alexander.vikman@gmail.com>,3,False,lower keyword score,0.400,2,"Dark energy theory (article 100, editor 80); Dark matter theory (article 100, editor 80)",5,0,5
+5325,José Luis Bernal <jlbernal@ifca.es>,4,False,lower keyword score,0.400,2,"Baryon acoustic oscillations (article 100, editor 80); Dark matter theory (article 100, editor 80)",1,-1,3
+5325,Dmitry Gorbunov <gorby@cern.ch>,5,False,lower keyword score,0.400,2,"Dark energy theory (article 100, editor 90); Dark matter theory (article 100, editor 70)",3,-4,5
+5325,Uros Seljak <useljak@berkeley.edu>,6,False,lower keyword score,0.375,3,"Baryon acoustic oscillations (article 100, editor 70); Dark energy theory (article 100, editor 40); Supernova type Ia - standard candles (article 100, editor 40)",3,3,3
+5325,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,7,False,lower keyword score,0.325,2,"Baryon acoustic oscillations (article 100, editor 100); Dark energy theory (article 100, editor 30)",5,5,5
+5325,Ofer Lahav <o.lahav@ucl.ac.uk>,8,False,lower keyword score,0.300,2,"Baryon acoustic oscillations (article 100, editor 70); Dark energy theory (article 100, editor 50)",5,5,5
+5325,Ruth Durrer <ruth.durrer@unige.ch>,9,False,lower keyword score,0.250,2,"Baryon acoustic oscillations (article 100, editor 70); Dark energy theory (article 100, editor 30)",3,0,3
+5325,Jochen Weller <jochen.weller@lmu.de>,10,False,lower keyword score,0.250,2,"Baryon acoustic oscillations (article 100, editor 50); Dark energy theory (article 100, editor 50)",4,-2,4
+5325,Hector Gil-Marin <hectorgil@icc.ub.edu>,11,False,lower keyword score,0.250,1,"Baryon acoustic oscillations (article 100, editor 100)",4,4,4
+5325,Ariel Goobar <ariel@fysik.su.se>,12,False,lower keyword score,0.250,1,"Supernova type Ia - standard candles (article 100, editor 100)",3,3,3
+5325,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,13,False,lower keyword score,0.225,2,"Dark energy theory (article 100, editor 30); Dark matter theory (article 100, editor 60)",3,3,3
+5325,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,14,False,lower keyword score,0.225,2,"Dark energy theory (article 100, editor 50); Dark matter theory (article 100, editor 40)",2,2,4
+5325,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,15,False,lower keyword score,0.225,1,"Dark energy theory (article 100, editor 90)",3,3,5
+5325,David Langlois <langlois@apc.univ-paris7.fr>,16,False,lower keyword score,0.225,1,"Dark energy theory (article 100, editor 90)",4,3,4
+5325,Yaron Oz <yaronoz@tauex.tau.ac.il>,17,False,lower keyword score,0.200,2,"Dark energy theory (article 100, editor 40); Dark matter theory (article 100, editor 40)",4,2,4
+5325,Marilena LoVerde <mloverde@uw.edu>,18,False,lower keyword score,0.200,1,"Dark energy theory (article 100, editor 80)",3,3,3
+5325,Anne Green <ppzamg@gmail.com>,19,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",4,1,4
+5325,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,20,False,lower keyword score,0.150,1,"Baryon acoustic oscillations (article 100, editor 60)",5,5,5
+5325,Benjamin Wandelt <wandelt@jhu.edu>,21,False,lower keyword score,0.150,1,"Baryon acoustic oscillations (article 100, editor 60)",3,3,5
+5325,Stephon Alexander <stephon_alexander@brown.edu>,22,False,lower keyword score,0.125,2,"Dark energy theory (article 100, editor 30); Dark matter theory (article 100, editor 20)",4,4,4
+5325,Jaume Garriga <jaume.garriga@ub.edu>,23,False,lower keyword score,0.125,1,"Dark energy theory (article 100, editor 50)",5,5,5
+5325,Asantha Cooray <acooray@uci.edu>,24,False,lower keyword score,0.125,1,"Dark energy theory (article 100, editor 50)",4,0,4
+5325,Andrei Barvinsky <barvin@td.lpi.ru>,25,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 40)",5,5,5
+5325,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,26,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 40)",3,1,4
+5325,Mark Trodden <trodden@physics.upenn.edu>,27,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 40)",3,1,3
+5325,Nathalie Deruelle <deruelle@ihes.fr>,28,False,lower keyword score,0.075,1,"Dark energy theory (article 100, editor 30)",3,3,3
+5325,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,29,False,lower keyword score,0.075,1,"Dark energy theory (article 100, editor 30)",4,0,4
+5325,Jai-chan Hwang <jchan@knu.ac.kr>,30,False,lower keyword score,0.050,1,"Dark energy theory (article 100, editor 20)",3,3,3
+5325,Cedric Deffayet <cedric.deffayet@ens.fr>,31,False,lower keyword score,0.025,1,"Dark energy theory (article 100, editor 10)",1,-2,3
+5325,Licia Verde <liciaverde@gmail.com>,,False,monthly limit reached,0.425,2,"Baryon acoustic oscillations (article 100, editor 70); Dark energy theory (article 100, editor 999)",-1,-5,5
+5325,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,,False,monthly limit reached,0.400,2,"Dark energy theory (article 100, editor 80); Dark matter theory (article 100, editor 80)",0,0,4
+5325,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.350,2,"Dark energy theory (article 100, editor 70); Dark matter theory (article 100, editor 70)",-3,-3,3
+5325,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.250,1,"Dark energy theory (article 100, editor 100)",-1,-5,3
+5325,Marc Henneaux <marc.henneaux@ulb.be>,,False,monthly limit reached,0.100,1,"Dark energy theory (article 100, editor 40)",0,-1,4
+5337,Andrei Barvinsky <barvin@td.lpi.ru>,1,True,selected,0.800,2,"GR black holes (article 100, editor 70); Gravity (article 100, editor 90)",5,5,5
+5337,Tanja Hinderer <t.p.hinderer@uu.nl>,2,False,lower keyword score,0.500,1,"GR black holes (article 100, editor 100)",5,5,5
+5337,Claudia de Rham <c.de-rham@imperial.ac.uk>,3,False,lower keyword score,0.450,1,"Gravity (article 100, editor 90)",3,3,3
+5337,Stefano Liberati <liberati@sissa.it>,4,False,lower keyword score,0.400,2,"GR black holes (article 100, editor 40); Gravity (article 100, editor 40)",1,-1,5
+5337,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,5,False,lower keyword score,0.400,1,"GR black holes (article 100, editor 80)",4,1,4
+5337,Yaron Oz <yaronoz@tauex.tau.ac.il>,6,False,lower keyword score,0.350,1,"Gravity (article 100, editor 70)",4,2,4
+5337,Ruth Durrer <ruth.durrer@unige.ch>,7,False,lower keyword score,0.350,1,"Gravity (article 100, editor 70)",2,-1,3
+5337,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,8,False,lower keyword score,0.300,1,"Gravity (article 100, editor 60)",1,-2,3
+5337,Jaume Garriga <jaume.garriga@ub.edu>,9,False,lower keyword score,0.250,1,"Gravity (article 100, editor 50)",5,5,5
+5337,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,10,False,lower keyword score,0.200,1,"GR black holes (article 100, editor 40)",3,1,3
+5337,Mark Trodden <trodden@physics.upenn.edu>,11,False,lower keyword score,0.150,1,"Gravity (article 100, editor 30)",3,2,3
+5337,Stephon Alexander <stephon_alexander@brown.edu>,12,False,lower keyword score,0.000,1,"GR black holes (article 100, editor 0)",4,4,4
+5337,Marc Henneaux <marc.henneaux@ulb.be>,,False,monthly limit reached,0.700,2,"GR black holes (article 100, editor 90); Gravity (article 100, editor 50)",0,-1,4
+5337,Cedric Deffayet <cedric.deffayet@ens.fr>,,False,monthly limit reached,0.350,1,"Gravity (article 100, editor 70)",0,-2,3
+5470,Arthur Kosowsky <kosowsky@pitt.edu>,1,True,selected,0.691,2,"CMBR theory (article 100, editor 100); Primordial magnetic fields (article 100, editor 90)",4,4,5
+5470,Pavel Naselsky <naselsky@nbi.dk>,2,False,"same score and shared keywords, less 30-day availability",0.691,2,"CMBR theory (article 100, editor 100); Primordial magnetic fields (article 100, editor 90)",3,3,3
+5470,Uros Seljak <useljak@berkeley.edu>,3,False,lower keyword score,0.555,2,"CMBR theory (article 100, editor 100); Intergalactic media (article 75, editor 70)",3,3,3
+5470,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,4,False,lower keyword score,0.391,2,"CMBR theory (article 100, editor 70); Intergalactic media (article 75, editor 50)",1,1,3
+5470,Marilena LoVerde <mloverde@uw.edu>,5,False,lower keyword score,0.364,1,"CMBR theory (article 100, editor 100)",2,2,3
+5470,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,6,False,lower keyword score,0.364,1,"CMBR theory (article 100, editor 100)",2,0,4
+5470,Ruth Durrer <ruth.durrer@unige.ch>,7,False,lower keyword score,0.327,2,"CMBR theory (article 100, editor 50); Primordial magnetic fields (article 100, editor 40)",2,0,3
+5470,Erminia Calabrese <calabresee@cardiff.ac.uk>,8,False,lower keyword score,0.327,1,"CMBR theory (article 100, editor 90)",4,3,5
+5470,Benjamin Wandelt <wandelt@jhu.edu>,9,False,lower keyword score,0.291,1,"CMBR theory (article 100, editor 80)",5,5,5
+5470,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,10,False,lower keyword score,0.291,1,"CMBR theory (article 100, editor 80)",1,1,5
+5470,José Luis Bernal <jlbernal@ifca.es>,11,False,lower keyword score,0.291,1,"CMBR theory (article 100, editor 80)",1,1,3
+5470,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,12,False,lower keyword score,0.273,1,"Intergalactic media (article 75, editor 100)",3,3,4
+5470,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,13,False,lower keyword score,0.255,1,"Primordial magnetic fields (article 100, editor 70)",2,2,3
+5470,Martin S. Sloth <sloth@sdu.dk>,14,False,lower keyword score,0.255,1,"Primordial magnetic fields (article 100, editor 70)",3,2,4
+5470,Steven Furlanetto <sfurlane@astro.ucla.edu>,15,False,lower keyword score,0.218,1,"Intergalactic media (article 75, editor 80)",2,1,5
+5470,Ofer Lahav <o.lahav@ucl.ac.uk>,16,False,lower keyword score,0.191,1,"Intergalactic media (article 75, editor 70)",4,4,5
+5470,Vera Gluscevic <verag@ias.edu>,17,False,lower keyword score,0.182,1,"CMBR theory (article 100, editor 50)",5,5,5
+5470,Jochen Weller <jochen.weller@lmu.de>,18,False,lower keyword score,0.182,1,"CMBR theory (article 100, editor 50)",1,1,4
+5470,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,19,False,lower keyword score,0.182,1,"CMBR theory (article 100, editor 50)",1,-1,4
+5470,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,20,False,lower keyword score,0.145,1,"CMBR theory (article 100, editor 40)",3,3,3
+5470,Stephon Alexander <stephon_alexander@brown.edu>,21,False,lower keyword score,0.109,2,"CMBR theory (article 100, editor 10); Primordial magnetic fields (article 100, editor 20)",4,4,4
+5470,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,22,False,lower keyword score,0.109,1,"Intergalactic media (article 75, editor 40)",5,4,5
+5470,Jai-chan Hwang <jchan@knu.ac.kr>,23,False,lower keyword score,0.109,1,"CMBR theory (article 100, editor 30)",3,3,3
+5470,Andrei Barvinsky <barvin@td.lpi.ru>,24,False,lower keyword score,0.073,1,"CMBR theory (article 100, editor 20)",5,5,5
+5470,Jaume Garriga <jaume.garriga@ub.edu>,25,False,lower keyword score,0.073,1,"CMBR theory (article 100, editor 20)",4,4,5
+5470,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,26,False,lower keyword score,0.055,1,"Intergalactic media (article 75, editor 20)",5,5,5
+5645,Nathalie Deruelle <deruelle@ihes.fr>,1,True,selected,0.300,2,"Cosmological perturbation theory in GR and beyond (article 75, editor 70); Exact solutions, black holes and black hole thermodynamics in GR and beyond (article 75, editor 60)",2,2,3
+5645,Erminia Calabrese <calabresee@cardiff.ac.uk>,2,False,lower keyword score,0.246,1,"Cosmology of theories beyond the SM (article 100, editor 80)",3,3,5
+5645,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,3,False,lower keyword score,0.231,1,"Cosmological perturbation theory in GR and beyond (article 75, editor 100)",3,3,5
+5645,Benjamin Wandelt <wandelt@jhu.edu>,4,False,lower keyword score,0.231,1,"Bayesian reasoning (article 75, editor 100)",2,2,5
+5645,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,5,False,lower keyword score,0.215,1,"Cosmology of theories beyond the SM (article 100, editor 70)",1,-1,4
+5645,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,6,False,lower keyword score,0.208,1,"Bayesian reasoning (article 75, editor 90)",3,3,3
+5645,Claudia de Rham <c.de-rham@imperial.ac.uk>,7,False,lower keyword score,0.185,1,"Cosmological perturbation theory in GR and beyond (article 75, editor 80)",1,1,3
+5645,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,8,False,lower keyword score,0.162,1,"Bayesian reasoning (article 75, editor 70)",2,2,3
+5645,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,9,False,lower keyword score,0.154,1,"Cosmology of theories beyond the SM (article 100, editor 50)",3,2,4
+5645,Dmitry Gorbunov <gorby@cern.ch>,10,False,lower keyword score,0.154,1,"Cosmology of theories beyond the SM (article 100, editor 50)",2,-2,5
+5645,Stephon Alexander <stephon_alexander@brown.edu>,11,False,lower keyword score,0.131,2,"Cosmology of theories beyond the SM (article 100, editor 20); Cosmological perturbation theory in GR and beyond (article 75, editor 30)",4,4,4
+5645,Andrei Barvinsky <barvin@td.lpi.ru>,12,False,lower keyword score,0.123,1,"Cosmology of theories beyond the SM (article 100, editor 40)",4,2,5
+5645,Ruth Durrer <ruth.durrer@unige.ch>,13,False,lower keyword score,0.092,1,"Cosmology of theories beyond the SM (article 100, editor 30)",3,1,3
+5645,Cedric Deffayet <cedric.deffayet@ens.fr>,,False,monthly limit reached,0.308,1,"Cosmology of theories beyond the SM (article 100, editor 100)",-1,-1,3
+5645,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.231,1,"Cosmological perturbation theory in GR and beyond (article 75, editor 100)",-2,-3,3
+5645,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.208,1,"Cosmological perturbation theory in GR and beyond (article 75, editor 90)",-2,-3,3
+5645,Tanja Hinderer <t.p.hinderer@uu.nl>,,False,monthly limit reached,0.185,1,"Exact solutions, black holes and black hole thermodynamics in GR and beyond (article 75, editor 80)",-1,-3,5
+5697,Yaron Oz <yaronoz@tauex.tau.ac.il>,1,True,selected,0.275,2,"Dark matter theory (article 100, editor 40); Gravity (article 100, editor 70)",3,3,4
+5697,Dmitry Gorbunov <gorby@cern.ch>,2,False,"same score and shared keywords, less 30-day availability",0.275,2,"Dark matter theory (article 100, editor 70); Neutrino theory (article 100, editor 40)",1,1,5
+5697,Alexei Y. Smirnov <smirnov@ictp.trieste.it>,3,False,lower keyword score,0.250,1,"Neutrino theory (article 100, editor 100)",2,2,4
+5697,Zoltan Haiman <zh2007@columbia.edu>,4,False,lower keyword score,0.250,1,"Weak gravitational lensing (article 100, editor 100)",2,2,3
+5697,Andrei Barvinsky <barvin@td.lpi.ru>,5,False,lower keyword score,0.225,1,"Gravity (article 100, editor 90)",4,4,5
+5697,Claudia de Rham <c.de-rham@imperial.ac.uk>,6,False,lower keyword score,0.225,1,"Gravity (article 100, editor 90)",1,1,3
+5697,Martin S. Sloth <sloth@sdu.dk>,7,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",3,3,4
+5697,Marilena LoVerde <mloverde@uw.edu>,8,False,lower keyword score,0.200,1,"Weak gravitational lensing (article 100, editor 80)",2,2,3
+5697,Anne Green <ppzamg@gmail.com>,9,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",2,2,4
+5697,Uros Seljak <useljak@berkeley.edu>,10,False,lower keyword score,0.200,1,"Weak gravitational lensing (article 100, editor 80)",2,2,3
+5697,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,11,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",1,1,4
+5697,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,12,False,lower keyword score,0.175,1,"Weak gravitational lensing (article 100, editor 70)",3,3,5
+5697,Ofer Lahav <o.lahav@ucl.ac.uk>,13,False,lower keyword score,0.150,1,"Weak gravitational lensing (article 100, editor 60)",4,4,5
+5697,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,14,False,lower keyword score,0.150,1,"Dark matter theory (article 100, editor 60)",2,2,3
+5697,Jaume Garriga <jaume.garriga@ub.edu>,15,False,lower keyword score,0.125,1,"Gravity (article 100, editor 50)",5,5,5
+5697,Benjamin Wandelt <wandelt@jhu.edu>,16,False,lower keyword score,0.125,1,"Weak gravitational lensing (article 100, editor 50)",2,2,5
+5697,Stefano Liberati <liberati@sissa.it>,17,False,lower keyword score,0.100,1,"Gravity (article 100, editor 40)",4,4,5
+5697,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,18,False,lower keyword score,0.100,1,"Dark matter theory (article 100, editor 40)",3,3,4
+5697,Mark Trodden <trodden@physics.upenn.edu>,19,False,lower keyword score,0.075,1,"Gravity (article 100, editor 30)",2,2,3
+5697,Stephon Alexander <stephon_alexander@brown.edu>,20,False,lower keyword score,0.050,1,"Dark matter theory (article 100, editor 20)",4,4,4
+5697,Jochen Weller <jochen.weller@lmu.de>,,False,monthly limit reached,0.200,1,"Weak gravitational lensing (article 100, editor 80)",-1,-1,4
+5697,José Luis Bernal <jlbernal@ifca.es>,,False,monthly limit reached,0.200,1,"Dark matter theory (article 100, editor 80)",0,0,3
+5697,Alexander Vikman <alexander.vikman@gmail.com>,,False,monthly limit reached,0.200,1,"Dark matter theory (article 100, editor 80)",-1,-1,5
+5697,Ruth Durrer <ruth.durrer@unige.ch>,,False,monthly limit reached,0.175,1,"Gravity (article 100, editor 70)",-1,-1,3
+5697,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.175,1,"Dark matter theory (article 100, editor 70)",-2,-2,3
+5697,Cedric Deffayet <cedric.deffayet@ens.fr>,,False,monthly limit reached,0.175,1,"Gravity (article 100, editor 70)",-2,-2,3
+5697,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,,False,monthly limit reached,0.150,1,"Gravity (article 100, editor 60)",-1,-1,3
+5697,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.125,1,"Weak gravitational lensing (article 100, editor 50)",-3,-3,3
+5697,Marc Henneaux <marc.henneaux@ulb.be>,,False,monthly limit reached,0.125,1,"Gravity (article 100, editor 50)",-1,-1,4
+5711,Vladimir Usov <Vladimir.Usov@weizmann.ac.il>,1,True,selected,0.444,1,"Active galactic nuclei (article 100, editor 100)",3,0,3
+5711,Pasquale Blasi <pasquale.blasi@gssi.it>,2,False,lower keyword score,0.400,1,"Neutrino astronomy (article 100, editor 90)",4,3,4
+5711,Zoltan Haiman <zh2007@columbia.edu>,3,False,lower keyword score,0.400,1,"Active galactic nuclei (article 100, editor 90)",3,3,3
+5711,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,4,False,lower keyword score,0.311,1,"Active galactic nuclei (article 100, editor 70)",5,4,5
+5711,Alexei Y. Smirnov <smirnov@ictp.trieste.it>,5,False,lower keyword score,0.267,1,"Neutrino astronomy (article 100, editor 60)",3,2,4
+5711,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,6,False,lower keyword score,0.133,1,"Active galactic nuclei (article 100, editor 30)",5,5,5
+5711,Benjamin Wandelt <wandelt@jhu.edu>,7,False,lower keyword score,0.111,1,"Frequentist statistics (article 25, editor 100)",5,2,5
+5711,Maria Alessandra Papa <Maria.Alessandra.Papa@aei.mpg.de>,8,False,lower keyword score,0.089,1,"Frequentist statistics (article 25, editor 80)",4,2,4
+5976,Benjamin Wandelt <wandelt@jhu.edu>,1,True,selected,0.575,3,"Bayesian reasoning (article 100, editor 100); Cosmic web (article 100, editor 70); Gravitational lensing (article 100, editor 60)",5,2,5
+5976,Uros Seljak <useljak@berkeley.edu>,2,False,lower keyword score,0.425,3,"Cosmic web (article 100, editor 60); Dark matter simulations (article 100, editor 50); Gravitational lensing (article 100, editor 60)",3,2,3
+5976,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,3,False,lower keyword score,0.425,2,"Bayesian reasoning (article 100, editor 70); Cosmic web (article 100, editor 100)",3,3,3
+5976,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,4,False,lower keyword score,0.350,3,"Cosmic web (article 100, editor 80); Dark matter simulations (article 100, editor 40); Gravitational lensing (article 100, editor 20)",5,5,5
+5976,Anne Green <ppzamg@gmail.com>,5,False,lower keyword score,0.250,1,"Dark matter simulations (article 100, editor 100)",4,2,4
+5976,Martin S. Sloth <sloth@sdu.dk>,6,False,lower keyword score,0.250,1,"Cosmic web (article 100, editor 999)",3,2,4
+5976,Asantha Cooray <acooray@uci.edu>,7,False,lower keyword score,0.250,1,"Gravitational lensing (article 100, editor 100)",3,0,4
+5976,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,8,False,lower keyword score,0.225,1,"Cosmic web (article 100, editor 90)",3,3,4
+5976,Zoltan Haiman <zh2007@columbia.edu>,9,False,lower keyword score,0.225,1,"Gravitational lensing (article 100, editor 90)",3,3,3
+5976,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,10,False,lower keyword score,0.225,1,"Bayesian reasoning (article 100, editor 90)",3,3,3
+5976,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,11,False,lower keyword score,0.200,2,"Cosmic web (article 100, editor 40); Gravitational lensing (article 100, editor 40)",5,3,5
+5976,Vera Gluscevic <verag@ias.edu>,12,False,lower keyword score,0.200,1,"Dark matter simulations (article 100, editor 80)",5,4,5
+5976,Steven Furlanetto <sfurlane@astro.ucla.edu>,13,False,lower keyword score,0.200,1,"Cosmic web (article 100, editor 80)",5,1,5
+5976,Ofer Lahav <o.lahav@ucl.ac.uk>,14,False,lower keyword score,0.175,1,"Cosmic web (article 100, editor 70)",5,5,5
+5976,Jochen Weller <jochen.weller@lmu.de>,15,False,lower keyword score,0.150,1,"Gravitational lensing (article 100, editor 60)",4,-1,4
+5976,Hector Gil-Marin <hectorgil@icc.ub.edu>,16,False,lower keyword score,0.125,1,"Cosmic web (article 100, editor 50)",3,1,4
+5976,Ruth Durrer <ruth.durrer@unige.ch>,17,False,lower keyword score,0.100,1,"Gravitational lensing (article 100, editor 40)",3,-1,3
+5976,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,18,False,lower keyword score,0.075,2,"Dark matter simulations (article 100, editor 20); Gravitational lensing (article 100, editor 10)",5,5,5
+5976,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,19,False,lower keyword score,0.075,1,"Dark matter simulations (article 100, editor 30)",3,2,3
+5753,Dmitry Gorbunov <gorby@cern.ch>,1,True,selected,0.700,3,"Cosmology of theories beyond the SM (article 100, editor 50); Dark energy theory (article 100, editor 90); Dark matter theory (article 100, editor 70)",4,1,5
+5753,Alexander Vikman <alexander.vikman@gmail.com>,2,False,lower keyword score,0.533,2,"Dark energy theory (article 100, editor 80); Dark matter theory (article 100, editor 80)",4,2,5
+5753,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,3,False,lower keyword score,0.533,2,"Dark energy theory (article 100, editor 80); Dark matter theory (article 100, editor 80)",1,1,4
+5753,Martin S. Sloth <sloth@sdu.dk>,4,False,lower keyword score,0.500,2,"Dark energy theory (article 100, editor 70); Dark matter theory (article 100, editor 80)",3,2,4
+5753,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,5,False,lower keyword score,0.467,2,"Dark energy theory (article 100, editor 70); Dark matter theory (article 100, editor 70)",2,-1,3
+5753,Cedric Deffayet <cedric.deffayet@ens.fr>,6,False,lower keyword score,0.367,2,"Cosmology of theories beyond the SM (article 100, editor 100); Dark energy theory (article 100, editor 10)",2,0,3
+5753,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,7,False,lower keyword score,0.333,1,"Dark energy theory (article 100, editor 100)",3,-3,3
+5753,Licia Verde <liciaverde@gmail.com>,8,False,lower keyword score,0.333,1,"Dark energy theory (article 100, editor 999)",2,-6,5
+5753,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,9,False,lower keyword score,0.300,2,"Cosmology of theories beyond the SM (article 100, editor 50); Dark energy theory (article 100, editor 40)",4,4,4
+5753,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,10,False,lower keyword score,0.300,2,"Dark energy theory (article 100, editor 50); Dark matter theory (article 100, editor 40)",3,3,4
+5753,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,11,False,lower keyword score,0.300,2,"Dark energy theory (article 100, editor 30); Dark matter theory (article 100, editor 60)",3,2,3
+5753,David Langlois <langlois@apc.univ-paris7.fr>,12,False,lower keyword score,0.300,1,"Dark energy theory (article 100, editor 90)",4,4,4
+5753,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,13,False,lower keyword score,0.300,1,"Dark energy theory (article 100, editor 90)",3,3,5
+5753,Andrei Barvinsky <barvin@td.lpi.ru>,14,False,lower keyword score,0.267,2,"Cosmology of theories beyond the SM (article 100, editor 40); Dark energy theory (article 100, editor 40)",4,4,5
+5753,Yaron Oz <yaronoz@tauex.tau.ac.il>,15,False,lower keyword score,0.267,2,"Dark energy theory (article 100, editor 40); Dark matter theory (article 100, editor 40)",4,3,4
+5753,Anne Green <ppzamg@gmail.com>,16,False,lower keyword score,0.267,1,"Dark matter theory (article 100, editor 80)",4,3,4
+5753,Erminia Calabrese <calabresee@cardiff.ac.uk>,17,False,lower keyword score,0.267,1,"Cosmology of theories beyond the SM (article 100, editor 80)",5,3,5
+5753,Marilena LoVerde <mloverde@uw.edu>,18,False,lower keyword score,0.267,1,"Dark energy theory (article 100, editor 80)",3,2,3
+5753,José Luis Bernal <jlbernal@ifca.es>,19,False,lower keyword score,0.267,1,"Dark matter theory (article 100, editor 80)",3,0,3
+5753,Stephon Alexander <stephon_alexander@brown.edu>,20,False,lower keyword score,0.233,3,"Cosmology of theories beyond the SM (article 100, editor 20); Dark energy theory (article 100, editor 30); Dark matter theory (article 100, editor 20)",4,4,4
+5753,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,21,False,lower keyword score,0.233,1,"Cosmology of theories beyond the SM (article 100, editor 70)",2,-1,4
+5753,Ruth Durrer <ruth.durrer@unige.ch>,22,False,lower keyword score,0.200,2,"Cosmology of theories beyond the SM (article 100, editor 30); Dark energy theory (article 100, editor 30)",3,-1,3
+5753,Ofer Lahav <o.lahav@ucl.ac.uk>,23,False,lower keyword score,0.167,1,"Dark energy theory (article 100, editor 50)",5,5,5
+5753,Jaume Garriga <jaume.garriga@ub.edu>,24,False,lower keyword score,0.167,1,"Dark energy theory (article 100, editor 50)",4,4,5
+5753,Asantha Cooray <acooray@uci.edu>,25,False,lower keyword score,0.167,1,"Dark energy theory (article 100, editor 50)",3,0,4
+5753,Jochen Weller <jochen.weller@lmu.de>,26,False,lower keyword score,0.167,1,"Dark energy theory (article 100, editor 50)",4,0,4
+5753,Uros Seljak <useljak@berkeley.edu>,27,False,lower keyword score,0.133,1,"Dark energy theory (article 100, editor 40)",3,2,3
+5753,Mark Trodden <trodden@physics.upenn.edu>,28,False,lower keyword score,0.133,1,"Dark energy theory (article 100, editor 40)",3,2,3
+5753,Marc Henneaux <marc.henneaux@ulb.be>,29,False,lower keyword score,0.133,1,"Dark energy theory (article 100, editor 40)",4,-2,4
+5753,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,30,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 30)",5,5,5
+5753,Nathalie Deruelle <deruelle@ihes.fr>,31,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 30)",1,-1,3
+5753,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,32,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 30)",3,-1,4
+5753,Jai-chan Hwang <jchan@knu.ac.kr>,33,False,lower keyword score,0.067,1,"Dark energy theory (article 100, editor 20)",3,2,3
+5823,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,1,True,selected,0.514,1,"Dark energy theory (article 100, editor 90)",3,3,5
+5823,David Langlois <langlois@apc.univ-paris7.fr>,2,False,"full tie, lost on id",0.514,1,"Dark energy theory (article 100, editor 90)",3,3,4
+5823,Alexander Vikman <alexander.vikman@gmail.com>,3,False,lower keyword score,0.457,1,"Dark energy theory (article 100, editor 80)",3,2,5
+5823,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,4,False,lower keyword score,0.457,1,"Dark energy theory (article 100, editor 80)",1,1,4
+5823,Marilena LoVerde <mloverde@uw.edu>,5,False,lower keyword score,0.457,1,"Dark energy theory (article 100, editor 80)",1,1,3
+5823,Benjamin Wandelt <wandelt@jhu.edu>,6,False,lower keyword score,0.429,1,"Bayesian reasoning (article 75, editor 100)",1,1,5
+5823,Martin S. Sloth <sloth@sdu.dk>,7,False,lower keyword score,0.400,1,"Dark energy theory (article 100, editor 70)",3,3,4
+5823,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,8,False,lower keyword score,0.386,1,"Bayesian reasoning (article 75, editor 90)",3,3,3
+5823,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,9,False,lower keyword score,0.300,1,"Bayesian reasoning (article 75, editor 70)",3,3,3
+5823,Ofer Lahav <o.lahav@ucl.ac.uk>,10,False,lower keyword score,0.286,1,"Dark energy theory (article 100, editor 50)",5,5,5
+5823,Jaume Garriga <jaume.garriga@ub.edu>,11,False,lower keyword score,0.286,1,"Dark energy theory (article 100, editor 50)",4,4,5
+5823,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,12,False,lower keyword score,0.286,1,"Dark energy theory (article 100, editor 50)",2,2,4
+5823,Asantha Cooray <acooray@uci.edu>,13,False,lower keyword score,0.286,1,"Dark energy theory (article 100, editor 50)",3,1,4
+5823,Jochen Weller <jochen.weller@lmu.de>,14,False,lower keyword score,0.286,1,"Dark energy theory (article 100, editor 50)",1,-2,4
+5823,Andrei Barvinsky <barvin@td.lpi.ru>,15,False,lower keyword score,0.229,1,"Dark energy theory (article 100, editor 40)",4,4,5
+5823,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,16,False,lower keyword score,0.229,1,"Dark energy theory (article 100, editor 40)",3,3,4
+5823,Uros Seljak <useljak@berkeley.edu>,17,False,lower keyword score,0.229,1,"Dark energy theory (article 100, editor 40)",3,2,3
+5823,Mark Trodden <trodden@physics.upenn.edu>,18,False,lower keyword score,0.229,1,"Dark energy theory (article 100, editor 40)",3,2,3
+5823,Yaron Oz <yaronoz@tauex.tau.ac.il>,19,False,lower keyword score,0.229,1,"Dark energy theory (article 100, editor 40)",3,2,4
+5823,Marc Henneaux <marc.henneaux@ulb.be>,20,False,lower keyword score,0.229,1,"Dark energy theory (article 100, editor 40)",1,-1,4
+5823,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,21,False,lower keyword score,0.171,1,"Dark energy theory (article 100, editor 30)",5,5,5
+5823,Stephon Alexander <stephon_alexander@brown.edu>,22,False,lower keyword score,0.171,1,"Dark energy theory (article 100, editor 30)",4,4,4
+5823,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,23,False,lower keyword score,0.171,1,"Dark energy theory (article 100, editor 30)",2,2,3
+5823,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,24,False,lower keyword score,0.171,1,"Dark energy theory (article 100, editor 30)",2,1,4
+5823,Ruth Durrer <ruth.durrer@unige.ch>,25,False,lower keyword score,0.171,1,"Dark energy theory (article 100, editor 30)",1,-3,3
+5823,Jai-chan Hwang <jchan@knu.ac.kr>,26,False,lower keyword score,0.114,1,"Dark energy theory (article 100, editor 20)",3,2,3
+5823,Licia Verde <liciaverde@gmail.com>,,False,monthly limit reached,0.571,1,"Dark energy theory (article 100, editor 999)",-4,-7,5
+5823,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.571,1,"Dark energy theory (article 100, editor 100)",-1,-2,3
+5823,Dmitry Gorbunov <gorby@cern.ch>,,False,monthly limit reached,0.514,1,"Dark energy theory (article 100, editor 90)",-2,-2,5
+5823,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.400,1,"Dark energy theory (article 100, editor 70)",0,0,3
+5823,Nathalie Deruelle <deruelle@ihes.fr>,,False,monthly limit reached,0.171,1,"Dark energy theory (article 100, editor 30)",-1,-1,3
+5823,Cedric Deffayet <cedric.deffayet@ens.fr>,,False,monthly limit reached,0.057,1,"Dark energy theory (article 100, editor 10)",0,-1,3
+5991,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,1,True,selected,0.500,3,"Cosmological applications of theories with extra dimensions (article 100, editor 40); Extra dimensions (article 100, editor 40); Particle physics - cosmology connection (article 100, editor 70)",3,2,3
+5991,Andrei Barvinsky <barvin@td.lpi.ru>,2,False,"same score, fewer shared keywords",0.500,2,"Cosmological applications of theories with extra dimensions (article 100, editor 70); Extra dimensions (article 100, editor 80)",4,3,5
+5991,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,3,False,lower keyword score,0.467,3,"Cosmological applications of theories with extra dimensions (article 100, editor 50); Extra dimensions (article 100, editor 50); Particle physics - cosmology connection (article 100, editor 40)",4,3,4
+5991,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,4,False,lower keyword score,0.433,2,"Cosmological applications of theories with extra dimensions (article 100, editor 50); Particle physics - cosmology connection (article 100, editor 80)",3,0,4
+5991,Mark Trodden <trodden@physics.upenn.edu>,5,False,lower keyword score,0.367,2,"Cosmological applications of theories with extra dimensions (article 100, editor 60); Extra dimensions (article 100, editor 50)",3,3,3
+5991,Ulf Danielsson <ulf.danielsson@physics.uu.se>,6,False,lower keyword score,0.333,1,"Cosmological applications of theories with extra dimensions (article 100, editor 100)",3,3,3
+5991,Jaume Garriga <jaume.garriga@ub.edu>,7,False,lower keyword score,0.267,1,"Cosmological applications of theories with extra dimensions (article 100, editor 80)",5,5,5
+5991,Erminia Calabrese <calabresee@cardiff.ac.uk>,8,False,lower keyword score,0.267,1,"Particle physics - cosmology connection (article 100, editor 80)",5,3,5
+5991,Claudia de Rham <c.de-rham@imperial.ac.uk>,9,False,lower keyword score,0.267,1,"Extra dimensions (article 100, editor 80)",2,-1,3
+5991,Dmitry Gorbunov <gorby@cern.ch>,10,False,lower keyword score,0.267,1,"Particle physics - cosmology connection (article 100, editor 80)",5,-2,5
+5991,Ruth Durrer <ruth.durrer@unige.ch>,11,False,lower keyword score,0.167,2,"Cosmological applications of theories with extra dimensions (article 100, editor 30); Extra dimensions (article 100, editor 20)",3,0,3
+5991,Marc Henneaux <marc.henneaux@ulb.be>,12,False,lower keyword score,0.167,1,"Extra dimensions (article 100, editor 50)",2,-2,4
+5991,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,13,False,lower keyword score,0.133,1,"Particle physics - cosmology connection (article 100, editor 40)",3,0,3
+5991,Stephon Alexander <stephon_alexander@brown.edu>,14,False,lower keyword score,0.100,1,"Cosmological applications of theories with extra dimensions (article 100, editor 30)",4,4,4
+5991,Wilfried Buchmueller <buchmuwi@mail.desy.de>,15,False,lower keyword score,0.100,1,"Extra dimensions (article 100, editor 30)",3,3,3
+5991,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,16,False,lower keyword score,0.100,1,"Particle physics - cosmology connection (article 100, editor 30)",3,3,3
+5991,Cedric Deffayet <cedric.deffayet@ens.fr>,17,False,lower keyword score,0.100,1,"Extra dimensions (article 100, editor 30)",3,-1,3
+6008,José Luis Bernal <jlbernal@ifca.es>,1,True,selected,0.643,3,"Cosmological neutrinos (article 100, editor 90); Baryon acoustic oscillations (article 75, editor 80); Cosmological parameters from LSS (article 75, editor 100)",3,2,3
+6008,Uros Seljak <useljak@berkeley.edu>,2,False,lower keyword score,0.636,4,"Cosmological neutrinos (article 100, editor 70); Dark energy theory (article 100, editor 40); Baryon acoustic oscillations (article 75, editor 70); Cosmological parameters from LSS (article 75, editor 80)",3,3,3
+6008,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,3,False,lower keyword score,0.514,2,"Cosmological neutrinos (article 100, editor 100); Dark energy theory (article 100, editor 80)",2,0,4
+6008,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,4,False,lower keyword score,0.493,3,"Dark energy theory (article 100, editor 30); Baryon acoustic oscillations (article 75, editor 100); Cosmological parameters from LSS (article 75, editor 90)",5,5,5
+6008,Ofer Lahav <o.lahav@ucl.ac.uk>,5,False,lower keyword score,0.467,4,"Cosmological neutrinos (article 100, editor 1); Dark energy theory (article 100, editor 50); Baryon acoustic oscillations (article 75, editor 70); Cosmological parameters from LSS (article 75, editor 80)",5,5,5
+6008,Marilena LoVerde <mloverde@uw.edu>,6,False,lower keyword score,0.457,2,"Cosmological neutrinos (article 100, editor 80); Dark energy theory (article 100, editor 80)",3,1,3
+6008,Hector Gil-Marin <hectorgil@icc.ub.edu>,7,False,lower keyword score,0.429,2,"Baryon acoustic oscillations (article 75, editor 100); Cosmological parameters from LSS (article 75, editor 100)",4,1,4
+6008,Dmitry Gorbunov <gorby@cern.ch>,8,False,lower keyword score,0.429,2,"Cosmological neutrinos (article 100, editor 60); Dark energy theory (article 100, editor 90)",5,-2,5
+6008,Martin S. Sloth <sloth@sdu.dk>,9,False,lower keyword score,0.414,2,"Dark energy theory (article 100, editor 70); Baryon acoustic oscillations (article 75, editor 999)",4,4,4
+6008,Kyle Dawson <kdawson@astro.utah.edu>,10,False,lower keyword score,0.386,2,"Baryon acoustic oscillations (article 75, editor 100); Cosmological parameters from LSS (article 75, editor 80)",2,1,3
+6008,Jochen Weller <jochen.weller@lmu.de>,11,False,lower keyword score,0.357,3,"Dark energy theory (article 100, editor 50); Baryon acoustic oscillations (article 75, editor 50); Cosmological parameters from LSS (article 75, editor 50)",4,0,4
+6008,Ruth Durrer <ruth.durrer@unige.ch>,12,False,lower keyword score,0.343,3,"Dark energy theory (article 100, editor 30); Baryon acoustic oscillations (article 75, editor 70); Cosmological parameters from LSS (article 75, editor 50)",3,0,3
+6008,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,13,False,lower keyword score,0.300,3,"Cosmological neutrinos (article 100, editor 30); Baryon acoustic oscillations (article 75, editor 60); Cosmological parameters from LSS (article 75, editor 40)",5,-1,5
+6008,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,14,False,lower keyword score,0.286,1,"Dark energy theory (article 100, editor 100)",2,-2,3
+6008,Benjamin Wandelt <wandelt@jhu.edu>,15,False,lower keyword score,0.279,2,"Baryon acoustic oscillations (article 75, editor 60); Cosmological parameters from LSS (article 75, editor 70)",5,1,5
+6008,David Langlois <langlois@apc.univ-paris7.fr>,16,False,lower keyword score,0.257,1,"Dark energy theory (article 100, editor 90)",4,3,4
+6008,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,17,False,lower keyword score,0.257,1,"Dark energy theory (article 100, editor 90)",4,1,5
+6008,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,18,False,lower keyword score,0.236,2,"Cosmological neutrinos (article 100, editor 30); Cosmological parameters from LSS (article 75, editor 70)",3,3,3
+6008,Alexander Vikman <alexander.vikman@gmail.com>,19,False,lower keyword score,0.229,1,"Dark energy theory (article 100, editor 80)",5,3,5
+6008,Vera Gluscevic <verag@ias.edu>,20,False,lower keyword score,0.200,1,"Cosmological neutrinos (article 100, editor 70)",5,4,5
+6008,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,21,False,lower keyword score,0.200,1,"Dark energy theory (article 100, editor 70)",3,0,3
+6008,Evgeny Akhmedov <akhmedov@mpi-hd.mpg.de>,22,False,lower keyword score,0.171,1,"Cosmological neutrinos (article 100, editor 60)",3,2,3
+6008,Keith Olive <olive@physics.umn.edu>,23,False,lower keyword score,0.171,1,"Cosmological neutrinos (article 100, editor 60)",3,0,3
+6008,Jaume Garriga <jaume.garriga@ub.edu>,24,False,lower keyword score,0.143,1,"Dark energy theory (article 100, editor 50)",5,5,5
+6008,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,25,False,lower keyword score,0.143,1,"Dark energy theory (article 100, editor 50)",4,3,4
+6008,Asantha Cooray <acooray@uci.edu>,26,False,lower keyword score,0.143,1,"Dark energy theory (article 100, editor 50)",4,3,4
+6008,Erminia Calabrese <calabresee@cardiff.ac.uk>,27,False,lower keyword score,0.114,1,"Cosmological neutrinos (article 100, editor 40)",5,3,5
+6008,Andrei Barvinsky <barvin@td.lpi.ru>,28,False,lower keyword score,0.114,1,"Dark energy theory (article 100, editor 40)",4,3,5
+6008,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,29,False,lower keyword score,0.114,1,"Dark energy theory (article 100, editor 40)",4,3,4
+6008,Mark Trodden <trodden@physics.upenn.edu>,30,False,lower keyword score,0.114,1,"Dark energy theory (article 100, editor 40)",3,3,3
+6008,Yaron Oz <yaronoz@tauex.tau.ac.il>,31,False,lower keyword score,0.114,1,"Dark energy theory (article 100, editor 40)",4,3,4
+6008,Ariel Goobar <ariel@fysik.su.se>,32,False,lower keyword score,0.114,1,"Cosmological neutrinos (article 100, editor 40)",3,2,3
+6008,Marc Henneaux <marc.henneaux@ulb.be>,33,False,lower keyword score,0.114,1,"Dark energy theory (article 100, editor 40)",2,-2,4
+6008,Stephon Alexander <stephon_alexander@brown.edu>,34,False,lower keyword score,0.086,1,"Dark energy theory (article 100, editor 30)",4,4,4
+6008,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,35,False,lower keyword score,0.086,1,"Dark energy theory (article 100, editor 30)",2,1,3
+6008,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,36,False,lower keyword score,0.086,1,"Dark energy theory (article 100, editor 30)",4,0,4
+6008,Nathalie Deruelle <deruelle@ihes.fr>,37,False,lower keyword score,0.086,1,"Dark energy theory (article 100, editor 30)",3,-1,3
+6008,Jai-chan Hwang <jchan@knu.ac.kr>,38,False,lower keyword score,0.057,1,"Dark energy theory (article 100, editor 20)",3,3,3
+6008,Cedric Deffayet <cedric.deffayet@ens.fr>,39,False,lower keyword score,0.029,1,"Dark energy theory (article 100, editor 10)",3,-1,3
+6008,Licia Verde <liciaverde@gmail.com>,,False,monthly limit reached,0.721,4,"Cosmological neutrinos (article 100, editor 40); Dark energy theory (article 100, editor 999); Baryon acoustic oscillations (article 75, editor 70); Cosmological parameters from LSS (article 75, editor 80)",-1,-13,5
+6026,Maria Alessandra Papa <Maria.Alessandra.Papa@aei.mpg.de>,1,True,selected,0.511,2,"Gravitational waves / experiments (article 75, editor 100); Gravitational wave detectors (article 50, editor 80)",2,1,4
+6026,Tanja Hinderer <t.p.hinderer@uu.nl>,2,False,lower keyword score,0.444,1,"Gravitational waves / theory (article 100, editor 100)",2,-1,5
+6026,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,3,False,lower keyword score,0.400,1,"Gravitational waves / theory (article 100, editor 90)",3,0,3
+6026,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,4,False,lower keyword score,0.400,1,"Gravitational waves / theory (article 100, editor 90)",1,-3,3
+6026,Marilena LoVerde <mloverde@uw.edu>,5,False,lower keyword score,0.356,1,"Gravitational waves / theory (article 100, editor 80)",3,1,3
+6026,Shi Pi <shi.pi@itp.ac.cn>,6,False,lower keyword score,0.311,1,"Gravitational waves / theory (article 100, editor 70)",2,-3,3
+6026,Alexander Vikman <alexander.vikman@gmail.com>,7,False,lower keyword score,0.267,1,"Gravitational waves / theory (article 100, editor 60)",5,4,5
+6026,Stephon Alexander <stephon_alexander@brown.edu>,8,False,lower keyword score,0.222,1,"Gravitational waves / theory (article 100, editor 50)",4,4,4
+6026,Ruth Durrer <ruth.durrer@unige.ch>,9,False,lower keyword score,0.178,1,"Gravitational waves / theory (article 100, editor 40)",3,0,3
+6026,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,10,False,lower keyword score,0.167,1,"Gravitational waves / experiments (article 75, editor 50)",4,1,4
+6164,Hans-Thomas Janka <thj@mpa-garching.mpg.de>,1,True,selected,0.667,2,"Supernova dynamics (article 100, editor 100); Supernova evolution (article 100, editor 100)",4,4,5
+6164,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,2,False,lower keyword score,0.433,3,"Supernova dynamics (article 100, editor 40); Supernova evolution (article 100, editor 40); Supernova remnants (article 100, editor 50)",4,4,5
+6164,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,3,False,lower keyword score,0.233,1,"Supernova remnants (article 100, editor 70)",3,3,5
+6164,Ariel Goobar <ariel@fysik.su.se>,4,False,lower keyword score,0.167,1,"Supernova remnants (article 100, editor 50)",3,3,3
+6450,Jaume Garriga <jaume.garriga@ub.edu>,1,True,selected,1.000,3,"Cosmological perturbation theory (article 100, editor 100); Inflation (article 100, editor 100); Physics of the early universe (article 100, editor 100)",5,5,5
+6450,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,2,False,lower keyword score,0.833,3,"Cosmological perturbation theory (article 100, editor 100); Inflation (article 100, editor 70); Physics of the early universe (article 100, editor 80)",1,0,4
+6450,Shi Pi <shi.pi@itp.ac.cn>,3,False,lower keyword score,0.767,3,"Cosmological perturbation theory (article 100, editor 80); Inflation (article 100, editor 100); Physics of the early universe (article 100, editor 50)",3,-2,3
+6450,Alexander Vikman <alexander.vikman@gmail.com>,4,False,lower keyword score,0.700,3,"Cosmological perturbation theory (article 100, editor 80); Inflation (article 100, editor 70); Physics of the early universe (article 100, editor 60)",4,-2,5
+6450,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,5,False,lower keyword score,0.667,3,"Cosmological perturbation theory (article 100, editor 70); Inflation (article 100, editor 70); Physics of the early universe (article 100, editor 60)",2,-1,3
+6450,Dmitry Gorbunov <gorby@cern.ch>,6,False,lower keyword score,0.567,2,"Inflation (article 100, editor 80); Physics of the early universe (article 100, editor 90)",4,-2,5
+6450,David Langlois <langlois@apc.univ-paris7.fr>,7,False,lower keyword score,0.467,2,"Cosmological perturbation theory (article 100, editor 80); Inflation (article 100, editor 60)",4,1,4
+6450,Andrei Barvinsky <barvin@td.lpi.ru>,8,False,lower keyword score,0.433,3,"Cosmological perturbation theory (article 100, editor 40); Inflation (article 100, editor 50); Physics of the early universe (article 100, editor 40)",3,3,5
+6450,Mark Trodden <trodden@physics.upenn.edu>,9,False,lower keyword score,0.433,2,"Inflation (article 100, editor 60); Physics of the early universe (article 100, editor 70)",3,2,3
+6450,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,10,False,lower keyword score,0.433,2,"Cosmological perturbation theory (article 100, editor 90); Physics of the early universe (article 100, editor 40)",5,-1,5
+6450,Asantha Cooray <acooray@uci.edu>,11,False,lower keyword score,0.400,2,"Cosmological perturbation theory (article 100, editor 70); Inflation (article 100, editor 50)",4,1,4
+6450,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,12,False,lower keyword score,0.400,2,"Cosmological perturbation theory (article 100, editor 70); Inflation (article 100, editor 50)",2,-2,4
+6450,Cedric Deffayet <cedric.deffayet@ens.fr>,13,False,lower keyword score,0.367,3,"Cosmological perturbation theory (article 100, editor 30); Inflation (article 100, editor 30); Physics of the early universe (article 100, editor 50)",1,0,3
+6450,Anne Green <ppzamg@gmail.com>,14,False,lower keyword score,0.333,3,"Cosmological perturbation theory (article 100, editor 20); Inflation (article 100, editor 20); Physics of the early universe (article 100, editor 60)",4,4,4
+6450,Jai-chan Hwang <jchan@knu.ac.kr>,15,False,lower keyword score,0.333,2,"Cosmological perturbation theory (article 100, editor 70); Inflation (article 100, editor 30)",3,3,3
+6450,Esteban Roulet <eroulet@gmail.com>,16,False,lower keyword score,0.333,1,"Physics of the early universe (article 100, editor 100)",4,4,4
+6450,Marilena LoVerde <mloverde@uw.edu>,17,False,lower keyword score,0.333,1,"Cosmological perturbation theory (article 100, editor 100)",2,1,3
+6450,Martin S. Sloth <sloth@sdu.dk>,18,False,lower keyword score,0.267,2,"Cosmological perturbation theory (article 100, editor 40); Inflation (article 100, editor 40)",4,4,4
+6450,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,19,False,lower keyword score,0.267,2,"Inflation (article 100, editor 40); Physics of the early universe (article 100, editor 40)",1,0,3
+6450,Ruth Durrer <ruth.durrer@unige.ch>,20,False,lower keyword score,0.267,1,"Cosmological perturbation theory (article 100, editor 80)",2,-1,3
+6450,Erminia Calabrese <calabresee@cardiff.ac.uk>,21,False,lower keyword score,0.233,1,"Physics of the early universe (article 100, editor 70)",4,3,5
+6450,Claudia de Rham <c.de-rham@imperial.ac.uk>,22,False,lower keyword score,0.200,1,"Physics of the early universe (article 100, editor 60)",3,3,3
+6450,Hector Gil-Marin <hectorgil@icc.ub.edu>,23,False,lower keyword score,0.200,1,"Cosmological perturbation theory (article 100, editor 60)",2,1,4
+6450,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,24,False,lower keyword score,0.167,1,"Inflation (article 100, editor 50)",3,3,4
+6450,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,25,False,lower keyword score,0.167,1,"Cosmological perturbation theory (article 100, editor 50)",2,-1,4
+6450,Stephon Alexander <stephon_alexander@brown.edu>,26,False,lower keyword score,0.133,1,"Cosmological perturbation theory (article 100, editor 40)",4,4,4
+6450,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,27,False,lower keyword score,0.133,1,"Inflation (article 100, editor 40)",3,1,4
+6450,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,28,False,lower keyword score,0.067,1,"Physics of the early universe (article 100, editor 20)",3,3,3
+6450,Ofer Lahav <o.lahav@ucl.ac.uk>,29,False,lower keyword score,0.003,1,"Cosmological perturbation theory (article 100, editor 1)",5,5,5
+6450,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.667,2,"Cosmological perturbation theory (article 100, editor 100); Inflation (article 100, editor 100)",0,0,3
+6450,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.500,2,"Cosmological perturbation theory (article 100, editor 70); Physics of the early universe (article 100, editor 80)",0,-3,3
+6502,Tanja Hinderer <t.p.hinderer@uu.nl>,1,True,selected,0.714,3,"GR black holes (article 100, editor 100); Gravitational waves / theory (article 100, editor 100); Gravitational waves in GR and beyond: theory (article 50, editor 100)",5,5,5
+6502,Volker Bromm <vbromm@astro.as.utexas.edu>,2,False,lower keyword score,0.286,1,"Astrophysical black holes (article 100, editor 100)",4,4,5
+6502,Zoltan Haiman <zh2007@columbia.edu>,3,False,lower keyword score,0.286,1,"Astrophysical black holes (article 100, editor 100)",2,1,3
+6502,Marilena LoVerde <mloverde@uw.edu>,4,False,lower keyword score,0.229,1,"Gravitational waves / theory (article 100, editor 80)",1,1,3
+6502,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,5,False,lower keyword score,0.229,1,"GR black holes (article 100, editor 80)",2,-1,4
+6502,Andrei Barvinsky <barvin@td.lpi.ru>,6,False,lower keyword score,0.200,1,"GR black holes (article 100, editor 70)",3,3,5
+6502,Shi Pi <shi.pi@itp.ac.cn>,7,False,lower keyword score,0.200,1,"Gravitational waves / theory (article 100, editor 70)",1,-3,3
+6502,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,8,False,lower keyword score,0.171,1,"Astrophysical black holes (article 100, editor 60)",4,3,5
+6502,Alexander Vikman <alexander.vikman@gmail.com>,9,False,lower keyword score,0.171,1,"Gravitational waves / theory (article 100, editor 60)",3,0,5
+6502,Stephon Alexander <stephon_alexander@brown.edu>,10,False,lower keyword score,0.143,2,"GR black holes (article 100, editor 0); Gravitational waves / theory (article 100, editor 50)",4,4,4
+6502,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,11,False,lower keyword score,0.143,1,"Gravitational waves in GR and beyond: theory (article 50, editor 100)",4,4,5
+6502,Hans-Thomas Janka <thj@mpa-garching.mpg.de>,12,False,lower keyword score,0.114,1,"Astrophysical black holes (article 100, editor 40)",5,5,5
+6502,Stefano Liberati <liberati@sissa.it>,13,False,lower keyword score,0.114,1,"GR black holes (article 100, editor 40)",2,1,5
+6502,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,14,False,lower keyword score,0.114,1,"GR black holes (article 100, editor 40)",1,1,3
+6502,Ruth Durrer <ruth.durrer@unige.ch>,15,False,lower keyword score,0.114,1,"Gravitational waves / theory (article 100, editor 40)",1,-1,3
+6502,Claudia de Rham <c.de-rham@imperial.ac.uk>,16,False,lower keyword score,0.100,1,"Gravitational waves in GR and beyond: theory (article 50, editor 70)",3,3,3
+6502,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,17,False,lower keyword score,0.086,1,"Astrophysical black holes (article 100, editor 30)",2,2,5
+6502,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.400,2,"Gravitational waves / theory (article 100, editor 90); Gravitational waves in GR and beyond: theory (article 50, editor 100)",0,0,3
+6502,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.400,2,"Gravitational waves / theory (article 100, editor 90); Gravitational waves in GR and beyond: theory (article 50, editor 100)",0,0,3
+6502,Marc Henneaux <marc.henneaux@ulb.be>,,False,monthly limit reached,0.257,1,"GR black holes (article 100, editor 90)",-2,-3,4
+6502,Nathalie Deruelle <deruelle@ihes.fr>,,False,monthly limit reached,0.129,1,"Gravitational waves in GR and beyond: theory (article 50, editor 90)",0,-2,3
+6545,Zoltan Haiman <zh2007@columbia.edu>,1,True,selected,0.450,2,"Active galactic nuclei (article 100, editor 90); Massive black holes (article 100, editor 90)",2,1,3
+6545,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,2,False,lower keyword score,0.425,2,"Dark energy experiments (article 100, editor 80); Dark energy theory (article 100, editor 90)",3,3,5
+6545,Ofer Lahav <o.lahav@ucl.ac.uk>,3,False,lower keyword score,0.375,2,"Dark energy experiments (article 100, editor 100); Dark energy theory (article 100, editor 50)",5,5,5
+6545,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,4,False,lower keyword score,0.250,2,"Dark energy experiments (article 100, editor 70); Dark energy theory (article 100, editor 30)",5,5,5
+6545,Uros Seljak <useljak@berkeley.edu>,5,False,lower keyword score,0.250,2,"Dark energy experiments (article 100, editor 60); Dark energy theory (article 100, editor 40)",3,3,3
+6545,Volker Bromm <vbromm@astro.as.utexas.edu>,6,False,lower keyword score,0.250,1,"Massive black holes (article 100, editor 100)",4,4,5
+6545,Ariel Goobar <ariel@fysik.su.se>,7,False,lower keyword score,0.250,1,"Dark energy experiments (article 100, editor 100)",3,3,3
+6545,Vladimir Usov <Vladimir.Usov@weizmann.ac.il>,8,False,lower keyword score,0.250,1,"Active galactic nuclei (article 100, editor 100)",3,3,3
+6545,Kyle Dawson <kdawson@astro.utah.edu>,9,False,lower keyword score,0.250,1,"Dark energy experiments (article 100, editor 100)",2,2,3
+6545,David Langlois <langlois@apc.univ-paris7.fr>,10,False,lower keyword score,0.225,1,"Dark energy theory (article 100, editor 90)",3,3,4
+6545,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,11,False,lower keyword score,0.200,1,"Dark energy theory (article 100, editor 80)",1,1,4
+6545,Marilena LoVerde <mloverde@uw.edu>,12,False,lower keyword score,0.200,1,"Dark energy theory (article 100, editor 80)",1,1,3
+6545,Alexander Vikman <alexander.vikman@gmail.com>,13,False,lower keyword score,0.200,1,"Dark energy theory (article 100, editor 80)",1,1,5
+6545,Martin S. Sloth <sloth@sdu.dk>,14,False,lower keyword score,0.175,1,"Dark energy theory (article 100, editor 70)",4,4,4
+6545,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,15,False,lower keyword score,0.175,1,"Active galactic nuclei (article 100, editor 70)",1,1,5
+6545,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,16,False,lower keyword score,0.175,1,"Dark energy experiments (article 100, editor 70)",1,1,3
+6545,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,17,False,lower keyword score,0.150,2,"Active galactic nuclei (article 100, editor 30); Massive black holes (article 100, editor 30)",2,2,5
+6545,Jaume Garriga <jaume.garriga@ub.edu>,18,False,lower keyword score,0.125,1,"Dark energy theory (article 100, editor 50)",4,4,5
+6545,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,19,False,lower keyword score,0.125,1,"Dark energy theory (article 100, editor 50)",3,3,4
+6545,Asantha Cooray <acooray@uci.edu>,20,False,lower keyword score,0.125,1,"Dark energy theory (article 100, editor 50)",1,1,4
+6545,Andrei Barvinsky <barvin@td.lpi.ru>,21,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 40)",3,3,5
+6545,Mark Trodden <trodden@physics.upenn.edu>,22,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 40)",3,3,3
+6545,Yaron Oz <yaronoz@tauex.tau.ac.il>,23,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 40)",2,2,4
+6545,Stephon Alexander <stephon_alexander@brown.edu>,24,False,lower keyword score,0.075,1,"Dark energy theory (article 100, editor 30)",4,4,4
+6545,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,25,False,lower keyword score,0.075,1,"Dark energy theory (article 100, editor 30)",3,3,3
+6545,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,26,False,lower keyword score,0.075,1,"Dark energy theory (article 100, editor 30)",1,0,4
+6545,Jai-chan Hwang <jchan@knu.ac.kr>,27,False,lower keyword score,0.050,1,"Dark energy theory (article 100, editor 20)",3,3,3
+6545,Jochen Weller <jochen.weller@lmu.de>,,False,monthly limit reached,0.325,2,"Dark energy experiments (article 100, editor 80); Dark energy theory (article 100, editor 50)",0,-2,4
+6545,Licia Verde <liciaverde@gmail.com>,,False,monthly limit reached,0.250,1,"Dark energy theory (article 100, editor 999)",-20,-20,5
+6545,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.250,1,"Dark energy theory (article 100, editor 100)",-1,-1,3
+6545,Dmitry Gorbunov <gorby@cern.ch>,,False,monthly limit reached,0.225,1,"Dark energy theory (article 100, editor 90)",-1,-1,5
+6545,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.175,1,"Dark energy theory (article 100, editor 70)",0,0,3
+6545,Ruth Durrer <ruth.durrer@unige.ch>,,False,monthly limit reached,0.150,2,"Dark energy experiments (article 100, editor 30); Dark energy theory (article 100, editor 30)",-1,-1,3
+6545,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,,False,monthly limit reached,0.125,1,"Dark energy experiments (article 100, editor 50)",0,-1,5
+6545,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,,False,monthly limit reached,0.100,1,"Dark energy theory (article 100, editor 40)",0,0,4
+6545,Marc Henneaux <marc.henneaux@ulb.be>,,False,monthly limit reached,0.100,1,"Dark energy theory (article 100, editor 40)",-2,-2,4
+6545,Nathalie Deruelle <deruelle@ihes.fr>,,False,monthly limit reached,0.075,1,"Dark energy theory (article 100, editor 30)",-3,-3,3
+6545,Cedric Deffayet <cedric.deffayet@ens.fr>,,False,monthly limit reached,0.025,1,"Dark energy theory (article 100, editor 10)",-1,-1,3
+6581,Andrei Barvinsky <barvin@td.lpi.ru>,1,True,selected,0.587,3,"GR black holes (article 100, editor 70); Gravity (article 100, editor 90); Modified gravity (article 75, editor 80)",5,4,5
+6581,Tanja Hinderer <t.p.hinderer@uu.nl>,2,False,lower keyword score,0.480,2,"Exact solutions, black holes and black hole thermodynamics in GR and beyond (article 100, editor 80); GR black holes (article 100, editor 100)",5,4,5
+6581,Claudia de Rham <c.de-rham@imperial.ac.uk>,3,False,lower keyword score,0.440,2,"Gravity (article 100, editor 90); Modified gravity (article 75, editor 100)",3,3,3
+6581,Cedric Deffayet <cedric.deffayet@ens.fr>,4,False,lower keyword score,0.387,2,"Gravity (article 100, editor 70); Modified gravity (article 75, editor 100)",3,0,3
+6581,Marc Henneaux <marc.henneaux@ulb.be>,5,False,lower keyword score,0.373,2,"GR black holes (article 100, editor 90); Gravity (article 100, editor 50)",4,-3,4
+6581,Stefano Liberati <liberati@sissa.it>,6,False,lower keyword score,0.353,3,"GR black holes (article 100, editor 40); Gravity (article 100, editor 40); Modified gravity (article 75, editor 70)",5,0,5
+6581,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,7,False,lower keyword score,0.353,2,"GR black holes (article 100, editor 80); Modified gravity (article 75, editor 70)",4,0,4
+6581,Ruth Durrer <ruth.durrer@unige.ch>,8,False,lower keyword score,0.247,2,"Gravity (article 100, editor 70); Modified gravity (article 75, editor 30)",3,-1,3
+6581,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,9,False,lower keyword score,0.200,1,"Modified gravity (article 75, editor 100)",4,3,5
+6581,Alexander Vikman <alexander.vikman@gmail.com>,10,False,lower keyword score,0.200,1,"Modified gravity (article 75, editor 100)",5,2,5
+6581,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,11,False,lower keyword score,0.200,1,"Modified gravity (article 75, editor 100)",2,-1,3
+6581,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,12,False,lower keyword score,0.200,1,"Modified gravity (article 75, editor 100)",4,-1,4
+6581,Yaron Oz <yaronoz@tauex.tau.ac.il>,13,False,lower keyword score,0.187,1,"Gravity (article 100, editor 70)",4,2,4
+6581,David Langlois <langlois@apc.univ-paris7.fr>,14,False,lower keyword score,0.180,1,"Modified gravity (article 75, editor 90)",3,2,4
+6581,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,15,False,lower keyword score,0.180,1,"Modified gravity (article 75, editor 90)",3,0,3
+6581,Mark Trodden <trodden@physics.upenn.edu>,16,False,lower keyword score,0.160,2,"Gravity (article 100, editor 30); Modified gravity (article 75, editor 40)",3,2,3
+6581,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,17,False,lower keyword score,0.160,1,"Gravity (article 100, editor 60)",3,-2,3
+6581,Nathalie Deruelle <deruelle@ihes.fr>,18,False,lower keyword score,0.160,1,"Exact solutions, black holes and black hole thermodynamics in GR and beyond (article 100, editor 60)",3,-3,3
+6581,Jaume Garriga <jaume.garriga@ub.edu>,19,False,lower keyword score,0.133,1,"Gravity (article 100, editor 50)",5,4,5
+6581,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,20,False,lower keyword score,0.120,1,"Modified gravity (article 75, editor 60)",3,3,3
+6581,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,21,False,lower keyword score,0.107,1,"GR black holes (article 100, editor 40)",3,0,3
+6581,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,22,False,lower keyword score,0.100,1,"Modified gravity (article 75, editor 50)",3,-2,4
+6581,Stephon Alexander <stephon_alexander@brown.edu>,23,False,lower keyword score,0.080,2,"GR black holes (article 100, editor 0); Modified gravity (article 75, editor 40)",4,4,4
+6678,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,1,True,selected,0.325,2,"Dark matter theory (article 100, editor 40); Semi-analytic modeling (article 100, editor 90)",2,2,4
+6678,Yaron Oz <yaronoz@tauex.tau.ac.il>,2,False,lower keyword score,0.275,2,"Dark matter theory (article 100, editor 40); Gravity (article 100, editor 70)",3,3,4
+6678,Andrei Barvinsky <barvin@td.lpi.ru>,3,False,lower keyword score,0.225,1,"Gravity (article 100, editor 90)",4,4,5
+6678,Claudia de Rham <c.de-rham@imperial.ac.uk>,4,False,lower keyword score,0.225,1,"Gravity (article 100, editor 90)",3,3,3
+6678,Steven Furlanetto <sfurlane@astro.ucla.edu>,5,False,lower keyword score,0.225,1,"Semi-analytic modeling (article 100, editor 90)",2,1,5
+6678,Zoltan Haiman <zh2007@columbia.edu>,6,False,lower keyword score,0.225,1,"Semi-analytic modeling (article 100, editor 90)",2,1,3
+6678,Anne Green <ppzamg@gmail.com>,7,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",4,4,4
+6678,Martin S. Sloth <sloth@sdu.dk>,8,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",4,4,4
+6678,Alexander Vikman <alexander.vikman@gmail.com>,9,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",4,3,5
+6678,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,10,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",1,1,4
+6678,José Luis Bernal <jlbernal@ifca.es>,11,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 80)",1,1,3
+6678,Ofer Lahav <o.lahav@ucl.ac.uk>,12,False,lower keyword score,0.175,1,"Rotation curves of galaxies (article 100, editor 70)",5,5,5
+6678,Cedric Deffayet <cedric.deffayet@ens.fr>,13,False,lower keyword score,0.175,1,"Gravity (article 100, editor 70)",2,1,3
+6678,Dmitry Gorbunov <gorby@cern.ch>,14,False,lower keyword score,0.175,1,"Dark matter theory (article 100, editor 70)",2,1,5
+6678,Ruth Durrer <ruth.durrer@unige.ch>,15,False,lower keyword score,0.175,1,"Gravity (article 100, editor 70)",1,0,3
+6678,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,16,False,lower keyword score,0.150,2,"Rotation curves of galaxies (article 100, editor 20); Semi-analytic modeling (article 100, editor 40)",4,4,5
+6678,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,17,False,lower keyword score,0.150,1,"Dark matter theory (article 100, editor 60)",3,3,3
+6678,Jaume Garriga <jaume.garriga@ub.edu>,18,False,lower keyword score,0.125,1,"Gravity (article 100, editor 50)",5,5,5
+6678,Uros Seljak <useljak@berkeley.edu>,19,False,lower keyword score,0.125,1,"Rotation curves of galaxies (article 100, editor 50)",1,1,3
+6678,Marc Henneaux <marc.henneaux@ulb.be>,20,False,lower keyword score,0.125,1,"Gravity (article 100, editor 50)",2,1,4
+6678,Stefano Liberati <liberati@sissa.it>,21,False,lower keyword score,0.100,1,"Gravity (article 100, editor 40)",4,2,5
+6678,Mark Trodden <trodden@physics.upenn.edu>,22,False,lower keyword score,0.075,1,"Gravity (article 100, editor 30)",1,0,3
+6678,Stephon Alexander <stephon_alexander@brown.edu>,23,False,lower keyword score,0.050,1,"Dark matter theory (article 100, editor 20)",4,4,4
+6678,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.175,1,"Dark matter theory (article 100, editor 70)",-2,-2,3
+6678,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,,False,monthly limit reached,0.150,1,"Gravity (article 100, editor 60)",0,-3,3
+6743,Shi Pi <shi.pi@itp.ac.cn>,1,True,selected,0.682,3,"Primordial black holes (article 100, editor 80); Primordial gravitational waves (theory) (article 100, editor 70); Gravitational waves / sources (article 75, editor 50)",3,-3,3
+6743,Arthur Kosowsky <kosowsky@pitt.edu>,2,False,lower keyword score,0.364,1,"Primordial gravitational waves (theory) (article 100, editor 100)",5,2,5
+6743,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,3,False,lower keyword score,0.364,1,"Primordial gravitational waves (theory) (article 100, editor 100)",4,0,4
+6743,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,4,False,lower keyword score,0.364,1,"Primordial gravitational waves (theory) (article 100, editor 100)",1,-2,3
+6743,Anne Green <ppzamg@gmail.com>,5,False,lower keyword score,0.291,1,"Primordial black holes (article 100, editor 80)",4,4,4
+6743,Maria Alessandra Papa <Maria.Alessandra.Papa@aei.mpg.de>,6,False,lower keyword score,0.273,1,"Gravitational waves / sources (article 75, editor 100)",3,3,4
+6743,Stephon Alexander <stephon_alexander@brown.edu>,7,False,lower keyword score,0.255,2,"Primordial black holes (article 100, editor 30); Primordial gravitational waves (theory) (article 100, editor 40)",4,3,4
+6743,Pavel Naselsky <naselsky@nbi.dk>,8,False,lower keyword score,0.255,1,"Primordial black holes (article 100, editor 70)",3,3,3
+6743,Zoltan Haiman <zh2007@columbia.edu>,9,False,lower keyword score,0.245,1,"Gravitational waves / sources (article 75, editor 90)",3,3,3
+6743,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,10,False,lower keyword score,0.218,1,"Primordial black holes (article 100, editor 60)",3,3,3
+6743,Alexander Vikman <alexander.vikman@gmail.com>,11,False,lower keyword score,0.218,1,"Primordial gravitational waves (theory) (article 100, editor 60)",5,-1,5
+6743,Jaume Garriga <jaume.garriga@ub.edu>,12,False,lower keyword score,0.182,1,"Primordial black holes (article 100, editor 50)",5,5,5
+6743,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,13,False,lower keyword score,0.182,1,"Primordial black holes (article 100, editor 50)",3,1,3
+6743,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,14,False,lower keyword score,0.182,1,"Primordial gravitational waves (theory) (article 100, editor 50)",3,0,3
+6743,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,15,False,lower keyword score,0.164,1,"Gravitational waves / sources (article 75, editor 60)",4,-2,4
+6792,Andrei Barvinsky <barvin@td.lpi.ru>,1,True,selected,0.800,2,"GR black holes (article 100, editor 70); Gravity (article 100, editor 90)",4,4,5
+6792,Marc Henneaux <marc.henneaux@ulb.be>,2,False,lower keyword score,0.700,2,"GR black holes (article 100, editor 90); Gravity (article 100, editor 50)",3,0,4
+6792,Tanja Hinderer <t.p.hinderer@uu.nl>,3,False,lower keyword score,0.500,1,"GR black holes (article 100, editor 100)",4,0,5
+6792,Claudia de Rham <c.de-rham@imperial.ac.uk>,4,False,lower keyword score,0.450,1,"Gravity (article 100, editor 90)",3,3,3
+6792,Stefano Liberati <liberati@sissa.it>,5,False,lower keyword score,0.400,2,"GR black holes (article 100, editor 40); Gravity (article 100, editor 40)",3,0,5
+6792,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,6,False,lower keyword score,0.400,1,"GR black holes (article 100, editor 80)",3,1,4
+6792,Yaron Oz <yaronoz@tauex.tau.ac.il>,7,False,lower keyword score,0.350,1,"Gravity (article 100, editor 70)",3,2,4
+6792,Ruth Durrer <ruth.durrer@unige.ch>,8,False,lower keyword score,0.350,1,"Gravity (article 100, editor 70)",2,0,3
+6792,Cedric Deffayet <cedric.deffayet@ens.fr>,9,False,lower keyword score,0.350,1,"Gravity (article 100, editor 70)",2,0,3
+6792,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,10,False,lower keyword score,0.300,1,"Gravity (article 100, editor 60)",2,-1,3
+6792,Jaume Garriga <jaume.garriga@ub.edu>,11,False,lower keyword score,0.250,1,"Gravity (article 100, editor 50)",5,5,5
+6792,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,12,False,lower keyword score,0.200,1,"GR black holes (article 100, editor 40)",2,0,3
+6792,Mark Trodden <trodden@physics.upenn.edu>,13,False,lower keyword score,0.150,1,"Gravity (article 100, editor 30)",2,0,3
+6792,Stephon Alexander <stephon_alexander@brown.edu>,14,False,lower keyword score,0.000,1,"GR black holes (article 100, editor 0)",4,3,4
+6827,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,1,True,selected,0.800,3,"Accretion (article 100, editor 90); Astrophysical black holes (article 100, editor 60); X-ray binaries (article 100, editor 90)",3,2,5
+6827,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,2,False,lower keyword score,0.367,3,"Accretion (article 100, editor 40); Astrophysical black holes (article 100, editor 30); X-ray binaries (article 100, editor 40)",5,5,5
+6827,Volker Bromm <vbromm@astro.as.utexas.edu>,3,False,lower keyword score,0.333,1,"Astrophysical black holes (article 100, editor 100)",5,4,5
+6827,Zoltan Haiman <zh2007@columbia.edu>,4,False,lower keyword score,0.333,1,"Astrophysical black holes (article 100, editor 100)",2,2,3
+6827,Eli Waxman <eli.waxman@weizmann.ac.il>,5,False,lower keyword score,0.233,1,"X-ray binaries (article 100, editor 70)",4,3,4
+6827,Vladimir Usov <Vladimir.Usov@weizmann.ac.il>,6,False,lower keyword score,0.233,1,"Accretion (article 100, editor 70)",3,3,3
+6827,Hans-Thomas Janka <thj@mpa-garching.mpg.de>,7,False,lower keyword score,0.133,1,"Astrophysical black holes (article 100, editor 40)",4,4,5
+6827,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,,False,monthly limit reached,0.267,1,"X-ray binaries (article 100, editor 80)",0,0,3
+6856,Andrei Barvinsky <barvin@td.lpi.ru>,1,True,selected,0.650,2,"GR black holes (article 75, editor 70); Gravity (article 50, editor 90)",3,3,5
+6856,Marc Henneaux <marc.henneaux@ulb.be>,2,False,lower keyword score,0.617,2,"GR black holes (article 75, editor 90); Gravity (article 50, editor 50)",1,0,4
+6856,Tanja Hinderer <t.p.hinderer@uu.nl>,3,False,lower keyword score,0.500,1,"GR black holes (article 75, editor 100)",3,1,5
+6856,Stefano Liberati <liberati@sissa.it>,4,False,lower keyword score,0.333,2,"GR black holes (article 75, editor 40); Gravity (article 50, editor 40)",3,1,5
+6856,Yaron Oz <yaronoz@tauex.tau.ac.il>,5,False,lower keyword score,0.300,2,"Gravity (article 50, editor 70); Dark matter theory (article 25, editor 40)",3,3,4
+6856,Claudia de Rham <c.de-rham@imperial.ac.uk>,6,False,lower keyword score,0.300,1,"Gravity (article 50, editor 90)",3,3,3
+6856,Cedric Deffayet <cedric.deffayet@ens.fr>,7,False,lower keyword score,0.233,1,"Gravity (article 50, editor 70)",1,1,3
+6856,Jaume Garriga <jaume.garriga@ub.edu>,8,False,lower keyword score,0.167,1,"Gravity (article 50, editor 50)",5,5,5
+6856,Anne Green <ppzamg@gmail.com>,9,False,lower keyword score,0.133,1,"Dark matter theory (article 25, editor 80)",4,4,4
+6856,Martin S. Sloth <sloth@sdu.dk>,10,False,lower keyword score,0.133,1,"Dark matter theory (article 25, editor 80)",4,4,4
+6856,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,11,False,lower keyword score,0.133,1,"Dark matter theory (article 25, editor 80)",1,1,4
+6856,José Luis Bernal <jlbernal@ifca.es>,12,False,lower keyword score,0.133,1,"Dark matter theory (article 25, editor 80)",1,1,3
+6856,Alexander Vikman <alexander.vikman@gmail.com>,13,False,lower keyword score,0.133,1,"Dark matter theory (article 25, editor 80)",2,-3,5
+6856,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,14,False,lower keyword score,0.100,1,"Dark matter theory (article 25, editor 60)",3,3,3
+6856,Mark Trodden <trodden@physics.upenn.edu>,15,False,lower keyword score,0.100,1,"Gravity (article 50, editor 30)",2,2,3
+6856,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,16,False,lower keyword score,0.067,1,"Dark matter theory (article 25, editor 40)",3,3,4
+6856,Stephon Alexander <stephon_alexander@brown.edu>,17,False,lower keyword score,0.033,2,"GR black holes (article 75, editor 0); Dark matter theory (article 25, editor 20)",4,3,4
+6856,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,,False,monthly limit reached,0.400,1,"GR black holes (article 75, editor 80)",-1,-2,4
+6856,Ruth Durrer <ruth.durrer@unige.ch>,,False,monthly limit reached,0.233,1,"Gravity (article 50, editor 70)",-1,-2,3
+6856,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,,False,monthly limit reached,0.200,1,"GR black holes (article 75, editor 40)",0,0,3
+6856,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,,False,monthly limit reached,0.200,1,"Gravity (article 50, editor 60)",0,0,3
+6856,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.117,1,"Dark matter theory (article 25, editor 70)",-1,-1,3
+6856,Dmitry Gorbunov <gorby@cern.ch>,,False,monthly limit reached,0.117,1,"Dark matter theory (article 25, editor 70)",0,-2,5
+6894,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,1,True,selected,0.450,1,"Dark energy theory (article 50, editor 90)",3,3,5
+6894,David Langlois <langlois@apc.univ-paris7.fr>,2,False,"full tie, lost on id",0.450,1,"Dark energy theory (article 50, editor 90)",3,3,4
+6894,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,3,False,lower keyword score,0.400,1,"Dark energy theory (article 50, editor 80)",1,1,4
+6894,Marilena LoVerde <mloverde@uw.edu>,4,False,lower keyword score,0.400,1,"Dark energy theory (article 50, editor 80)",1,1,3
+6894,Tanja Hinderer <t.p.hinderer@uu.nl>,5,False,lower keyword score,0.400,1,"Exact solutions, black holes and black hole thermodynamics in GR and beyond (article 50, editor 80)",1,1,5
+6894,Alexander Vikman <alexander.vikman@gmail.com>,6,False,lower keyword score,0.400,1,"Dark energy theory (article 50, editor 80)",2,1,5
+6894,Martin S. Sloth <sloth@sdu.dk>,7,False,lower keyword score,0.350,1,"Dark energy theory (article 50, editor 70)",4,4,4
+6894,Jaume Garriga <jaume.garriga@ub.edu>,8,False,lower keyword score,0.250,1,"Dark energy theory (article 50, editor 50)",5,5,5
+6894,Ofer Lahav <o.lahav@ucl.ac.uk>,9,False,lower keyword score,0.250,1,"Dark energy theory (article 50, editor 50)",4,4,5
+6894,Jochen Weller <jochen.weller@lmu.de>,10,False,lower keyword score,0.250,1,"Dark energy theory (article 50, editor 50)",4,4,4
+6894,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,11,False,lower keyword score,0.250,1,"Dark energy theory (article 50, editor 50)",3,3,4
+6894,Asantha Cooray <acooray@uci.edu>,12,False,lower keyword score,0.250,1,"Dark energy theory (article 50, editor 50)",2,2,4
+6894,Uros Seljak <useljak@berkeley.edu>,13,False,lower keyword score,0.200,1,"Dark energy theory (article 50, editor 40)",3,3,3
+6894,Andrei Barvinsky <barvin@td.lpi.ru>,14,False,lower keyword score,0.200,1,"Dark energy theory (article 50, editor 40)",2,2,5
+6894,Mark Trodden <trodden@physics.upenn.edu>,15,False,lower keyword score,0.200,1,"Dark energy theory (article 50, editor 40)",1,1,3
+6894,Stephon Alexander <stephon_alexander@brown.edu>,16,False,lower keyword score,0.150,1,"Dark energy theory (article 50, editor 30)",4,4,4
+6894,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,17,False,lower keyword score,0.150,1,"Dark energy theory (article 50, editor 30)",3,3,5
+6894,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,18,False,lower keyword score,0.150,1,"Dark energy theory (article 50, editor 30)",3,3,3
+6894,Jai-chan Hwang <jchan@knu.ac.kr>,19,False,lower keyword score,0.100,1,"Dark energy theory (article 50, editor 20)",3,3,3
+6894,Licia Verde <liciaverde@gmail.com>,,False,monthly limit reached,0.500,1,"Dark energy theory (article 50, editor 999)",-14,-14,5
+6894,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,0.500,1,"Dark energy theory (article 50, editor 100)",-1,-1,3
+6894,Nathalie Deruelle <deruelle@ihes.fr>,,False,monthly limit reached,0.450,2,"Dark energy theory (article 50, editor 30); Exact solutions, black holes and black hole thermodynamics in GR and beyond (article 50, editor 60)",0,0,3
+6894,Dmitry Gorbunov <gorby@cern.ch>,,False,monthly limit reached,0.450,1,"Dark energy theory (article 50, editor 90)",-3,-3,5
+6894,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.350,1,"Dark energy theory (article 50, editor 70)",-1,-1,3
+6894,Yaron Oz <yaronoz@tauex.tau.ac.il>,,False,monthly limit reached,0.200,1,"Dark energy theory (article 50, editor 40)",0,0,4
+6894,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,,False,monthly limit reached,0.200,1,"Dark energy theory (article 50, editor 40)",-3,-3,4
+6894,Marc Henneaux <marc.henneaux@ulb.be>,,False,monthly limit reached,0.200,1,"Dark energy theory (article 50, editor 40)",0,0,4
+6894,Ruth Durrer <ruth.durrer@unige.ch>,,False,monthly limit reached,0.150,1,"Dark energy theory (article 50, editor 30)",-2,-2,3
+6894,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,,False,monthly limit reached,0.150,1,"Dark energy theory (article 50, editor 30)",-2,-2,4
+6894,Cedric Deffayet <cedric.deffayet@ens.fr>,,False,monthly limit reached,0.050,1,"Dark energy theory (article 50, editor 10)",0,0,3
+6944,Maria Alessandra Papa <Maria.Alessandra.Papa@aei.mpg.de>,1,True,selected,0.667,1,"Gravitational waves / sources (article 100, editor 100)",3,2,4
+6944,Zoltan Haiman <zh2007@columbia.edu>,2,False,lower keyword score,0.600,1,"Gravitational waves / sources (article 100, editor 90)",3,3,3
+6944,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,3,False,lower keyword score,0.400,1,"Gravitational waves / sources (article 100, editor 60)",4,-2,4
+6944,Benjamin Wandelt <wandelt@jhu.edu>,4,False,lower keyword score,0.333,1,"Bayesian reasoning (article 50, editor 100)",5,3,5
+6944,Shi Pi <shi.pi@itp.ac.cn>,5,False,lower keyword score,0.333,1,"Gravitational waves / sources (article 100, editor 50)",1,-2,3
+6944,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,6,False,lower keyword score,0.300,1,"Bayesian reasoning (article 50, editor 90)",3,3,3
+6944,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,7,False,lower keyword score,0.233,1,"Bayesian reasoning (article 50, editor 70)",2,0,3
+6963,Anne Green <ppzamg@gmail.com>,1,True,selected,0.600,2,"Dark matter detectors (article 100, editor 100); Dark matter theory (article 100, editor 80)",4,4,4
+6963,Martin S. Sloth <sloth@sdu.dk>,2,False,lower keyword score,0.267,1,"Dark matter theory (article 100, editor 80)",3,3,4
+6963,Maria Alessandra Papa <Maria.Alessandra.Papa@aei.mpg.de>,3,False,lower keyword score,0.267,1,"Gravitational wave detectors (article 100, editor 80)",2,2,4
+6963,Alexander Vikman <alexander.vikman@gmail.com>,4,False,lower keyword score,0.267,1,"Dark matter theory (article 100, editor 80)",5,0,5
+6963,José Luis Bernal <jlbernal@ifca.es>,5,False,lower keyword score,0.267,1,"Dark matter theory (article 100, editor 80)",2,0,3
+6963,Ariel Goobar <ariel@fysik.su.se>,6,False,lower keyword score,0.233,1,"Dark matter detectors (article 100, editor 70)",3,3,3
+6963,Dmitry Gorbunov <gorby@cern.ch>,7,False,lower keyword score,0.233,1,"Dark matter theory (article 100, editor 70)",5,-2,5
+6963,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,8,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 60)",3,3,3
+6963,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,9,False,lower keyword score,0.133,1,"Dark matter theory (article 100, editor 40)",2,2,4
+6963,Yaron Oz <yaronoz@tauex.tau.ac.il>,10,False,lower keyword score,0.133,1,"Dark matter theory (article 100, editor 40)",4,1,4
+6963,Stephon Alexander <stephon_alexander@brown.edu>,11,False,lower keyword score,0.067,1,"Dark matter theory (article 100, editor 20)",4,4,4
+6963,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,,False,monthly limit reached,0.267,1,"Dark matter theory (article 100, editor 80)",0,0,4
+6963,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.233,1,"Dark matter theory (article 100, editor 70)",-1,-1,3
+7019,Mark Trodden <trodden@physics.upenn.edu>,1,True,selected,0.492,3,"Baryon asymmetry (article 100, editor 55); Modified gravity (article 100, editor 40); Physics of the early universe (article 75, editor 70)",2,1,3
+7019,Claudia de Rham <c.de-rham@imperial.ac.uk>,2,False,lower keyword score,0.483,2,"Modified gravity (article 100, editor 100); Physics of the early universe (article 75, editor 60)",3,3,3
+7019,Alexander Vikman <alexander.vikman@gmail.com>,3,False,lower keyword score,0.483,2,"Modified gravity (article 100, editor 100); Physics of the early universe (article 75, editor 60)",4,1,5
+7019,Cedric Deffayet <cedric.deffayet@ens.fr>,4,False,lower keyword score,0.458,2,"Modified gravity (article 100, editor 100); Physics of the early universe (article 75, editor 50)",1,0,3
+7019,Dmitry Gorbunov <gorby@cern.ch>,5,False,lower keyword score,0.458,2,"Baryon asymmetry (article 100, editor 70); Physics of the early universe (article 75, editor 90)",3,0,5
+7019,Michael Dine <dine@scipp.ucsc.edu>,6,False,lower keyword score,0.367,2,"Baryon asymmetry (article 100, editor 100); Big bang nucleosynthesis (article 25, editor 40)",3,2,4
+7019,Andrei Barvinsky <barvin@td.lpi.ru>,7,False,lower keyword score,0.367,2,"Modified gravity (article 100, editor 80); Physics of the early universe (article 75, editor 40)",2,1,5
+7019,Keith Olive <olive@physics.umn.edu>,8,False,lower keyword score,0.350,2,"Baryon asymmetry (article 100, editor 80); Big bang nucleosynthesis (article 25, editor 100)",2,1,3
+7019,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,9,False,lower keyword score,0.333,1,"Modified gravity (article 100, editor 100)",4,3,5
+7019,Wilfried Buchmueller <buchmuwi@mail.desy.de>,10,False,lower keyword score,0.333,1,"Baryon asymmetry (article 100, editor 100)",2,2,3
+7019,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,11,False,lower keyword score,0.333,1,"Modified gravity (article 100, editor 100)",1,1,3
+7019,Stephon Alexander <stephon_alexander@brown.edu>,12,False,lower keyword score,0.317,3,"Baryon asymmetry (article 100, editor 50); Modified gravity (article 100, editor 40); Big bang nucleosynthesis (article 25, editor 20)",4,4,4
+7019,David Langlois <langlois@apc.univ-paris7.fr>,13,False,lower keyword score,0.300,1,"Modified gravity (article 100, editor 90)",3,3,4
+7019,Jaume Garriga <jaume.garriga@ub.edu>,14,False,lower keyword score,0.250,1,"Physics of the early universe (article 75, editor 100)",5,5,5
+7019,Esteban Roulet <eroulet@gmail.com>,15,False,lower keyword score,0.250,1,"Physics of the early universe (article 75, editor 100)",4,4,4
+7019,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,16,False,lower keyword score,0.233,1,"Modified gravity (article 100, editor 70)",2,1,4
+7019,Stefano Liberati <liberati@sissa.it>,17,False,lower keyword score,0.233,1,"Modified gravity (article 100, editor 70)",1,-1,5
+7019,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,18,False,lower keyword score,0.200,1,"Modified gravity (article 100, editor 60)",3,3,3
+7019,Erminia Calabrese <calabresee@cardiff.ac.uk>,19,False,lower keyword score,0.175,1,"Physics of the early universe (article 75, editor 70)",4,4,5
+7019,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,20,False,lower keyword score,0.167,1,"Modified gravity (article 100, editor 50)",3,0,4
+7019,Anne Green <ppzamg@gmail.com>,21,False,lower keyword score,0.150,1,"Physics of the early universe (article 75, editor 60)",3,3,4
+7019,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,22,False,lower keyword score,0.150,1,"Physics of the early universe (article 75, editor 60)",1,-1,3
+7019,Evgeny Akhmedov <akhmedov@mpi-hd.mpg.de>,23,False,lower keyword score,0.133,1,"Baryon asymmetry (article 100, editor 40)",3,3,3
+7019,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,24,False,lower keyword score,0.100,1,"Physics of the early universe (article 75, editor 40)",5,5,5
+7019,Ruth Durrer <ruth.durrer@unige.ch>,25,False,lower keyword score,0.100,1,"Modified gravity (article 100, editor 30)",2,1,3
+7019,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,26,False,lower keyword score,0.050,1,"Physics of the early universe (article 75, editor 20)",3,3,3
+7019,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.500,2,"Modified gravity (article 100, editor 90); Physics of the early universe (article 75, editor 80)",-2,-2,3
+7019,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,,False,monthly limit reached,0.333,1,"Modified gravity (article 100, editor 100)",0,-1,4
+7019,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,,False,monthly limit reached,0.267,2,"Physics of the early universe (article 75, editor 80); Big bang nucleosynthesis (article 25, editor 80)",0,0,4
+7019,Shi Pi <shi.pi@itp.ac.cn>,,False,monthly limit reached,0.125,1,"Physics of the early universe (article 75, editor 50)",-1,-4,3
+7019,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,,False,monthly limit reached,0.100,1,"Physics of the early universe (article 75, editor 40)",0,0,3
+7086,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,1,True,selected,0.667,2,"Galaxy clustering (article 100, editor 100); Redshift surveys (article 100, editor 100)",5,4,5
+7086,Hector Gil-Marin <hectorgil@icc.ub.edu>,2,False,"same score and shared keywords, less 30-day availability",0.667,2,"Galaxy clustering (article 100, editor 100); Redshift surveys (article 100, editor 100)",4,2,4
+7086,Kyle Dawson <kdawson@astro.utah.edu>,3,False,lower keyword score,0.633,2,"Galaxy clustering (article 100, editor 90); Redshift surveys (article 100, editor 100)",3,3,3
+7086,Ofer Lahav <o.lahav@ucl.ac.uk>,4,False,lower keyword score,0.600,2,"Galaxy clustering (article 100, editor 80); Redshift surveys (article 100, editor 100)",5,5,5
+7086,Licia Verde <liciaverde@gmail.com>,5,False,lower keyword score,0.533,2,"Galaxy clustering (article 100, editor 80); Redshift surveys (article 100, editor 80)",5,-13,5
+7086,Jochen Weller <jochen.weller@lmu.de>,6,False,lower keyword score,0.467,2,"Galaxy clustering (article 100, editor 70); Redshift surveys (article 100, editor 70)",4,4,4
+7086,Uros Seljak <useljak@berkeley.edu>,7,False,lower keyword score,0.433,2,"Galaxy clustering (article 100, editor 60); Redshift surveys (article 100, editor 70)",3,2,3
+7086,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,8,False,lower keyword score,0.333,2,"Galaxy clustering (article 100, editor 60); Redshift surveys (article 100, editor 40)",5,5,5
+7086,Vladimir Usov <Vladimir.Usov@weizmann.ac.il>,9,False,lower keyword score,0.333,1,"Active galactic nuclei (article 100, editor 100)",3,3,3
+7086,Zoltan Haiman <zh2007@columbia.edu>,10,False,lower keyword score,0.300,1,"Active galactic nuclei (article 100, editor 90)",3,3,3
+7086,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,11,False,lower keyword score,0.233,1,"Active galactic nuclei (article 100, editor 70)",5,2,5
+7086,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,12,False,lower keyword score,0.233,1,"Galaxy clustering (article 100, editor 70)",3,1,3
+7086,Benjamin Wandelt <wandelt@jhu.edu>,13,False,lower keyword score,0.200,1,"Redshift surveys (article 100, editor 60)",5,0,5
+7086,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,14,False,lower keyword score,0.133,2,"Active galactic nuclei (article 100, editor 30); Galaxy clustering (article 100, editor 10)",5,5,5
+7265,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,1,True,selected,0.950,2,"Dark energy theory (article 100, editor 90); Modified gravity (article 100, editor 100)",3,3,5
+7265,David Langlois <langlois@apc.univ-paris7.fr>,2,False,lower keyword score,0.900,2,"Dark energy theory (article 100, editor 90); Modified gravity (article 100, editor 90)",2,2,4
+7265,Andrei Barvinsky <barvin@td.lpi.ru>,3,False,lower keyword score,0.600,2,"Dark energy theory (article 100, editor 40); Modified gravity (article 100, editor 80)",5,5,5
+7265,Claudia de Rham <c.de-rham@imperial.ac.uk>,4,False,lower keyword score,0.500,1,"Modified gravity (article 100, editor 100)",3,3,3
+7265,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,5,False,lower keyword score,0.450,2,"Dark energy theory (article 100, editor 30); Modified gravity (article 100, editor 60)",3,3,3
+7265,Mark Trodden <trodden@physics.upenn.edu>,6,False,lower keyword score,0.400,2,"Dark energy theory (article 100, editor 40); Modified gravity (article 100, editor 40)",2,1,3
+7265,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,7,False,lower keyword score,0.400,1,"Dark energy theory (article 100, editor 80)",1,1,4
+7265,Marilena LoVerde <mloverde@uw.edu>,8,False,lower keyword score,0.400,1,"Dark energy theory (article 100, editor 80)",1,1,3
+7265,Stephon Alexander <stephon_alexander@brown.edu>,9,False,lower keyword score,0.350,2,"Dark energy theory (article 100, editor 30); Modified gravity (article 100, editor 40)",3,3,4
+7265,Martin S. Sloth <sloth@sdu.dk>,10,False,lower keyword score,0.350,1,"Dark energy theory (article 100, editor 70)",4,4,4
+7265,Jaume Garriga <jaume.garriga@ub.edu>,11,False,lower keyword score,0.250,1,"Dark energy theory (article 100, editor 50)",5,5,5
+7265,Ofer Lahav <o.lahav@ucl.ac.uk>,12,False,lower keyword score,0.250,1,"Dark energy theory (article 100, editor 50)",5,5,5
+7265,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,13,False,lower keyword score,0.250,1,"Dark energy theory (article 100, editor 50)",2,2,4
+7265,Asantha Cooray <acooray@uci.edu>,14,False,lower keyword score,0.250,1,"Dark energy theory (article 100, editor 50)",1,1,4
+7265,Uros Seljak <useljak@berkeley.edu>,15,False,lower keyword score,0.200,1,"Dark energy theory (article 100, editor 40)",3,3,3
+7265,Marc Henneaux <marc.henneaux@ulb.be>,16,False,lower keyword score,0.200,1,"Dark energy theory (article 100, editor 40)",4,3,4
+7265,Yaron Oz <yaronoz@tauex.tau.ac.il>,17,False,lower keyword score,0.200,1,"Dark energy theory (article 100, editor 40)",1,1,4
+7265,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,18,False,lower keyword score,0.150,1,"Dark energy theory (article 100, editor 30)",4,4,5
+7265,Jai-chan Hwang <jchan@knu.ac.kr>,19,False,lower keyword score,0.100,1,"Dark energy theory (article 100, editor 20)",3,3,3
+7265,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,,False,monthly limit reached,1.000,2,"Dark energy theory (article 100, editor 100); Modified gravity (article 100, editor 100)",-1,-1,3
+7265,Alexander Vikman <alexander.vikman@gmail.com>,,False,monthly limit reached,0.900,2,"Dark energy theory (article 100, editor 80); Modified gravity (article 100, editor 100)",-1,-1,5
+7265,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.800,2,"Dark energy theory (article 100, editor 70); Modified gravity (article 100, editor 90)",0,0,3
+7265,Cedric Deffayet <cedric.deffayet@ens.fr>,,False,monthly limit reached,0.550,2,"Dark energy theory (article 100, editor 10); Modified gravity (article 100, editor 100)",-1,-1,3
+7265,Licia Verde <liciaverde@gmail.com>,,False,monthly limit reached,0.500,1,"Dark energy theory (article 100, editor 999)",-23,-23,5
+7265,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,,False,monthly limit reached,0.500,1,"Modified gravity (article 100, editor 100)",0,-1,4
+7265,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,,False,monthly limit reached,0.500,2,"Dark energy theory (article 100, editor 30); Modified gravity (article 100, editor 70)",0,0,4
+7265,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,,False,monthly limit reached,0.450,2,"Dark energy theory (article 100, editor 40); Modified gravity (article 100, editor 50)",0,0,4
+7265,Dmitry Gorbunov <gorby@cern.ch>,,False,monthly limit reached,0.450,1,"Dark energy theory (article 100, editor 90)",-3,-3,5
+7265,Stefano Liberati <liberati@sissa.it>,,False,monthly limit reached,0.350,1,"Modified gravity (article 100, editor 70)",-1,-1,5
+7265,Ruth Durrer <ruth.durrer@unige.ch>,,False,monthly limit reached,0.300,2,"Dark energy theory (article 100, editor 30); Modified gravity (article 100, editor 30)",-2,-2,3
+7265,Jochen Weller <jochen.weller@lmu.de>,,False,monthly limit reached,0.250,1,"Dark energy theory (article 100, editor 50)",-2,-2,4
+7265,Nathalie Deruelle <deruelle@ihes.fr>,,False,monthly limit reached,0.150,1,"Dark energy theory (article 100, editor 30)",0,0,3
+7267,Anne Green <ppzamg@gmail.com>,1,True,selected,0.889,2,"Dark matter detectors (article 100, editor 100); Dark matter simulations (article 100, editor 100)",4,4,4
+7267,Vera Gluscevic <verag@ias.edu>,2,False,lower keyword score,0.356,1,"Dark matter simulations (article 100, editor 80)",5,5,5
+7267,Ariel Goobar <ariel@fysik.su.se>,3,False,lower keyword score,0.311,1,"Dark matter detectors (article 100, editor 70)",3,3,3
+7267,Uros Seljak <useljak@berkeley.edu>,4,False,lower keyword score,0.222,1,"Dark matter simulations (article 100, editor 50)",3,3,3
+7267,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,5,False,lower keyword score,0.178,1,"Dark matter simulations (article 100, editor 40)",4,4,5
+7267,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,6,False,lower keyword score,0.133,1,"Dark matter simulations (article 100, editor 30)",3,3,3
+7267,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,7,False,lower keyword score,0.122,2,"Dark matter simulations (article 100, editor 20); Astrophysical black holes (article 25, editor 30)",3,3,5
+7267,Volker Bromm <vbromm@astro.as.utexas.edu>,8,False,lower keyword score,0.111,1,"Astrophysical black holes (article 25, editor 100)",5,5,5
+7267,Zoltan Haiman <zh2007@columbia.edu>,9,False,lower keyword score,0.111,1,"Astrophysical black holes (article 25, editor 100)",2,2,3
+7267,Hans-Thomas Janka <thj@mpa-garching.mpg.de>,10,False,lower keyword score,0.044,1,"Astrophysical black holes (article 25, editor 40)",5,5,5
+7267,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,,False,monthly limit reached,0.067,1,"Astrophysical black holes (article 25, editor 60)",0,-1,5
+7315,Vera Gluscevic <verag@ias.edu>,1,True,selected,0.450,1,"Axions (article 100, editor 90)",5,5,5
+7315,Martin S. Sloth <sloth@sdu.dk>,2,False,lower keyword score,0.400,1,"Dark matter theory (article 100, editor 80)",4,4,4
+7315,Anne Green <ppzamg@gmail.com>,3,False,lower keyword score,0.400,1,"Dark matter theory (article 100, editor 80)",4,3,4
+7315,José Luis Bernal <jlbernal@ifca.es>,4,False,lower keyword score,0.400,1,"Dark matter theory (article 100, editor 80)",3,3,3
+7315,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,5,False,lower keyword score,0.400,1,"Dark matter theory (article 100, editor 80)",1,1,4
+7315,Alexander Vikman <alexander.vikman@gmail.com>,6,False,lower keyword score,0.400,1,"Dark matter theory (article 100, editor 80)",5,0,5
+7315,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,7,False,lower keyword score,0.350,1,"Dark matter theory (article 100, editor 70)",1,-1,3
+7315,Dmitry Gorbunov <gorby@cern.ch>,8,False,lower keyword score,0.350,1,"Dark matter theory (article 100, editor 70)",4,-4,5
+7315,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,9,False,lower keyword score,0.300,1,"Dark matter theory (article 100, editor 60)",3,3,3
+7315,Michael Dine <dine@scipp.ucsc.edu>,10,False,lower keyword score,0.250,1,"Axions (article 100, editor 50)",4,1,4
+7315,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,11,False,lower keyword score,0.250,1,"Axions (article 100, editor 50)",3,-2,4
+7315,Stephon Alexander <stephon_alexander@brown.edu>,12,False,lower keyword score,0.200,2,"Axions (article 100, editor 20); Dark matter theory (article 100, editor 20)",4,4,4
+7315,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,13,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 40)",4,4,4
+7315,Yaron Oz <yaronoz@tauex.tau.ac.il>,14,False,lower keyword score,0.200,1,"Dark matter theory (article 100, editor 40)",4,1,4
+7359,Hector Gil-Marin <hectorgil@icc.ub.edu>,1,True,selected,1.000,3,"Cosmological parameters from LSS (article 100, editor 100); Power spectrum (article 100, editor 100); Redshift surveys (article 100, editor 100)",4,3,4
+7359,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,2,False,lower keyword score,0.967,3,"Cosmological parameters from LSS (article 100, editor 90); Power spectrum (article 100, editor 100); Redshift surveys (article 100, editor 100)",5,5,5
+7359,Ofer Lahav <o.lahav@ucl.ac.uk>,3,False,lower keyword score,0.733,3,"Cosmological parameters from LSS (article 100, editor 80); Power spectrum (article 100, editor 40); Redshift surveys (article 100, editor 100)",4,4,5
+7359,Uros Seljak <useljak@berkeley.edu>,4,False,lower keyword score,0.700,3,"Cosmological parameters from LSS (article 100, editor 80); Power spectrum (article 100, editor 60); Redshift surveys (article 100, editor 70)",3,3,3
+7359,Jochen Weller <jochen.weller@lmu.de>,5,False,lower keyword score,0.633,3,"Cosmological parameters from LSS (article 100, editor 50); Power spectrum (article 100, editor 70); Redshift surveys (article 100, editor 70)",4,1,4
+7359,Benjamin Wandelt <wandelt@jhu.edu>,6,False,lower keyword score,0.600,3,"Cosmological parameters from LSS (article 100, editor 70); Power spectrum (article 100, editor 50); Redshift surveys (article 100, editor 60)",5,4,5
+7359,Kyle Dawson <kdawson@astro.utah.edu>,7,False,lower keyword score,0.600,2,"Cosmological parameters from LSS (article 100, editor 80); Redshift surveys (article 100, editor 100)",2,2,3
+7359,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,8,False,lower keyword score,0.500,3,"Cosmological parameters from LSS (article 100, editor 40); Power spectrum (article 100, editor 70); Redshift surveys (article 100, editor 40)",4,-1,5
+7359,José Luis Bernal <jlbernal@ifca.es>,9,False,lower keyword score,0.333,1,"Cosmological parameters from LSS (article 100, editor 100)",3,3,3
+7359,Ruth Durrer <ruth.durrer@unige.ch>,10,False,lower keyword score,0.300,2,"Cosmological parameters from LSS (article 100, editor 50); Power spectrum (article 100, editor 40)",1,-4,3
+7359,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,11,False,lower keyword score,0.300,1,"Power spectrum (article 100, editor 90)",2,2,4
+7359,Steven Furlanetto <sfurlane@astro.ucla.edu>,12,False,lower keyword score,0.267,1,"Power spectrum (article 100, editor 80)",4,2,5
+7359,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,13,False,lower keyword score,0.233,1,"Cosmological parameters from LSS (article 100, editor 70)",3,3,3
+7359,Jaume Garriga <jaume.garriga@ub.edu>,14,False,lower keyword score,0.100,1,"Power spectrum (article 100, editor 30)",5,5,5
+7359,Licia Verde <liciaverde@gmail.com>,,False,monthly limit reached,0.867,3,"Cosmological parameters from LSS (article 100, editor 80); Power spectrum (article 100, editor 999); Redshift surveys (article 100, editor 80)",-7,-30,5
+7389,Mark Trodden <trodden@physics.upenn.edu>,1,True,selected,0.550,3,"Baryon asymmetry (article 100, editor 55); Modified gravity (article 100, editor 40); Physics of the early universe (article 100, editor 70)",3,2,3
+7389,Claudia de Rham <c.de-rham@imperial.ac.uk>,2,False,lower keyword score,0.533,2,"Modified gravity (article 100, editor 100); Physics of the early universe (article 100, editor 60)",3,3,3
+7389,Alexander Vikman <alexander.vikman@gmail.com>,3,False,lower keyword score,0.533,2,"Modified gravity (article 100, editor 100); Physics of the early universe (article 100, editor 60)",1,-2,5
+7389,Dmitry Gorbunov <gorby@cern.ch>,4,False,lower keyword score,0.533,2,"Baryon asymmetry (article 100, editor 70); Physics of the early universe (article 100, editor 90)",1,-6,5
+7389,Cedric Deffayet <cedric.deffayet@ens.fr>,5,False,lower keyword score,0.500,2,"Modified gravity (article 100, editor 100); Physics of the early universe (article 100, editor 50)",2,0,3
+7389,Andrei Barvinsky <barvin@td.lpi.ru>,6,False,lower keyword score,0.400,2,"Modified gravity (article 100, editor 80); Physics of the early universe (article 100, editor 40)",2,2,5
+7389,Jaume Garriga <jaume.garriga@ub.edu>,7,False,lower keyword score,0.333,1,"Physics of the early universe (article 100, editor 100)",5,5,5
+7389,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,8,False,lower keyword score,0.333,1,"Modified gravity (article 100, editor 100)",5,4,5
+7389,Esteban Roulet <eroulet@gmail.com>,9,False,lower keyword score,0.333,1,"Physics of the early universe (article 100, editor 100)",4,4,4
+7389,Filippo Vernizzi <filippo.vernizzi@ipht.fr>,10,False,lower keyword score,0.333,1,"Modified gravity (article 100, editor 100)",3,3,3
+7389,Wilfried Buchmueller <buchmuwi@mail.desy.de>,11,False,lower keyword score,0.333,1,"Baryon asymmetry (article 100, editor 100)",3,3,3
+7389,Michael Dine <dine@scipp.ucsc.edu>,12,False,lower keyword score,0.333,1,"Baryon asymmetry (article 100, editor 100)",3,1,4
+7389,Robert H. Brandenberger <rhb@hep.physics.mcgill.ca>,13,False,lower keyword score,0.333,1,"Modified gravity (article 100, editor 100)",1,-1,4
+7389,Stephon Alexander <stephon_alexander@brown.edu>,14,False,lower keyword score,0.300,2,"Baryon asymmetry (article 100, editor 50); Modified gravity (article 100, editor 40)",3,3,4
+7389,David Langlois <langlois@apc.univ-paris7.fr>,15,False,lower keyword score,0.300,1,"Modified gravity (article 100, editor 90)",4,4,4
+7389,Keith Olive <olive@physics.umn.edu>,16,False,lower keyword score,0.267,1,"Baryon asymmetry (article 100, editor 80)",3,2,3
+7389,Julien Lesgourgues <Julien.Lesgourgues@physik.rwth-aachen.de>,17,False,lower keyword score,0.267,1,"Physics of the early universe (article 100, editor 80)",1,1,4
+7389,Erminia Calabrese <calabresee@cardiff.ac.uk>,18,False,lower keyword score,0.233,1,"Physics of the early universe (article 100, editor 70)",4,4,5
+7389,misao sasaki <misao@yukawa.kyoto-u.ac.jp>,19,False,lower keyword score,0.233,1,"Modified gravity (article 100, editor 70)",3,2,4
+7389,Anne Green <ppzamg@gmail.com>,20,False,lower keyword score,0.200,1,"Physics of the early universe (article 100, editor 60)",4,3,4
+7389,Petr Tinyakov <petr.tiniakov@ulb.ac.be>,21,False,lower keyword score,0.200,1,"Modified gravity (article 100, editor 60)",3,3,3
+7389,Shi Pi <shi.pi@itp.ac.cn>,22,False,lower keyword score,0.167,1,"Physics of the early universe (article 100, editor 50)",2,0,3
+7389,Nemanja Kaloper <kaloper@physics.ucdavis.edu>,23,False,lower keyword score,0.167,1,"Modified gravity (article 100, editor 50)",2,-1,4
+7389,Evgeny Akhmedov <akhmedov@mpi-hd.mpg.de>,24,False,lower keyword score,0.133,1,"Baryon asymmetry (article 100, editor 40)",3,2,3
+7389,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,25,False,lower keyword score,0.133,1,"Physics of the early universe (article 100, editor 40)",4,-1,5
+7389,Tsvi Piran <tsvi.piran@mail.huji.ac.il>,26,False,lower keyword score,0.133,1,"Physics of the early universe (article 100, editor 40)",3,-1,3
+7389,Ruth Durrer <ruth.durrer@unige.ch>,27,False,lower keyword score,0.100,1,"Modified gravity (article 100, editor 30)",1,-3,3
+7389,Torsten Ensslin <ensslin@mpa-garching.mpg.de>,28,False,lower keyword score,0.067,1,"Physics of the early universe (article 100, editor 20)",3,3,3
+7389,Lavinia Heisenberg <L.Heisenberg@thphys.uni-heidelberg.de>,,False,monthly limit reached,0.567,2,"Modified gravity (article 100, editor 90); Physics of the early universe (article 100, editor 80)",-1,-1,3
+7389,Stefano Liberati <liberati@sissa.it>,,False,monthly limit reached,0.233,1,"Modified gravity (article 100, editor 70)",0,-1,5
+7389,Cristian Armendariz-Picon <carmendarizpicon@stlawu.edu>,,False,monthly limit reached,0.200,1,"Physics of the early universe (article 100, editor 60)",0,-2,3
+7392,Steven Furlanetto <sfurlane@astro.ucla.edu>,1,True,selected,0.450,2,"Feedback in galaxies (article 100, editor 90); Galaxy evolution (article 75, editor 90)",1,-1,5
+7392,Ofer Lahav <o.lahav@ucl.ac.uk>,2,False,lower keyword score,0.364,2,"Feedback in galaxies (article 100, editor 90); Galaxy evolution (article 75, editor 50)",4,4,5
+7392,Volker Bromm <vbromm@astro.as.utexas.edu>,3,False,lower keyword score,0.286,1,"Feedback in galaxies (article 100, editor 100)",5,5,5
+7392,Arthur Kosowsky <kosowsky@pitt.edu>,4,False,lower keyword score,0.257,1,"Sunyaev-Zeldovich effect (article 100, editor 90)",2,2,5
+7392,Uros Seljak <useljak@berkeley.edu>,5,False,lower keyword score,0.229,1,"Sunyaev-Zeldovich effect (article 100, editor 80)",3,3,3
+7392,Vladimir Usov <Vladimir.Usov@weizmann.ac.il>,6,False,lower keyword score,0.214,1,"Active galactic nuclei (article 75, editor 100)",3,3,3
+7392,Asantha Cooray <acooray@uci.edu>,7,False,lower keyword score,0.200,1,"Sunyaev-Zeldovich effect (article 100, editor 70)",3,1,4
+7392,Nir Shaviv <nir.shaviv@mail.huji.ac.il>,8,False,lower keyword score,0.193,3,"Feedback in galaxies (article 100, editor 30); Active galactic nuclei (article 75, editor 30); Galaxy evolution (article 75, editor 20)",3,3,5
+7392,Zoltan Haiman <zh2007@columbia.edu>,9,False,lower keyword score,0.193,1,"Active galactic nuclei (article 75, editor 90)",3,3,3
+7392,Jochen Weller <jochen.weller@lmu.de>,10,False,lower keyword score,0.171,1,"Sunyaev-Zeldovich effect (article 100, editor 60)",4,3,4
+7392,Jonathan Pritchard <jpritchard@mpifr-bonn.mpg.de>,11,False,lower keyword score,0.171,1,"Galaxy evolution (article 75, editor 80)",2,2,4
+7392,Marat Gilfanov <gilfanov@mpa-garching.mpg.de>,12,False,lower keyword score,0.150,1,"Active galactic nuclei (article 75, editor 70)",3,0,5
+7392,Benjamin Wandelt <wandelt@jhu.edu>,13,False,lower keyword score,0.143,1,"Sunyaev-Zeldovich effect (article 100, editor 50)",5,4,5
+7392,Anne Green <ppzamg@gmail.com>,14,False,lower keyword score,0.143,1,"Feedback in galaxies (article 100, editor 50)",4,3,4
+7392,Pavel Naselsky <naselsky@nbi.dk>,15,False,lower keyword score,0.143,1,"Sunyaev-Zeldovich effect (article 100, editor 50)",3,3,3
+7392,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,16,False,lower keyword score,0.143,1,"Sunyaev-Zeldovich effect (article 100, editor 50)",4,-1,5
+6050,Ariel Goobar <ariel@fysik.su.se>,1,True,selected,0.900,2,"Cluster counts (article 100, editor 80); Dark energy experiments (article 100, editor 100)",3,3,3
+6050,Ofer Lahav <o.lahav@ucl.ac.uk>,2,False,lower keyword score,0.750,2,"Cluster counts (article 100, editor 50); Dark energy experiments (article 100, editor 100)",4,4,5
+6050,Uros Seljak <useljak@berkeley.edu>,3,False,lower keyword score,0.600,2,"Cluster counts (article 100, editor 60); Dark energy experiments (article 100, editor 60)",1,1,3
+6050,Eiichiro Komatsu <komatsu@mpa-garching.mpg.de>,4,False,lower keyword score,0.500,2,"Cluster counts (article 100, editor 50); Dark energy experiments (article 100, editor 50)",4,1,5
+6050,Kyle Dawson <kdawson@astro.utah.edu>,5,False,lower keyword score,0.500,1,"Dark energy experiments (article 100, editor 100)",2,2,3
+6050,Alessandra Silvestri <silvestri@lorentz.leidenuniv.nl>,6,False,lower keyword score,0.400,1,"Dark energy experiments (article 100, editor 80)",4,4,5
+6050,Nikhil Padmanabhan <nikhil.padmanabhan@yale.edu>,7,False,lower keyword score,0.350,1,"Dark energy experiments (article 100, editor 70)",3,3,5
+6050,Nabila Aghanim <nabila.aghanim@ias.u-psud.fr>,8,False,lower keyword score,0.350,1,"Dark energy experiments (article 100, editor 70)",2,2,3
+6050,Ruth Durrer <ruth.durrer@unige.ch>,9,False,lower keyword score,0.150,1,"Dark energy experiments (article 100, editor 30)",1,1,3
+6050,Jochen Weller <jochen.weller@lmu.de>,,False,monthly limit reached,0.800,2,"Cluster counts (article 100, editor 80); Dark energy experiments (article 100, editor 80)",0,0,4

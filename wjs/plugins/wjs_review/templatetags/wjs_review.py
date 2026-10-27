@@ -722,7 +722,7 @@ def get_current_workload(editor: Account, journal: Journal) -> int:
 
 @register.simple_tag()
 def get_editor_keywords(editor: Account, journal: Journal) -> QuerySet[StaffKeyword]:
-    """Get the keywords for the given editor and journal."""
+    """Get the keywords for the given editor and journal, highest weight first, then by word."""
     # We don't expect a DoesNotExist, and even less MultipleObjectsReturned, but just in case...
     try:
         eap = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
@@ -732,7 +732,7 @@ def get_editor_keywords(editor: Account, journal: Journal) -> QuerySet[StaffKeyw
     except StaffWorkloadParameters.MultipleObjectsReturned:
         logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
         eap = StaffWorkloadParameters.objects.filter(user=editor, journal=journal).first()
-    return StaffKeyword.objects.filter(parameters=eap)
+    return StaffKeyword.objects.filter(parameters=eap).select_related("keyword").order_by("-weight", "keyword__word")
 
 
 @register.simple_tag()

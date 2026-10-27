@@ -3,12 +3,14 @@
 Journal level configuration is made using the 'WJS_ARTICLE_ASSIGNMENT_FUNCTIONS' setting
 """
 
+import dataclasses
 import datetime
 from typing import TYPE_CHECKING, Callable, Optional
 
 from core.models import AccountRole, Role
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import (
     Case,
     F,
@@ -28,14 +30,20 @@ from django.utils.module_loading import import_string
 from journal.models import Journal
 from plugins.wjs_submission.correction.links import correction_parent
 from plugins.wjs_submission.workflow import is_correction
-from submission.models import Article
+from submission.models import Article, KeywordArticle
 from utils.logic import get_current_request
 
 from wjs.jcom_profile.constants import DIRECTOR_MAIN_ROLE, EO_GROUP, SECTION_EDITOR_ROLE
-from wjs.jcom_profile.models import StaffWorkloadParameters
+from wjs.jcom_profile.models import StaffKeyword, StaffWorkloadParameters
+
+from ..users import KEYWORD_WEIGHT_CAP
 
 if TYPE_CHECKING:
-    from ..models import ArticleWorkflow, WjsEditorAssignment  # noqa
+    from ..models import (  # noqa
+        ArticleWorkflow,
+        AutomaticAssignmentAudit,
+        WjsEditorAssignment,
+    )
 
 
 Account = get_user_model()
@@ -60,7 +68,9 @@ def get_special_issue_parameters(article):
     )
 
 
-def get_selected_editor_by_workload(users_parameters: QuerySet, journal: Journal) -> Account | None:
+def get_selected_editor_by_workload(
+    users_parameters: QuerySet[StaffWorkloadParameters], journal: Journal
+) -> StaffWorkloadParameters | None:
     """
     Select the user with the highest workload remaining, regardless the algorithm.
 
@@ -70,8 +80,10 @@ def get_selected_editor_by_workload(users_parameters: QuerySet, journal: Journal
 
     :param users_parameters: The StaffWorkloadParameters for the selected users.
     :type users_parameters: QuerySet[StaffWorkloadParameters]
-    :return: The selected user. If no user is selected, returns None.
-    :rtype: Account
+    :return: The winning StaffWorkloadParameters, annotated with ``assignment_count`` and ``available_workload``
+        (so callers can both read ``.user`` and record the numbers the choice was based on); None if no user
+        is available.
+    :rtype: StaffWorkloadParameters | None
     """
     from ..logic import states_where_article_needs_editor
     from ..models import WjsEditorAssignment
@@ -86,10 +98,7 @@ def get_selected_editor_by_workload(users_parameters: QuerySet, journal: Journal
         assignment_count=Subquery(assigned_papers),
         available_workload=F("workload") - F("assignment_count"),
     )
-    parameter = annotated_parameters.order_by("-available_workload", "id").first()
-    if parameter:
-        return parameter.user
-    return None
+    return annotated_parameters.order_by("-available_workload", "id").first()
 
 
 def get_available_editor_parameters(editors, journal: Journal) -> QuerySet[StaffWorkloadParameters]:
@@ -129,7 +138,8 @@ def annotate_keyword_ranking(
     editor selection in the "Select new editor" page), skipping its per-editor matching-keywords
     list (not needed here), so only one shared implementation of "how do we count/weight matching
     keywords" exists. Editors with no matching keyword are kept, annotated with
-    ``matching_keywords_count=0``/``max_matching_keyword_weight=None`` — ranking them last is the
+    ``matching_keywords_count=0``/``max_matching_keyword_weight=None``/``keyword_score=None`` — ranking
+    them last (by ``keyword_score``, shared-keyword count, 30-day availability, id) is the
     caller's job (see :py:func:`rank_editor_parameters`), not this function's.
 
     :param article: The article whose keywords are matched against.
@@ -177,7 +187,8 @@ def annotate_workload_availability(
     section: ``available_workload_month`` (current calendar month, used by automatic assignment's
     own *filtering* exclusion) and ``available_workload_30d`` (trailing 30 days, used purely as
     the *ranking* tie-break by both automatic and manual assignment). Both counts exclude
-    WITHDRAWN articles. Deselected assignments need no explicit exclusion: BaseDeassignEditor
+    WITHDRAWN articles and assignments dated after now (a no-op live; it matters for the frozen-time
+    replay). Deselected assignments need no explicit exclusion: BaseDeassignEditor
     (`logic.py`) deletes the WjsEditorAssignment row outright on deselection, so it is already
     gone from either count by construction.
 
@@ -193,8 +204,9 @@ def annotate_workload_availability(
     """
     from ..models import ArticleWorkflow, WjsEditorAssignment  # noqa: F811
 
-    month_start = timezone.localtime().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    window_30d = timezone.localtime() - datetime.timedelta(days=30)
+    now = timezone.localtime()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    window_30d = now - datetime.timedelta(days=30)
     not_withdrawn = ~Q(article__articleworkflow__state=ArticleWorkflow.ReviewStates.WITHDRAWN)
 
     assigned_this_month = (
@@ -203,6 +215,8 @@ def annotate_workload_availability(
             editor=OuterRef("user_id"),
             article__journal=OuterRef("journal_id"),
             assigned__gte=month_start,
+            # Upper bound is a no-op live; it keeps the historical replay (which freezes "now") honest.
+            assigned__lte=now,
         )
         .annotate(count=Func(F("id"), function="Count"))
         .values("count")
@@ -213,6 +227,7 @@ def annotate_workload_availability(
             editor=OuterRef("user_id"),
             article__journal=OuterRef("journal_id"),
             assigned__gte=window_30d,
+            assigned__lte=now,
         )
         .annotate(count=Func(F("id"), function="Count"))
         .values("count")
@@ -257,46 +272,346 @@ def rank_editor_parameters(users_parameters: QuerySet[StaffWorkloadParameters]) 
     )
 
 
+def is_special_issue(article: Article) -> bool:
+    """
+    Tell whether the default algorithm assigns the article through its special issue's managing editors.
+
+    :param article: The article being assigned.
+    :type article: Article
+    :return: True when the article's primary issue has managing editors.
+    :rtype: bool
+    """
+    return bool(article.primary_issue and article.primary_issue.managing_editors.exists())
+
+
+def get_default_section_editors(article: Article) -> QuerySet:
+    """
+    Return the ids of the journal's section editors: the default algorithm's non-special-issue editor pool.
+
+    :param article: The article being assigned.
+    :type article: Article
+    :return: A flat ``values_list`` of the section editors' user ids.
+    :rtype: QuerySet
+    """
+    return AccountRole.objects.filter(
+        journal=article.journal,
+        role=Role.objects.get(slug=SECTION_EDITOR_ROLE),
+    ).values_list("user", flat=True)
+
+
+def exclude_article_authors(
+    article: Article, users_parameters: QuerySet[StaffWorkloadParameters]
+) -> QuerySet[StaffWorkloadParameters]:
+    """
+    Drop the article's authors from the candidate parameters: nobody edits their own article.
+
+    :param article: The article being assigned.
+    :type article: Article
+    :param users_parameters: The candidate StaffWorkloadParameters.
+    :type users_parameters: QuerySet[StaffWorkloadParameters]
+    :return: ``users_parameters`` without the article's authors.
+    :rtype: QuerySet[StaffWorkloadParameters]
+    """
+    return users_parameters.exclude(user__in=article.author_accounts.all())
+
+
+def annotate_default_candidates(
+    article: Article, users_parameters: QuerySet[StaffWorkloadParameters]
+) -> QuerySet[StaffWorkloadParameters]:
+    """
+    Annotate the candidates with every value the default algorithm ranks on. Never filters.
+
+    :param article: The article whose keywords are matched against.
+    :type article: Article
+    :param users_parameters: The candidate StaffWorkloadParameters.
+    :type users_parameters: QuerySet[StaffWorkloadParameters]
+    :return: ``users_parameters`` annotated by annotate_keyword_ranking and annotate_workload_availability.
+    :rtype: QuerySet[StaffWorkloadParameters]
+    """
+    return annotate_workload_availability(annotate_keyword_ranking(article, users_parameters))
+
+
+def rank_default_candidates(
+    article: Article, users_parameters: QuerySet[StaffWorkloadParameters]
+) -> QuerySet[StaffWorkloadParameters]:
+    """
+    Annotate, drop the editors out of monthly workload, and rank the default algorithm's candidates.
+
+    :param article: The article being assigned.
+    :type article: Article
+    :param users_parameters: The available, non-author candidate StaffWorkloadParameters.
+    :type users_parameters: QuerySet[StaffWorkloadParameters]
+    :return: The candidates still under their monthly cap, best-candidate-first.
+    :rtype: QuerySet[StaffWorkloadParameters]
+    """
+    return rank_editor_parameters(
+        annotate_default_candidates(article, users_parameters).filter(available_workload_month__gt=0),
+    )
+
+
+# Why each candidate of the default algorithm won or lost (candidates CSV "reason" column).
+REASON_SELECTED = "selected"
+REASON_AUTHOR = "author of the article"
+REASON_NOT_AVAILABLE = "not available (disabled, on leave or no workload)"
+REASON_MONTHLY_LIMIT = "monthly limit reached"
+REASON_LOWER_SCORE = "lower keyword score"
+REASON_FEWER_SHARED = "same score, fewer shared keywords"
+REASON_LESS_30D = "same score and shared keywords, less 30-day availability"
+REASON_FULL_TIE = "full tie, lost on id"
+
+
+@dataclasses.dataclass(frozen=True)
+class SharedKeyword:
+    """A keyword shared by an article and an editor, with both weights."""
+
+    word: str
+    article_weight: int | None
+    editor_weight: int
+
+
+@dataclasses.dataclass
+class ReplayCandidate:
+    """How one editor sharing a keyword with the article fared in the default algorithm."""
+
+    editor: Account
+    reason: str
+    rank: int | None
+    keyword_score: float | None
+    matching_keywords_count: int
+    shared_keywords: list[SharedKeyword]
+    monthly_workload: int | None
+    workload_30d: int | None
+    workload_cap: int | None
+    selected: bool = False
+
+
+def get_shared_keywords(
+    article: Article, users_parameters: QuerySet[StaffWorkloadParameters]
+) -> dict[int, list[SharedKeyword]]:
+    """
+    Return, per StaffWorkloadParameters pk, the article keywords it shares, with both weights.
+
+    Two queries whatever the number of parameters. Each list is ordered by article weight descending (a NULL
+    article weight counts as 100, like in the keyword score), then by word.
+    """
+    article_weights = dict(KeywordArticle.objects.filter(article=article).values_list("keyword_id", "weight"))
+    shared: dict[int, list[SharedKeyword]] = {}
+    staff_keywords = StaffKeyword.objects.filter(
+        parameters__in=users_parameters, keyword_id__in=list(article_weights)
+    ).values_list("parameters_id", "keyword_id", "keyword__word", "weight")
+    for parameters_id, keyword_id, word, editor_weight in staff_keywords:
+        shared.setdefault(parameters_id, []).append(
+            SharedKeyword(word=word, article_weight=article_weights[keyword_id], editor_weight=editor_weight)
+        )
+    for keywords in shared.values():
+        keywords.sort(
+            key=lambda k: (-(KEYWORD_WEIGHT_CAP if k.article_weight is None else k.article_weight), k.word),
+        )
+    return shared
+
+
+def _loser_reason(candidate: StaffWorkloadParameters, winner: StaffWorkloadParameters) -> str:
+    """Explain why a ranked candidate is behind the winner, comparing the values rank_editor_parameters uses."""
+
+    def _score(parameters):
+        return -1.0 if parameters.keyword_score is None else parameters.keyword_score
+
+    if _score(candidate) != _score(winner):
+        return REASON_LOWER_SCORE
+    if candidate.matching_keywords_count != winner.matching_keywords_count:
+        return REASON_FEWER_SHARED
+    if candidate.available_workload_30d != winner.available_workload_30d:
+        return REASON_LESS_30D
+    return REASON_FULL_TIE
+
+
+def explain_default_assignment_candidates(article: Article) -> list[ReplayCandidate]:
+    """
+    Explain the outcome of the default (non-special-issue) algorithm for each editor sharing a keyword.
+
+    Reuses the algorithm's own building blocks (section-editor pool, availability, author exclusion,
+    annotations and ranking) instead of restating its rules: the rank is the position in
+    rank_default_candidates' output, and tie reasons compare the annotated values with rank 1. Evaluated
+    eagerly, so call it under the same frozen time as the assignment it explains. Returns the ranked
+    candidates in rank order, then the excluded ones by keyword score descending; rank 1 has the
+    ``selected`` reason, but ``selected`` itself is left to the caller, who knows the actual pick.
+    """
+    journal = article.journal
+    editor_ids = list(get_default_section_editors(article))
+    available = get_available_editor_parameters(editor_ids, journal)
+    available_ids = set(available.values_list("pk", flat=True))
+    ranked = list(rank_default_candidates(article, exclude_article_authors(article, available)))
+    rank_by_pk = {parameters.pk: index for index, parameters in enumerate(ranked, start=1)}
+    author_ids = set(article.author_accounts.values_list("pk", flat=True))
+
+    pool = annotate_default_candidates(
+        article, StaffWorkloadParameters.objects.filter(journal=journal, user__in=editor_ids)
+    ).filter(matching_keywords_count__gt=0)
+    pool = list(pool.select_related("user"))
+    shared_keywords = get_shared_keywords(article, StaffWorkloadParameters.objects.filter(pk__in=[p.pk for p in pool]))
+
+    candidates = []
+    for parameters in pool:
+        rank = rank_by_pk.get(parameters.pk)
+        if rank == 1:
+            reason = REASON_SELECTED
+        elif rank is not None:
+            reason = _loser_reason(parameters, ranked[0])
+        elif parameters.user_id in author_ids:
+            reason = REASON_AUTHOR
+        elif parameters.pk not in available_ids:
+            reason = REASON_NOT_AVAILABLE
+        else:
+            reason = REASON_MONTHLY_LIMIT
+        candidates.append(
+            ReplayCandidate(
+                editor=parameters.user,
+                reason=reason,
+                rank=rank,
+                keyword_score=parameters.keyword_score,
+                matching_keywords_count=parameters.matching_keywords_count,
+                shared_keywords=shared_keywords.get(parameters.pk, []),
+                monthly_workload=parameters.available_workload_month,
+                workload_30d=parameters.available_workload_30d,
+                workload_cap=parameters.effective_workload_cap,
+            )
+        )
+    candidates.sort(
+        key=lambda c: (
+            c.rank is None,
+            c.rank or 0,
+            -(c.keyword_score if c.keyword_score is not None else -1.0),
+            c.editor.pk,
+        )
+    )
+    return candidates
+
+
+def record_automatic_assignment_audit(
+    *,
+    article: Article,
+    editor: Account,
+    algorithm: str,
+    matched_by_keyword: bool,
+    matching_keywords_count: int | None = None,
+    max_matching_keyword_weight: int | None = None,
+    workload_available: int | None = None,
+    workload_cap: int | None = None,
+    workload_available_30d: int | None = None,
+    keyword_score: float | None = None,
+    candidates: list[ReplayCandidate] | None = None,
+) -> "AutomaticAssignmentAudit":
+    """
+    Record why the automatic assignment picked ``editor`` for ``article``.
+
+    :param candidates: The explained candidates, evaluated before the assignment changed any workload; stored as a
+        snapshot, with ``editor`` marked as selected.
+    :type candidates: list[ReplayCandidate] | None
+    :return: The created AutomaticAssignmentAudit row.
+    :rtype: AutomaticAssignmentAudit
+    """
+    from ..models import AutomaticAssignmentAudit, AutomaticAssignmentCandidate
+
+    audit = AutomaticAssignmentAudit.objects.create(
+        article=article,
+        editor=editor,
+        algorithm=algorithm,
+        matched_by_keyword=matched_by_keyword,
+        matching_keywords_count=matching_keywords_count,
+        max_matching_keyword_weight=max_matching_keyword_weight,
+        workload_available=workload_available,
+        workload_cap=workload_cap,
+        workload_available_30d=workload_available_30d,
+        keyword_score=keyword_score,
+    )
+    AutomaticAssignmentCandidate.objects.bulk_create(
+        AutomaticAssignmentCandidate(
+            audit=audit,
+            editor=candidate.editor,
+            position=position,
+            rank=candidate.rank,
+            selected=candidate.editor == editor,
+            reason=candidate.reason,
+            keyword_score=candidate.keyword_score,
+            matching_keywords_count=candidate.matching_keywords_count,
+            shared_keywords=[dataclasses.asdict(keyword) for keyword in candidate.shared_keywords],
+            monthly_workload=candidate.monthly_workload,
+            workload_30d=candidate.workload_30d,
+            workload_cap=candidate.workload_cap,
+        )
+        for position, candidate in enumerate(candidates or [], start=1)
+    )
+    return audit
+
+
 def default_assign_editors_to_articles(article: Article, **kwargs) -> Optional["WjsEditorAssignment"]:
     """
     Assign editors to article for review. Default algorithm.
 
     Keyword matching never excludes a candidate: an editor with no matching keyword is kept in
     the ranked queryset, ranked last (behind any editor with a real match), per the "Editor
-    Selection logic" spec (rev 1.1.3). The only exclusions in the non-special-issue branch are
+    Selection logic" spec (rev 1.1.3). Candidates are ranked by ``keyword_score`` (descending,
+    no match last), then by shared-keyword count, then by 30-day availability, then by id (see
+    rank_editor_parameters). The only exclusions in the non-special-issue branch are
     availability (get_available_editor_parameters), authorship, and running out of monthly
     workload (available_workload_month__gt=0) — there is no separate "no keyword match" fallback
     path or metric anymore.
     """
     from ..logic import BaseAssignToEditor
 
-    is_special_issue = bool(article.primary_issue and article.primary_issue.managing_editors.exists())
-    if is_special_issue:
+    special_issue = is_special_issue(article)
+    if special_issue:
         # Special issues keep their own dedicated editor pool and pure-workload selection;
         # keyword matching is not applied here (see spec's "bypasses" section:
         # https://gitlab.sissamedialab.it/wjs/specs/-/wikis/Editor-Selection-logic#implementation-details).
         parameters = get_special_issue_parameters(article)
     else:
-        editors = AccountRole.objects.filter(
-            journal=article.journal,
-            role=Role.objects.get(slug=SECTION_EDITOR_ROLE),
-        ).values_list("user")
-        parameters = get_available_editor_parameters(journal=article.journal, editors=editors)
-    parameters = parameters.exclude(user__in=article.author_accounts.all())
+        parameters = get_available_editor_parameters(
+            journal=article.journal, editors=get_default_section_editors(article)
+        )
+    parameters = exclude_article_authors(article, parameters)
     if parameters:
+        from ..models import AutomaticAssignmentAudit
+
         request = get_current_request()
-        if is_special_issue:
-            user = get_selected_editor_by_workload(parameters, journal=article.journal)
+        user = None
+        audit_data = {}
+        candidates = []
+        if special_issue:
+            parameter = get_selected_editor_by_workload(parameters, journal=article.journal)
+            if parameter:
+                user = parameter.user
+                audit_data = {
+                    "algorithm": AutomaticAssignmentAudit.Algorithms.DEFAULT_SPECIAL_ISSUE,
+                    "matched_by_keyword": False,
+                    "workload_available": parameter.available_workload,
+                    "workload_cap": parameter.workload,
+                }
         else:
-            ranked_parameters = rank_editor_parameters(
-                annotate_workload_availability(annotate_keyword_ranking(article, parameters)).filter(
-                    available_workload_month__gt=0,
-                ),
-            )
-            matched_parameter = ranked_parameters.first()
-            user = matched_parameter.user if matched_parameter else None
+            ranked_parameters = rank_default_candidates(article, parameters)
+            if matched_parameter := ranked_parameters.first():
+                user = matched_parameter.user
+                matched_by_keyword = matched_parameter.matching_keywords_count > 0
+                audit_data = {
+                    "algorithm": AutomaticAssignmentAudit.Algorithms.DEFAULT,
+                    "matched_by_keyword": matched_by_keyword,
+                    "matching_keywords_count": (
+                        matched_parameter.matching_keywords_count if matched_by_keyword else None
+                    ),
+                    "max_matching_keyword_weight": matched_parameter.max_matching_keyword_weight,
+                    "workload_available": matched_parameter.available_workload_month,
+                    "workload_cap": matched_parameter.effective_workload_cap,
+                    "workload_available_30d": matched_parameter.available_workload_30d,
+                    "keyword_score": matched_parameter.keyword_score,
+                }
+                # Before the assignment: it changes the very workloads the candidates are explained with.
+                candidates = explain_default_assignment_candidates(article)
         if user:
-            assignment = BaseAssignToEditor(editor=user, article=article, request=request, first_assignment=True).run()
+            with transaction.atomic():
+                assignment = BaseAssignToEditor(
+                    editor=user, article=article, request=request, first_assignment=True
+                ).run()
+                record_automatic_assignment_audit(article=article, editor=user, candidates=candidates, **audit_data)
             return assignment
 
 
@@ -318,10 +633,23 @@ def jcom_assign_editors_to_articles(article: Article, **kwargs) -> Optional["Wjs
         parameters = get_available_editor_parameters(journal=article.journal, editors=directors)
     parameters = parameters.exclude(user__in=article.author_accounts.all())
     if parameters:
+        from ..models import AutomaticAssignmentAudit
+
         request = get_current_request()
-        user = get_selected_editor_by_workload(parameters, journal=article.journal)
-        if user:
-            assignment = BaseAssignToEditor(editor=user, article=article, request=request, first_assignment=True).run()
+        parameter = get_selected_editor_by_workload(parameters, journal=article.journal)
+        if parameter:
+            with transaction.atomic():
+                assignment = BaseAssignToEditor(
+                    editor=parameter.user, article=article, request=request, first_assignment=True
+                ).run()
+                record_automatic_assignment_audit(
+                    article=article,
+                    editor=parameter.user,
+                    algorithm=AutomaticAssignmentAudit.Algorithms.JCOM,
+                    matched_by_keyword=False,
+                    workload_available=parameter.available_workload,
+                    workload_cap=parameter.workload,
+                )
             return assignment
 
 
@@ -358,18 +686,20 @@ def should_assign_editor(article: Article) -> bool:
     return not is_correction(article)
 
 
-def dispatch_assignment(article: Article) -> Optional["WjsEditorAssignment"]:
-    """Dispatch editors assignment on journal basis, selecting the requested assignment algorithm."""
-    journal = article.journal
-
-    if not should_assign_editor(article):
-        return None
-    assignment_function = import_string(
+def get_assignment_function(journal: Journal) -> Callable[..., Optional["WjsEditorAssignment"]]:
+    """Return the editor assignment function configured for the journal in WJS_ARTICLE_ASSIGNMENT_FUNCTIONS."""
+    return import_string(
         settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(
             journal.code, settings.WJS_ARTICLE_ASSIGNMENT_FUNCTIONS.get(None)
         ),
     )
-    return assignment_function(article)
+
+
+def dispatch_assignment(article: Article) -> Optional["WjsEditorAssignment"]:
+    """Dispatch editors assignment on journal basis, selecting the requested assignment algorithm."""
+    if not should_assign_editor(article):
+        return None
+    return get_assignment_function(article.journal)(article)
 
 
 def get_select_eo_by_workload(

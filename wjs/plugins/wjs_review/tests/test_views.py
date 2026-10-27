@@ -41,7 +41,7 @@ from ..models import (
 )
 from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
-from ..templatetags.wjs_review import get_version_submission_date
+from ..templatetags.wjs_review import get_editor_keywords, get_version_submission_date
 from ..views import (
     ArticleDetails,
     ArticleIdToDetails,
@@ -2039,3 +2039,18 @@ def test_authors_accordion_shows_author_records(assigned_article: Article):
     assert (
         "https://bsky.app/profile/alice.bsky.social" in rendered
     ), "The socials handle of an account is displayed as a bluesky URL"
+
+
+@pytest.mark.django_db
+def test_get_editor_keywords_ordered_by_weight_then_word(journal, editors, keywords):
+    """The journal editors page lists an editor's keywords highest weight first, then alphabetically."""
+    editor = editors[0]
+    parameters = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords.get(word="3-keyword"), weight=10)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords.get(word="1-keyword"), weight=50)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords.get(word="2-keyword"), weight=10)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords.get(word="0-keyword"), weight=10)
+
+    words = [staff_keyword.keyword.word for staff_keyword in get_editor_keywords(editor, journal)]
+
+    assert words == ["1-keyword", "0-keyword", "2-keyword", "3-keyword"], f"Unexpected keyword order: {words}"
