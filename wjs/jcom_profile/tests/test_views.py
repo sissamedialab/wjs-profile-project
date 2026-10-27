@@ -548,7 +548,7 @@ def test_director_can_change_editor_keywords(
 
 @pytest.mark.django_db
 def test_director_can_change_editor_parameters(journal, roles, admin, editor, keywords):
-    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
+    parameters = StaffWorkloadParameters.objects.update_or_create(user=editor, journal=journal)[0]
     for keyword in keywords:
         StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
     brake_on = 10
@@ -595,7 +595,7 @@ def test_director_editor_parameters_page_renders_keyword_hidden_id_field(journal
     StaffKeyword, and the server errors out constructing the row's form (see issue with
     /update/parameters/<pk>/ raising ``KeyError: 'instance'``).
     """
-    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
+    parameters = StaffWorkloadParameters.objects.update_or_create(user=editor, journal=journal)[0]
     for keyword in keywords:
         StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
     client = Client()
@@ -622,7 +622,7 @@ def test_director_editor_parameters_post_without_keyword_id_reports_form_error(
     ``instance`` kwarg in that case, and unconditionally accessed it, raising an uncaught
     ``KeyError``. It must instead be reported as a normal (non-field) form error.
     """
-    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
+    parameters = StaffWorkloadParameters.objects.update_or_create(user=editor, journal=journal)[0]
     for keyword in keywords:
         StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
     client = Client()
@@ -688,7 +688,9 @@ def test_brake_on_is_editable_only_by_eo(
         user.refresh_from_db()
     elif user_role == "eo":
         user.groups.add(Group.objects.get(name=constants.EO_GROUP))
-    parameters = StaffWorkloadParameters.objects.create(user=section_editor.janeway_account, journal=journal)
+    parameters = StaffWorkloadParameters.objects.update_or_create(
+        user=section_editor.janeway_account, journal=journal
+    )[0]
     client = Client()
     client.force_login(user)
     url = f"/{journal.code}/update/parameters/{section_editor.janeway_account.pk}/"
@@ -779,7 +781,7 @@ def test_admin_cannot_login(journal, admin):
 @pytest.mark.django_db
 def test_editor_parameters_page_shows_editor_name(journal: Journal, roles, eo_user, section_editor):
     """The page to manage an editor's parameters says whose parameters are being edited."""
-    StaffWorkloadParameters.objects.create(user=section_editor.janeway_account, journal=journal)
+    StaffWorkloadParameters.objects.update_or_create(user=section_editor.janeway_account, journal=journal)
     client = Client()
     client.force_login(eo_user)
 
