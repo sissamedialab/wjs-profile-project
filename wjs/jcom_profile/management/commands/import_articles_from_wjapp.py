@@ -4,6 +4,7 @@
 import cProfile
 import datetime
 import io
+import os
 import pstats
 import sys
 import traceback
@@ -11,22 +12,32 @@ import traceback
 import freezegun
 import mariadb
 import requests
-from core.models import Account
+from core.models import Account, File
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from identifiers import models as identifiers_models
 from journal.models import Issue, IssueType, Journal
+from plugins.hydra.models import LinkedArticle, LinkType
 from plugins.wjs_review.logic import (
     EditorRevisionRequest,
     PermissionAssignment,
+    WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
 from plugins.wjs_review.models import (
     ArticleWorkflow,
+    AttentionCondition,
     EditorDecision,
     Message,
     PastEditorAssignment,
+)
+from plugins.wjs_submission.models import (
+    AccessMode,
+    AccessModeJournal,
+    ArticleCollaboration,
+    ArticleSubmission,
+    Collaboration,
 )
 from review.models import (
     EditorAssignment,
@@ -38,9 +49,10 @@ from submission import models as submission_models
 from submission.models import Licence
 from typesetting.models import TypesettingAssignment, TypesettingRound
 
-import wjs.jcom_profile.import_file_manager as import_file_manager
-import wjs.jcom_profile.import_logic as import_logic
-import wjs.jcom_profile.import_production_hold as import_production_hold
+import wjs.jcom_profile.import_wjapp.import_file_manager as import_file_manager
+import wjs.jcom_profile.import_wjapp.import_logic as import_logic
+import wjs.jcom_profile.import_wjapp.import_production_hold as import_production_hold
+import wjs.jcom_profile.import_wjapp.import_specific_corrections as import_specific_corrections
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
 from wjs.jcom_profile.import_utils import (
@@ -50,7 +62,6 @@ from wjs.jcom_profile.import_utils import (
     SECTIONS_MAPPING,
     rome_timezone,
     set_author_country,
-    sync_frozen_authors_with_authors,
 )
 
 
@@ -84,6 +95,90 @@ def profile_command(func):
             return func(self, *args, **options)
 
     return wrapper
+
+
+# Map wjapp's Collaboration.collabName (JCAP source db) onto the matching wjs
+# Collaboration.name, so re-imported articles attach to the existing wjs collaboration
+# instead of creating a duplicate with wjapp's naming convention.
+# Entries with no confident match in wjs (ambiguous multi-collaboration names, or names
+# not found at all in wjs) are intentionally left out: create_collaboration_from_wjapp()
+# falls back to the raw wjapp name and logs a warning so they can be reviewed and added here.
+WJAPP_JCAP_COLLABORATION_NAME_MAPPING = {
+    "Alice": "ALICE collaboration",
+    "CMS": "CMS collaboration",
+    "LHCb": "LHCb collaboration",
+    "ATLAS": "ATLAS collaboration",
+    "TOTEM": "TOTEM collaboration",
+    "LHCf": "LHCf collaboration",
+    "Pierre Auger": "Pierre Auger collaboration",
+    "Ice Cube": "IceCube collaboration",
+    "Cuore": "CUORE collaboration",
+    "Borexino": "Borexino collaboration",
+    "ANTARES": "ANTARES collaboration",
+    "EDELWEISS": "Edelweiss collaboration",
+    "SDSS": "SDSS collaboration",
+    "Fermi LAT": "Fermi-LAT collaboration",
+    "Magic": "MAGIC collaboration",
+    "Exo-200": "EXO-200 collaboration",
+    "XENON": "XENON collaboration",
+    "ACTPol": "ACTPol collaboration",
+    "Double Chooz": "Double Chooz collaboration",
+    "ArDM": "ArDM collaboration",
+    "Daya Bay": "Daya Bay collaboration",
+    "HAWC": "HAWC collaboration",
+    "IMAGINE": "IMAGINE Consortium collaboration",
+    "H.E.S.S.": "H.E.S.S. collaboration",
+    "Simons Observatory": "Simons Observatory collaboration",
+    "PTOLEMY": "PTOLEMY collaboration",
+    "Cosine-100": "COSINE-100 collaboration",
+    "CREDO": "CREDO collaboration",
+    "LSST Dark Energy Science": "LSST Dark Energy Science collaboration",
+    "Arianna": "ARIANNA collaboration",
+    "NOvA": "NOvA collaboration",
+    "CTA - Cherenkov Telescope Array Consortium": "CTA consortium collaboration",
+    "LSPE": "LSPE collaboration",
+    "LISA": "LISA collaboration",
+    "DarkSide": "DarkSide collaboration",
+    "ANITA": "ANITA collaboration",
+    "MADMAX": "MADMAX collaboration",
+    "DRIFT": "DRIFT collaboration",
+    "DUNE": "DUNE collaboration",
+    "LiteBIRD": "LiteBIRD collaboration",
+    "Juno": "JUNO collaboration",
+    "The Gerda collaboration": "Gerda collaboration",
+    "Euclid Consortium": "EUCLID consortium collaboration",
+    "COMPACT": "COMPACT collaboration",
+    "CDEX": "CDEX collaboration",
+    "KM3NeT collaboration": "KM3NeT collaboration",
+    "DESI collaboration": "DESI collaboration",
+    "QUEST-DMC": "QUEST-DMC collaboration",
+    "BEACON Collaboration": "BEACON collaboration",
+    "COSINUS Collaboration": "COSINUS collaboration",
+    "Telescope Array": "Telescope Array collaboration",
+    "JEM-EUSO": "JEM-EUSO collaboration",
+    "CUPID-0": "CUPID-0 collaboration",
+    # Not found (or no unambiguous single match) in the wjs collaboration list at the time
+    # this mapping was built - review manually if/when they show up during an import:
+    # "Atacama Cosmology Telescope" (12), #noqa
+    # "PRISM" (14), #noqa
+    # "LOPES" (15), #noqa
+    # "Tunka-Rex" (18), #noqa
+    # "ANTARES, TAROT, ROTSE, Swift and Zadko" (20), #noqa
+    # "IceCube, Pierre Auger and Telescope Array" (23), #noqa
+    # "DARWIN" (24), #noqa
+    # "CORE" (28), #noqa
+    # "POLARBEAR" (29), #noqa
+    # "CAST" (34), #noqa
+    # "LAGO" (45), #noqa
+    # "POEMMA" (49), #noqa
+    # "ACT & DES" (58), #noqa
+    # "SPT-3G & DES Collaborations" (61), #noqa
+    # "DESI and ACT collaboration" (63), #noqa
+    # "Einstein Telescope" (65), #noqa
+    # "Cosmoglobe and LiteBIRD Collaborations" (68), #noqa
+    # "The Fermi -LAT, HAWC, H.E.S.S., MAGIC, and VERITAS Collaborations" (69), #noqa
+    # "MINOS+" (73), #noqa
+}
 
 
 class UnknownSection(Exception):
@@ -266,7 +361,7 @@ class Command(BaseCommand):
 
         if not current_version_row:
             self.connection.close()
-            import_logic.logger.debug(f"Article not found {self.journal.code} {preprintid}.")
+            import_logic.logger.error(f"Article not found {self.journal.code} {preprintid}.")
             return 1
 
         document_cod = current_version_row["documentCod"]
@@ -274,6 +369,15 @@ class Command(BaseCommand):
         publicationid = current_version_row["publicationId"]
         if self.journal.code.upper() in ("JHEP", "JCAP"):
             publication_date = current_version_row["publicationDate"]
+            acceptance_date = current_version_row["acceptanceDate"]
+            doi = current_version_row["doi"]
+            archive_number = current_version_row["archiveNumber"]
+            archive_category = current_version_row["archiveCategory"]
+            oaa_cod = current_version_row["oaaCod"]
+            copy_cod = current_version_row["copyCod"]
+            correction_type = current_version_row["correctionType"]
+            corrected_document_cod = current_version_row["correctedDocumentCod"]
+            collab_name = current_version_row["collabName"]
         document_revision_dead_line = current_version_row["revisionDeadline"]
         section = current_version_row["documentType"]
         language = current_version_row["language"]
@@ -284,9 +388,17 @@ class Command(BaseCommand):
         current_archive = ""
         old_archive = ""
         if self.options["importfilesarchive"] and self.journal.code.upper() in ["JCAP"]:
-            (current_archive, old_archive) = import_file_manager.ImportFileManager.dedup_archive_directory(
-                self.journal, preprintid
-            )
+            try:
+                (current_archive, old_archive) = import_file_manager.ImportFileManager.dedup_archive_directory(
+                    self.journal, preprintid
+                )
+            except Exception as e:
+                self.connection.close()
+                import_logic.logger.error(
+                    f"An exception {type(e).__name__}: {e} occurred deduplicating archives for"
+                    f" {preprintid}, the preprintid must be imported again"
+                )
+                return 1
             import_logic.logger.debug(f"{current_archive=} {old_archive=}")
 
         import_logic.logger.info(f"""Importing {preprintid}""")
@@ -315,15 +427,15 @@ class Command(BaseCommand):
         # to avoid queryset lazy evaluation problem
         self.ids_orig_list = list(self.original_editor_roles.values_list("id", flat=True))
 
-        # search if exists an id for publicationid in the wjs journal
-        pub_article = None
+        # search if exists an id for publicationid in the wjs journal only for jcom and jcomal
+        wjs_published_article = None
         if publicationid and self.journal.code.upper() in ("JCOM", "JCOMAL"):
-            pub_article = submission_models.Article.get_article(
+            wjs_published_article = submission_models.Article.get_article(
                 journal=self.journal,
                 identifier_type="pubid",
                 identifier=publicationid,
             )
-            if not pub_article:
+            if not wjs_published_article:
                 import_logic.logger.error(
                     f"missing published version for {publicationid}. Import published version"
                     f" before to import review and production versions of {preprintid}"
@@ -337,59 +449,69 @@ class Command(BaseCommand):
             identifier=preprintid,
         )
 
-        # Scenarios
+        # Scenarios for jcom jcomal
         #
         # Note:
-        # - publicationid is the article found searching the publicationid
-        # - preprintid is the article found searching the preprintid
+        # - wjs_published_article: is the article found searching the publicationid
+        # - article: is the article found searching the preprintid
         #
-        # 1. publicationid != preprintid
+        # 1. wjs_published_article != article
         #       runtime error
         #
-        # 2. preprintid  == publicationid
+        # 2. article == wjs_published_article
         #       re-import preprintid versions, restore publicationid status
         #
-        # 3. publicationid exists and preprintid is none
+        # 3. wjs_published_article exists and article is none
         #       import preprintid using publicationid, restore publicationid status
         #
-        # 4. preprintid exists and publicationid is none
+        # 4. article exists and wjs_published_article is none
         #       re-import preprintid versions
         #
-        # 5. preprintid is none and publicationid is none
+        # 5. article is none and wjs_published_article is none
         #       import preprintid versions creating new id
         #
         # e.g. published papers: JCOM_002N_0722 JCOM_005A_1022 JCOM_002N_0323
+
+        # scenarios for jhep and jcap
+        #
+        # 1. Re-Importing article (implies reset_article) (case 4. above)
+        # 2. Importing article (case 5. above)
+        #
+        # in both cases:
+        #  - all versions are imported also the publication version if exists
+        #  - no need of store article and reset article
+
         self.stored_status = False
 
         try:
-            if pub_article and article:
-                if pub_article.id == article.id:
-                    self.store_article_status(pub_article)
+            if wjs_published_article and article:
+                if wjs_published_article.id == article.id:
+                    self.store_article_status(wjs_published_article)
                     import_logic.logger.debug(
                         f"Re-importing history ({preprintid}) of a paper already published in WJS "
-                        f"{publicationid} / {pub_article.id}"
+                        f"{publicationid} / {wjs_published_article.id}"
                     )
 
                 else:
                     raise RuntimeError(
-                        f"different wjs id for pubid {pub_article.id} and preprintid {article.id}"
+                        f"different wjs id for pubid {wjs_published_article.id} and preprintid {article.id}"
                         f"delete {preprintid} from wjs and import in wjs the galley for {publicationid}"
                         f"afterwards import old versions of {preprintid}"
                     )
 
-            elif pub_article and not article:
+            elif wjs_published_article and not article:
                 import_logic.logger.debug(
                     f"Importing history ({preprintid}) of a paper already published in WJS "
-                    f"({publicationid} / {pub_article.id}"
+                    f"({publicationid} / {wjs_published_article.id}"
                 )
-                article = pub_article
+                article = wjs_published_article
                 self.store_article_status(article)
 
-            elif not pub_article and article:
-                import_logic.logger.debug(f"Re-importing {preprintid} as {article.id} (paper is not published).")
+            elif not wjs_published_article and article:
+                import_logic.logger.debug(f"Re-importing {preprintid} as {article.id}.")
 
             else:
-                import_logic.logger.debug(f"Importing {preprintid} (paper is not published).")
+                import_logic.logger.debug(f"Importing {preprintid}.")
 
             #
             # publicationid can be used as flag to check if the import is a published paper import
@@ -417,6 +539,50 @@ class Command(BaseCommand):
 
             # create article and section
             article, main_author = self.create_main_article_data(current_version_row, article)
+
+            # the object submission_data is deleted by reset article and
+            # created by a signal at article creation
+            try:
+                article.submission_data
+            except ArticleSubmission.DoesNotExist:
+
+                ArticleSubmission.objects.create(
+                    article=article,
+                )
+
+            if archive_number:
+                identifiers_models.Identifier.objects.get_or_create(
+                    identifier=archive_number,
+                    article=article,
+                    id_type="arxiv",
+                )
+                if not archive_category:
+                    archive_category = ""
+                article.submission_data.arxiv_category = archive_category
+
+            article.submission_data.cas = ""
+            article.submission_data.das = ""
+            article.submission_data.use_of_ai_flag = False
+            access_mode, licence, copyright_name = self.create_access_mode_from_wjapp(article, oaa_cod, copy_cod)
+            article.submission_data.access_mode = access_mode
+            # Triggers ArticleSubmission._sync_access_mode_parameters(), which applies the
+            # access mode's journal-level default license/rights to the article.
+            article.submission_data.save()
+            article.refresh_from_db()
+            # If this specific paper's actual license/rights (from wjapp) differ from the
+            # default just applied above, override them per-article rather than letting a
+            # single wjapp (oaa_cod, copy_cod) combination fork the shared access mode
+            # configuration (see create_access_mode_from_wjapp).
+            if article.license != licence:
+                article.license = licence
+                article.submission_data.license_override = True
+            if article.rights != copyright_name:
+                article.rights = copyright_name
+                article.submission_data.rights_override = True
+            article.submission_data.save()
+            article.save()
+            self.create_collaboration_from_wjapp(article, collab_name)
+            article.refresh_from_db()
 
             # get article last saved country and profession
             #
@@ -459,12 +625,32 @@ class Command(BaseCommand):
                     },
                 )
 
-            # article section
-            if section == "paper":
-                section = "article"
-                import_logic.logger.debug(
-                    f"for {preprintid} / {article.id} section 'paper' not existing in wjs, mapped to 'article'"
+            # erratum addendum section
+            if correction_type in ("erratum", "addendum"):
+                section = correction_type
+                import_logic.logger.debug(f"for {preprintid} / {article.id} section set to {correction_type}")
+                corrected_preprintid = self.read_corrected_preprintid(corrected_document_cod).get("preprintid", None)
+                corrected_article = submission_models.Article.get_article(
+                    journal=article.journal,
+                    identifier_type="preprintid",
+                    identifier=corrected_preprintid,
                 )
+                if corrected_article:
+                    relationship = LinkType.ERRATUM if correction_type == "erratum" else LinkType.ADDENDUM
+                    LinkedArticle.objects.get_or_create(
+                        from_article=corrected_article,
+                        to_article=article,
+                        relationship=relationship,
+                        defaults={
+                            "order": LinkedArticle.objects.filter(
+                                from_article=corrected_article,
+                                relationship=relationship,
+                            ).count(),
+                        },
+                    )
+                else:
+                    import_logic.logger.warning(f"Erratum parent not found: {corrected_preprintid}")
+
             self.set_section(article, section)
 
             # article language
@@ -494,14 +680,23 @@ class Command(BaseCommand):
                 # author bios no more imported #imported_version_bios_text = v["authorsBio"]
 
                 # read actions history from wjapp preprint
-                history = self.read_history_data(imported_version_cod)
+                self.history = self.read_history_data(imported_version_cod)
+
+                # repair some known problems in the history to be compatible with wjs history
+                self.repair_history_insert_delay_on_action_datetime(preprintid, imported_version_num)
+                self.repair_history_move_author_submit_first(preprintid, imported_version_num)
+                self.repair_history_specific_article(preprintid, imported_version_num)
+                self.repair_history_general(preprintid, imported_version_num)
 
                 # Note: editor selection is done with actions of the history
 
-                for action in history:
+                for action in self.history:
                     # TODO: move the update of imported_document_layer_cod_list out of the action manager
                     # using as return value of each action manager run() the partial list
-                    import_logic.logger.debug(f"Looking at action {action['actionID']} ({action['actHistCod']})")
+                    import_logic.logger.debug(
+                        f"Looking at action {preprintid}/{imported_version_num}"
+                        f" {action['actionID']} ({action['actHistCod']})"
+                    )
 
                     # in case of editor reassign during the production the first editor acceptance is changed
                     # in ED_ACC_DOC_WMC to permit the author resubmission.
@@ -626,18 +821,45 @@ class Command(BaseCommand):
         except Exception as e:
             traceback.print_exc()
             import_logic.logger.error(
-                f"""An exception {type(e).__name__} occurred for {article.id} / {preprintid}
-                 {str(e)},
-
-                The preprintid {article.id} / {preprintid} must be imported again
-                """
+                f"An exception {type(e).__name__}: {str(e)} occurred for"
+                f" {article.id} / {preprintid}, the preprintid must be imported again"
             )
             if self.options["importfilesarchive"]:
                 import_file_manager.ImportFileManager().reset_preprintid_dedup(self.journal, preprintid)
             return 1
 
+        # wjapp Document.acceptanceDate is authoritative; accept_article() (run during
+        # action replay) sets date_accepted from the ED_ACC_DOC action's actionDate
+        # instead, which can differ by a second or so. Applies to every paper with an
+        # acceptance date, not just published ones.
+        # TODO: JCAP only for now, extend to JHEP once verified there too.
+        if self.journal.code.upper() == "JCAP" and acceptance_date and acceptance_date.year != 1970:
+            wjapp_date_accepted = rome_timezone.localize(acceptance_date)
+            if article.date_accepted != wjapp_date_accepted:
+                article.date_accepted = wjapp_date_accepted
+                article.save()
+
         # fix forced manual withdrawn appeal on wjapp without action in the history
-        if preprintid in ("JCOM_015Y_0515", "JCOM_008A_1120", "JCOMAL_002Y_0921"):
+        if preprintid in (
+            "JCAP_025P_0225",
+            "JCAP_057P_0425",
+            "JCAP_105P_1125",
+            "JCAP_103P_0924",
+            "JCAP_089P_0924",
+            "JCAP_003P_0124",
+            "JCAP_071P_1224",
+            "JCAP_037P_0126",
+            "JCAP_021P_0521",
+            "JCAP_018P_0716",
+            "JCAP_052P_0721",
+            "JCAP_031P_1020",
+            "JCAP_037P_0118",
+            "JCAP_067P_0318",
+            "JCAP_081P_0919",
+            "JCAP_098P_0721",
+            "JCAP_018P_0523",
+            "JCAP_013P_0723",
+        ):
             if article.stage != submission_models.STAGE_REJECTED:
                 import_logic.logger.warning(
                     f"stage is '{article.stage}' for withdrawn appeal article {preprintid} / {article.id}"
@@ -678,12 +900,35 @@ class Command(BaseCommand):
             if ArticleWorkflow.objects.filter(article=article).exists():
                 import_logic.logger.debug(f"{article.articleworkflow.state=}")
 
-        # for published import restore the article status
+        # for published import restore the article status only for jcom jcomal
         if publicationid:
             if self.journal.code.upper() not in ["JHEP", "JCAP"]:
                 self.restore_article_status(article)
             else:
+                # sets publication identifiers as imported from wjapp
                 article.date_published = rome_timezone.localize(publication_date)
+
+                # depending on settings enabled during import the doi can be modified
+                # so we drop any DOI an re-create the correct one
+                identifiers_models.Identifier.objects.filter(
+                    id_type="doi",
+                    article=article,
+                ).delete()
+                identifiers_models.Identifier.objects.create(
+                    id_type="doi",
+                    article=article,
+                    identifier=doi,
+                )
+                identifiers_models.Identifier.objects.filter(
+                    id_type="pubid",
+                    article=article,
+                ).delete()
+                identifiers_models.Identifier.objects.create(
+                    id_type="pubid",
+                    article=article,
+                    enabled=True,
+                    identifier=publicationid,
+                )
                 article.save()
 
             # for published import set the article stage to Published
@@ -741,6 +986,487 @@ class Command(BaseCommand):
 
         self.connection.close()
         return 0
+
+    #
+    # repair history
+    #
+
+    def repair_history_insert_delay_on_action_datetime(self, preprintid, imported_version_num):
+        """Insert a delay of 1 second per consecutive action sharing the same datetime (00:00:00),
+        so that actions with the same date have a complete order."""
+
+        # apply correction only if all actions have time (h, m, s) = (0, 0, 0)
+        if not all(
+            a["actionDate"].hour == 0 and a["actionDate"].minute == 0 and a["actionDate"].second == 0
+            for a in self.history
+        ):
+            return
+
+        # group consecutive actions by original datetime, then apply incremental delay
+        i = 0
+        while i < len(self.history):
+            ref_dt = self.history[i]["actionDate"]
+            run = [i]
+            j = i + 1
+            while j < len(self.history) and self.history[j]["actionDate"] == ref_dt:
+                run.append(j)
+                j += 1
+
+            if len(run) > 1:
+                for offset, idx in enumerate(run):
+                    self.history[idx]["actionDate"] = ref_dt + datetime.timedelta(seconds=offset)
+
+            i = j
+
+        for action in self.history:
+            import_logic.logger.warning(
+                f"history insert delay {preprintid}/{imported_version_num}: "
+                f"{action['actionID']} {action['actionDate']}"
+            )
+
+    def repair_history_move_author_submit_first(self, preprintid, imported_version_num):
+        """Repair the order of submission action for a defined set of old articles."""
+
+        for a in self.history:
+            import_logic.logger.warning(
+                f"original history move author submit first {preprintid}/{imported_version_num}: {a['actionID']}"
+            )
+
+        articles_version = [
+            ("JCAP001A0204", 2),
+            ("JCAP001A0503", 2),
+            ("JCAP003A0503", 2),
+            ("JCAP016A0303", 2),
+            ("JCAP018A0404", 2),
+            ("JCAP021A0703", 2),
+            ("JCAP019A0404", 2),
+            ("JCAP009A0203", 2),
+            ("JCAP009A0304", 2),
+            ("JCAP012A1103", 2),
+            ("JCAP021A06042", 2),
+            ("JCAP021A0604", 2),
+        ]
+
+        if (preprintid, imported_version_num) not in articles_version:
+            return
+
+        # find the AU_SUB_REV action
+        action_index = None
+        for i, action in enumerate(self.history):
+            if action.get("actionID") == "AU_SUB_REV":
+                action_index = i
+                break
+
+        if action_index is None:
+            import_logic.logger.warning(
+                f"repair history move author submit first: AU_SUB_REV not found"
+                f" in {preprintid}/{imported_version_num}"
+            )
+            return
+
+        if action_index == 0:
+            # already in place, nothing to do
+            return
+
+        action = self.history.pop(action_index)
+        self.history.insert(0, action)
+        import_logic.logger.warning(
+            f"repair history move author submit first: moved AU_SUB_REV from index"
+            f" {action_index} to 0 in {preprintid}/{imported_version_num}"
+        )
+
+    def repair_history_specific_article(self, preprintid, imported_version_num):
+        """Apply correction to the history of a specific article version."""
+        import_specific_corrections.repair_history_specific_article(
+            self.history, preprintid, imported_version_num, self.eo_in_charge_identity
+        )
+
+    def repair_history_general(self, preprintid, imported_version_num):
+        """Apply general corrections to the wjapp history of a version.
+
+        the sequence of actions of a wjapp version have some known differences with wjs logic
+        which can be repaired."""
+
+        for a in self.history:
+            import_logic.logger.warning(
+                f"original history general correction {preprintid}/{imported_version_num}: {a['actionID']}"
+            )
+
+        self.correction_double_final_au_publishes(preprintid, imported_version_num)
+        self.correction_remove_send_proof_info(preprintid, imported_version_num)
+        self.correction_double_final_pm_publishes(preprintid, imported_version_num)
+        self.remove_send_proofs_info_when_remind_auth_typ(preprintid, imported_version_num)
+        self.remove_send_proofs_info_when_reminds_auth_and_action_send_typ(preprintid, imported_version_num)
+        self.remove_send_proofs_info_when_three_reminds_auth(preprintid, imported_version_num)
+        self.remove_ed_check_ed_approves_before_ready_for_pub(preprintid, imported_version_num)
+        self.remove_last_inconsistent_action(preprintid, imported_version_num)
+        self.reorder_history_send_corrections(preprintid, imported_version_num)
+        self.change_au_publishes_to_pm_publishes(preprintid, imported_version_num)
+        self.remove_double_ed_ref_doc(preprintid, imported_version_num)
+        self.correction_remove_repeated_actions_same_agent(preprintid, imported_version_num)
+
+        for a in self.history:
+            import_logic.logger.warning(
+                f"repaired history general correction {preprintid}/{imported_version_num}: {a['actionID']}"
+            )
+
+    def correction_double_final_au_publishes(self, preprintid, imported_version_num):
+        """Correction double final AU_PUBLISHES."""
+
+        if len(self.history) >= 2:
+            penult, last = self.history[-2], self.history[-1]
+            if penult["actionID"] == "AU_PUBLISHES" and last["actionID"] == "AU_PUBLISHES":
+                import_logic.logger.warning(
+                    f"del from history: {preprintid}/{imported_version_num}: {self.history[-2]['actionID']}"
+                )
+                del self.history[-2]  # remove the penultimate element in-place
+
+    def correction_remove_send_proof_info(self, preprintid, imported_version_num):
+        """Correction remove send_proof_info."""
+
+        if len(self.history) >= 2:
+            penult, last = self.history[-2], self.history[-1]
+            if penult["actionID"] in ("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R") and last["actionID"] in (
+                "TYP_PUBLISHES",
+                "PM_PUBLISHES",
+            ):
+                import_logic.logger.warning(
+                    f"del from history: {preprintid}/{imported_version_num}: {self.history[-2]['actionID']}"
+                )
+                del self.history[-2]  # remove the penultimate element in-place
+            elif len(self.history) >= 3:
+                thirdlast, penult, last = self.history[-3], self.history[-2], self.history[-1]
+                if (
+                    thirdlast["actionID"] in ("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R")
+                    and penult["actionID"] in ("PM_REMINDS_AUTH", "ADM_SETS_PUB_SETINGS")
+                    and last["actionID"]
+                    in (
+                        "TYP_PUBLISHES",
+                        "PM_PUBLISHES",
+                    )
+                ):
+                    import_logic.logger.warning(
+                        f"del from history: {preprintid}/{imported_version_num}: {self.history[-3]['actionID']}"
+                    )
+                    del self.history[-3]  # remove the thirdlast element in-place
+                elif (
+                    thirdlast["actionID"] in ("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R")
+                    and penult["actionID"]
+                    in (
+                        "TYP_PUBLISHES",
+                        "PM_PUBLISHES",
+                    )
+                    and last["actionID"] in ("PUM_SENDS_TO_TYP", "PUB_PUBLISHES")
+                ):
+                    import_logic.logger.warning(
+                        f"del from history: {preprintid}/{imported_version_num}: {self.history[-3]['actionID']}"
+                    )
+                    del self.history[-3]  # remove the thirdlast element in-place
+
+    def correction_double_final_pm_publishes(self, preprintid, imported_version_num):
+        """Correction double final PM_PUBLISHES."""
+
+        if len(self.history) >= 2:
+            penult, last = self.history[-2], self.history[-1]
+            if penult["actionID"] == "PM_PUBLISHES" and last["actionID"] == "PM_PUBLISHES":
+                import_logic.logger.warning(
+                    f"del from history: {preprintid}/{imported_version_num}: {self.history[-2]['actionID']}"
+                )
+                del self.history[-2]  # remove the penultimate element in-place
+
+    def remove_send_proofs_info_when_remind_auth_typ(self, preprintid, imported_version_num):
+        """Remove send_proofs_info when followed by remind auth."""
+
+        patterns = [
+            [
+                ("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R"),
+                "PM_REMINDS_AUTH",
+                ("TYP_PUBLISHES", "PM_PUBLISHES"),
+                "PUM_SENDS_TO_TYP",
+            ],
+            [
+                ("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R"),
+                "PM_REMINDS_AUTH",
+                "PM_REMINDS_AUTH",
+                ("TYP_PUBLISHES", "PM_PUBLISHES"),
+            ],
+            [("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R"), "PM_PUBLISHES", "PUM_SENDS_TO_TYP", "PM_REMINDS_TYP"],
+        ]
+
+        len_pat = 4
+        if len(self.history) < len_pat:
+            return
+
+        # extract the last len_pat actionID
+        recent = [h["actionID"] for h in self.history[-len_pat:]]
+
+        for pattern in patterns:
+            # compare the last len_pat elements
+            recent_slice = recent[-len_pat:]
+            if all(self.match_pattern_item(exp, act) for exp, act in zip(pattern, recent_slice)):
+                import_logic.logger.warning(
+                    f"del from history: {preprintid}/{imported_version_num}: {self.history[-len_pat]['actionID']}"
+                )
+                del self.history[-len_pat]  # remove the first element of the pattern
+                break
+
+    def remove_send_proofs_info_when_reminds_auth_and_action_send_typ(self, preprintid, imported_version_num):
+        """Remove send_proofs_info when followed by reminds auth and last action PUM_SENDS_TO_TYP."""
+
+        pattern = [
+            ("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R"),
+            "PM_REMINDS_AUTH",
+            "PM_REMINDS_AUTH",
+            ("TYP_PUBLISHES", "PM_PUBLISHES"),
+            "PUM_SENDS_TO_TYP",
+        ]
+
+        len_pattern = len(pattern)
+        if len(self.history) >= len_pattern:
+            recent = [h["actionID"] for h in self.history[-len_pattern:]]
+
+            if all(self.match_pattern_item(exp, act) for exp, act in zip(pattern, recent)):
+                import_logic.logger.warning(
+                    f"del from history: {preprintid}/{imported_version_num}: {self.history[-5]['actionID']}"
+                )
+                del self.history[-5]  # first element of the pattern
+
+    def remove_ed_check_ed_approves_before_ready_for_pub(self, preprintid, imported_version_num):
+        """Remove PM_REQ_ED_CHECK and ED_APPROVES with last action PM_PUBLISHES."""
+
+        pattern = [
+            "PM_REQ_ED_CHECK",
+            "ED_APPROVES",
+            "PM_PUBLISHES",
+        ]
+
+        len_pattern = len(pattern)
+        if len(self.history) >= len_pattern:
+            recent = [h["actionID"] for h in self.history[-len_pattern:]]
+
+            if all(self.match_pattern_item(exp, act) for exp, act in zip(pattern, recent)):
+                import_logic.logger.warning(
+                    f"del from history: {preprintid}/{imported_version_num}: "
+                    f"{self.history[-3]['actionID']} {self.history[-2]['actionID']}"
+                )
+                del self.history[-2]  # ED_APPROVES
+                del self.history[-2]  # PM_REQ_ED_CHECK
+
+    def remove_last_inconsistent_action(self, preprintid, imported_version_num):
+        """Remove an inconsistent action after withdrawn."""
+
+        patterns = [
+            [
+                ("AU_WITHD_DOC", "ADMIN_WITHD_DOC", "ED_REQ_REV"),
+                ("ED_ACT_AS_REF", "ED_ASS_REF", "ED_ADD_REF"),
+            ],
+            [
+                "PM_PUBLISHES",
+                ("ED_ASS_REF", "ED_ADD_REF"),
+            ],
+            [
+                "ED_REJ_DOC",
+                "AU_WITHD_DOC",
+            ],
+            [
+                "PUB_PUBLISHES",
+                "ED_ADD_REF",
+            ],
+        ]
+
+        len_pattern = 2
+        if len(self.history) < len_pattern:
+            return
+
+        recent = [h["actionID"] for h in self.history[-len_pattern:]]
+
+        for pattern in patterns:
+            # compare the last len_pat elements
+            recent_slice = recent[-len_pattern:]
+            if all(self.match_pattern_item(exp, act) for exp, act in zip(pattern, recent_slice)):
+                import_logic.logger.warning(
+                    f"del from history: {preprintid}/{imported_version_num}: {self.history[-1]['actionID']}"
+                )
+                del self.history[-1]  # last element of the pattern
+                break
+
+    def match_pattern_item(self, expected, actual):
+        return (isinstance(expected, tuple) and actual in expected) or (expected == actual)
+
+    def remove_send_proofs_info_when_three_reminds_auth(self, preprintid, imported_version_num):
+        """Remove send_proofs_info when followed by three reminds auth."""
+        pattern = [
+            ("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R"),
+            "PM_REMINDS_AUTH",
+            "PM_REMINDS_AUTH",
+            "PM_REMINDS_AUTH",
+            ("TYP_PUBLISHES", "PM_PUBLISHES"),
+        ]
+
+        len_pattern = len(pattern)
+        if len(self.history) >= len_pattern:
+            recent = [h["actionID"] for h in self.history[-len_pattern:]]
+
+            if all(self.match_pattern_item(exp, act) for exp, act in zip(pattern, recent)):
+                import_logic.logger.warning(
+                    f"del from history: {preprintid}/{imported_version_num}: {self.history[-5]['actionID']}"
+                )
+                del self.history[-5]  # first element of the pattern
+
+    def reorder_history_send_corrections(self, preprintid, imported_version_num):
+        """Reorder history because some old paper has send correction after publication."""
+
+        if len(self.history) >= 4:
+            fourthlast, thirdlast, penult, last = (
+                self.history[-4],
+                self.history[-3],
+                self.history[-2],
+                self.history[-1],
+            )
+            if (
+                fourthlast["actionID"] in ("PM_REQ_INFO", "PM_SENDS_FOR_PROOF_R")
+                and thirdlast["actionID"]
+                in (
+                    "TYP_PUBLISHES",
+                    "PM_PUBLISHES",
+                )
+                and penult["actionID"] == "PUB_PUBLISHES"
+                and last["actionID"] == "AU_SENDS_CORRECT"
+            ):
+                import_logic.logger.warning(
+                    f"history reordered: {preprintid}/{imported_version_num}: "
+                    f"{self.history[-1]['actionID']} after {self.history[-4]['actionID']}"
+                )
+                self.history[-3], self.history[-2], self.history[-1] = (
+                    self.history[-1],
+                    self.history[-3],
+                    self.history[-2],
+                )
+
+    def change_au_publishes_to_pm_publishes(self, preprintid, imported_version_num):
+        """Change AU_PUBLISHES to PM_PUBLISHES when found a specific pattern."""
+
+        if len(self.history) >= 4:
+            fourthlast, thirdlast, penult, last = (
+                self.history[-4],
+                self.history[-3],
+                self.history[-2],
+                self.history[-1],
+            )
+            if (
+                fourthlast["actionID"] == "TYP_UPLOADS_FOR_PM"
+                and thirdlast["actionID"] == "PM_SENDS_FOR_PROOF_R"
+                and penult["actionID"] == "AU_SENDS_CORRECT"
+                and last["actionID"] == "AU_PUBLISHES"
+            ):
+                import_logic.logger.warning(
+                    f"change action in history: {preprintid}/{imported_version_num}:"
+                    f" {self.history[-1]['actionID']} to PM_PUBLISHES"
+                )
+                self.history[-1]["actionID"] = "PM_PUBLISHES"  # change AU_PUBLISHES to PM_PUBLISHES in-place
+
+    def remove_double_ed_ref_doc(self, preprintid, imported_version_num):
+        """Remove doubled ED_REF_DOC under some conditions."""
+
+        # this correction is done if the second consecutive ED_REF_DOC action has agent null
+        # it is due to a repated wrong action in wjapp which lets broken data
+        target = "ED_REF_DOC"
+        to_remove = []
+        for i in range(len(self.history) - 1):
+            a = self.history[i]
+            b = self.history[i + 1]
+            if a.get("actionID") == target and b.get("actionID") == target:
+                agent = b.get("agentCod")
+                # second action has agent null
+                if agent is None:
+                    to_remove.append(i + 1)
+
+        for idx in sorted(set(to_remove), reverse=True):
+            del self.history[idx]
+            import_logic.logger.warning(
+                f"delete action in history: {preprintid}/{imported_version_num}:" f" action: {target} index: {idx}"
+            )
+
+    def correction_remove_repeated_actions_same_agent(self, preprintid, imported_version_num):
+        """Executes the correction for the targets respecting the order in the list."""
+
+        targets = [
+            "AU_SENDS_CORRECT",
+            "ED_ACT_AS_REF",
+            "AU_WITHD_DOC",
+            "AU_PUBLISHES",
+            "PM_REQ_INFO",
+            "TYP_TAKES_CHARGE",
+            "PM_SENDS_FOR_PROOF_R",
+            "PUM_SENDS_TO_TYP",
+            "REF_SENDS_REP",
+            "ADMIN_CONFIRMS_TA",
+            "PUB_PUBLISHES",
+        ]
+
+        # For most targets a run must share the same agentCod (the actor) to be treated as a
+        # wjapp duplicate-log glitch - two different agents doing the "same" action back to
+        # back is usually two genuinely distinct events. PM_SENDS_FOR_PROOF_R is a confirmed
+        # exception: e.g. JCAP_028P_0410/2 (actHistCod 55035/55036, 3 seconds apart) has two
+        # different EO officers sending the *same* author's proofs request - agentCod differs
+        # but targetCod (the recipient) is identical, which is the real signal of a duplicate
+        # here. PM_REQ_INFO is included by analogy (same Requestproofs business logic, same
+        # "notify the author" shape) but not independently confirmed the same way - remove it
+        # here if it turns out to need the stricter agentCod-only rule instead. PUM_SENDS_TO_TYP
+        # uses the standard same-agent rule: confirmed via JCAP_031P_1221/6 (actHistCod
+        # 342942/342948, same agentCod, 2 minutes apart, byte-identical PUMANN annotation text).
+        # REF_SENDS_REP also uses the standard same-agent rule: confirmed via JCAP_022P_1205/1
+        # (actHistCod 10180-10185, 6 in a row, same referee, ~5 minutes apart - a wjapp bug with
+        # missing state control plus stale browser-cached form data let the referee resubmit the
+        # same report repeatedly).
+        # ADMIN_CONFIRMS_TA also uses the standard same-agent rule: confirmed across 11 preprintids
+        # (e.g. JCAP_009P_0822, actHistCod 348352/348353, same EO officer, 1 second apart, nothing
+        # else in between) - the EO's TA-confirmation button double-firing. Keeping the run's last
+        # occurrence is fine here: either duplicate triggers the same
+        # system_verifies_production_requirements() transition, so which one survives doesn't
+        # change the outcome, only the transition's logged timestamp by a few seconds.
+        # PUB_PUBLISHES also uses the standard same-agent rule: confirmed via JCAP_084P_0520/5
+        # (actHistCod 277401/277402, same agent, back to back) - the second replay re-ran
+        # move_production_source_to_pub_galleys_source_file(), which found the placeholder file
+        # already added by the first replay and logged a spurious "no files to typeset found in
+        # any round" error (harmless, since publication_galleys_source_file was already
+        # correctly set by the first replay, but noisy and untracked by the log-error grouping).
+        also_match_by_target = {"PM_SENDS_FOR_PROOF_R", "PM_REQ_INFO"}
+
+        # this correction is done when there are n consecutive target actions, with the same agent.
+        # This is due to a repeated action in wjapp, for the actions in the targets must
+        # be kept the last one.
+        for target in targets:
+            to_remove = []
+            i = 0
+            while i < len(self.history):
+                if self.history[i].get("actionID") != target:
+                    i += 1
+                    continue
+
+                run = [i]
+                j = i + 1
+                while j < len(self.history):
+                    a = self.history[run[-1]]
+                    b = self.history[j]
+                    same_agent = b.get("agentCod") == a.get("agentCod")
+                    same_target = target in also_match_by_target and b.get("targetCod") == a.get("targetCod")
+                    if b.get("actionID") == target and (same_agent or same_target):
+                        run.append(j)
+                        j += 1
+                    else:
+                        break
+
+                if len(run) >= 2:
+                    to_remove.extend(run[:-1])
+
+                i = j  # skip the past run
+
+            for idx in sorted(set(to_remove), reverse=True):
+                del self.history[idx]
+                import_logic.logger.warning(
+                    f"delete action in history: {preprintid}/{imported_version_num}: action: {target} index: {idx}"
+                )
 
     #
     # http login to wjapp
@@ -803,7 +1529,7 @@ class Command(BaseCommand):
         # date revision ?
 
         self.store_article_authors = {}
-        for a in article.authors.all():
+        for a in article.author_accounts.all():
             order = submission_models.ArticleAuthorOrder.objects.filter(
                 article=article,
                 author=a,
@@ -822,7 +1548,7 @@ class Command(BaseCommand):
 
         # we store authors bios but author professions not, they are re-imported
         self.store_authors_bios = {}
-        for a in article.authors.all():
+        for a in article.author_accounts.all():
             self.store_authors_bios[a] = a.biography
 
         self.store_article_section = article.section
@@ -997,13 +1723,24 @@ SELECT
 d.documentCod,
 d.preprintId,
 d.publicationId,
+d.doi,
+d.archiveNumber,
+d.archiveCategory,
 d.publicationDate,
+d.acceptanceDate,
 d.documentType,
 d.submissionDate,
 d.authorCod,
 d.eoInChargeCod,
 d.revisionDeadline,
 d.language,
+d.correctionType,
+d.correctedDocumentCod,
+d.oaaCod,
+oa.oaaID,
+d.copyCod,
+cr.copyID,
+co.collabName,
 u2.lastname AS eoInCharge_lastname,
 u2.firstname AS eoInCharge_firstname,
 u2.email AS eoInCharge_email,
@@ -1023,6 +1760,9 @@ LEFT JOIN User u1 ON (d.authorCod=u1.userCod)
 LEFT JOIN Version v ON (v.documentCod=d.documentCod)
 LEFT JOIN User u2 ON (d.eoInChargeCod=u2.userCod)
 LEFT JOIN State s ON (v.stateCod=s.stateCod)
+LEFT JOIN Open_Access_Assignment oa ON (oa.oaaCod=d.oaaCod)
+LEFT JOIN Copyright cr ON (cr.copyCod=d.copyCod)
+LEFT JOIN Collaboration co ON (co.collabCod=d.collabCod)
 WHERE
     v.isCurrentVersion=1
 AND d.preprintId = %(preprintid)s
@@ -1068,7 +1808,8 @@ LIMIT 1
         cursor_keywords = self.connection.cursor(dictionary=True)
         query_keywords = """
 SELECT
-keywordName
+keywordName,
+keywordWeightByAuthor
 FROM Version_Keyword
 LEFT JOIN Keyword USING (keywordCod)
 WHERE
@@ -1077,9 +1818,23 @@ WHERE
         cursor_keywords.execute(query_keywords, {"version_cod": version_cod})
         keywords = []
         for rk in cursor_keywords:
-            keywords.append(rk["keywordName"])
+            keywords.append([rk["keywordName"], rk["keywordWeightByAuthor"]])
         cursor_keywords.close()
         return keywords
+
+    def read_corrected_preprintid(self, document_cod):
+        """Read article special issue."""
+        cursor_corrected_preprintid = self.connection.cursor(dictionary=True)
+        query_corrected_preprintid = """
+SELECT
+preprintid
+FROM Document d
+WHERE documentCod=%(document_cod)s
+"""
+        cursor_corrected_preprintid.execute(query_corrected_preprintid, {"document_cod": document_cod})
+        corrected_preprintid = cursor_corrected_preprintid.fetchone()
+        cursor_corrected_preprintid.close()
+        return corrected_preprintid
 
     def read_article_special_issue(self, document_cod):
         """Read article special issue."""
@@ -1236,7 +1991,7 @@ WHERE
                 f.unlink_file()
                 f.delete()
 
-            for f in err.article.supplementary_files.all():
+            for f in err.supplementary_files.all():
                 f.file.unlink_file()
                 f.file.delete()
                 f.delete()
@@ -1263,7 +2018,11 @@ WHERE
         WorkflowReviewAssignment.objects.filter(article=article).delete()
 
         for rr in ReviewRound.objects.filter(article=article):
-            EditorDecision.objects.filter(review_round=rr).delete()
+            for ed in EditorDecision.objects.filter(review_round=rr):
+                if ed.decision_editor_report_pdf:
+                    ed.decision_editor_report_pdf.unlink_file()
+                    ed.decision_editor_report_pdf.delete()
+                ed.delete()
 
         ReviewRound.objects.filter(article__id=article.id).delete()
 
@@ -1293,10 +2052,15 @@ WHERE
             f.unlink_file()
             f.delete()
 
-        # TODO: the article supplementary files must be deleted only for NOT published
-        if not publicationid:
+        if article.journal.code in ("JCAP"):
             for f in article.supplementary_files.all():
-                f.unlink_file()
+                f.file.unlink_file()
+                f.delete()
+
+        # TODO: the article supplementary files must be deleted only for NOT published
+        if not publicationid and article.journal.code in ("JCOM", "JCOMAL"):
+            for f in article.supplementary_files.all():
+                f.file.unlink_file()
                 f.delete()
 
         if not ArticleWorkflow.objects.filter(article=article).exists():
@@ -1308,10 +2072,15 @@ WHERE
 
         # delete  ArticleWorkflow's files
         for f in article.articleworkflow.supplementary_files_at_acceptance.all():
-            import_logic.logger.warning(f"reset Supplementary {f.id} {f} {f.file}")
+            import_logic.logger.warning(f"reset Supplementary at acceptance {f.id} {f} {f.file}")
             f.file.unlink_file()
             f.file.delete()
             f.delete()
+
+        if article.articleworkflow.publication_galleys_source_file:
+            article.articleworkflow.publication_galleys_source_file.delete()
+            article.articleworkflow.publication_galleys_source_file = None
+            article.articleworkflow.save()
 
         # delete TypesettingAssignment's files
         for ta in TypesettingAssignment.objects.filter(round__article=article):
@@ -1325,11 +2094,21 @@ WHERE
         TypesettingAssignment.objects.filter(round__article=article).delete()
         TypesettingRound.objects.filter(article=article).delete()
 
+        for wea in WjsEditorAssignment.objects.filter(article__id=article.id):
+            if wea.editor_report_pdf_draft:
+                wea.editor_report_pdf_draft.unlink_file()
+                wea.editor_report_pdf_draft.delete()
+
         RevisionRequest.objects.filter(article__id=article.id).delete()
         ReviewAssignment.objects.filter(article__id=article.id).delete()
         EditorAssignment.objects.filter(article__id=article.id).delete()
         PastEditorAssignment.objects.filter(article__id=article.id).delete()
         submission_models.KeywordArticle.objects.filter(article__id=article.id).delete()
+        # AttentionCondition is keyed to Article (not ArticleWorkflow, deleted below), so it
+        # survives a re-import untouched otherwise - a stale event-based AC from a previous,
+        # broken import attempt would never get cleaned up, since populate_attention_conditions
+        # only resolves stale *time*-based codes outside the article's current state.
+        AttentionCondition.objects.filter(article__id=article.id).delete()
         PermissionAssignment.objects.filter(
             object_id=article.articleworkflow.id,
         ).delete()
@@ -1338,15 +2117,26 @@ WHERE
         submission_models.ArticleAuthorOrder.objects.filter(article__id=article.id).delete()
         article.authors.clear()
 
+        ArticleCollaboration.objects.filter(article__id=article.id).delete()
+
         submission_models.ArticleStageLog.objects.filter(article__id=article.id).delete()
         article.stage = submission_models.STAGE_UNASSIGNED
 
         # for NOT published the identifier doi must be removed (temporary doi)
-        if not publicationid:
+        if not publicationid or article.journal.code in ("JHEP", "JCAP"):
             identifiers_models.Identifier.objects.filter(
                 article=article,
                 id_type="doi",
             ).delete()
+
+        if article.journal.code in ("JHEP", "JCAP"):
+            ArticleSubmission.objects.filter(
+                article=article,
+            ).delete()
+            for g in article.galley_set.all():
+                g.file.unlink_file()
+                g.file.delete()
+                g.delete()
 
         # Note: the article object is not deleted, only the data are reset
         #
@@ -1354,9 +2144,23 @@ WHERE
         # because are reused:
         #
         # Frozen authors: not to delete
-        # Galleys: not to delete
-        # identifiers: not to delete
+        # Galleys: not to delete but for JHEP JCAP
+        # identifiers: not to delete but for JHEP JCAP
         # ProphyCandidates: not to delete. if resent to prophy they will be updated.
+
+        # delete any file left over in the article's files
+        for f in File.objects.filter(article_id=article.id):
+            import_logic.logger.warning(f"reset article File entry: {f}")
+            f.unlink_file()
+            f.delete()
+
+        # delete any file left over in the article's file directory (e.g. orphaned files not
+        # tracked by any of the models cleaned up above)
+        article_dir = os.path.join(settings.BASE_DIR, "files", "articles", str(article.id))
+        if os.path.isdir(article_dir):
+            for entry in os.scandir(article_dir):
+                import_logic.logger.warning(f"reset article file dir: {entry}")
+                os.remove(entry.path)
 
     def create_main_article_data(self, row, article):
         """Create the article."""
@@ -1378,6 +2182,7 @@ WHERE
 
         if not row["eoInChargeCod"]:
             eo_in_charge = None
+            self.eo_in_charge_identity = None
         else:
             eo_in_charge = import_logic.account_get_or_create_check_correspondence(
                 self.journal.code.lower(),
@@ -1388,13 +2193,29 @@ WHERE
                 row["eoInCharge_privacy"],
                 self.connection,
             )
+            # Stashed so repair_history_specific_article() can attribute a synthetic action to
+            # this same EO without an ambiguous reverse Correspondence lookup - one EO account
+            # can have more than one Correspondence row for the same source (e.g. after a wjapp
+            # account merge), so filtering by source alone isn't guaranteed unique.
+            self.eo_in_charge_identity = {
+                "agentCod": row["eoInChargeCod"],
+                "agentLastname": row["eoInCharge_lastname"],
+                "agentFirstname": row["eoInCharge_firstname"],
+                "agentEmail": row["eoInCharge_email"],
+                "agentPrivacy": row["eoInCharge_privacy"],
+            }
 
         if not main_author.check_role(self.journal, "author", staff_override=False):
             main_author.add_account_role("author", self.journal)
         article.owner = main_author
-        article.authors.add(main_author)
+
+        # replace article.authors.add(main_author)
+        submission_models.FrozenAuthor.get_or_snapshot_if_email_found(
+            main_author.email,
+            article,
+        )
+
         article.correspondence_author = main_author
-        article.license_id = Licence.objects.get(journal=self.journal, short_name="CC BY-NC-ND 4.0").id
         article.save()
 
         # authors order is set to order=author.pk, but for corresponding where is order=0
@@ -1414,6 +2235,110 @@ WHERE
 
         article.refresh_from_db()
         return (article, main_author)
+
+    def create_collaboration_from_wjapp(self, article, collab_name):
+        """Associate the article with the collaboration imported from wjapp, if any."""
+
+        if not collab_name:
+            return
+
+        wjs_collab_name = WJAPP_JCAP_COLLABORATION_NAME_MAPPING.get(collab_name)
+        if not wjs_collab_name:
+            wjs_collab_name = collab_name
+            import_logic.logger.warning(
+                f"No wjs mapping for wjapp collaboration {collab_name!r} (article {article.id}), "
+                f"using the wjapp name as-is: please review WJAPP_JCAP_COLLABORATION_NAME_MAPPING."
+            )
+
+        collaboration, _ = Collaboration.objects.get_or_create(name=wjs_collab_name)
+        ArticleCollaboration.objects.get_or_create(
+            article=article,
+            collaboration=collaboration,
+            defaults={
+                "order": Collaboration.next_collaboration_sort(article=article),
+            },
+        )
+
+    def create_access_mode_from_wjapp(self, article, oaa_cod, copy_cod):
+
+        # mapping wjapp cods with wjs access modes:
+        # (oaa_cod, copy_cod) -> code, name, copyright_name, licence_name
+        # Publisher licence is called most-rights licence
+        #
+        # wjapp cods:
+        #
+        # | copyCod | copyID  | copyName  |
+        # +---------+---------+-----------+
+        # |       1 | SI      | SISSA-IOP |
+        # |       2 | CERN    | CERN      |
+        # |       3 | AUTHORS | AUTHORS   |
+        #
+        # | oaaCod | name                                   |
+        # +--------+----------------------------------------+
+        # |      1 | Not Open Access                        |
+        # |      2 | Open Access Paid by Author             |
+        # |      3 | Addendum                               |
+        # |      4 | Erratum                                |
+        # |      5 | Special Issue                          |
+        # |      6 | Free of charge                         |
+        # |      7 | SCOAP                                  |
+        # |      8 | Open Access - Transformative Agreement |
+
+        wjs_mapping = {
+            (None, None): ("not-open-access", "Not open access", "Publisher", "most-rights"),
+            (1, 1): ("not-open-access", "Not open access", "Publisher", "most-rights"),
+            (1, None): ("not-open-access", "Not open access", "Publisher", "most-rights"),
+            (1, 3): ("not-open-access", "Not open access", "Authors", "most-rights"),
+            (2, 1): ("open-access-paid", "Open Access (paid by author)", "Publisher", "most-rights"),
+            (2, 3): ("open-access-paid", "Open Access (paid by author)", "Authors", "CC BY 4.0"),
+            (2, 2): (
+                "open-access-paid",
+                "Open Access (paid by author)",
+                "CERN (for the benefit of the collaboration)",
+                "CC BY 4.0",
+            ),
+            # Not the same code as JHEP/JQuant/JCOM/JCOMAL's own "open-access" (user_selectable=True
+            # there, a live submission choice for those journals): JCAP has no live "open access"
+            # choice of its own, so reusing that code here would make AccessModeJournal link it to
+            # JCAP too, and JCAP's own submission form would then wrongly offer it as selectable
+            # (queried as parameters__journal=<journal>, user_selectable=True - see step7/forms.py).
+            # "open-access-legacy" is JCAP-only and pre-seeded not user-selectable (issue #3169).
+            (7, 3): ("open-access-legacy", "Open Access", "Authors", "CC BY 4.0"),
+            (4, 1): ("free-to-read", "Free to read", "Publisher", "most-rights"),
+            (4, None): ("free-to-read", "Free to read", "Authors", "CC BY 4.0"),
+            (4, 3): ("free-to-read", "Free to read", "Authors", "CC BY 4.0"),
+            (3, 3): ("free-to-read", "Free to read", "Authors", "CC BY 4.0"),
+            (6, 3): ("free-to-read", "Free to read", "Authors", "CC BY 4.0"),
+            (8, 3): (
+                "oa-transformative-agreement",
+                "Open Access - Transformative agreements",
+                "Authors",
+                "CC BY 4.0",
+            ),
+            (8, 1): (
+                "oa-transformative-agreement",
+                "Open Access - Transformative agreements",
+                "Publisher",
+                "most-rights",
+            ),
+        }
+
+        # _name is kept only as documentation of the mapping (matching setup_access_mode.py's
+        # display name for this code); no longer read since AccessMode.objects.get() below
+        # looks up by code alone.
+        code, _name, copyright_name, licence_name = wjs_mapping[(oaa_cod, copy_cod)]
+
+        # setup_access_mode.py (issue #3169) pre-seeds every AccessMode/AccessModeJournal this
+        # mapping can ever produce, with the correct user_selectable/licence/copyright - a
+        # get_or_create() here was only ever a workaround for that not existing yet. A bare
+        # .get() now means a missing row surfaces as a loud, specific error (environment not set
+        # up, or a new (oaa_cod, copy_cod) combination not yet added to setup_access_mode.py)
+        # instead of silently auto-creating a wrongly-configured one (e.g. user_selectable=True).
+        mode = AccessMode.objects.get(code=code)
+        licence = Licence.objects.get(short_name=licence_name, journal=article.journal)
+        access_mode_journal = AccessModeJournal.objects.get(access_mode=mode, journal=article.journal)
+        import_logic.logger.debug(f"{mode=} {article.journal=} {access_mode_journal=} {copyright_name=} {licence=}")
+        return mode, licence, copyright_name
 
     def set_authors_bios(self, bios_text: str, article: submission_models.Article, imported_version_num: int):
         "Sets authors bios if found."
@@ -1445,12 +2370,12 @@ WHERE
 
         authors_bios = bios_text.split("\r\n\r\n")
 
-        if len(authors_bios) != article.authors.count():
+        if len(authors_bios) != article.author_accounts.count():
             import_logic.logger.warning(
-                f"Authors bios paragraphs: {len(authors_bios)}, article authors: {article.authors.count()}"
+                f"Authors bios paragraphs: {len(authors_bios)}, article authors: {article.author_accounts.count()}"
             )
 
-        for author in article.authors.all():
+        for author in article.author_accounts.all():
             bios_found = self.get_author_bio_by_name(authors_bios, author)
             if len(bios_found) != 1:
                 import_logic.logger.debug(
@@ -1620,14 +2545,38 @@ WHERE
         # Drop all article's kwds (and KeywordArticles, used for kwd ordering)
         article.keywords.clear()
         order = 0
+        seen_words = set()
         for kwd in keywords:
-            order = order + 1
+            import_logic.logger.debug(f"Keyword {kwd=}")
             # Janeway's keywords are a simple model with a "word" field for the kwd text
-            kwd_word = kwd.strip()
-            # in wjapp-JCOMAL, the keyword string contains all three
-            # languages separated by ";". The first is English.
-            if self.journal.code.upper() == "JCOMAL":
-                kwd_word = kwd_word.split(";")[0].strip()
+            kwd_word = kwd[0].strip()
+
+            if len(kwd) > 1 and kwd[1] not in (None, ""):
+                kwd_weight = kwd[1]
+            else:
+                import_logic.logger.warning(
+                    f"Missing weight for keyword {kwd[0]!r} on article {article.pk}, defaulting to 0"
+                )
+                kwd_weight = 0
+
+            kwd_weight = kwd[1]
+            import_logic.logger.debug(f"Keyword {kwd_word=} {kwd_weight=}")
+            kwd_word = import_logic.normalize_keyword(self.journal.code, kwd_word)
+
+            if kwd_word in seen_words:
+                # wjapp's raw keyword list can repeat the exact same keyword (e.g.
+                # JCAP003A0503's "CMBR theory", listed twice). KeywordArticle's real DB
+                # constraint is unique on (keyword_id, article_id) only - not order - so
+                # re-processing a repeat here would hit that constraint on create(), since
+                # update_or_create()'s lookup below (which includes order) never matches the
+                # row created by the first occurrence.
+                import_logic.logger.warning(
+                    f'Duplicate keyword "{kwd_word}" for {article.get_identifier("preprintid")}, skipping repeat.'
+                )
+                continue
+            seen_words.add(kwd_word)
+            order = order + 1
+
             keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
             if created:
                 import_logic.logger.warning(
@@ -1643,13 +2592,16 @@ WHERE
             # https://docs.djangoproject.com/en/3.2/ref/models/relations/
             self.journal.keywords.add(keyword)
 
-            submission_models.KeywordArticle.objects.get_or_create(
+            submission_models.KeywordArticle.objects.update_or_create(
                 article=article,
                 keyword=keyword,
                 order=order,
+                defaults={"weight": kwd_weight},
             )
-            import_logic.logger.debug(f"Keyword {kwd_word} set at order {order}")
+
+            import_logic.logger.debug(f"Keyword {kwd_word} {kwd_weight} set at order {order}")
             article.keywords.add(keyword)
+
         article.save()
 
     def set_article_special_issue(self, article, special_issue, preprintid):
@@ -1797,21 +2749,20 @@ WHERE
             current_coauthors.append(account)
 
         assert article.correspondence_author == article.owner
-        authors_to_check = [a for a in article.authors.all() if a != article.owner]
+        authors_to_check = [a for a in article.author_accounts.all() if a != article.owner]
         authors_modified = False
         for author in authors_to_check:
             if author not in current_coauthors:
+                article.authors.remove(author)
                 # Remember that there is a pre-delete signal on FrozenAuthors that removes all authors/authors-order
                 # however, we prefer to delete them explicitly because it's more clear
-                submission_models.ArticleAuthorOrder.objects.get(author=author, article=article).delete()
+                submission_models.ArticleAuthorOrder.objects.filter(author=author, article=article).delete()
                 # filter insted of get because frozen author could not exist i.e. JCOM_007A_0516
                 submission_models.FrozenAuthor.objects.filter(article=article, author=author).delete()
-                article.authors.remove(author)
                 authors_modified = True
                 import_logic.logger.debug(f"cleaned coauthor {author}")
 
         if authors_modified:
-            sync_frozen_authors_with_authors(article)
             article.save()
 
     def debug_list_article_files_imported(self, article):

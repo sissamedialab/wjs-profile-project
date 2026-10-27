@@ -23,7 +23,7 @@ from plugins.wjs_review.models import (
 )
 from submission.models import Article
 
-from wjs.jcom_profile import import_production_hold
+from wjs.jcom_profile.import_wjapp import import_production_hold
 
 from .conftest import _accept_article
 
