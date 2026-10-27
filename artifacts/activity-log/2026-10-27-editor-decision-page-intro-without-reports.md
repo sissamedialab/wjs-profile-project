@@ -1,0 +1,7 @@
+## 2026-10-27 — New intro on the Editor's decision page when there is no referee report
+**What:** `make_decision/decision.html` now shows "Please write your report to motivate your decision." above the editor-report field when the paper has no submitted referee report, with "The report can be written in LaTeX." added for journals that allow LaTeX. The original intro is unchanged when reports exist.
+**Why:** wjs/specs#3277 (JCAP go-live feedback): editors deciding without any referee report were shown text written for the has-reports case, and were not told the form accepts LaTeX.
+**Decisions:** The LaTeX difference reuses the existing `tex_review_allowed` (journal `reviewer_report_type` of `tex`/`tex+text`) instead of testing the journal code, so JCOM/JCOMAL only differ if configured as `text`. The LaTeX hint is a second full msgid, not a concatenation, so translators control word order. The `en` catalogue was not touched (recent features did not update it either).
+**Considered & dropped:** Branching on `journal.code` in the template (drafted lint rule in !1589 forbids it); changing the has-reports text.
+**Follow-ups:** Confirm the JCOM/JCOMAL vs other journals `reviewer_report_type` values in production. Working in a git worktree did not work for tests: the Janeway `plugins/` symlinks point at the main checkout, so tests only see the repo root's code; the flow moved to the repo root.
+**Refs:** wjs/specs#3277; Eval: 80% — artifacts/evaluations/2026-10-27-editor-decision-page-labels.md
