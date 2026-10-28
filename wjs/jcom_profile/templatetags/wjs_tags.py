@@ -8,6 +8,7 @@ from django import template
 from django.conf import settings as django_settings
 from django.core.cache import cache
 from django.forms import BoundField
+from django.http import QueryDict
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -65,6 +66,19 @@ def endswith(word: str, value: str) -> bool:
 def concat(base_string, suffix):
     """Concatenate two strings (non string items will be casted to strings)."""
     return f"{base_string}{suffix}"
+
+
+@register.filter
+def querystring_without_page(querystring: QueryDict) -> QueryDict:
+    """
+    Return a copy of querystring without the page parameter.
+
+    Feeds the querystring of wjs/base/elements/pagination.html in templates rendered by views that don't use
+    PaginatedViewMixin (e.g. Janeway's own list views).
+    """
+    querystring = querystring.copy()
+    querystring.pop("page", None)
+    return querystring
 
 
 @register.filter
