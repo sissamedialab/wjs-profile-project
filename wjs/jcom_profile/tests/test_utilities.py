@@ -5,10 +5,11 @@ from unittest.mock import MagicMock
 
 import pytest
 from django.apps import apps
+from django.http import QueryDict
 from submission.models import FrozenAuthor
 
 from wjs.jcom_profile.permissions import has_eo_role
-from wjs.jcom_profile.templatetags.wjs_tags import how_to_cite
+from wjs.jcom_profile.templatetags.wjs_tags import how_to_cite, querystring_without_page
 from wjs.jcom_profile.utils import (
     abbreviate_first_middle,
     citation_name,
@@ -345,3 +346,16 @@ def test_email_setting(settings):
         assert bkup["email_backend"] == settings.NEWSLETTER_EMAIL_BACKEND
 
     settings.DEBUG = bkup["debug"]
+
+
+def test_querystring_without_page():
+    """The querystring for the pagination links keeps every parameter but the page."""
+    query = QueryDict("q=CERN&next=/profile/&page=2&section=1&section=3")
+
+    querystring = querystring_without_page(query)
+
+    assert "page" not in querystring, "the page must be removed"
+    assert querystring.get("q") == "CERN", "the search terms must be kept"
+    assert querystring.get("next") == "/profile/", "the next url must be kept"
+    assert querystring.getlist("section") == ["1", "3"], "multi-valued parameters must be kept"
+    assert query.get("page") == "2", "the original querystring must not be changed"

@@ -1,3 +1,4 @@
+import html
 import random
 import re
 
@@ -7,6 +8,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core import mail
+from django.http import QueryDict
 from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
@@ -794,3 +796,33 @@ def test_editor_parameters_page_shows_editor_name(journal: Journal, roles, eo_us
     )
     assert page_title, "page must have a main title"
     assert page_title.group(1) == heading, f"page must be titled {heading!r}"
+
+
+@pytest.mark.django_db
+def test_organization_search_pagination_keeps_query(journal: Journal, jcom_user: JCOMProfile):
+    """The page links of the affiliation search carry the search terms and the next url (specs#3044)."""
+    for index in range(3):
+        organization = core_models.Organization.objects.create(ror_id=f"cern{index}")
+        core_models.OrganizationName.objects.create(
+            value=f"CERN lab {index}",
+            language="en",
+            ror_display_for=organization,
+            label_for=organization,
+        )
+    client = Client()
+    client.force_login(jcom_user)
+
+    response = client.get(
+        reverse("core_organization_search"),
+        {"q": "CERN", "next": "/profile/", "paginate_by": "1", "page": "2"},
+    )
+
+    assert response.status_code == 200, "organization search page must render"
+    page_links = re.findall(r'href="(\?page=[^"]*)"', response.content.decode())
+    assert page_links, "page must have pagination links"
+    for link in page_links:
+        query = QueryDict(html.unescape(link)[1:])
+        assert len(query.getlist("page")) == 1, f"{link} must have a single page parameter"
+        assert query.get("q") == "CERN", f"{link} must keep the search terms"
+        assert query.get("next") == "/profile/", f"{link} must keep the next url"
+        assert query.get("paginate_by") == "1", f"{link} must keep the page size"
