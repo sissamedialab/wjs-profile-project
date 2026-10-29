@@ -69,15 +69,17 @@ from wjs.jcom_profile import permissions as base_permissions
 from wjs.jcom_profile.constants import role_label
 from wjs.jcom_profile.jpbridge.logic import can_access_my_payments
 from wjs.jcom_profile.mixins import HtmxMixin, PaginatedViewMixin
-from wjs.jcom_profile.models import IssueParameters
+from wjs.jcom_profile.models import IssueParameters, StaffWorkloadParameters
 from wjs.jcom_profile.pagination import CountlessPaginator
 from wjs.jcom_profile.utils import get_eo_user
 
 from . import ac_service, permissions
 from .communication_utils import get_messages_related_to_me, group_messages_by_version
 from .conversion import LatexReportConvertService
+from .events.assignment import annotate_workload_availability
 from .filters import (
     AuthorArticleWorkflowFilter,
+    AutomaticAssignmentAuditFilter,
     EOArticleWorkflowFilter,
     MessageFilter,
     MessagesOverviewFilter,
@@ -143,6 +145,7 @@ from .mixins import (
 from .models import (
     ArticleWorkflow,
     AttentionCondition,
+    AutomaticAssignmentAudit,
     EditorDecision,
     EditorRevisionRequest,
     LatexPreamble,
@@ -604,7 +607,7 @@ class BaseWorkOnIssue(BaseRelatedViewsMixin, ListView):
             .get_queryset()
             .filter(
                 Q(journal=self.request.journal)
-                & (Q(date__gte=timezone.now().date()) | Q(current_issue=self.request.journal))
+                & (Q(date__gte=timezone.localtime(timezone.now()).date()) | Q(current_issue=self.request.journal))
             )
             .order_by("date")
         )
@@ -1982,7 +1985,7 @@ class ArticleDecision(BaseRelatedViewsMixin, ArticleAssignedEditorMixin, EditorR
 
     def get_form_kwargs(self) -> Dict[str, Any]:
         kwargs = super().get_form_kwargs()
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()
         # kwargs["data"] "wins" over self.request.GET because it's the form data sent by the user.
         # But kwargs["data"] is not always present, so I try to be as safe as possible. Hope this is not "unreadable"
         decision = kwargs.get("data", {}).get("decision", self.request.GET.get("decision", None))
@@ -2281,6 +2284,55 @@ class MessagesOverview(HtmxMixin, BaseRelatedViewsMixin, PaginatedViewMixin, Lis
 
         context = self.get_context_data(filter=self.filterset, object_list=self.object_list)
         return self.render_to_response(context)
+
+
+class AutomaticAssignmentAuditList(BaseRelatedViewsMixin, FilterView):
+    """List why each automatic editor assignment picked its editor, for EO/directors."""
+
+    title = _("Automatic assignment audit")
+    model = AutomaticAssignmentAudit
+    template_name = "wjs_review/automatic_assignment_audit/audit_list.html"
+    context_object_name = "audits"
+    filterset_class = AutomaticAssignmentAuditFilter
+    paginate_by = 50
+
+    def test_func(self):
+        """Allow access only to EO or directors."""
+        return base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+
+    def get_queryset(self):
+        """Return the current journal's audit rows, newest first."""
+        return (
+            AutomaticAssignmentAudit.objects.for_journal(self.request.journal)
+            .select_related("article__articleworkflow", "editor")
+            .order_by("-created_at", "-pk")
+        )
+
+
+class AutomaticAssignmentAuditArticle(BaseRelatedViewsMixin, ListView):
+    """Show every automatic assignment audit of one article, with the candidates the algorithm explained."""
+
+    title = _("Automatic assignment audit")
+    model = AutomaticAssignmentAudit
+    template_name = "wjs_review/automatic_assignment_audit/audit_article.html"
+    context_object_name = "audits"
+    allow_empty = False
+
+    def test_func(self):
+        """Allow access only to EO or directors."""
+        return base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+
+    def get_queryset(self):
+        """Return the article's audit rows in the current journal, newest first."""
+        return AutomaticAssignmentAudit.objects.for_journal(self.request.journal).for_article_id(
+            self.kwargs["article_pk"]
+        )
+
+    def get_context_data(self, **kwargs):
+        """Add the article the audits belong to."""
+        context = super().get_context_data(**kwargs)
+        context["article"] = context["audits"][0].article
+        return context
 
 
 class MessageAttachmentDownloadView(AuthenticatedUserPassesTest, DetailView):
@@ -3609,17 +3661,57 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
 
     def _editors_with_keywords(self, search_text) -> QuerySet[Account]:
         """
-        Provides a list of available editors annotated with related keywords.
+        Provide every SECTION_EDITOR_ROLE editor, ranked and annotated with availability info.
 
-        The list is filtered by removing current editor, if any.
+        Matches wjs-develop's pre-existing behavior: every SECTION_EDITOR_ROLE editor stays
+        visible and selectable regardless of availability (disabled, on vacation, over their
+        monthly cap, or with no StaffWorkloadParameters configured at all) — availability only
+        differentiates via the workload annotation and the template's existing "self disabled"/
+        "unavailable" badges (see editor_list.html), it never excludes. This is a deliberate
+        difference from automatic assignment, which does hard-exclude on availability
+        (get_available_editor_parameters): the EO needs to see everyone to make an informed
+        manual override.
+
+        Reuses Account.objects.get_editors_with_keywords for the keyword annotation (unchanged,
+        still shared with automatic assignment via annotate_keyword_ranking) and
+        annotate_workload_availability for the workload figures (also unchanged/shared), but does
+        not filter on either.
+
+        The list is filtered by removing the current editor, if any, and any of the article's authors.
         """
-        article_authors = self.object.article.author_accounts.all()
+        article = self.object.article
+        article_authors = article.author_accounts.all()
         try:
             current_editor = WjsEditorAssignment.objects.get_current(self.object).editor
         except WjsEditorAssignment.DoesNotExist:
             current_editor = None
-        qs = Account.objects.get_editors_with_keywords(self.object.article, current_editor).exclude(
-            pk__in=article_authors
+
+        section_editors = core_models.AccountRole.objects.filter(
+            journal=article.journal,
+            role=core_models.Role.objects.get(slug=constants.SECTION_EDITOR_ROLE),
+        ).values_list("user")
+        section_editor_parameters = annotate_workload_availability(
+            StaffWorkloadParameters.objects.filter(journal=article.journal, user__in=section_editors),
+        )
+
+        qs = (
+            Account.objects.get_editors_with_keywords(article, current_editor)
+            .filter(pk__in=section_editors)
+            .exclude(pk__in=article_authors)
+            .annotate(
+                available_workload_month=Subquery(
+                    section_editor_parameters.filter(user=OuterRef("pk")).values("available_workload_month")[:1],
+                ),
+                available_workload_30d=Subquery(
+                    section_editor_parameters.filter(user=OuterRef("pk")).values("available_workload_30d")[:1],
+                ),
+            )
+            .order_by(
+                F("keyword_score").desc(nulls_last=True),
+                F("num_shared_kwds").desc(),
+                F("available_workload_30d").desc(nulls_last=True),
+                "id",
+            )
         )
         if search_text:
             search_filters = Q(Q(first_name__icontains=search_text) | Q(last_name__icontains=search_text))
@@ -3818,7 +3910,7 @@ class AdminOpensAppealView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
             setting_name="default_author_appeal_revision_days",
             journal=self.object.article.journal,
         ).process_value()
-        date_due = timezone.now().date() + datetime.timedelta(days=appeal_revision_days)
+        date_due = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=appeal_revision_days)
         context["date_due"] = date_due
         return context
 

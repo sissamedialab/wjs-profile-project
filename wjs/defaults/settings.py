@@ -724,6 +724,16 @@ SUBMISSION_UNIQUENESS_CHECK = {
     None: "plugins.wjs_review.unique_check.check_article_uniqueness_by_submission_status_and_section_in_all_journals_combined",  # noqa: E501
 }
 
+# Access mode code corrections (errata/addenda) are published with. JCAP, JSTAT and JINST publish them as "Free to
+# read", all other journals as open access; licence and copyright are always those of the original article. This dict
+# fully replaces wjs-submission's default (no merging), so the `None` fallback is repeated here too.
+SUBMISSION_CORRECTION_ACCESS_MODE_CODE = {
+    None: "open-access",
+    "JCAP": "free-to-read",
+    "JSTAT": "free-to-read",
+    "JINST": "free-to-read",
+}
+
 # Overrides wjs-submission's DEFAULT_CORRESPONDENCE_AUTHOR_VALIDATION_FUNCTION: JCOM/JCOMAL/JCAP need
 # JCOMProfile fields (profession, biography, records_*), so their validators live here instead of in
 # wjs-submission, which must not depend on wjs.jcom_profile (see wjs-submission-project#30). This dict

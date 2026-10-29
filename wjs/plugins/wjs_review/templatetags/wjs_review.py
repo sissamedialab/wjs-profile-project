@@ -127,6 +127,24 @@ def is_enabled_as_editor(user: Account, journal: Journal) -> bool:
 
 
 @register.filter
+def is_disabled_by_eo(user: Account, journal: Journal) -> bool:
+    """
+    Check if the EO has disabled a user as an editor for a journal.
+
+    This is the EO/director-only ``brake_on == -1`` override, separate from (and invisible
+    to) the editor's own self-disable checked by `is_enabled_as_editor`.
+
+    :param user: The account to check for EO-level disablement.
+    :type user: Account
+    :param journal: The journal to evaluate the disablement for.
+    :type journal: Journal
+    :return: True if the EO has disabled this user as an editor for the journal.
+    :rtype: bool
+    """
+    return user.jcomprofile.is_disabled_by_eo(journal)
+
+
+@register.filter
 def user_vacancy_dates(user: Account, journal: Journal) -> str:
     """
     Format editor vacancy dates for the specified journal if set.
@@ -704,7 +722,7 @@ def get_current_workload(editor: Account, journal: Journal) -> int:
 
 @register.simple_tag()
 def get_editor_keywords(editor: Account, journal: Journal) -> QuerySet[StaffKeyword]:
-    """Get the keywords for the given editor and journal."""
+    """Get the keywords for the given editor and journal, highest weight first, then by word."""
     # We don't expect a DoesNotExist, and even less MultipleObjectsReturned, but just in case...
     try:
         eap = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
@@ -714,7 +732,7 @@ def get_editor_keywords(editor: Account, journal: Journal) -> QuerySet[StaffKeyw
     except StaffWorkloadParameters.MultipleObjectsReturned:
         logger.error(f"Editor {editor} has multiple configurations on {journal.code}. Using first. Please check.")
         eap = StaffWorkloadParameters.objects.filter(user=editor, journal=journal).first()
-    return StaffKeyword.objects.filter(parameters=eap)
+    return StaffKeyword.objects.filter(parameters=eap).select_related("keyword").order_by("-weight", "keyword__word")
 
 
 @register.simple_tag()

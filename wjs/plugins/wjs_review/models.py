@@ -47,6 +47,7 @@ from . import permissions
 from .managers import (
     ArticleWorkflowQuerySet,
     AttentionConditionQuerySet,
+    AutomaticAssignmentAuditQuerySet,
     PastEditorAssignmentQuerySet,
     WjsEditorAssignmentQuerySet,
     WorkflowReviewAssignmentQuerySet,
@@ -2153,10 +2154,11 @@ class WorkflowReviewAssignment(ReviewAssignment):
         if self.is_complete:
             return
 
-        if self.date_due < timezone.now().date():
+        if self.date_due < timezone.localtime(timezone.now()).date():
             return ReviewAssignmentAttentionCondition(
                 code="late",
-                message=_("No feedback after %s day(s).") % (timezone.now().date() - self.date_due).days,
+                message=_("No feedback after %s day(s).")
+                % (timezone.localtime(timezone.now()).date() - self.date_due).days,
                 style="border border-danger",
                 icon_value='<span class="ra-condition-icon"><i class="bi bi-clock-fill"></i></span>',
             )
@@ -2769,3 +2771,111 @@ class BlacklistedAuthorEmail(models.Model):
 
     def __str__(self) -> str:  # noqa: PLR6301
         return self.email
+
+
+class AutomaticAssignmentAudit(models.Model):
+    """
+    Why the automatic assignment picked a given editor, captured at decision time.
+
+    Append-only log, deliberately not linked to WjsEditorAssignment: that row is hard-deleted on
+    deassignment/reassignment, which is exactly when the audit history is most useful.
+    ``workload_available``/``workload_cap`` hold whichever workload metric actually ran (monthly, ``brake_on``-aware
+    cap from ``annotate_workload_availability`` on the default path, keyword match or not; open-articles metric on
+    the special-issue/JCOM paths).
+    ``workload_available_30d`` holds the trailing-30-day availability that breaks ranking ties on the
+    default path (empty elsewhere).
+    ``keyword_score`` is the chosen editor's weighted keyword coverage (0-1) on the default path; empty elsewhere.
+    """
+
+    class Algorithms(models.TextChoices):
+        DEFAULT = "default", _("Default")
+        DEFAULT_SPECIAL_ISSUE = "default_special_issue", _("Default (special issue)")
+        JCOM = "jcom", _("JCOM")
+
+    article = models.ForeignKey(
+        "submission.Article",
+        verbose_name=_("Article"),
+        on_delete=models.CASCADE,
+        related_name="automatic_assignment_audits",
+    )
+    editor = models.ForeignKey(
+        Account,
+        verbose_name=_("Editor"),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+    algorithm = models.CharField(_("Algorithm"), max_length=32, choices=Algorithms.choices)
+    matched_by_keyword = models.BooleanField(_("Matched by keyword"), default=False)
+    matching_keywords_count = models.PositiveIntegerField(_("Matching keywords count"), null=True, blank=True)
+    max_matching_keyword_weight = models.PositiveIntegerField(_("Max matching keyword weight"), null=True, blank=True)
+    workload_available = models.IntegerField(_("Available workload"), null=True, blank=True)
+    workload_cap = models.IntegerField(_("Workload cap"), null=True, blank=True)
+    workload_available_30d = models.IntegerField(_("Available workload (last 30 days)"), null=True, blank=True)
+    keyword_score = models.FloatField(_("Keyword score"), null=True, blank=True)
+
+    objects = AutomaticAssignmentAuditQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = _("Automatic assignment audit")
+        verbose_name_plural = _("Automatic assignment audits")
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self) -> str:
+        return f"{self.article_id} → {self.editor_id} ({self.get_algorithm_display()})"
+
+
+class AutomaticAssignmentCandidate(models.Model):
+    """
+    How one editor sharing a keyword with the article fared in an automatic assignment.
+
+    Snapshot taken by the default algorithm right before assigning, so the audit page can explain the pick with
+    the values the algorithm actually saw, not today's. ``position`` keeps the explanation order: the selected
+    editor first, then the ranked editors, then the excluded ones.
+    ``shared_keywords`` is a list of ``{"word", "article_weight", "editor_weight"}`` dicts.
+    """
+
+    audit = models.ForeignKey(
+        AutomaticAssignmentAudit,
+        verbose_name=_("Audit"),
+        on_delete=models.CASCADE,
+        related_name="candidates",
+    )
+    editor = models.ForeignKey(
+        Account,
+        verbose_name=_("Editor"),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    position = models.PositiveIntegerField(_("Position"))
+    rank = models.PositiveIntegerField(_("Rank"), null=True, blank=True)
+    selected = models.BooleanField(_("Selected"), default=False)
+    reason = models.CharField(_("Reason"), max_length=128)
+    keyword_score = models.FloatField(_("Keyword score"), null=True, blank=True)
+    matching_keywords_count = models.PositiveIntegerField(_("Matching keywords count"), default=0)
+    shared_keywords = models.JSONField(_("Shared keywords"), default=list, blank=True)
+    monthly_workload = models.IntegerField(_("Available workload"), null=True, blank=True)
+    workload_30d = models.IntegerField(_("Available workload (last 30 days)"), null=True, blank=True)
+    workload_cap = models.IntegerField(_("Workload cap"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("Automatic assignment candidate")
+        verbose_name_plural = _("Automatic assignment candidates")
+        ordering = ["audit", "position"]
+
+    def __str__(self) -> str:
+        return f"{self.audit_id} #{self.position}: {self.editor_id} ({self.reason})"
+
+    @property
+    def shared_keywords_display(self) -> str:
+        """Format the shared keywords as "<word> (article <w_A>, editor <w_E>)", "; "-separated."""
+        return "; ".join(
+            f"{keyword['word']} (article "
+            f"{'—' if keyword['article_weight'] is None else keyword['article_weight']}, "
+            f"editor {keyword['editor_weight']})"
+            for keyword in self.shared_keywords
+        )

@@ -100,6 +100,13 @@
         {% else %}
           {% translate "N/A" %}
         {% endif %}
+        {% user_can_view_assignment_audit workflow request.user editor_assignment.editor as can_view_audit %}
+        {% if can_view_audit %}
+          {% translate "Automatic assignment audit" as audit_link_label %}
+          <a class="ms-2"
+             href="{% url "wjs-automatic-assignment-audit-article" article_pk=article.pk %}"
+             title="{{ audit_link_label }}"><i class="bi bi-card-checklist" aria-hidden="true"></i><span class="visually-hidden">{{ audit_link_label }}</span></a>
+        {% endif %}
       </td>
     </tr>
     {% if request.user|is_user_eo and workflow|is_production_state or request.user|is_user_eo and workflow.state == "Published" %}

@@ -1,0 +1,80 @@
+{% extends "wjs_review/base/base.html" %}
+{% load django_bootstrap5 i18n %}
+
+{% block title %}
+  {{ view.title }}
+{% endblock title %}
+
+{% block content %}
+  <div class="col-sm-12 mb-3">
+    {% translate "Filter" as filter_label %}
+    {% translate "Filter the automatic assignments" as filter_form_label %}
+    <form method="get"
+          class="row g-2 align-items-end mb-3"
+          role="search"
+          aria-label="{{ filter_form_label }}">
+      {% bootstrap_field filter.form.editor wrapper_class="col-md-3" %}
+      {% bootstrap_field filter.form.algorithm wrapper_class="col-md-2" %}
+      {% bootstrap_field filter.form.matched_by_keyword wrapper_class="col-md-2" %}
+      {% bootstrap_field filter.form.from_date wrapper_class="col-md-2" %}
+      {% bootstrap_field filter.form.to_date wrapper_class="col-md-2" %}
+      <div class="col-md-1">
+        {% bootstrap_button button_type="submit" content=filter_label %}
+      </div>
+    </form>
+    <div class="d-flex justify-content-end mb-2">
+      {% include "wjs_review/automatic_assignment_audit/elements/scores_help.html" %}
+    </div>
+    <div class="table-responsive"
+         role="region"
+         aria-labelledby="audit-list-caption"
+         tabindex="0">
+      <table class="table table-sm table-striped align-middle">
+        <caption id="audit-list-caption" class="visually-hidden">{% translate "Automatic assignments, newest first" %}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{% translate "Date" %}</th>
+            <th scope="col">{% translate "Article" %}</th>
+            <th scope="col"><span class="visually-hidden">{% translate "Article page" %}</span></th>
+            <th scope="col">{% translate "Editor" %}</th>
+            {% include "wjs_review/automatic_assignment_audit/elements/abbr_header.html" with abbr=_("KW match") full=_("Matched by keyword") %}
+            {% include "wjs_review/automatic_assignment_audit/elements/abbr_header.html" with abbr=_("# KW") full=_("Matching keywords") %}
+            {% include "wjs_review/automatic_assignment_audit/elements/abbr_header.html" with abbr=_("Max wt.") full=_("Max keyword weight") %}
+            {% include "wjs_review/automatic_assignment_audit/elements/abbr_header.html" with abbr=_("KW score") full=_("Keyword score") %}
+            {% include "wjs_review/automatic_assignment_audit/elements/abbr_header.html" with abbr=_("Cap") full=_("Workload cap") %}
+            {% include "wjs_review/automatic_assignment_audit/elements/abbr_header.html" with abbr=_("Avail.") full=_("Available workload") %}
+            {% include "wjs_review/automatic_assignment_audit/elements/abbr_header.html" with abbr=_("Avail. 30d") full=_("Available (30-day)") %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for audit in audits %}
+            <tr>
+              <td>{{ audit.created_at|date:"Y-m-d H:i" }}</td>
+              <td>
+                <a href="{% url "wjs-automatic-assignment-audit-article" article_pk=audit.article.pk %}?{{ request.GET.urlencode }}">{{ audit.article.pk }} - {{ audit.article.title|truncatechars:60 }}</a>
+              </td>
+              <td>
+                {% blocktranslate asvar article_page_label with article_pk=audit.article.pk %}Article page for article {{ article_pk }}{% endblocktranslate %}
+              </td>
+              <td>{{ audit.editor.full_name|default:"—" }}</td>
+              <td>{{ audit.matched_by_keyword|yesno }}</td>
+              <td>{{ audit.matching_keywords_count|default_if_none:"—" }}</td>
+              <td>{{ audit.max_matching_keyword_weight|default_if_none:"—" }}</td>
+              <td>{% if audit.keyword_score is not None %}{% widthratio audit.keyword_score 1 100 %}%{% else %}—{% endif %}</td>
+              <td>{{ audit.workload_cap|default_if_none:"—" }}</td>
+              <td>{{ audit.workload_available|default_if_none:"—" }}</td>
+              <td>{{ audit.workload_available_30d|default_if_none:"—" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="11">{% translate "No automatic assignments recorded." %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if is_paginated %}
+      {% bootstrap_pagination page_obj extra=request.GET.urlencode %}
+    {% endif %}
+  </div>
+{% endblock content %}

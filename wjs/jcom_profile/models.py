@@ -128,6 +128,23 @@ class JCOMProfile(Account):
         except AttributeError:
             return False
 
+    def is_disabled_by_eo(self, journal: Journal) -> bool:
+        """
+        Check if the EO has disabled this editor for the given journal.
+
+        This is the ``brake_on == -1`` sentinel: an EO/director-only override, separate from
+        (and invisible to) the editor's own :py:meth:`is_enabled_as_editor` self-disable.
+
+        :param journal: The journal instance to check for an EO-level disablement.
+        :type journal: Journal
+        :return: True if the EO has disabled this editor for the journal.
+        :rtype: bool
+        """
+        try:
+            return self.parameters(journal).brake_on == -1
+        except AttributeError:
+            return False
+
     def vacancy_dates(self, journal: Journal) -> str:
         """
         Generate and return a string representation of vacancy dates for a given journal.
@@ -198,7 +215,14 @@ class StaffWorkloadParameters(models.Model):
     user = models.ForeignKey("core.Account", on_delete=models.CASCADE)
     journal = models.ForeignKey("journal.Journal", on_delete=models.CASCADE)
     workload = models.PositiveSmallIntegerField(default=0, verbose_name=_("Max. monthly assignments as Editor"))
-    brake_on = models.PositiveSmallIntegerField(default=0)
+    brake_on = models.SmallIntegerField(
+        default=0,
+        help_text=_(
+            "0 = no EO override (use the plain monthly cap above). "
+            "A positive value overrides the monthly cap with this smaller value. "
+            "-1 disables the editor: no new automatic assignments until reset to 0 or a positive value.",
+        ),
+    )
     vacancy_start = models.DateField(_("Vacancy start"), null=True, blank=True)
     vacancy_end = models.DateField(_("Vacancy end"), null=True, blank=True)
     enabled = models.BooleanField(_("I am generally available to be assigned new submissions"), default=True)
@@ -230,19 +254,23 @@ class StaffWorkloadParameters(models.Model):
 
     def clean(self, exclude=None):
         """
-        Validate the consistency of vacancy start and end dates.
+        Validate the consistency of vacancy dates and the ``brake_on`` value.
 
         Ensure that the vacancy end date occurs after the vacancy start date,
-        raising an appropriate validation error if this condition is not met.
+        and that ``brake_on`` is -1, 0, or a positive cap override.
 
         :param exclude: A set of fields to exclude during validation.
         :type exclude: Optional[set]
         :return: None
         :raises ValidationError: If the vacancy end date is before the vacancy
-            start date.
+            start date, or ``brake_on`` is less than -1.
         """
         if self.vacancy_end and self.vacancy_start and self.vacancy_end < self.vacancy_start:
             raise ValidationError({"vacancy_end": _("Vacancy end date must be after vacancy start date.")})
+        if self.brake_on < -1:
+            raise ValidationError(
+                {"brake_on": _("Must be -1 (disable editor), 0 (no override), or a positive monthly cap.")},
+            )
 
     @property
     def is_available(self):
@@ -259,7 +287,7 @@ class StaffWorkloadParameters(models.Model):
             otherwise False.
         :rtype: bool
         """
-        today = timezone.now().date()
+        today = timezone.localtime(timezone.now()).date()
         on_vacancy = False
         if self.vacancy_start and self.vacancy_end:
             on_vacancy = self.vacancy_start <= today <= self.vacancy_end

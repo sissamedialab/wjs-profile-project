@@ -465,14 +465,14 @@ def test_author_proofing_is_late(
     attention_conditions_rebuild(article)
 
     state_cls = getattr(states, workflow.state)
-    expected = expected.date()
 
     assert state_cls.article_requires_attention(article=article, user=author) == ""
     assert state_cls.article_requires_attention(article=article, user=typesetter) == ""
+    due = timezone.localtime(assignment.due).date()
     assert (
         state_cls.article_requires_attention(article=article, user=eo)
-        == f"Proofing is late by {(timezone.now() - assignment.due).days} days."
-        f" Was expected by {assignment.due.strftime('%F')}."
+        == f"Proofing is late by {(timezone.localdate() - due).days} days."
+        f" Was expected by {due.strftime('%F')}."
         " Please contact the author."
     )
 
@@ -573,7 +573,7 @@ def test_reviewer_is_late(
     ).run()
 
     assert assignment.date_accepted is None
-    assert assignment.date_due > timezone.now().date()
+    assert assignment.date_due > timezone.localtime(timezone.now()).date()
 
     attention_conditions_rebuild(article)
     assert attention_condition_ignoring_unread(article=article, user=reviewer) == ""

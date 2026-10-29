@@ -10,20 +10,23 @@ from django.core import mail
 from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponseRedirect, QueryDict
 from django.template.loader import render_to_string
+from django.test import override_settings
 from django.test.client import Client
 from django.urls import reverse
 from django.utils import translation
 from django.utils.formats import date_format
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from journal.models import Journal
 from press.models import Press
 from review import models as review_models
 from review.models import ReviewAssignment, ReviewForm, ReviewRound
 from submission import models as submission_models
 from submission.models import Article
+from utils import setting_handler
 from utils.setting_handler import get_setting
 
-from wjs.jcom_profile.models import JCOMProfile
+from wjs.jcom_profile import constants
+from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
@@ -36,10 +39,11 @@ from ..models import (
     Message,
     PastEditorAssignment,
     WjsEditorAssignment,
+    WorkflowReviewAssignment,
 )
 from ..permissions import is_article_editor
 from ..templatetags.wjs_articles import user_is_coauthor
-from ..templatetags.wjs_review import get_version_submission_date
+from ..templatetags.wjs_review import get_editor_keywords, get_version_submission_date
 from ..views import (
     ArticleDetails,
     ArticleIdToDetails,
@@ -65,11 +69,11 @@ def test_editor_requests_revision_but_date_due_in_the_past(
     assigned_article: submission_models.Article,
     decision: ArticleWorkflow.Decisions,
 ):
-    """An editor cannot set the minor/major/technical revision request's date_due in the past wrt now().date()."""
+    """An editor cannot set the minor/major/technical revision request's date_due in the past wrt today."""
     url = reverse("wjs_article_decision", args=(assigned_article.pk,))
     post_data = {
         "decision": decision.value,
-        "date_due": now().date() - datetime.timedelta(days=1),
+        "date_due": localtime(now()).date() - datetime.timedelta(days=1),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
@@ -101,7 +105,7 @@ def test_editor_requests_revision_but_date_due_too_much_in_the_future(
     ).processed_value
     post_data = {
         "decision": decision.value,
-        "date_due": now().date() + datetime.timedelta(days=revision_days_max + 1),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=revision_days_max + 1),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
@@ -139,7 +143,7 @@ def test_editor_requests_revision_date_due_is_in_the_right_range(
     assert how_many_days_in_the_future < revision_days_max
     post_data = {
         "decision": decision.value,
-        "date_due": now().date() + datetime.timedelta(days=how_many_days_in_the_future),
+        "date_due": localtime(now()).date() + datetime.timedelta(days=how_many_days_in_the_future),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
@@ -179,7 +183,7 @@ def test_editor_requests_revision_date_due_renders_iso_in_non_default_language(
         setting_name=days_setting_name,
         journal=assigned_article.journal,
     ).processed_value
-    initial_date = now().date() + datetime.timedelta(days=revision_days)
+    initial_date = localtime(now()).date() + datetime.timedelta(days=revision_days)
     client.force_login(section_editor.janeway_account)
     with translation.override("fr"):
         response = client.get(url, {"decision": decision.value})
@@ -205,10 +209,10 @@ def test_editor_assigns_themselves_as_reviewer_acceptance_due_date_in_the_past(
     section_editor: JCOMProfile,
     assigned_article: submission_models.Article,
 ):
-    """An editor cannot set the acceptance_due_date in the past wrt now().date()."""
+    """An editor cannot set the acceptance_due_date in the past wrt localtime(now()).date()."""
     url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
     post_data = {
-        "acceptance_due_date": now().date() - datetime.timedelta(days=1),
+        "acceptance_due_date": localtime(now()).date() - datetime.timedelta(days=1),
     }
     client.force_login(section_editor.janeway_account)
     response = client.post(url, post_data)
@@ -228,7 +232,7 @@ def test_editor_assigns_themselves_as_reviewer_with_a_date_much_in_the_future(
     This is valid also for the Editor as reviewer
     """
     url = reverse("wjs_editor_assigns_themselves_as_reviewer", args=(assigned_article.pk,))
-    today = now().date()
+    today = localtime(now()).date()
     date_max = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
     post_data = {
         "acceptance_due_date": date_max + datetime.timedelta(days=100),
@@ -341,12 +345,12 @@ def test_select_reviewer_acceptance_due_date_in_the_past(
     reviewer: JCOMProfile,
     assigned_article: submission_models.Article,
 ):
-    """An editor cannot set the acceptance_due_date in the past wrt now().date()."""
+    """An editor cannot set the acceptance_due_date in the past wrt localtime(now()).date()."""
     url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
     post_data = {
         "reviewer": reviewer.pk,
         "message": "test_select_reviewer_acceptance_due_date_in_the_past() test message",
-        "acceptance_due_date": now().date() - datetime.timedelta(days=1),
+        "acceptance_due_date": localtime(now()).date() - datetime.timedelta(days=1),
         "state": "",
         "author_note_visible": False,
     }
@@ -363,9 +367,9 @@ def test_select_reviewer_acceptance_due_date_too_much_in_the_future(
     reviewer: JCOMProfile,
     assigned_article: submission_models.Article,
 ):
-    """An editor cannot set the acceptance_due_date after settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX wrt now().date()."""
+    """An editor cannot set the acceptance_due_date after DEFAULT_ACCEPTANCE_DUE_DATE_MAX wrt today."""
     url = reverse("wjs_select_reviewer", args=(assigned_article.pk,))
-    today = now().date()
+    today = localtime(now()).date()
     date_min = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MIN)
     date_max = today + datetime.timedelta(days=settings.DEFAULT_ACCEPTANCE_DUE_DATE_MAX)
     post_data = {
@@ -417,7 +421,7 @@ def test_invite_function_creates_inactive_user(
         "suffix": "Suffix",
         "email": "email@email.it",
         "message": "random message",
-        "acceptance_due_date": now().date()
+        "acceptance_due_date": localtime(now()).date()
         + datetime.timedelta(
             days=fake_request.journal.get_setting("wjs_review", "default_review_acceptance_days"),
         ),
@@ -485,7 +489,7 @@ def test_wjs_evaluate_review_date_due_initial_value(
         setting_name="default_review_days",
         journal=review_assignment_invited_user.article.journal,
     ).processed_value
-    initial_date = now().date() + datetime.timedelta(days=default_review_days)
+    initial_date = localtime(now()).date() + datetime.timedelta(days=default_review_days)
     assert response.context["form"].initial["date_due"] == initial_date
 
 
@@ -516,7 +520,7 @@ def test_wjs_evaluate_review_date_due_renders_iso_in_non_default_language(
         setting_name="default_review_days",
         journal=review_assignment_invited_user.article.journal,
     ).processed_value
-    initial_date = now().date() + datetime.timedelta(days=default_review_days)
+    initial_date = localtime(now()).date() + datetime.timedelta(days=default_review_days)
     with translation.override("fr"):
         response = client.get(url)
     assert f'value="{initial_date.isoformat()}"' in response.content.decode()
@@ -1188,6 +1192,29 @@ def test_editor_with_kdws_list_retrieval(article_with_keywords, editors_with_key
 
 
 @pytest.mark.django_db
+def test_editor_with_kdws_scoped_to_article_journal(article_with_keywords, editors_with_keywords, keywords, press):
+    """
+    Keyword matches from a different journal's StaffWorkloadParameters must not count towards
+    num_shared_kwds/max_matching_keyword_weight for an article in a different journal.
+    """
+    other_journal = _journal_factory("OTHERJ", press)
+    cross_journal_editor = editors_with_keywords[0]
+    # editors_with_keywords[0] already matches k0/k1/k2 (all weight 0) via StaffKeyword rows in
+    # `journal`. Give them an additional, higher-weight match to the same keyword, but in a
+    # different journal, and confirm it is not counted for an article in `journal`.
+    other_params = StaffWorkloadParameters.objects.update_or_create(user=cross_journal_editor, journal=other_journal)[
+        0
+    ]
+    StaffKeyword.objects.create(parameters=other_params, keyword=keywords[0], weight=99)
+
+    editors_list = Account.objects.get_editors_with_keywords(article_with_keywords)
+    matched = editors_list.get(pk=cross_journal_editor.janeway_account.pk)
+
+    assert matched.num_shared_kwds == 3
+    assert matched.max_matching_keyword_weight == 0
+
+
+@pytest.mark.django_db
 def test_editor_archived(
     assigned_article: Article,
     section_editor: JCOMProfile,
@@ -1265,6 +1292,13 @@ def test_eo_select_editor(
         "note_for_past_editor": "test",
         "note_for_new_editor": "test",
     }
+    StaffWorkloadParameters.objects.update_or_create(
+        user=section_editor.janeway_account,
+        journal=submitted_workflow.article.journal,
+        defaults={
+            "workload": 10,
+        },
+    )
     view = SupervisorAssignEditor()
     view.request = fake_request
     view.args = (submitted_workflow.article.pk,)
@@ -1290,6 +1324,13 @@ def test_eo_select_new_editor(
 ):
     """An EO can select an editor for an article with an existing editor."""
     normal_user.janeway_account.add_account_role("section-editor", assigned_article.journal)
+    StaffWorkloadParameters.objects.update_or_create(
+        user=normal_user.janeway_account,
+        journal=assigned_article.journal,
+        defaults={
+            "workload": 10,
+        },
+    )
     old_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = eo_user.janeway_account
     fake_request.method = "POST"
@@ -1316,6 +1357,300 @@ def test_eo_select_new_editor(
         == normal_user.janeway_account
     )
     assert PastEditorAssignment.objects.get(article=assigned_article.articleworkflow.article).editor == old_editor
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_keeps_unavailable_visible_excludes_non_section_editor(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    review_settings,
+):
+    """
+    _editors_with_keywords keeps every SECTION_EDITOR_ROLE editor visible regardless of
+    availability (matching wjs-develop's pre-existing behavior — availability differentiates,
+    it never excludes) but still restricts the role set to SECTION_EDITOR_ROLE only (D6).
+    """
+    journal = submitted_workflow.article.journal
+    StaffWorkloadParameters.objects.update_or_create(
+        user=section_editor.janeway_account, journal=journal, defaults={"workload": 10}
+    )
+
+    disabled_editor = create_jcom_user("disabled_section_editor")
+    disabled_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.update_or_create(
+        user=disabled_editor.janeway_account,
+        journal=journal,
+        defaults={
+            "workload": 10,
+            "enabled": False,
+        },
+    )
+
+    unconfigured_editor = create_jcom_user("unconfigured_section_editor")
+    unconfigured_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    # Never configured by hand: only the default row (workload 0) created by the role signal.
+
+    plain_editor_role_user = create_jcom_user("plain_editor_role")
+    plain_editor_role_user.add_account_role(constants.EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.update_or_create(
+        user=plain_editor_role_user.janeway_account, journal=journal, defaults={"workload": 10}
+    )
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = view._editors_with_keywords(search_text=None)
+
+    assert section_editor.janeway_account in candidates
+    assert disabled_editor.janeway_account in candidates
+    assert unconfigured_editor.janeway_account in candidates
+    assert plain_editor_role_user.janeway_account not in candidates
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_annotates_and_orders_by_workload(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    review_settings,
+):
+    """
+    _editors_with_keywords annotates available_workload_month and orders candidates with no
+    keyword match (both editors here have none) by descending 30-day workload availability.
+    """
+    journal = submitted_workflow.article.journal
+    StaffWorkloadParameters.objects.update_or_create(
+        user=section_editor.janeway_account,
+        journal=journal,
+        defaults={
+            "workload": 1,
+        },
+    )
+
+    high_availability_editor = create_jcom_user("high_availability_editor")
+    high_availability_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.update_or_create(
+        user=high_availability_editor.janeway_account,
+        journal=journal,
+        defaults={
+            "workload": 10,
+        },
+    )
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = list(view._editors_with_keywords(search_text=None))
+
+    section_editor_candidate = next(c for c in candidates if c.pk == section_editor.janeway_account.pk)
+    high_availability_candidate = next(c for c in candidates if c.pk == high_availability_editor.janeway_account.pk)
+    assert section_editor_candidate.available_workload_month == 1
+    assert high_availability_candidate.available_workload_month == 10
+    assert candidates.index(high_availability_candidate) < candidates.index(section_editor_candidate)
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_ranks_keyword_match_ahead_of_no_match(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    keywords,
+    review_settings,
+):
+    """
+    _editors_with_keywords must rank a real keyword match ahead of a non-match.
+
+    Regression guard for the manual-view ordering mirroring rank_editor_parameters: the view orders by
+    keyword_score nulls-last. Postgres sorts NULLs FIRST under a plain DESC order_by, so a non-matching
+    editor (keyword_score is NULL) would otherwise rank ahead of any editor with a real, even low-weight, match.
+    """
+    journal = submitted_workflow.article.journal
+    submitted_workflow.article.keywords.add(keywords[0])
+
+    matched_editor = create_jcom_user("matched_section_editor")
+    matched_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    matched_parameters = StaffWorkloadParameters.objects.update_or_create(
+        user=matched_editor.janeway_account,
+        journal=journal,
+        defaults={
+            "workload": 10,
+            "enabled": True,
+        },
+    )[0]
+    StaffKeyword.objects.create(parameters=matched_parameters, keyword=keywords[0], weight=1)
+
+    unmatched_editor = create_jcom_user("unmatched_section_editor")
+    unmatched_editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    StaffWorkloadParameters.objects.update_or_create(
+        user=unmatched_editor.janeway_account,
+        journal=journal,
+        defaults={
+            "workload": 10,
+            "enabled": True,
+        },
+    )
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = list(view._editors_with_keywords(search_text=None))
+
+    matched_candidate = next(c for c in candidates if c.pk == matched_editor.janeway_account.pk)
+    unmatched_candidate = next(c for c in candidates if c.pk == unmatched_editor.janeway_account.pk)
+    assert matched_candidate.max_matching_keyword_weight == 1
+    assert unmatched_candidate.max_matching_keyword_weight is None
+    assert candidates.index(matched_candidate) < candidates.index(unmatched_candidate)
+    assert matched_candidate.keyword_score is not None, "matched editor has a score"
+    assert unmatched_candidate.keyword_score is None, "unmatched editor has no score"
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_ranks_by_keyword_score(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    keywords,
+    review_settings,
+):
+    """The manual list orders by keyword_score: broad weighted coverage ahead of one strong keyword."""
+    journal = submitted_workflow.article.journal
+    for keyword in (keywords[0], keywords[1], keywords[2]):
+        submitted_workflow.article.keywords.add(keyword)
+
+    def _editor(name, weights):
+        editor = create_jcom_user(name)
+        editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+        parameters = StaffWorkloadParameters.objects.update_or_create(
+            user=editor.janeway_account,
+            journal=journal,
+            defaults={
+                "workload": 10,
+                "enabled": True,
+            },
+        )[0]
+        for keyword, weight in weights:
+            StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=weight)
+        return editor.janeway_account
+
+    narrow = _editor("narrow_section_editor", [(keywords[0], 100)])
+    broad = _editor("broad_section_editor", [(keywords[0], 80), (keywords[1], 80), (keywords[2], 80)])
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = list(view._editors_with_keywords(search_text=None))
+
+    assert candidates.index(broad) < candidates.index(narrow), "keyword_score orders the manual list"
+
+
+@pytest.mark.django_db
+def test_supervisor_assign_editor_breaks_score_ties_by_shared_keyword_count(
+    submitted_workflow: ArticleWorkflow,
+    fake_request: HttpRequest,
+    section_editor: JCOMProfile,
+    create_jcom_user: Callable,
+    keywords,
+    review_settings,
+):
+    """With an equal keyword_score (all weights 0), the manual list ranks more shared keywords first."""
+    journal = submitted_workflow.article.journal
+    for keyword in (keywords[0], keywords[1]):
+        submitted_workflow.article.keywords.add(keyword)
+
+    def _editor(name, workload, kwds):
+        editor = create_jcom_user(name)
+        editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+        parameters = StaffWorkloadParameters.objects.update_or_create(
+            user=editor.janeway_account,
+            journal=journal,
+            defaults={
+                "workload": workload,
+                "enabled": True,
+            },
+        )[0]
+        for keyword in kwds:
+            StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=0)
+        return editor.janeway_account
+
+    # The one-keyword editor has the higher workload capacity, so availability alone would rank it first.
+    one_kwd = _editor("one_kwd_section_editor", 20, [keywords[0]])
+    two_kwds = _editor("two_kwds_section_editor", 5, [keywords[0], keywords[1]])
+
+    fake_request.user = section_editor.janeway_account
+    view = SupervisorAssignEditor()
+    view.request = fake_request
+    view.args = (submitted_workflow.article.pk,)
+    view.kwargs = {}
+    view.setup(fake_request)
+    view.object = submitted_workflow
+
+    candidates = list(view._editors_with_keywords(search_text=None))
+
+    scores = {c.pk: c.keyword_score for c in candidates}
+    assert scores[one_kwd.pk] == scores[two_kwds.pk], "precondition: equal keyword_score"
+    assert candidates.index(two_kwds) < candidates.index(one_kwd), "shared keyword count breaks the score tie"
+
+
+@pytest.mark.django_db
+def test_select_new_editor_page_shows_keyword_score(
+    submitted_workflow: ArticleWorkflow,
+    eo_user: JCOMProfile,
+    create_jcom_user: Callable,
+    keywords,
+    review_settings,
+):
+    """The manual editor table shows each editor's keyword score as a percentage, or a dash."""
+    journal = submitted_workflow.article.journal
+    submitted_workflow.article.keywords.add(keywords[0], keywords[1])
+    for name, weights in (("scored_editor", [(keywords[0], 100)]), ("unscored_editor", [])):
+        editor = create_jcom_user(name)
+        editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+        parameters = StaffWorkloadParameters.objects.update_or_create(
+            user=editor.janeway_account,
+            journal=journal,
+            defaults={
+                "workload": 10,
+                "enabled": True,
+            },
+        )[0]
+        for keyword, weight in weights:
+            StaffKeyword.objects.create(parameters=parameters, keyword=keyword, weight=weight)
+    client = Client()
+    client.force_login(eo_user.janeway_account)
+
+    with override_settings(WJS_SHOW_EDITOR_KEYWORDS=[journal.code]):
+        response = client.get(reverse("wjs_assign_editor", args=(submitted_workflow.pk,)))
+
+    content = response.content.decode()
+    assert response.status_code == 200, "EO can open the page"
+    assert "Keyword score" in content, "column header shown"
+    assert "50%" in content, "one of two equally weighted keywords at full weight = 50%"
+    assert "—" in content, "editors without a shared keyword show a dash"
 
 
 @pytest.mark.django_db
@@ -1362,7 +1697,7 @@ def test_assigns_themselves_as_reviewer_no_double_assignation(
     response = client.get(url)
     assert response.status_code == 200
 
-    response = client.post(url, data={"acceptance_due_date": now().date() + datetime.timedelta(days=7)})
+    response = client.post(url, data={"acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7)})
     assert response.status_code == 200
 
     assert (
@@ -1373,7 +1708,7 @@ def test_assigns_themselves_as_reviewer_no_double_assignation(
         == 1
     )
 
-    response = client.post(url, data={"acceptance_due_date": now().date() + datetime.timedelta(days=7)})
+    response = client.post(url, data={"acceptance_due_date": localtime(now()).date() + datetime.timedelta(days=7)})
     assert response.status_code == 200
 
     assert (
@@ -1702,6 +2037,75 @@ def test_decision_form_decisioneditorreport(
     assert form.cleaned_data["decision_editor_report"] == text_with_pesky_chars
 
 
+DECISION_INTRO_WITHOUT_REPORTS = "Please write your report to motivate your decision."
+DECISION_INTRO_WITH_REPORTS = "The following form includes any reports that you have just decided to send the authors."
+DECISION_LATEX_HINT = "The report can be written in LaTeX."
+
+
+@pytest.mark.parametrize(
+    "reviewer_report_type,latex_hint_expected",
+    (
+        ("text", False),
+        ("tex", True),
+        ("tex+text", True),
+    ),
+)
+@pytest.mark.django_db
+def test_decision_page_without_reports_intro(
+    client: Client,
+    assigned_article: Article,
+    reviewer_report_type: str,
+    latex_hint_expected: bool,
+):
+    """Without referee reports the decision page asks to motivate the decision, mentioning LaTeX if allowed."""
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="reviewer_report_type",
+        journal=assigned_article.journal,
+        value=reviewer_report_type,
+    )
+    client.force_login(WjsEditorAssignment.objects.get_current(assigned_article).editor)
+    url = reverse("wjs_article_decision", args=(assigned_article.articleworkflow.pk,))
+
+    content = client.get(url, {"decision": ArticleWorkflow.Decisions.ACCEPT}).content.decode()
+
+    assert DECISION_INTRO_WITHOUT_REPORTS in content, "The intro for a decision without reports is shown"
+    assert DECISION_INTRO_WITH_REPORTS not in content, "The intro for a decision with reports is not shown"
+    assert (DECISION_LATEX_HINT in content) is latex_hint_expected, "LaTeX is mentioned only if the journal allows it"
+    expected_intro = (
+        f"{DECISION_INTRO_WITHOUT_REPORTS} {DECISION_LATEX_HINT}"
+        if latex_hint_expected
+        else DECISION_INTRO_WITHOUT_REPORTS
+    )
+    assert f'<p class="mb-1">{expected_intro}</p>' in content, "The intro is its own block above the field"
+
+
+@pytest.mark.django_db
+def test_decision_page_with_reports_intro_is_unchanged(
+    client: Client,
+    submitted_review_assignment: WorkflowReviewAssignment,
+):
+    """With a submitted referee report the decision page keeps its original intro."""
+    article = submitted_review_assignment.article
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="reviewer_report_type",
+        journal=article.journal,
+        value="tex",
+    )
+    client.force_login(WjsEditorAssignment.objects.get_current(article).editor)
+    url = reverse("wjs_article_decision", args=(article.articleworkflow.pk,))
+
+    content = client.get(url, {"decision": ArticleWorkflow.Decisions.ACCEPT}).content.decode()
+
+    assert DECISION_INTRO_WITH_REPORTS in content, "The original intro is shown when there are reports"
+    assert DECISION_INTRO_WITHOUT_REPORTS not in content, "The no-reports intro is not shown"
+    assert DECISION_LATEX_HINT not in content, "The LaTeX hint belongs to the no-reports intro only"
+    assert (
+        '<p class="mb-1">The following form includes any reports' in content
+    ), "The intro is its own block above the field"
+
+
 @pytest.mark.django_db
 def test_authors_accordion_shows_author_records(assigned_article: Article):
     """
@@ -1741,3 +2145,18 @@ def test_authors_accordion_shows_author_records(assigned_article: Article):
     assert (
         "https://bsky.app/profile/alice.bsky.social" in rendered
     ), "The socials handle of an account is displayed as a bluesky URL"
+
+
+@pytest.mark.django_db
+def test_get_editor_keywords_ordered_by_weight_then_word(journal, editors, keywords):
+    """The journal editors page lists an editor's keywords highest weight first, then alphabetically."""
+    editor = editors[0]
+    parameters = StaffWorkloadParameters.objects.get(user=editor, journal=journal)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords.get(word="3-keyword"), weight=10)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords.get(word="1-keyword"), weight=50)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords.get(word="2-keyword"), weight=10)
+    StaffKeyword.objects.create(parameters=parameters, keyword=keywords.get(word="0-keyword"), weight=10)
+
+    words = [staff_keyword.keyword.word for staff_keyword in get_editor_keywords(editor, journal)]
+
+    assert words == ["1-keyword", "0-keyword", "2-keyword", "3-keyword"], f"Unexpected keyword order: {words}"

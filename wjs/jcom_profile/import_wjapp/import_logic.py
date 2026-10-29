@@ -13,19 +13,20 @@ import mariadb
 import requests
 from core import files
 from core.middleware import GlobalRequestMiddleware
-from core.models import Account, SupplementaryFile
+from core.models import Account
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core.files import File as DjangoFile
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.html import escape
 from journal.models import Journal
 from plugins.wjs_review import communication_utils
 from plugins.wjs_review.logic import (
     AssignToEditor,
     AssignToReviewer,
-    AuthorHandleRevision,
+    AuthorHandleRevisionObsolete,
     DeselectReviewer,
     EditorRevisionRequest,
     EvaluateReview,
@@ -33,6 +34,7 @@ from plugins.wjs_review.logic import (
     HandleEditorDeclinesAssignment,
     OpenAppeal,
     PermissionAssignment,
+    PressNotificationHandler,
     Reminder,
     SubmitReview,
     SupervisorChangeEditorAssignment,
@@ -63,11 +65,16 @@ from typesetting.models import GalleyProofing, TypesettingAssignment, Typesettin
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
-import wjs.jcom_profile.import_file_manager as import_file_manager
+import wjs.jcom_profile.import_wjapp.import_file_manager as import_file_manager
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
-from wjs.jcom_profile.import_production_hold import release_production_readiness_hold
 from wjs.jcom_profile.import_utils import check_mappings, rome_timezone
+from wjs.jcom_profile.import_wjapp.import_exception_list import (
+    request_proofs_dedup_galley_proofing_applies,
+)
+from wjs.jcom_profile.import_wjapp.import_production_hold import (
+    release_production_readiness_hold,
+)
 from wjs.jcom_profile.permissions import get_hijacker, has_eo_role
 from wjs.jcom_profile.utils import create_rich_fake_request, get_eo_user
 
@@ -80,11 +87,6 @@ logger = get_logger(__name__)
 # In this section are defined global functions and global variables used by the global funcions
 
 # global variables
-
-# to avoid the search and the load of the user notes more times
-# for the same user for the same article
-# the import of the user notes is done when is imported the user account
-user_notes_already_managed_in_this_article = []
 
 # global variable which contains the association wjapp usercod, and wjs account object
 # already imported: {...("usercod1": "account1" ), ...}
@@ -201,7 +203,8 @@ def account_get_or_create_check_correspondence(
         logger.debug(f"found cached user: {already_imported_users[user_cod]}")
         return already_imported_users[user_cod]
 
-    if imported_email == f"{source}_hidden_user@{source}.sissa.it":
+    # JCAP uses for the hidden users this email: jcap_hidden_user@medialab.sissa.it
+    if imported_email == f"{source}_hidden_user@medialab.sissa.it":
         # using the wjapp userCod in the email the same hidden user is identified
         # in Correspondence in unique way after the hiding action on wjapp.
         # Searching in Correspondence with source and user_cod only can find
@@ -271,17 +274,17 @@ def account_get_or_create_check_correspondence(
 
     # import of user notes
     # E.g. JCOM_008A_0324
-    if user_cod not in user_notes_already_managed_in_this_article:
-        user_notes_already_managed_in_this_article.append(user_cod)
-        if usernotes_rows := read_usernotes(user_cod, connection):
-            usernotes = get_usernotes(account, usernotes_rows)
-            # We silently overwrite any pre-existing user-note.
-            # This is safe, because, before import, there are not notes
-            # and new imports are supposed to overwrite previous ones.
-            account.jcomprofile.usernotes = usernotes
-            account.jcomprofile.save()
-            logger.debug(f"saved {len(usernotes_rows)} usernotes for {account.id} {account.full_name()}")
-            account.save()
+    # Only fill usernotes in if still empty - same additive-only rule as gdpr_checkbox above.
+    # A user already imported (from this source or another journal) is left alone: whatever is
+    # already there may be wjapp data from a previous run, or an EO's own manual correction made
+    # since, and either way a later, unrelated article touching the same person must not clobber
+    # it.
+    if not account.jcomprofile.usernotes and (usernotes_rows := read_usernotes(user_cod, connection)):
+        usernotes = get_usernotes(account, usernotes_rows)
+        account.jcomprofile.usernotes = usernotes
+        account.jcomprofile.save()
+        logger.debug(f"saved {len(usernotes_rows)} usernotes for {account.id} {account.full_name()}")
+        account.save()
 
     # saves the account in the global variable used as cache
     already_imported_users[user_cod] = account
@@ -339,6 +342,151 @@ def noop_true(*args, **kwdargs):
 
 def truncate_with_ellipsis(s):
     return textwrap.shorten(s, width=6, placeholder="...")
+
+
+# JCAP's pre-loaded Keyword catalog (see setup-docs/configure_submission's
+# `import_keywords_json .../jcap-kwds.json`) uses Capitalized-first spelling; wjapp's own raw
+# keyword strings are lowercase-first. 117 entries — maps old (lowercase-first) keyword to
+# normalized version. Used by both the article importer (set_keywords) and the standalone editor
+# importer (import_editor_keywords.sync_editor) so the two agree on which pre-loaded Keyword row a
+# given wjapp string matches, instead of the editor path creating an un-normalized duplicate.
+JCAP_KEYWORD_NORMALIZATION = {
+    "astrophysical fluid dynamics": "Astrophysical fluid dynamics",
+    "cosmic magnetic fields theory": "Cosmic magnetic fields theory",
+    "extragalactic magnetic fields": "Extragalactic magnetic fields",
+    "galactic magnetic fields": "Galactic magnetic fields",
+    "magnetic fields": "Magnetic fields",
+    "millisecond pulsars": "Millisecond pulsars",
+    "pulsar magnetosphere": "Pulsar magnetosphere",
+    "radio pulsars": "Radio pulsars",
+    "solar physics": "Solar physics",
+    "cosmological parameters from CMBR": "Cosmological parameters from CMBR",
+    "gravitational waves and CMBR polarization": "Gravitational waves and CMBR polarization",
+    "integrated Sachs-Wolfe effect": "Integrated Sachs-Wolfe effect",
+    "non-gaussianity": "Non-gaussianity",
+    "reionization": "Reionization",
+    "cluster counts": "Cluster counts",
+    "dark energy experiments": "Dark energy experiments",
+    "dark energy theory": "Dark energy theory",
+    "dark matter detectors": "Dark matter detectors",
+    "dark matter experiments": "Dark matter experiments",
+    "dark matter simulations": "Dark matter simulations",
+    "dark matter theory": "Dark matter theory",
+    "galaxy clustering": "Galaxy clustering",
+    "rotation curves of galaxies": "Rotation curves of galaxies",
+    "supernova type Ia - standard candles": "Supernova type Ia - standard candles",
+    "weak gravitational lensing": "Weak gravitational lensing",
+    "alternatives to inflation": "Alternatives to inflation",
+    "axions": "Axions",
+    "baryon asymmetry": "Baryon asymmetry",
+    "big bang nucleosynthesis": "Big bang nucleosynthesis",
+    "cosmic singularity": "Cosmic singularity",
+    "cosmological applications of theories with extra dimensions": "Cosmological applications of theories with extra dimensions",  # noqa E501
+    "cosmological perturbation theory": "Cosmological perturbation theory",
+    "cosmological phase transitions": "Cosmological phase transitions",
+    "cosmology of theories beyond the SM": "Cosmology of theories beyond the SM",
+    "cosmology with extra dimensions": "Cosmology with extra dimensions",
+    "extra dimensions": "Extra dimensions",
+    "inflation": "Inflation",
+    "initial conditions and eternal universe": "Initial conditions and eternal universe",
+    "leptogenesis": "Leptogenesis",
+    "particle physics - cosmology connection": "Particle physics - cosmology connection",
+    "physics of the early universe": "Physics of the early universe",
+    "primordial black holes": "Primordial black holes",
+    "primordial magnetic fields": "Primordial magnetic fields",
+    "quantum cosmology": "Quantum cosmology",
+    "quantum gravity phenomenology": "Quantum gravity phenomenology",
+    "recombination": "Recombination",
+    "string theory and cosmology": "String theory and cosmology",
+    "supersymmetry and cosmology": "Supersymmetry and cosmology",
+    "transplanckian physics": "Transplanckian physics",
+    "dwarfs galaxies": "Dwarfs galaxies",
+    "feedback in galaxies": "Feedback in galaxies",
+    "galaxy dynamics": "Galaxy dynamics",
+    "galaxy evolution": "Galaxy evolution",
+    "galaxy formation": "Galaxy formation",
+    "galaxy morphology": "Galaxy morphology",
+    "galaxy surveys": "Galaxy surveys",
+    "high redshift galaxies": "High redshift galaxies",
+    "hydrodynamical simulations": "Hydrodynamical simulations",
+    "massive black holes": "Massive black holes",
+    "semi-analytic modeling": "Semi-analytic modeling",
+    "gravitational wave detectors": "Gravitational wave detectors",
+    "gravitational waves / experiments": "Gravitational waves / experiments",
+    "gravitational waves / sources": "Gravitational waves / sources",
+    "gravitational waves / theory": "Gravitational waves / theory",
+    "gravity": "Gravity",
+    "modified gravity": "Modified gravity",
+    "primordial gravitational waves  (theory)": "Primordial gravitational waves (theory)",  # also fixes double space # noqa E501
+    "quantum black holes": "Quantum black holes",
+    "quantum field theory on curved space": "Quantum field theory on curved space",
+    "absorption and radiation processes": "Absorption and radiation processes",
+    "accretion": "Accretion",
+    "active galactic nuclei": "Active galactic nuclei",
+    "cosmic ray experiments": "Cosmic ray experiments",
+    "cosmic ray theory": "Cosmic ray theory",
+    "cosmic rays detectors": "Cosmic rays detectors",
+    "gamma ray burst experiments": "Gamma ray burst experiments",
+    "gamma ray bursts theory": "Gamma ray bursts theory",
+    "gamma ray detectors": "Gamma ray detectors",
+    "gamma ray experiments": "Gamma ray experiments",
+    "gamma ray theory": "Gamma ray theory",
+    "particle acceleration": "Particle acceleration",
+    "ultra high energy cosmic rays": "Ultra high energy cosmic rays",
+    "baryon acoustic oscillations": "Baryon acoustic oscillations",
+    "cosmic flows": "Cosmic flows",
+    "cosmic web": "Cosmic web",
+    "cosmological parameters from LSS": "Cosmological parameters from LSS",
+    "cosmological simulations": "Cosmological simulations",
+    "galaxy clusters": "Galaxy clusters",
+    "gravitational lensing": "Gravitational lensing",
+    "intergalactic media": "Intergalactic media",
+    "power spectrum": "Power spectrum",
+    "redshift  surveys": "Redshift surveys",  # also fixes double space # noqa E501
+    "superclusters": "Superclusters",
+    "cosmological neutrinos": "Cosmological neutrinos",
+    "double beta decay": "Double beta decay",
+    "neutrino astronomy": "Neutrino astronomy",
+    "neutrino detectors": "Neutrino detectors",
+    "neutrino experiments": "Neutrino experiments",
+    "neutrino masses from cosmology": "Neutrino masses from cosmology",
+    "neutrino properties": "Neutrino properties",
+    "neutrino theory": "Neutrino theory",
+    "solar and atmospheric neutrinos": "Solar and atmospheric neutrinos",
+    "supernova neutrinos": "Supernova neutrinos",
+    "ultra high energy photons and neutrinos": "Ultra high energy photons and neutrinos",
+    "astrophysical black holes": "Astrophysical black holes",
+    "core-collapse supernovae": "Core-collapse supernovae",
+    "first stars": "First stars",
+    "massive stars": "Massive stars",
+    "neutron stars": "Neutron stars",
+    "star explosions": "Star explosions",
+    "star formation": "Star formation",
+    "stars": "Stars",
+    "supernova dynamics": "Supernova dynamics",
+    "supernova evolution": "Supernova evolution",
+    "supernova remnants": "Supernova remnants",
+    "supernovas": "Supernovas",
+    "white and brown dwarfs": "White and brown dwarfs",
+}
+
+
+def normalize_keyword(journal_code: str, kwd_word: str) -> str:
+    """Normalize a raw wjapp keyword string before matching/creating a WJS Keyword.
+
+    - JCOMAL: wjapp's keyword string packs all three languages separated by ";" - keep the
+      first (English).
+    - JCAP: wjapp's raw strings are lowercase-first; WJS's pre-loaded Keyword catalog (see
+      JCAP_KEYWORD_NORMALIZATION above) is Capitalized. Unrecognized strings pass through
+      unchanged (and will be created as new Keyword rows by the caller - a sign the mapping
+      above needs a new entry).
+    - Other journals: no normalization.
+    """
+    if journal_code.upper() == "JCOMAL":
+        return kwd_word.split(";")[0].strip()
+    if journal_code.upper() == "JCAP":
+        return JCAP_KEYWORD_NORMALIZATION.get(kwd_word, kwd_word)
+    return kwd_word
 
 
 def get_reminders_for_article(article, only_enabled=False, code_startswith=None):
@@ -517,7 +665,7 @@ class ImportPermissionsManager:
                         },
                     )
                     if not created:
-                        pa = permission_type.value
+                        pa.permission = permission_type.value
                         pa.save()
 
                 elif value["type"] in ("CVLETT"):
@@ -1020,6 +1168,24 @@ class BaseActionManager:
             self.connection.close()
             raise Exception
 
+    def fix_pre_withdrawn_state(self):
+        """Fix the state before author/admin withdrawn action."""
+
+        # note: before the admin/author withdrawn action the editor can be set or not.
+        # E.g. editor not set: JCAP_012P_0810
+        # The wjs action WithdrawPreprint manages both cases (editor set or not)
+        # In wjapp, in some cases, the action withdrawn can follow directly the submission
+        # with failed editor assignement without the ED_REF_DOC action
+        # therefore the state must be forced (e.g. JCAP_029P_0211)
+        try:
+            self.check_editor_set()
+        except WjsEditorAssignment.DoesNotExist:
+            self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+            logger.debug(
+                f"missing editor before withdrawn {self.preprintid} / {self.article.id}"
+                f" state forced to {self.article.articleworkflow.state}"
+            )
+
     def read_attachments_data(self):
         """Read wjapp attachments data for the imported version."""
 
@@ -1225,11 +1391,6 @@ class EditorAssignmentAction(BaseActionManager):
         editor_assign_date = self.action["actionDate"]
         editor_maxworkload = self.action["targetEditorWorkload"]
 
-        # TO BE FIXED:
-        #
-        # JCOM_003Y_0821 (version 1 ed null), gives exception because the ADMIN_ASS_N_ED
-        # (SupervisorChangeEditorAssignment) happens when the editor is not assigned
-
         # In wjapp the admin ADMIN_ASS_N_ED is done with two acions:
         # 1. "admin" resets editor "editor" for "preprintid" -> creates new version copying the files
         # 2. "admin selects editor "new editor" for "preprintid"
@@ -1256,15 +1417,22 @@ class EditorAssignmentAction(BaseActionManager):
             editor_parameters = self.read_editor_parameters(editor_cod)
             self.set_editor_parameters(editor_parameters, editor_maxworkload)
 
-            # TO BE FIXED: if in the first version the SYS_ASS_ED does not assign the editor
-            # the files are not imported (i.e.: JCOM_003Y_0821).
-            #
-            # TO BE FIXED: general problem with wjapp reset editor (new version): in this case we should
-            # import all the files of the new version, not of the base version, because the new version can have
-            # for example more attachments of the base version,or the files of the new version could have been
-            # replaced with a maintenance operation.
-            if self.action_triggers_import_files and self.importfiles:
-                import_file_manager.ImportFileManager(self).import_version_files()
+        # File import must not depend on an editor actually being assigned: it is driven only by
+        # the version/action context (self.imported_version_cod etc.), already set regardless of
+        # editor_cod. Keeping this outside the "if editor_cod:" block above fixes SYS_ASS_ED firing
+        # with no editor target (wjapp couldn't auto-assign one) - previously files were silently
+        # never imported for that version (e.g. JCOM_003Y_0821, JCAP_017P_0115), unless some later
+        # unconditional action re-imported them. It also fixes the same gap for SYS_ASS_ED "reused"
+        # after an admin reset-editor (target None again, see comment above): that reused call now
+        # imports its own (new) version's files directly, instead of being skipped like the base
+        # version's files were before.
+        #
+        # Confirmed via SQL that no wjapp versionCod ever has more than one SYS_ASS_ED in its
+        # Action_History, so this can't double-import the same version's files; import_version_files()
+        # is also idempotent by construction (clears source/manuscript files before re-adding) even
+        # if that were to change.
+        if self.action_triggers_import_files and self.importfiles:
+            import_file_manager.ImportFileManager(self).import_version_files()
 
     # TODO: check why new review_round is not created
     def set_editor(
@@ -1379,11 +1547,7 @@ WHERE editorCod=%(editor_cod)s
 
         # create all new editor kwds
         for ep in editor_parameters:
-            kwd_word = ep["keywordName"]
-            # in wjapp-JCOMAL, the keyword string contains all three
-            # languages separated by ";". The first is English.
-            if self.journal.code.upper() == "JCOMAL":
-                kwd_word = kwd_word.split(";")[0].strip()
+            kwd_word = normalize_keyword(self.journal.code, ep["keywordName"].strip())
             kwd_weight = ep["keywordWeight"]
             logger.debug(f"Editor parameter: {kwd_word} {kwd_weight}")
             keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
@@ -1558,6 +1722,7 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
         special_cases = {
             ("JCOM_008A_0125", 2, ArticleWorkflow.ReviewStates.TO_BE_REVISED),
             ("JCOM_004N_1021", 2, ArticleWorkflow.ReviewStates.TO_BE_REVISED),
+            ("JCAP_003P_1104", 2, ArticleWorkflow.ReviewStates.TO_BE_REVISED),
         }
         if (self.preprintid, self.imported_version_num, self.article.articleworkflow.state) in special_cases:
 
@@ -1575,7 +1740,7 @@ class ADMIN_ASS_N_ED(EditorAssignmentAction):  # noqa N801
 
             revision_request = EditorRevisionRequest.objects.get(article=self.article)
             form_data = {"author_note": revision_request.author_note}
-            service = AuthorHandleRevision(
+            service = AuthorHandleRevisionObsolete(
                 revision=revision_request,
                 form_data=form_data,
                 user=self.article.correspondence_author,
@@ -1696,10 +1861,16 @@ class AdminOpensAppealAction(BaseActionManager):  # noqa N801
             # the related message is imported with the general correspondence
             # the automated message is disabled
             OpenAppeal._log_author = noop
+            # check_past_rejection=False: WJS now forbids opening a further appeal once a paper
+            # has already been rejected more than once (see OpenAppeal.check_past_rejection), but
+            # wjapp's older rules allowed it - e.g. appealing again to the same editor who
+            # rejected the paper. We are replaying a wjapp action that already happened under
+            # those older rules, so the current, stricter policy must not be applied retroactively.
             OpenAppeal(
                 new_editor=self.get_current_editor(),
                 article=self.article,
                 request=request,
+                check_past_rejection=False,
             ).run()
 
 
@@ -1732,7 +1903,7 @@ class AU_WITHD_DOC(BaseActionManager):  # noqa N801
             )
             return
 
-        self.check_editor_set()
+        self.fix_pre_withdrawn_state()
         self.author_withdrawn(self.read_author_withdrawn_message())
 
     def author_withdrawn(self, author_withdrawn_message):
@@ -1776,6 +1947,9 @@ class AU_WITHD_DOC(BaseActionManager):  # noqa N801
 
             self.imported_document_layer_cod_list.append(author_withdrawn_message.get("documentLayerCod"))
 
+            # Press notification isn't configured for every journal (e.g. JCAP) - that's expected,
+            # not an import bug, and imported (old) withdrawals must not send any email regardless.
+            PressNotificationHandler.notification_journalpress = noop
             WithdrawPreprint(
                 workflow=self.article.articleworkflow,
                 request=request,
@@ -1832,6 +2006,10 @@ ORDER BY dl.submissionDate
                 ("JCOM_004N_0923", 58000, 12876),
                 ("JCOM_016A_0924", 58626, 12188),
                 ("JCOM_003N_1224", 58899, 13787),
+                # duplicate ATOEE withdraw message resent 3 seconds later (documentLayerCod
+                # 236546/236547), same subject/author list - action's own actionDate matches the
+                # first message exactly.
+                ("JCAP_083P_0618", 40591, 5768),
             }
             if (self.preprintid, self.imported_version_cod, self.action["agentCod"]) in noop_cases:
                 logger.warning(
@@ -1839,6 +2017,12 @@ ORDER BY dl.submissionDate
                     f"and {self.preprintid} version cod: {self.imported_version_cod} (duplicated - known case)."
                 )
                 author_withdrawn_message = cursor_author_withdrawn_message.fetchone()
+            elif self.preprintid == "JCAP_003P_1124" and self.imported_version_num == 2:
+                author_withdrawn_message = cursor_author_withdrawn_message.fetchall()[-1]
+                logger.debug(
+                    f"Found 2 author withdrawn msg taken the last one {self.preprintid}/{self.imported_version_num}"
+                    f" {author_withdrawn_message.get('documentLayerCod')}"
+                )
             else:
                 logger.error(
                     f"Found {cursor_author_withdrawn_message.rowcount} author withdrawn messages"
@@ -1863,12 +2047,7 @@ class AdminWithdrawn(BaseActionManager):  # noqa N801
     def run(self):
         # Admin withdraws paper e.g. JCOM_005A_0224
 
-        noop_cases = {("JCOM_001Y_0821")}
-        if self.preprintid in noop_cases:
-            logger.debug(f"missing editor for {self.preprintid} / {self.article.id} (known case)")
-            self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
-        else:
-            self.check_editor_set()
+        self.fix_pre_withdrawn_state()
 
         admin_cod = self.action["agentCod"]
         admin_lastname = self.action["agentLastname"]
@@ -1906,6 +2085,9 @@ class AdminWithdrawn(BaseActionManager):  # noqa N801
             WithdrawPreprint._log_supervisor = noop
             WithdrawPreprint._log_typesetter = noop
             DeselectReviewer._log_operation = noop
+            # Press notification isn't configured for every journal (e.g. JCAP) - that's expected,
+            # not an import bug, and imported (old) withdrawals must not send any email regardless.
+            PressNotificationHandler.notification_journalpress = noop
             WithdrawPreprint(
                 workflow=self.article.articleworkflow,
                 request=request,
@@ -2012,7 +2194,7 @@ class ED_REF_DOC(BaseActionManager):  # noqa N801
         cursor_editor_decline_message = self.connection.cursor(buffered=True, dictionary=True)
 
         # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
-        # from editor, in a certain time range (5") respect to the action_date
+        # from editor, in a certain time range (15") respect to the action_date
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -2020,9 +2202,32 @@ class ED_REF_DOC(BaseActionManager):  # noqa N801
         #      - exist documentLayerSubject customized by the editor
         #      - imported _version_cod ensures to retrive the correct article
 
+        # wrong message data in source database
+        wrong_editor_decline_messages = {
+            ("JCAP_033P_0622", 57747, 369): {
+                "documentLayerCod": 349064,
+                "documentLayerId": "JCAP_033P_0622_TOADE006280622",
+                "documentLayerText": " --- ",
+            },
+            ("JCAP_019P_0822", 58387, 1913): {
+                "documentLayerCod": 353596,
+                "documentLayerId": "JCAP_019P_0822_TOADE003980822",
+                "documentLayerText": " --- ",
+            },
+        }
+
+        key = (self.preprintid, self.imported_version_cod, self.action["agentCod"])
+        if editor_decline_message := wrong_editor_decline_messages.get(key):
+            logger.debug(
+                f"wrong source editor decline message (same data of previous editor decline message) "
+                f"text cleaned: {self.preprintid}/{self.imported_version_num}"
+            )
+            return editor_decline_message
+
         query_editor_decline_message = """
 SELECT
 dl.documentLayerCod,
+dl.documentLayerId,
 dl.documentLayerText
 FROM Document_Layer dl
 LEFT JOIN User_Rights ur USING (documentLayerCod)
@@ -2033,7 +2238,7 @@ AND ur.userCod=%(agent_cod)s
 AND dl.documentLayerType='TOADE'
 AND ur.userType='author'
 AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 19 SECOND)
 ORDER BY dl.submissionDate
 """
 
@@ -2057,7 +2262,9 @@ ORDER BY dl.submissionDate
                 "action_date": action_date,
             },
         )
-        if cursor_editor_decline_message.rowcount != 1:
+        if cursor_editor_decline_message.rowcount == 1:
+            editor_decline_message = cursor_editor_decline_message.fetchone()
+        else:
             noop_cases = {
                 ("JCOM_009A_0123", 57327, 8475),
             }
@@ -2067,16 +2274,24 @@ ORDER BY dl.submissionDate
                     f"and {self.preprintid} version cod: {self.imported_version_cod} (duplicated - known case)."
                 )
                 editor_decline_message = cursor_editor_decline_message.fetchone()
+
+            elif cursor_editor_decline_message.rowcount > 1:
+                editor_decline_message = cursor_editor_decline_message.fetchone()
+                logger.warning(
+                    f"Found closer in time of {cursor_editor_decline_message.rowcount} editor decline messages"
+                    f" {self.preprintid}/{self.imported_version_num} {editor_decline_message['documentLayerId']}"
+                    f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
+                )
             else:
                 logger.error(
                     f"Found {cursor_editor_decline_message.rowcount} editor decline messages"
+                    f" {self.preprintid}/{self.imported_version_num}"
                     f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
                 )
                 editor_decline_message = None
                 # added for JHEP/JCAP ST
                 raise ValueError("Missing editor decline message")
-        else:
-            editor_decline_message = cursor_editor_decline_message.fetchone()
+
         cursor_editor_decline_message.close()
         return editor_decline_message
 
@@ -2109,6 +2324,20 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
 
         self.check_editor_set()
         editor = reviewer = self.get_current_editor()
+
+        # in wjapp there are cases of ED_ACT_AS_REF for the same reviewer
+        # without the reviewer being removed in between (e.g. JCAP_003P_1213/4)
+        if WorkflowReviewAssignment.objects.filter(
+            article=self.article,
+            reviewer=editor,
+            is_complete=False,
+        ).exists():
+            logger.warning(
+                f"Skip because already existing editor review assignment of {self.article.id} to reviewer {editor.id}"
+                f" {editor.full_name()} {editor.email}"
+            )
+            return
+
         logger.debug(f"Creating review assignment of {self.article.id} to editor as reviewer")
 
         request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
@@ -2122,7 +2351,7 @@ class ED_ACT_AS_REF(BaseActionManager):  # noqa N801
 
             # wjapp does not record a due-date, so we set a fictitious date that simulates what wjs would do
             # using freeze_time now() is refereeAssignDate
-            date_due = timezone.now().date() + datetime.timedelta(days=21)
+            date_due = timezone.localtime(timezone.now()).date() + datetime.timedelta(days=21)
 
             form_data = {
                 "acceptance_due_date": date_due,
@@ -2293,7 +2522,7 @@ ORDER BY assignDate
 
         # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
         # from editor, in a certain time range respect to the action_date
-        # time range fixed from 5" to 7" due to JCOM_002N_1224
+        # time range fixed to 42 (e.g. JCAP_031P_0315)"
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -2304,6 +2533,7 @@ ORDER BY assignDate
         query_reviewer_message = """
 SELECT
 dl.documentLayerCod,
+dl.documentLayerId,
 dl.documentLayerText
 FROM Document_Layer dl
 LEFT JOIN User_Rights ur USING (documentLayerCod)
@@ -2314,7 +2544,7 @@ AND ur.userCod=%(user_cod)s
 AND dl.documentLayerType='EMAIL'
 AND ur.userType='recipient'
 AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 7 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 42 SECOND)
 ORDER BY dl.submissionDate
 """
 
@@ -2330,22 +2560,6 @@ ORDER BY dl.submissionDate
             action_date = "20161017151904"
             logger.debug(f"fixed reviewer assignment msg timing {self.preprintid}")
 
-        if (
-            self.preprintid == "JCOM_007A_1216"
-            and self.imported_version_cod == 53463
-            and self.action["targetCod"] == 8901
-        ):
-            action_date = "20161214104653"
-            logger.debug(f"fixed reviewer assignment msg timing {self.preprintid}")
-
-        if (
-            self.preprintid == "JCOM_003A_0517"
-            and self.imported_version_cod == 53648
-            and self.action["targetCod"] == 9422
-        ):
-            action_date = "20170508151606"
-            logger.debug(f"fixed reviewer assignment msg timing {self.preprintid}")
-
         cursor_reviewer_message.execute(
             query_reviewer_message,
             {
@@ -2354,13 +2568,35 @@ ORDER BY dl.submissionDate
                 "action_date": action_date,
             },
         )
-        if cursor_reviewer_message.rowcount != 1:
-            logger.error(f"Found {cursor_reviewer_message.rowcount} reviewer assignment messages: {self.preprintid}")
-            reviewer_message = None
-            # added for JHEP/JCAP ST
-            raise ValueError("Not found reviewer assignment message")
-        else:
+        if cursor_reviewer_message.rowcount == 1:
             reviewer_message = cursor_reviewer_message.fetchone()
+            logger.debug(
+                f"Found 1 reviewer assignment message: {self.preprintid}/{self.imported_version_num}"
+                f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
+            )
+        elif cursor_reviewer_message.rowcount > 1:
+            # the query is oredered by submissionDate
+            # so is taken the closer in time to the action date
+            reviewer_message = cursor_reviewer_message.fetchone()
+            logger.warning(
+                f"Found closer in time of {cursor_reviewer_message.rowcount} reviewer assignment messages"
+                f" {self.preprintid}/{self.imported_version_num} {reviewer_message['documentLayerId']}"
+                f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
+            )
+        elif cursor_reviewer_message.rowcount == 0:
+            logger.warning(
+                f"Found 0 reviewer assignment messages, fallback empty message for: {self.preprintid}/"
+                f"{self.imported_version_num} with agent {self.action['agentCod']} "
+                f"and date {self.action['actionDate']}"
+            )
+            # fallback, signaled with a warning, in some cases e.g. JCAP_127P_0725
+            # the message does not exists and is replaced by a direct message to the reviewer
+            # which is in any case loaded as correspondence
+            reviewer_message = {
+                "documentLayerCod": 0,
+                "documentLayerText": "",
+            }
+
         cursor_reviewer_message.close()
         return reviewer_message
 
@@ -2376,7 +2612,24 @@ ORDER BY dl.submissionDate
             reviewer_data["refereePrivacy"],
             self.connection,
         )
-        logger.debug(f"Creating review assignment of {self.article.id} to reviewer {reviewer}")
+
+        # in wjapp there are cases of review assignment for the same reviewer (actions ED_ASS_REF...ED_ADD_REF)
+        # without the reviewer being removed in between (e.g. JCAP_008P_0410/1, JCAP_010P_0819/2)
+        if WorkflowReviewAssignment.objects.filter(
+            article=self.article,
+            reviewer=reviewer,
+            is_complete=False,
+        ).exists():
+            logger.warning(
+                f"Skip because already existing review assignment of {self.article.id} to reviewer {reviewer.id}"
+                f" {reviewer.full_name()} {reviewer.email}"
+            )
+            return
+
+        logger.debug(
+            f"Creating review assignment of {self.article.id} to reviewer {reviewer.id}"
+            f" {reviewer.full_name()} {reviewer.email}"
+        )
 
         request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = self.get_current_editor()
@@ -2395,7 +2648,9 @@ ORDER BY dl.submissionDate
             )
             # wjapp does not record a due-date, so we set a fictitious date that simulates what wjs would do
             # using freeze_time now() is refereeAssignDate
-            date_due = timezone.now().date() + datetime.timedelta(days=interval_days.process_value())
+            date_due = timezone.localtime(timezone.now()).date() + datetime.timedelta(
+                days=interval_days.process_value()
+            )
 
             if reviewer_message:
                 message = newlines_text_to_html(reviewer_message.get("documentLayerText"))
@@ -2424,12 +2679,15 @@ ORDER BY dl.submissionDate
                 "message": message,
             }
 
+            # check_reviewer_author=False: some old wjapp papers actually have an author
+            # assigned as reviewer, and we must replay that history as-is.
             review_assignment = AssignToReviewer(
                 reviewer=reviewer,
                 workflow=self.article.articleworkflow,
                 editor=self.get_current_editor(),
                 form_data=form_data,
                 request=request,
+                check_reviewer_author=False,
             ).run()
 
             # refereeAcceptDate = 1970-01-02 01:00:00 from wjapp means "refereeAcceptDate not set"
@@ -2450,7 +2708,7 @@ ORDER BY dl.submissionDate
                             "reviewer_decision": "1",
                             "additional_comments": "",
                             "accept_gdpr": True,
-                            "date_due": timezone.now().date() + datetime.timedelta(days=21),
+                            "date_due": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=21),
                         },
                         request=request,
                         token=None,
@@ -2683,7 +2941,6 @@ class DeselectReviewerAction(BaseActionManager):
         request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = self.get_current_editor()
 
-        # deselect reviewer message
         deselect_reviewer_message = self.read_deselect_reviewer_message()
 
         with freezegun.freeze_time(
@@ -2718,8 +2975,8 @@ class DeselectReviewerAction(BaseActionManager):
         )
 
         # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
-        # from editor, in a certain time range (6") respect to the action_date
-        # e.g. 6" delay JCOM_009A_0124  actionDate:  2024-04-01 16:54:02 docLayer submissionDate 2024-04-01 16:54:07
+        # from editor, in a certain time range (60") respect to the action_date
+        # e.g. 58" delay to match JCAP_058P_0416
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -2741,7 +2998,7 @@ AND ur.userCod=%(user_cod)s
 AND dl.documentLayerType='EMAIL'
 AND ur.userType='recipient'
 AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 6 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 58 SECOND)
 ORDER BY dl.submissionDate
 """
 
@@ -2773,7 +3030,11 @@ ORDER BY dl.submissionDate
                 "action_date": action_date,
             },
         )
-        if cursor_deselect_reviewer_message.rowcount != 1:
+
+        if cursor_deselect_reviewer_message.rowcount == 1:
+            deselect_reviewer_message = cursor_deselect_reviewer_message.fetchone()
+            logger.debug(f"Found 1 deselect reviewer message: {self.preprintid}" f"/{self.imported_version_cod}")
+        elif cursor_deselect_reviewer_message.rowcount > 1:
             noop_cases = {
                 ("JCOM_002C_1216", 53455, 8528),
             }
@@ -2784,14 +3045,15 @@ ORDER BY dl.submissionDate
                 )
                 deselect_reviewer_message = cursor_deselect_reviewer_message.fetchone()
             else:
-                logger.error(
-                    f"Found {cursor_deselect_reviewer_message.rowcount} deselect reviewer messages: {self.preprintid}"
+                logger.warning(
+                    f"Found {cursor_deselect_reviewer_message.rowcount} deselect reviewer messages taken the most"
+                    f" recent one: {self.preprintid}/{self.imported_version_cod}"
                 )
-                deselect_reviewer_message = None
-                # added for JHEP/JCAP ST
-                raise ValueError("Not found deselect reviewer message")
+                deselect_reviewer_message = cursor_deselect_reviewer_message.fetchone()
         else:
-            deselect_reviewer_message = cursor_deselect_reviewer_message.fetchone()
+            # added for JHEP/JCAP ST
+            raise ValueError("Not found deselect reviewer message")
+
         cursor_deselect_reviewer_message.close()
 
         return deselect_reviewer_message
@@ -2847,7 +3109,7 @@ class ReviewerDeclineAction(BaseActionManager):
 
         # in wjapp we don't know why a certain message EMAIL was sent to someone. So we make a list of all messages
         # from editor, in a certain time range respect to the action_date
-        # time range fixed from 5" to 7" due to JCOM_010A_1224
+        # time range fixed to 48 (JCAP_044P_0716_EMAIL021040716)"
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -2866,9 +3128,10 @@ WHERE
     versioncod=%(imported_version_cod)s
 AND ur.userCod=%(agent_cod)s
 AND dl.documentLayerType='EMAIL'
+AND dl.documentLayerSubject LIKE 'Referee declines assignment%'
 AND ur.userType='author'
 AND dl.submissionDate>=%(action_date)s
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 7 SECOND)
+AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 48 SECOND)
 ORDER BY dl.submissionDate
 """
 
@@ -2900,15 +3163,28 @@ ORDER BY dl.submissionDate
                 "action_date": action_date,
             },
         )
-        if cursor_reviewer_decline_message.rowcount != 1:
-            logger.error(
-                f"Found {cursor_reviewer_decline_message.rowcount} reviewer decline messages: {self.preprintid}"
-            )
-            reviewer_decline_message = None
-            # added for JHEP/JCAP ST
-            raise ValueError("Not found reviewer decline message")
-        else:
+
+        if cursor_reviewer_decline_message.rowcount == 1:
             reviewer_decline_message = cursor_reviewer_decline_message.fetchone()
+            logger.debug(f"Found 1 reviewer decline message: {self.preprintid}/{self.imported_version_num}")
+        elif cursor_reviewer_decline_message.rowcount > 1:
+            reviewer_decline_message = cursor_reviewer_decline_message.fetchone()
+            logger.debug(
+                f"Found {cursor_reviewer_decline_message.rowcount} reviewer decline message "
+                f"taken the most recent one: {self.preprintid}/{self.imported_version_num}"
+            )
+        else:
+            logger.warning(
+                f"Found 0 reviewer decline message: for {self.preprintid}/{self.imported_version_num}"
+                f" with agent {self.action['agentCod']} and date {self.action['actionDate']}"
+            )
+            # fallback, signaled with a warning, in some cases e.g. JCAP_019P_0506
+            # the message does not exists
+            reviewer_decline_message = {
+                "documentLayerCod": 0,
+                "documentLayerText": "",
+            }
+
         cursor_reviewer_decline_message.close()
         return reviewer_decline_message
 
@@ -3032,7 +3308,8 @@ class REF_SENDS_REP(BaseActionManager):  # noqa N801
         cursor_reviewer_report_message = self.connection.cursor(buffered=True, dictionary=True)
 
         # in wjapp a certain message is not directly linked to an action. So we make a list of REREP
-        # from the reviewer, in a certain time range (-10" +5") respect to the action_date
+        # from the reviewer, taking the closer in time to the action_date if two. If more than two
+        # or zero raise an exception
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -3044,7 +3321,8 @@ SELECT
 dl.documentLayerCod,
 dl.documentLayerId,
 dl.documentLayerText,
-dl.documentLayerOnlyTex
+dl.documentLayerOnlyTex,
+dl.submissionDate
 FROM Document_Layer dl
 LEFT JOIN User_Rights ur USING (documentLayerCod)
 LEFT JOIN User u USING (userCod)
@@ -3053,8 +3331,6 @@ WHERE
 AND ur.userCod=%(agent_cod)s
 AND dl.documentLayerType='REREP'
 AND ur.userType='author'
-AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
 ORDER BY dl.submissionDate
 """
 
@@ -3078,13 +3354,52 @@ ORDER BY dl.submissionDate
                 "action_date": action_date,
             },
         )
-        if cursor_reviewer_report_message.rowcount != 1:
-            logger.error(f"Found {cursor_reviewer_report_message.rowcount} reviewer report: {self.preprintid}")
+        if cursor_reviewer_report_message.rowcount == 0:
+            logger.error(
+                f"Found {cursor_reviewer_report_message.rowcount}"
+                f" reviewer report: {self.preprintid}/{self.imported_version_num}"
+            )
             reviewer_report_message = None
             # added for JHEP/JCAP ST
             raise ValueError("Not found reviewer report message")
+        elif cursor_reviewer_report_message.rowcount > 2 and self.preprintid == "JCAP_022P_1205":
+            # This action could not be repeated in wjapp - a bug with missing state control plus
+            # stale browser-cached form data let the referee resubmit the same report 6 times
+            # within ~5 minutes. Take the most recent one (the query orders by submissionDate).
+            rows = cursor_reviewer_report_message.fetchall()
+            reviewer_report_message = rows[-1]
+            logger.warning(
+                f"Found {cursor_reviewer_report_message.rowcount} reviewer report (known repeated"
+                f" submission bug), using the most recent {reviewer_report_message['documentLayerId']}"
+                f" agent {self.action['agentCod']} for {self.preprintid}/{self.imported_version_num}"
+            )
+        elif cursor_reviewer_report_message.rowcount > 2:
+            logger.error(
+                f"Found {cursor_reviewer_report_message.rowcount}"
+                f" reviewer report: {self.preprintid}/{self.imported_version_num}"
+            )
+            reviewer_report_message = None
+            # added for JHEP/JCAP ST
+            raise ValueError("Not found reviewer report message")
+        elif cursor_reviewer_report_message.rowcount == 2:
+            fmt = "%Y%m%d%H%M%S"
+            action_dt = datetime.strptime(action_date, fmt)
+            rows = cursor_reviewer_report_message.fetchall()
+            sd1 = datetime.strptime(rows[0]["submissionDate"], fmt)
+            sd2 = datetime.strptime(rows[1]["submissionDate"], fmt)
+            diff1 = abs((sd1 - action_dt).total_seconds())
+            diff2 = abs((sd2 - action_dt).total_seconds())
+            reviewer_report_message = rows[0] if diff1 <= diff2 else rows[1]
+            logger.debug(
+                f"Found closer in time of two reviewer report {reviewer_report_message['documentLayerId']}"
+                f" agent {self.action['agentCod']} for {self.preprintid}/{self.imported_version_num}"
+            )
         else:
             reviewer_report_message = cursor_reviewer_report_message.fetchone()
+            logger.debug(
+                f"Found reviewer report {reviewer_report_message['documentLayerId']}"
+                f" agent {self.action['agentCod']} {self.preprintid}/{self.imported_version_num}"
+            )
         cursor_reviewer_report_message.close()
         return reviewer_report_message
 
@@ -3124,16 +3439,28 @@ ORDER BY dl.submissionDate
 
         # the (current) default review form element "Cover letter (for the Editor in charge)""
         # is a WjsMiniHTMLFormField. Text from wjapp must not be formatted to html.
-        formatted_cover_letter_message = wjapp_report.get("documentLayerText")
+        # unlike author_review, editor_cover_letter has no plain-text ("_tex") sibling field, so this
+        # value always goes through bleach.clean(). An unescaped "<" followed by a letter, with no
+        # later ">" in the string, makes bleach's tokenizer silently drop everything after it (same
+        # failure mode fixed for author_review_tex) - escape it here so bleach never sees a raw "<".
+        raw_cover_letter_message = wjapp_report.get("documentLayerText")
+        formatted_cover_letter_message = (
+            escape(raw_cover_letter_message) if raw_cover_letter_message else raw_cover_letter_message
+        )
 
-        # the (current) default review form element "Review (for the Author)"
-        # is a WjsMiniHTMLFormField. Text from wjapp must not be formatted to html.
-        formatted_report_message = wjapp_report.get("documentLayerOnlyTex")
+        # Use author_review_tex (plain CharField, no bleach sanitization) instead of author_review
+        # (WjsMiniHTMLFormField): the latter runs the text through bleach.clean(), which silently
+        # truncates it at the first unterminated "<" (common in LaTeX source).
+        # not reliable: formatted_report_message = wjapp_report.get("documentLayerOnlyTex")
+
+        formatted_report_message = import_file_manager.ImportFileManager(self).import_rerep_file_source(
+            wjapp_report.get("documentLayerId")
+        )
 
         # we leave empty those fields that don't exist in wjapp and
         # that do not have a "mandatory" value (such as no-conflict-of-interests).
 
-        report_form = get_report_form(self.journal)
+        report_form = get_report_form(self.journal.code)
 
         # with the data in this example the form would be valid, but the imported report
         # have not this data. The Key error on the template report_form_summary.html
@@ -3152,11 +3479,15 @@ ORDER BY dl.submissionDate
         jcom_report_form_data = {
             "conflict_of_interest": "no",
             "editor_cover_letter": formatted_cover_letter_message,
-            "author_review": formatted_report_message,
+            "author_review_tex": formatted_report_message,
         }
 
         form = report_form(
-            data=jcom_report_form_data, review_assignment=review_assignment, request=request, submit_final=True
+            data=jcom_report_form_data,
+            review_assignment=review_assignment,
+            request=request,
+            submit_final=True,
+            journal=self.journal,
         )
 
         # form is not valid because missing required fields
@@ -3194,7 +3525,7 @@ ORDER BY dl.submissionDate
                     wra.article,
                     wra.reviewer,
                 )
-                wra.review_file = new_file
+                wra.tex_report_pdf = new_file
                 wra.save()
 
             editor_message_subject = render_template_from_setting(
@@ -3323,7 +3654,7 @@ class EditorDecisionAction(BaseActionManager):
         cursor_editor_report_message = self.connection.cursor(buffered=True, dictionary=True)
 
         # in wjapp a certain message is not directly linked to an action. So we make a list of EDREP
-        # from the editor, in a certain time range (-10" +5") respect to the action_date
+        # from the editor. If two edrep, we take the closer in time, if more than two or zero raise an exception
 
         # NOTE: condition on documentLayerSubject not used because:
         #      - wjapp maintenace "change documentType" let old preprintid in
@@ -3335,7 +3666,8 @@ SELECT
 dl.documentLayerCod,
 dl.documentLayerId,
 dl.documentLayerText,
-dl.documentLayerOnlyTex
+dl.documentLayerOnlyTex,
+dl.submissionDate
 FROM Document_Layer dl
 LEFT JOIN User_Rights ur USING (documentLayerCod)
 LEFT JOIN User u USING (userCod)
@@ -3344,11 +3676,10 @@ WHERE
 AND ur.userCod=%(agent_cod)s
 AND dl.documentLayerType='EDREP'
 AND ur.userType='author'
-AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 5 SECOND)
 ORDER BY dl.submissionDate
 """
 
+        action_date = str(self.action["actionDate"])
         cursor_editor_report_message.execute(
             query_editor_report_message,
             {
@@ -3357,16 +3688,42 @@ ORDER BY dl.submissionDate
                 "action_date": str(self.action["actionDate"]),
             },
         )
-        if cursor_editor_report_message.rowcount != 1:
-            logger.error(f"Found {cursor_editor_report_message.rowcount} editor report: {self.preprintid}")
+        if cursor_editor_report_message.rowcount == 0:
+            logger.error(
+                f"Found {cursor_editor_report_message.rowcount}"
+                f" editor report: {self.preprintid}/{self.imported_version_num}"
+            )
             editor_report_message = None
             # added for JHEP/JCAP ST
             raise ValueError("Not found editor report")
+        elif cursor_editor_report_message.rowcount > 2:
+            logger.error(
+                f"Found {cursor_editor_report_message.rowcount}"
+                f" editor report: {self.preprintid}/{self.imported_version_num}"
+            )
+            editor_report_message = None
+            # added for JHEP/JCAP ST
+            raise ValueError("Not found editor report")
+        elif cursor_editor_report_message.rowcount == 2:
+            fmt = "%Y%m%d%H%M%S"
+            action_dt = datetime.strptime(action_date, fmt)
+            rows = cursor_editor_report_message.fetchall()
+            sd1 = datetime.strptime(rows[0]["submissionDate"], fmt)
+            sd2 = datetime.strptime(rows[1]["submissionDate"], fmt)
+            diff1 = abs((sd1 - action_dt).total_seconds())
+            diff2 = abs((sd2 - action_dt).total_seconds())
+            editor_report_message = rows[0] if diff1 <= diff2 else rows[1]
+            logger.debug(
+                f"Found closer in time of two editor report {editor_report_message['documentLayerId']}"
+                f" agent {self.action['agentCod']} for {self.preprintid}/{self.imported_version_num}"
+            )
         else:
             editor_report_message = cursor_editor_report_message.fetchone()
-            logger.debug(f"{self.preprintid} EDREP: {editor_report_message.get('documentLayerCod')}")
+            logger.debug(
+                f"Found editor report {editor_report_message.get('documentLayerId')}"
+                f" agent {self.action['agentCod']} {self.preprintid}/{self.imported_version_num}"
+            )
         cursor_editor_report_message.close()
-
         return editor_report_message
 
     def editor_decides(self):
@@ -3388,7 +3745,7 @@ ORDER BY dl.submissionDate
             and self.preprintid == "JCOMAL_001A_1018"
             and wjapp_editor_report.get("documentLayerCod") == 7
         ):
-            wjapp_editor_report_message = newlines_text_to_html(
+            wjapp_editor_report_source = newlines_text_to_html(
                 str(self.download_edrep_file("JCOMAL_001A_1018_EDREP000071018"))
             )
             logger.warning(
@@ -3400,15 +3757,25 @@ ORDER BY dl.submissionDate
             # As temporary solution the content of the file edrep.tex is attached to the text cover
             # letter of wjapp edrep to bulid the entire "editor report message"
             logger.debug(f"{wjapp_editor_report.get('documentLayerId')=}")
-            wjapp_editor_report_message = newlines_text_to_html(
-                import_file_manager.ImportFileManager(self).import_edrep_file_source(
-                    wjapp_editor_report.get("documentLayerId")
-                )
+
+            wjapp_editor_report_source = import_file_manager.ImportFileManager(self).import_edrep_file_source(
+                wjapp_editor_report.get("documentLayerId")
             )
 
-        editor_report_message = "<br><br><br><br>".join(
-            filter(None, [wjapp_editor_cover_letter_message, wjapp_editor_report_message])
-        )
+            # retuns a DjangoFile
+            wjapp_editor_report_pdf = import_file_manager.ImportFileManager(self).import_edrep_file_pdf(
+                wjapp_editor_report.get("documentLayerId")
+            )
+            if wjapp_editor_report_pdf:
+                assignment = WjsEditorAssignment.objects.get_current(self.article)
+                generated_pdf_jf = files.save_file_to_article(
+                    file_to_handle=wjapp_editor_report_pdf,
+                    article=self.article,
+                    owner=self.get_current_editor(),
+                    label="Editor report PDF",
+                )
+                assignment.editor_report_pdf_draft = generated_pdf_jf
+                assignment.save()
 
         request = create_rich_fake_request(user=None, journal=self.journal, settings=settings)
         request.user = self.get_current_editor()
@@ -3439,7 +3806,7 @@ ORDER BY dl.submissionDate
                     object_id=review_assignment.id,
                 ).delete()
 
-            date_due = timezone.now().date()
+            date_due = timezone.localtime(timezone.now()).date()
             if self.requires_revision:
                 date_due = date_due + datetime.timedelta(days=self.revision_interval_days)
 
@@ -3455,9 +3822,14 @@ ORDER BY dl.submissionDate
                     date_due = self.document_revision_dead_line
 
             # TBV: date_due has to be set in the form in the case of rejection?
+            # TBV: HandleDecision bypasses DecisionForm/bleach, so this raw LaTeX text is saved as-is
+            # (no truncation on import). But review_decision.html renders decision_editor_report|safe
+            # into the shared modal.html (also |safe), so an unescaped "<" in the LaTeX source will
+            # still get silently dropped by the browser when displayed - same failure mode as
+            # author_review_tex, pending the shared modal.html fix from wjs-develop.
             form_data = {
                 "decision": self.editor_decision,
-                "decision_editor_report": editor_report_message,
+                "decision_editor_report": wjapp_editor_report_source,
                 "withdraw_notice": "notice",
                 "date_due": date_due,
             }
@@ -3496,7 +3868,7 @@ ORDER BY dl.submissionDate
             communication_utils.log_operation(
                 article=self.article,
                 message_subject=f"{message_timeline}",
-                message_body="",
+                message_body=wjapp_editor_cover_letter_message,
                 actor=self.get_current_editor(),
                 recipients=[self.article.correspondence_author],
                 verbosity=Message.MessageVerbosity.TIMELINE,
@@ -3655,7 +4027,7 @@ class AuthorSubmitRevisionAction(BaseActionManager):
             # the automated message is not disabled on purpose to have
             # the timeline
             # AuthorHandleRevision._log_operation = noop #noqa
-            service = AuthorHandleRevision(
+            service = AuthorHandleRevisionObsolete(
                 revision=revision_request,
                 form_data=form_data,
                 user=self.article.correspondence_author,
@@ -3665,15 +4037,28 @@ class AuthorSubmitRevisionAction(BaseActionManager):
 
         self.article.refresh_from_db()
 
-        self.imported_document_layer_cod_list.append(author_note.get("documentLayerCod"))
+        if author_note.get("documentLayerCod") != 0:
+            self.imported_document_layer_cod_list.append(author_note.get("documentLayerCod"))
 
-        # EditorRevisionRequest.author_note contains the author cover letter
-        self.imported_doclayer_check_visibility[author_note.get("documentLayerCod")] = {
-            "obj": revision,
-            "type": "CVLETT",
+            # EditorRevisionRequest.author_note contains the author cover letter
+            self.imported_doclayer_check_visibility[author_note.get("documentLayerCod")] = {
+                "obj": revision,
+                "type": "CVLETT",
+            }
+
+        # JCAP_080P_1026/1, actHistCod 501607: this AU_CONF_VER is a relabel of the real
+        # ADMIN_RESETS_ED (import_specific_corrections.py), used only to supply the missing
+        # UNDER_APPEAL -> EDITOR_SELECTED transition for the reject+appeal correction - it is
+        # not a real new-version file submission. Per wjapp's own data it still belongs to
+        # version 1 (confirmed via SQL), whose files were already imported earlier in this same
+        # version's processing, so re-running import_version_files() here would try to rebuild
+        # the same build_archive_dir/zip a second time and crash with FileExistsError.
+        skip_file_reimport_cases = {
+            ("JCAP_080P_1026", 1, 501607),
         }
-
-        if self.importfiles:
+        if self.importfiles and (self.preprintid, self.imported_version_num, self.action["actHistCod"]) not in (
+            skip_file_reimport_cases
+        ):
             import_file_manager.ImportFileManager(self).import_version_files()
 
         self.check_and_fix_all_reminder()
@@ -3703,8 +4088,6 @@ WHERE
 AND ur.userCod=%(agent_cod)s
 AND dl.documentLayerType='CVLETT'
 AND ur.userType='author'
-AND dl.submissionDate>DATE_SUB(%(action_date)s, INTERVAL 10 SECOND)
-AND dl.submissionDate<DATE_ADD(%(action_date)s, INTERVAL 6 SECOND)
 ORDER BY dl.submissionDate
 """
 
@@ -3737,14 +4120,163 @@ ORDER BY dl.submissionDate
                 "action_date": action_date,
             },
         )
-        if cursor_cover_letter_message.rowcount != 1:
-            logger.error(f"Found {cursor_cover_letter_message.rowcount} cover letter: {self.preprintid}")
-            cover_letter_message = None
-            # added for JHEP/JCAP ST
-            raise ValueError("Not found cover letter")
-        else:
+        if cursor_cover_letter_message.rowcount == 1:
             cover_letter_message = cursor_cover_letter_message.fetchone()
-            logger.debug(f"{self.preprintid} CVLETT: {cover_letter_message.get('documentLayerCod')}")
+            logger.debug(
+                f"Found 1 cover letter {self.preprintid}/{self.imported_version_cod}"
+                f" {cover_letter_message.get('documentLayerCod')}"
+            )
+        elif cursor_cover_letter_message.rowcount > 1:
+            if self.preprintid == "JCAP_061P_0524" and self.imported_version_num == 2:
+                cover_letter_message = cursor_cover_letter_message.fetchall()[-1]
+                logger.debug(
+                    f"Found 2 cover letter taken the last one {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_009P_1023" and self.imported_version_cod == 66001:
+                # 6 cover letters share this versionCod (this reader has no date-window filter, so
+                # it also picks up later resubmission attempts wjapp filed under the same version)
+                # - the action's own actionDate (2024-01-19 18:57:59) matches the first one
+                # (documentLayerCod 403108) exactly.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_078P_1022" and self.imported_version_cod == 61580:
+                # Same misfiled-cover-letter pattern as JCAP_009P_1023: version 2's real AU_SUB_REV
+                # (actionDate 2023-03-31 16:04:32) matches the first cover letter (documentLayerCod
+                # 373912, submitted 2023-03-31 16:04:32) exactly. The second one (377551, submitted
+                # 2023-05-11 16:15:43) actually belongs to version 3's own resubmission - it sits 5
+                # minutes before version 3's AU_SUB_REV_WMC (2023-05-11 16:20:35), which already has
+                # its own correct, separate cover letter (377552) - but was filed under version 2's
+                # versionCod in wjapp by mistake.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_057P_0621" and self.imported_version_cod == 54520:
+                # Same misfiled-cover-letter pattern as JCAP_078P_1022/JCAP_009P_1023: version 2's
+                # real AU_SUB_REV (actionDate 2021-09-15 17:12:38) matches the first cover letter
+                # (documentLayerCod 328199, submitted 2021-09-15 17:12:38) exactly. The second one
+                # (331019, submitted 2021-10-18 17:39:19) actually belongs to version 3's own
+                # resubmission - it sits 10 minutes before version 3's AU_SUB_REV_WMC (2021-10-18
+                # 17:49:28) - but was filed under version 2's versionCod in wjapp by mistake.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_099P_0619" and self.imported_version_cod == 44999:
+                # Same misfiled-cover-letter pattern: version 2's real AU_SUB_REV (actionDate
+                # 2019-08-14 15:26:14) matches the first cover letter (documentLayerCod 264911,
+                # submitted 2019-08-14 15:26:14) exactly. The second one (267456, submitted
+                # 2019-09-17 09:30:18) belongs to version 3's own resubmission, misfiled under
+                # version 2's versionCod in wjapp.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_099P_0619" and self.imported_version_cod == 45344:
+                # Version 3's real AU_SUB_REV_WMC (actionDate 2019-09-17 09:35:41) matches the
+                # first of 4 cover letters sharing this versionCod (documentLayerCod 267457,
+                # submitted 2019-09-17 09:35:41) exactly. The other 3 (267920/267921/267923, all
+                # submitted 2019-09-21) belong to a later resubmission attempt, misfiled under
+                # version 3's versionCod in wjapp.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_060P_1018" and self.imported_version_cod == 44652:
+                # Same misfiled-cover-letter pattern: version 3's real AU_SUB_REV (actionDate
+                # 2019-07-11 22:27:22) matches the first cover letter (documentLayerCod 262302,
+                # submitted 2019-07-11 22:27:23 - 1 second later, not exact like the other cases,
+                # but still the obvious match). The second one (270227, submitted 2019-10-17
+                # 06:47:50, 3+ months later) belongs to a later resubmission attempt, misfiled
+                # under version 3's versionCod in wjapp.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_005P_0719" and self.imported_version_cod == 45640:
+                # Same misfiled-cover-letter pattern: version 2's real AU_SUB_REV (actionDate
+                # 2019-10-07 16:13:51) matches the first cover letter (documentLayerCod 269422,
+                # submitted 2019-10-07 16:13:51) exactly. The second one (273897, submitted
+                # 2019-11-29 02:38:25) belongs to version 3's own resubmission, misfiled under
+                # version 2's versionCod in wjapp.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_006P_0312" and self.imported_version_cod == 16513:
+                # Version 2's real AU_CONF_VER (actionDate 2012-05-16 10:55:44) matches the
+                # first of 4 cover letters sharing this versionCod (documentLayerCod 90616,
+                # submitted 2012-05-16 10:55:44) exactly. The other 3 (92804/92808/92817, all
+                # submitted 2012-06-26 morning/early afternoon) are NOT version 3's cover letter
+                # either - version 3 has its own, separately-filed one (documentLayerCod 92829,
+                # versionCod 16873, submitted 2012-06-26 14:30:02, matching the wjapp UI exactly)
+                # - these 3 are genuinely orphaned duplicate/retry submissions, misfiled under
+                # version 2's versionCod and not referenced by either version's real resolution.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_017P_0712" and self.imported_version_cod == 17701:
+                # Same misfiled-cover-letter pattern: version 2's real AU_SUB_REV (actionDate
+                # 2012-09-27 17:58:49) matches the first of 5 cover letters sharing this
+                # versionCod (documentLayerCod 97760, submitted 2012-09-27 17:58:49) exactly.
+                # The other 4 (99016/99017/99018/99019, all submitted 2012-10-22) belong to a
+                # later resubmission attempt, misfiled under version 2's versionCod in wjapp.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            elif self.preprintid == "JCAP_034P_0712" and self.imported_version_cod == 17560:
+                # Same misfiled-cover-letter pattern: version 2's real AU_SUB_REV_WMC (actionDate
+                # 2012-09-10 17:55:13) matches the first cover letter (documentLayerCod 96862,
+                # submitted 2012-09-10 17:55:13) exactly. The second one (98808, submitted
+                # 2012-10-17 17:14:30) belongs to a later resubmission attempt, misfiled under
+                # version 2's versionCod in wjapp.
+                cover_letter_message = cursor_cover_letter_message.fetchall()[0]
+                logger.debug(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letters, taken the one matching "
+                    f"the action date {self.preprintid}/{self.imported_version_num}"
+                    f" {cover_letter_message.get('documentLayerCod')}"
+                )
+            else:
+                logger.error(
+                    f"Found {cursor_cover_letter_message.rowcount} cover letter: "
+                    f"{self.preprintid}/{self.imported_version_cod}"
+                )
+                cover_letter_message = None
+                # added for JHEP/JCAP ST
+                raise ValueError("Not found cover letter")
+        else:
+            # fallback, signaled with a warning, in some cases
+            # the cover letter documentLayer of type CVLETT for the author does not exists.
+            # the documentLayerCod = 0  does not match with real documentLayercods
+            logger.warning(
+                f"Found 0 cover letter sent by author for {self.preprintid}/"
+                f"{self.imported_version_cod} - saved an empty message"
+            )
+            cover_letter_message = {"documentLayerCod": 0, "documentLayerSubject": "", "documentLayerText": ""}
+
         cursor_cover_letter_message.close()
 
         return cover_letter_message
@@ -4005,12 +4537,12 @@ class TYP_TAKES_CHARGE(BaseActionManager):  # noqa N801
                 self.article.save()
                 logger.debug(f"typesetting assignment {typesetting_assignment=}")
 
+            # JCOM and JCOMAL
             # for both published or pending paper
             # the A.data_figure_files are copied as SF in AW.supplementary_files_at_acceptance
-            sf = []
-            for f in self.article.data_figure_files.all():
-                sf.append(SupplementaryFile.objects.create(file=f))
-            self.article.articleworkflow.supplementary_files_at_acceptance.set(sf)
+            # > sf = []
+            # > for f in self.article.data_figure_files.all():
+            # >   sf.append(SupplementaryFile.objects.create(file=f))
 
             self.article.refresh_from_db()
             return typesetter
@@ -4127,16 +4659,36 @@ class Requestproofs(BaseActionManager):
         typesetting_assignment = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         fake_request.user = typesetting_assignment.typesetter
 
+        skip_duplicate_galley_proofing = (
+            request_proofs_dedup_galley_proofing_applies(self.preprintid)
+            and typesetting_assignment.round.galleyproofing_set.exists()
+        )
+
         with freezegun.freeze_time(
             rome_timezone.localize(self.action["actionDate"]),
         ):
-            RequestProofs._log_operation = noop
-            RequestProofs(
-                assignment=typesetting_assignment,
-                typesetter=typesetting_assignment.typesetter,
-                request=fake_request,
-                workflow=self.article.articleworkflow,
-            ).run()
+            if skip_duplicate_galley_proofing:
+                # See import_exception_list.py: this round already has a GalleyProofing, and
+                # wjapp's history repeats this action with no new typesetter upload in between
+                # (e.g. after PUM_SENDS_TO_EO resets state without creating a new round - see
+                # JCAP_035P_0210/4). Running the full RequestProofs()/GalleyProofing creation
+                # here would be fabricated data (no real new typesetting work happened) - just
+                # advance the FSM state so later actions (e.g. AU_SENDS_CORRECT) see what they
+                # need, reusing the existing round/GalleyProofing instead of duplicating it.
+                self.article.articleworkflow.typesetter_submits()
+                self.article.articleworkflow.save()
+                logger.warning(
+                    f"skipped duplicate GalleyProofing for {self.preprintid}/{self.imported_version_num}: "
+                    f"reused existing round {typesetting_assignment.round.round_number}, only advanced state"
+                )
+            else:
+                RequestProofs._log_operation = noop
+                RequestProofs(
+                    assignment=typesetting_assignment,
+                    typesetter=typesetting_assignment.typesetter,
+                    request=fake_request,
+                    workflow=self.article.articleworkflow,
+                ).run()
 
             message_subject = get_setting(
                 setting_group_name="wjs_review",
@@ -4207,7 +4759,7 @@ class AU_SENDS_CORRECT(BaseActionManager):  # noqa N801
         current_round: TypesettingRound = self.article.typesettinground_set.first()
         old_typesetting_assignment: TypesettingAssignment = current_round.typesettingassignment
         author_proofs: GalleyProofing = current_round.galleyproofing_set.get()  # we always set at most 1 GP per round
-        author_proofs.notes = author_annotation_data.get("documentLayerText")
+        author_proofs.notes = author_annotation_data["documentLayerText"] or " --- "
         author_proofs.save()
 
         # get author anotation file if it exists
@@ -4505,8 +5057,11 @@ class PUM_SENDS_TO_TYP(BaseActionManager):  # noqa N801
         )
 
         # After wjapp action PUM_SENDS_TO_TYP the paper goes to the typesetter and when the typesetter uploads,
-        # a new version is created. Therefore there is only one PUMANN in a version and the condition does not need
-        # the agentCod or the actionDate
+        # a new version is created. Therefore there is usually only one PUMANN in a version and the condition
+        # does not need the agentCod or the actionDate. wjapp allows a duplicate submission of the same
+        # annotation though (data error, no check on repeated action - e.g. JCAP_031P_1221/6, JCAP_052P_1219/6,
+        # JCAP_065P_1112/5); same as read_author_annotation()'s AUANN handling below, in that case we take the
+        # most recent one (which is also what wjapp's own UI shows).
         query_pub_manager_annotation = """
 SELECT
 dl.documentLayerCod,
@@ -4517,7 +5072,7 @@ FROM Document_Layer dl
 WHERE
     versioncod=%(imported_version_cod)s
 AND dl.documentLayerType='PUMANN'
-ORDER BY dl.submissionDate
+ORDER BY dl.submissionDate DESC
 """
 
         cursor_pub_manager_annotation.execute(
@@ -4526,7 +5081,7 @@ ORDER BY dl.submissionDate
                 "imported_version_cod": self.imported_version_cod,
             },
         )
-        if cursor_pub_manager_annotation.rowcount != 1:
+        if cursor_pub_manager_annotation.rowcount == 0:
             logger.error(
                 f"Found {cursor_pub_manager_annotation.rowcount} publication manager annotation: "
                 f"{self.preprintid}/{self.imported_version_num}"
@@ -4746,6 +5301,8 @@ class PUB_PUBLISHES(BaseActionManager):  # noqa N801
 
             if self.importfiles:
                 import_file_manager.ImportFileManager(self).get_publication_pdf()
+                import_file_manager.ImportFileManager(self).get_publication_attachments()
+                import_file_manager.ImportFileManager(self).move_production_source_to_pub_galleys_source_file()
 
 
 @dataclass
@@ -4784,6 +5341,7 @@ class PUM_SENDS_TO_EO(BaseActionManager):  # noqa N801
             return
 
         self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED
+        self.article.articleworkflow.save()
         ta = self.article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
         ta.completed = None
         ta.save()
@@ -4846,6 +5404,16 @@ class PM_REQ_ED_CHECK(BaseActionManager):  # noqa N801
 
 
 @dataclass
+class ED_APPROVES(BaseActionManager):  # noqa N801
+    """Wjapp action to accept author`s proof changes."""
+
+    # this action which in wjapp is done after acceptance is not in the logic of wjs
+    # the information about the action remains in the correspondence
+    def run(self):
+        pass
+
+
+@dataclass
 class ED_RESTARTS_REV(BaseActionManager):  # noqa N801
     """Wjapp action editor does not approve author`s proof changes. Revision requested to author."""
 
@@ -4891,3 +5459,109 @@ class PM_UPLOADS_FORMAT_V(BaseActionManager):  # noqa N801
             logger.error(f"PM_UPLOADS_FORMAT_V not managed for {self.preprintid} {self.article.id}")
             # added for JHEP/JCAP ST
             raise ValueError("PM_UPLOADS_FORMAT_V not managed")
+
+
+@dataclass
+class ADM_SETS_PUB_SETINGS(BaseActionManager):  # noqa N801
+    """Wjapp action to set publication settings."""
+
+    # this action is not in the logic of wjs
+    # the information about the action remains in the correspondence
+    def run(self):
+        pass
+
+
+@dataclass
+class ADMIN_CONFIRMS_TA(BaseActionManager):  # noqa N801
+    """Wjapp action admin confirms TA."""
+
+    def run(self):
+        """Admin confirms TA."""
+
+        # we need to get the admin user to log it
+        admin_cod = self.action["agentCod"]
+        admin_lastname = self.action["agentLastname"]
+        admin_firstname = self.action["agentFirstname"]
+        admin_email = self.action["agentEmail"]
+        admin_privacy = self.action["agentPrivacy"]
+        admin_opens_appeal_date = self.action["actionDate"]
+
+        admin = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            admin_cod,
+            admin_lastname,
+            admin_firstname,
+            admin_email,
+            admin_privacy,
+            self.connection,
+        )
+
+        if not has_eo_role(admin):
+            eo_group, _ = Group.objects.get_or_create(name=constants.EO_GROUP)
+            logger.debug(f"Admin {admin} added group {constants.EO_GROUP}")
+            admin.groups.add(eo_group)
+
+        # Note: this action is not visible in the wjs timeline
+        with freezegun.freeze_time(
+            rome_timezone.localize(admin_opens_appeal_date),
+        ):
+            logger.debug(f"Admin {admin} Confirm production readiness {self.article.pk}")
+
+            if self.article.submission_data.access_mode.code == "oa-transformative-agreement":
+                self.article.articleworkflow.system_verifies_production_requirements()
+                self.article.articleworkflow.save()
+            else:
+                logger.debug(f"Admin {admin} confirms TA skipped for {self.article.pk}")
+
+
+@dataclass
+class ADMIN_REJECTS_TA(BaseActionManager):  # noqa N801
+    """Wjapp action admin rejects TA."""
+
+    def run(self):
+        """Admin rejects TA."""
+
+        # we need to get the admin user to log it
+        admin_cod = self.action["agentCod"]
+        admin_lastname = self.action["agentLastname"]
+        admin_firstname = self.action["agentFirstname"]
+        admin_email = self.action["agentEmail"]
+        admin_privacy = self.action["agentPrivacy"]
+        admin_opens_appeal_date = self.action["actionDate"]
+
+        admin = account_get_or_create_check_correspondence(
+            self.journal.code.lower(),
+            admin_cod,
+            admin_lastname,
+            admin_firstname,
+            admin_email,
+            admin_privacy,
+            self.connection,
+        )
+
+        if not has_eo_role(admin):
+            eo_group, _ = Group.objects.get_or_create(name=constants.EO_GROUP)
+            logger.debug(f"Admin {admin} added group {constants.EO_GROUP}")
+            admin.groups.add(eo_group)
+
+        with freezegun.freeze_time(
+            rome_timezone.localize(admin_opens_appeal_date),
+        ):
+            logger.debug(f"Admin {admin} Confirm production readiness {self.article.pk}")
+
+            # Note: this action is not visible in the wjs timeline
+            # for the moment 3 cases:
+            # 1. if the imported paper is TA and is in a final state after the acceptance
+            #    this rejection action can act as to ADMIN_CONFIRMS_TA otherwise the workflow of the paper
+            #    is blocked in this point
+            # 2. if the imported paper is not TA in wjapp, when is loaded in wjs the paper is not blocked.
+            #    Therefore this action can be skipped.
+            # 3. TODO: (waiting for the final implementation of this workflow in wjs)
+            #    if the imported paper is in state accepted, is TA, in any case this action can be skipped
+            #    because in wjs
+            #    the paper is already blocked
+            if self.article.submission_data.access_mode.code == "oa-transformative-agreement":
+                self.article.articleworkflow.system_verifies_production_requirements()
+                self.article.articleworkflow.save()
+            else:
+                logger.debug(f"Admin {admin} rejects TA skipped for {self.article.pk}")

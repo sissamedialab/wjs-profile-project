@@ -18,6 +18,8 @@ from .views import (
     AuthorArchived,
     AuthorPending,
     AuthorWithdrawPreprint,
+    AutomaticAssignmentAuditArticle,
+    AutomaticAssignmentAuditList,
     ConvertLatexEditorReportView,
     ConvertLatexReviewerReportView,
     ConvertTextToLatex,
@@ -262,6 +264,16 @@ urlpatterns = [
         name="wjs_message_forward",
     ),
     path("messages_overview/", MessagesOverview.as_view(), name="wjs_messages_overview"),
+    path(
+        "automatic-assignment-audit/",
+        AutomaticAssignmentAuditList.as_view(),
+        name="wjs-automatic-assignment-audit",
+    ),
+    path(
+        "automatic-assignment-audit/article/<int:article_pk>/",
+        AutomaticAssignmentAuditArticle.as_view(),
+        name="wjs-automatic-assignment-audit-article",
+    ),
     # TODO: rethink naming of views.
     # For the messages we have messages/..., but for the reminders it is article/ID/reminders
     path("status/<int:pk>/reminders/", ArticleReminders.as_view(), name="wjs_article_reminders"),

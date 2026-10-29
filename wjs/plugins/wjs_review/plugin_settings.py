@@ -2347,6 +2347,53 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
             ),
         )
 
+    def typesetter_uploaded_typeset_preprint_message() -> tuple[SettingValue, ...]:
+        subject_setting: SettingParams = {
+            "name": "subject_typesetter_uploaded_typeset_preprint",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject for typesetter uploaded typeset preprint notification"),
+            "description": _(
+                "Subject of the notification sent when the typesetter uploads the typeset preprint.",
+            ),
+            "is_translatable": False,
+        }
+        subject_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Typesetter uploaded typeset version",
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            subject_setting,
+            subject_setting_value,
+            subject_setting["name"],
+            force=force,
+        )
+        body_setting: SettingParams = {
+            "name": "typesetter_uploaded_typeset_preprint",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of typesetter uploaded typeset preprint notification"),
+            "description": _(
+                "Body of the notification sent when the typesetter uploads the typeset preprint.",
+            ),
+            "is_translatable": False,
+        }
+        body_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "Typesetter uploaded typeset version.",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            body_setting,
+            body_setting_value,
+            body_setting["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     with export_to_csv_manager("wjs_review") as csv_writer:
         csv_writer.write_settings(acceptance_due_date())
         csv_writer.write_settings(review_lists_page_size())
@@ -2386,6 +2433,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(add_access_mode_request_notifications())
         csv_writer.write_settings(expected_galleys())
         csv_writer.write_settings(xml_sent_to_publisher_notification())
+        csv_writer.write_settings(typesetter_uploaded_typeset_preprint_message())
 
 
 def ensure_workflow_elements():

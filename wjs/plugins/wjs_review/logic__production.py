@@ -267,6 +267,7 @@ class SendProductionXMLToPublisher:
             actor=None,
             recipients=[get_eo_user(self.articleworkflow.article)],
             verbosity=Message.MessageVerbosity.FULL,
+            flag_as_read_by_eo=True,
         )
 
     def _log_incomplete_affiliation_warning(self):
@@ -538,11 +539,11 @@ class RequestProofs:
     def _create_proofing_assignment(self):
         self.proofreader = self.article.correspondence_author
         if self.assignment.round.round_number == 1:
-            due = timezone.now().date() + datetime.timedelta(
+            due = timezone.localdate() + datetime.timedelta(
                 days=settings.PROOFING_ASSIGNMENT_MAX_DUE_DAYS,
             )
         else:
-            due = timezone.now().date() + datetime.timedelta(
+            due = timezone.localdate() + datetime.timedelta(
                 days=settings.PROOFING_ASSIGNMENT_MIN_DUE_DAYS,
             )
         proofing_assignment = GalleyProofing.objects.create(
@@ -718,6 +719,7 @@ class TypesettedFilesUpload:
             try:
                 self._update_typesetting_assignment(uploaded_file)
                 self._look_for_queries_in_archive()
+                self._log_operation(context=self._get_message_context())
             except Exception as e:
                 raise ValidationError(str(e)) from e
         if self.do_create_galleys:
@@ -730,6 +732,39 @@ class TypesettedFilesUpload:
             except Exception as e:
                 raise ValidationError(str(e)) from e
         return self.assignment.round.article
+
+    def _get_message_context(self):
+        """Get the context for the message template."""
+        return {
+            "article": self.assignment.round.article,
+            "authors": self.assignment.round.article.author_accounts,
+        }
+
+    def _log_operation(self, context) -> Message:
+        """Log the operation."""
+        message_subject = get_setting(
+            setting_group_name="wjs_review",
+            setting_name="subject_typesetter_uploaded_typeset_preprint",
+            journal=context["article"].journal,
+        ).processed_value
+        message_body = render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name="typesetter_uploaded_typeset_preprint",
+            journal=context["article"].journal,
+            request=self.request,
+            context=context,
+            template_is_setting=True,
+        )
+        message = communication_utils.log_operation(
+            article=context["article"],
+            message_subject=message_subject,
+            message_body=message_body,
+            recipients=[get_eo_user(context["article"]), self.request.user],
+            verbosity=Message.MessageVerbosity.TIMELINE,
+            flag_as_read=True,
+            flag_as_read_by_eo=True,
+        )
+        return message
 
 
 @dataclasses.dataclass

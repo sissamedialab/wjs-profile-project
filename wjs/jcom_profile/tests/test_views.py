@@ -1,3 +1,4 @@
+import html
 import random
 import re
 
@@ -7,6 +8,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core import mail
+from django.http import QueryDict
 from django.test import Client
 from django.test.client import RequestFactory
 from django.urls import reverse
@@ -548,7 +550,7 @@ def test_director_can_change_editor_keywords(
 
 @pytest.mark.django_db
 def test_director_can_change_editor_parameters(journal, roles, admin, editor, keywords):
-    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
+    parameters = StaffWorkloadParameters.objects.update_or_create(user=editor, journal=journal)[0]
     for keyword in keywords:
         StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
     brake_on = 10
@@ -595,7 +597,7 @@ def test_director_editor_parameters_page_renders_keyword_hidden_id_field(journal
     StaffKeyword, and the server errors out constructing the row's form (see issue with
     /update/parameters/<pk>/ raising ``KeyError: 'instance'``).
     """
-    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
+    parameters = StaffWorkloadParameters.objects.update_or_create(user=editor, journal=journal)[0]
     for keyword in keywords:
         StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
     client = Client()
@@ -622,7 +624,7 @@ def test_director_editor_parameters_post_without_keyword_id_reports_form_error(
     ``instance`` kwarg in that case, and unconditionally accessed it, raising an uncaught
     ``KeyError``. It must instead be reported as a normal (non-field) form error.
     """
-    parameters = StaffWorkloadParameters.objects.create(user=editor, journal=journal)
+    parameters = StaffWorkloadParameters.objects.update_or_create(user=editor, journal=journal)[0]
     for keyword in keywords:
         StaffKeyword.objects.create(keyword=keyword, parameters=parameters)
     client = Client()
@@ -651,6 +653,62 @@ def test_director_editor_parameters_post_without_keyword_id_reports_form_error(
     # Nothing was saved: the weight update must have been rejected, not silently applied.
     for keyword in StaffKeyword.objects.filter(parameters=parameters):
         assert keyword.weight != 7
+
+
+def _director_parameters_post_data(client, url, **fields) -> dict:
+    """Build the POST data of the editor parameters page, including the keywords formset management form."""
+    response = client.get(url)
+    data = {"csrf_token": response.context["csrf_token"], **fields}
+    formset = response.context["formset"]
+    for field in "TOTAL_FORMS", "INITIAL_FORMS", "MIN_NUM_FORMS", "MAX_NUM_FORMS":
+        data[f"{formset.management_form.prefix}-{field}"] = formset.management_form[field].value()
+    return data
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "user_role,can_edit_brake_on",
+    (("staff", True), ("eo", True), ("director", False)),
+)
+def test_brake_on_is_editable_only_by_eo(
+    journal: Journal,
+    roles,
+    user: Account,
+    eo_group,
+    section_editor,
+    user_role,
+    can_edit_brake_on,
+):
+    """The EO (and staff) can disable an editor with brake_on, directors only see it."""
+    user.jcomprofile.gdpr_checkbox = True
+    user.is_active = True
+    if user_role == "staff":
+        user.is_staff = True
+        user.save()
+    elif user_role == "director":
+        user.add_account_role(user_role, journal)
+        user.refresh_from_db()
+    elif user_role == "eo":
+        user.groups.add(Group.objects.get(name=constants.EO_GROUP))
+    parameters = StaffWorkloadParameters.objects.update_or_create(
+        user=section_editor.janeway_account, journal=journal
+    )[0]
+    client = Client()
+    client.force_login(user)
+    url = f"/{journal.code}/update/parameters/{section_editor.janeway_account.pk}/"
+
+    response = client.get(url)
+    assert (
+        response.context["form"].fields["brake_on"].disabled is not can_edit_brake_on
+    ), "brake_on must be disabled for directors only"
+
+    data = _director_parameters_post_data(client, url, workload=parameters.workload, brake_on=-1)
+    response_post = client.post(url, data)
+    assert response_post.status_code == 302
+
+    parameters.refresh_from_db()
+    expected = -1 if can_edit_brake_on else 0
+    assert parameters.brake_on == expected, f"brake_on should be {expected} when changed by {user_role}"
 
 
 @pytest.mark.parametrize(
@@ -725,7 +783,7 @@ def test_admin_cannot_login(journal, admin):
 @pytest.mark.django_db
 def test_editor_parameters_page_shows_editor_name(journal: Journal, roles, eo_user, section_editor):
     """The page to manage an editor's parameters says whose parameters are being edited."""
-    StaffWorkloadParameters.objects.create(user=section_editor.janeway_account, journal=journal)
+    StaffWorkloadParameters.objects.update_or_create(user=section_editor.janeway_account, journal=journal)
     client = Client()
     client.force_login(eo_user)
 
@@ -738,3 +796,33 @@ def test_editor_parameters_page_shows_editor_name(journal: Journal, roles, eo_us
     )
     assert page_title, "page must have a main title"
     assert page_title.group(1) == heading, f"page must be titled {heading!r}"
+
+
+@pytest.mark.django_db
+def test_organization_search_pagination_keeps_query(journal: Journal, jcom_user: JCOMProfile):
+    """The page links of the affiliation search carry the search terms and the next url (specs#3044)."""
+    for index in range(3):
+        organization = core_models.Organization.objects.create(ror_id=f"cern{index}")
+        core_models.OrganizationName.objects.create(
+            value=f"CERN lab {index}",
+            language="en",
+            ror_display_for=organization,
+            label_for=organization,
+        )
+    client = Client()
+    client.force_login(jcom_user)
+
+    response = client.get(
+        reverse("core_organization_search"),
+        {"q": "CERN", "next": "/profile/", "paginate_by": "1", "page": "2"},
+    )
+
+    assert response.status_code == 200, "organization search page must render"
+    page_links = re.findall(r'href="(\?page=[^"]*)"', response.content.decode())
+    assert page_links, "page must have pagination links"
+    for link in page_links:
+        query = QueryDict(html.unescape(link)[1:])
+        assert len(query.getlist("page")) == 1, f"{link} must have a single page parameter"
+        assert query.get("q") == "CERN", f"{link} must keep the search terms"
+        assert query.get("next") == "/profile/", f"{link} must keep the next url"
+        assert query.get("paginate_by") == "1", f"{link} must keep the page size"

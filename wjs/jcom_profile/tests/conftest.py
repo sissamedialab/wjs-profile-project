@@ -29,6 +29,8 @@ from plugins.wjs_submission.correction.logic import (
     SECTION_NAME_BY_RELATIONSHIP,
     get_or_create_linked_article,
 )
+from plugins.wjs_submission.models import AccessMode, AccessModeJournal
+from plugins.wjs_submission.settings import OA_CODE
 from press.models import Press
 from submission import models as submission_models
 from submission.logic import add_author_using_email
@@ -344,7 +346,7 @@ def eo_user(journal, eo_group) -> JCOMProfile:
     eo = get_eo_user(journal)
     eo.refresh_from_db()
     # Editor assignment parameters are required for EO in charge assignment
-    StaffWorkloadParameters.objects.create(user=eo, journal=journal, workload=10)
+    StaffWorkloadParameters.objects.update_or_create(user=eo, journal=journal, defaults={"workload": 10})
     return eo.jcomprofile
 
 
@@ -358,10 +360,12 @@ def director(create_jcom_user, roles, journal, director_role) -> JCOMProfile:
     jcom_user = create_jcom_user("director")
     jcom_user.add_account_role(constants.DIRECTOR_ROLE, journal)
 
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=jcom_user.janeway_account,
         journal=journal,
-        workload=random.randint(1, 10),
+        defaults={
+            "workload": random.randint(1, 10),
+        },
     )
     return jcom_user
 
@@ -371,10 +375,12 @@ def main_director(create_jcom_user, roles, journal, director_role) -> JCOMProfil
     jcom_user = create_jcom_user("Mario main director")
     jcom_user.add_account_role(constants.DIRECTOR_ROLE, journal)
     jcom_user.add_account_role(constants.DIRECTOR_MAIN_ROLE, journal)
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=jcom_user.janeway_account,
         journal=journal,
-        workload=random.randint(1, 10),
+        defaults={
+            "workload": random.randint(1, 10),
+        },
     )
     return jcom_user
 
@@ -385,10 +391,12 @@ def director_editor(create_jcom_user, roles, journal, director_role) -> JCOMProf
     jcom_user.add_account_role(constants.DIRECTOR_ROLE, journal)
     jcom_user.add_account_role(constants.DIRECTOR_MAIN_ROLE, journal)
     jcom_user.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
-    StaffWorkloadParameters.objects.create(
+    StaffWorkloadParameters.objects.update_or_create(
         user=jcom_user.janeway_account,
         journal=journal,
-        workload=random.randint(1, 10),
+        defaults={
+            "workload": random.randint(1, 10),
+        },
     )
     return jcom_user
 
@@ -693,7 +701,15 @@ def published_articles(author, editor, journal, sections, keywords):
 
 
 @pytest.fixture
-def published_article_with_standard_galleys(journal, article_factory, author):
+def access_mode_oa(journal):
+    licence = submission_models.Licence.objects.filter(journal=journal).first()
+    am, __ = AccessMode.objects.get_or_create(code=OA_CODE, name=OA_CODE)
+    AccessModeJournal.objects.create(journal=journal, access_mode=am, licence=licence, copyright="all mine")
+    return am
+
+
+@pytest.fixture
+def published_article_with_standard_galleys(journal, article_factory, author, access_mode_oa):
     """Create articles in published stage with PDF and EPUB galleys."""
     article = article_factory(
         journal=journal,
@@ -702,6 +718,8 @@ def published_article_with_standard_galleys(journal, article_factory, author):
         correspondence_author=author.janeway_account,
         owner=author.janeway_account,
     )
+    article.submission_data.access_mode = access_mode_oa
+    article.submission_data.save()
     pubid = "JCOM_0102_2023_A04"
     Identifier.objects.create(
         id_type="pubid",
@@ -829,10 +847,12 @@ def directors(director_role, journal):
             last_name=f"Director{i}",
             is_active=True,
         )
-        StaffWorkloadParameters.objects.create(
+        StaffWorkloadParameters.objects.update_or_create(
             user=user_director.janeway_account,
             journal=journal,
-            workload=random.randint(1, 10),
+            defaults={
+                "workload": random.randint(1, 10),
+            },
         )
         user_director.janeway_account.add_account_role(constants.DIRECTOR_ROLE, journal)
         directors.append(user_director.janeway_account)
@@ -852,10 +872,12 @@ def editors(roles, journal):
         )
         user_editor.janeway_account.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
 
-        StaffWorkloadParameters.objects.create(
+        StaffWorkloadParameters.objects.update_or_create(
             user=user_editor.janeway_account,
             journal=journal,
-            workload=random.randint(1, 10),
+            defaults={
+                "workload": random.randint(1, 10),
+            },
         )
 
         editors.append(user_editor.janeway_account)
@@ -935,7 +957,7 @@ def editors_with_keywords(create_jcom_user, journal, keywords):
     }
 
     for editor_kws, kws in keyword_associations.items():
-        params = StaffWorkloadParameters.objects.create(user=editor_kws, journal=journal)
+        params = StaffWorkloadParameters.objects.update_or_create(user=editor_kws, journal=journal)[0]
         for kw in kws:
             StaffKeyword.objects.create(parameters=params, keyword=kw)
 

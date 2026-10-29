@@ -257,6 +257,19 @@ class DirectorStaffWorkloadParametersForm(forms.ModelForm):
             "enabled": forms.CheckboxInput(attrs={"disabled": True}),
         }
 
+    def __init__(self, *args, can_edit_brake_on: bool = False, **kwargs):
+        """
+        Make ``brake_on`` read-only unless the user is allowed to change it.
+
+        ``brake_on`` (-1 disables the editor) is set by the EO, directors can only see it.
+        A disabled field ignores submitted data, so it cannot be changed by a crafted request either.
+
+        :param can_edit_brake_on: whether the current user is allowed to change ``brake_on``
+        """
+        super().__init__(*args, **kwargs)
+        if not can_edit_brake_on:
+            self.fields["brake_on"].disabled = True
+
 
 class EditorKeywordForm(forms.ModelForm):
     # this is a "fake_factory" field added only to have a proper rendering of the keyword value, but without any link

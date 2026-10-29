@@ -132,6 +132,15 @@ assuming every `run()` is race-safe.
   Classes implement `check()`/`check_default()`, not `run()`. `PermissionChecker` (`logic__visibility.py:579`)
   is the one genuine registry in the permission system — see "Permissions & visibility" below.
 
+### Editor candidate ranking
+
+Editor candidates are ranked by `keyword_score` (weighted keyword coverage, see
+`users.py::_keyword_score_expression`, highest first, no shared keyword ranks last), then the
+shared-keyword count (`num_shared_kwds`/`matching_keywords_count`, breaks exact score ties, e.g. all-zero editor weights),
+then `available_workload_30d`, then `id`. The same order is used by automatic assignment
+(`events/assignment.py::rank_editor_parameters`) and by the manual Select new editor page, which shows the score.
+`max_matching_keyword_weight` is still annotated but no longer orders anything.
+
 ### Invocation
 
 Forms call `self.get_logic_instance(cleaned_data)` to build the logic object, then `save()` calls
@@ -386,3 +395,55 @@ asked, and so you don't copy them into new code either:
 | Forms | `save()` mutates models directly, no logic class | `MessageForm`, `UserPermissionsForm`, `SectionOrderForm` |
 | Mixins | Two widely-used mixins live in `views.py`, not `mixins.py` | `BaseRelatedViewsMixin`, `ArticleWorkflowBaseMixin` |
 | URLs | Underscore names/paths instead of the required hyphenated style | Almost all of `urls.py`; only a few recent entries use hyphens — prefer hyphens for anything new |
+
+## Automatic assignment audit & replay
+
+- Every automatic editor assignment (`default_assign_editors_to_articles`, `jcom_assign_editors_to_articles` in
+  `events/assignment.py`) writes one append-only `AutomaticAssignmentAudit` row via
+  `record_automatic_assignment_audit`, in the same transaction as `BaseAssignToEditor.run()`. The row is not linked
+  to `WjsEditorAssignment` (which is hard-deleted on reassignment). On the default path the audit records
+  `matched_by_keyword` (the winner shares at least one keyword), the keyword count, weight and `keyword_score` when matched,
+  `workload_available`/`workload_cap` from the monthly window (`available_workload_month`, which excludes over-cap
+  editors) and `workload_available_30d` (the ranking tie-break). Special-issue and JCOM assignments record
+  `get_selected_editor_by_workload`'s open-articles numbers instead.
+- On the default (non-special-issue) path the audit also keeps a snapshot of the candidates, as
+  `AutomaticAssignmentCandidate` rows (`audit.candidates`): one per editor sharing a keyword with the article, with
+  rank, outcome reason, keyword score, shared keywords and workloads, evaluated by
+  `explain_default_assignment_candidates` *before* the assignment changes any workload. It is the same explanation
+  the replay's candidates CSV uses (the helpers live in `events/assignment.py`, which the replay imports).
+  Audits written before the snapshot existed, and special-issue/JCOM audits, have no candidates.
+- EO/directors browse it at `wjs-automatic-assignment-audit` (`AutomaticAssignmentAuditList`); the article title
+  there opens `wjs-automatic-assignment-audit-article` (`AutomaticAssignmentAuditArticle`: every audit of the article,
+  newest first, with its candidates), while the article status page has its own "Article page" button. Neither is in
+  `related_views`: the navigation link is added manually.
+  Both pages include `automatic_assignment_audit/elements/scores_help.html`: a button opening the base modal
+  (`wjs_review/base/elements/modal.html`) that explains every score shown in the list columns and the candidates
+  table (body in `elements/scores_help_body.html`, following the Editor Selection logic spec).
+  Both views are for EO and directors only (`has_eo_or_director_role`: plain staff, editors and anonymous users are
+  refused). The article page links to the article audit, after the editor's other controls, through
+  `{% user_can_view_assignment_audit %}` (same permission, and only when an audit exists for the article's
+  current editor).
+- `manage.py replay_automatic_assignment` (everything replay-specific lives in the `replay/` subpackage: `logic.py`,
+  `command.py` and `tests/`; `management/commands/replay_automatic_assignment.py` is a one-line shim, because Django only
+  finds commands there. To remove the replay, delete `replay/` and that shim) is DESTRUCTIVE and meant only for an
+  imported copy of production, with outgoing email and the Q-cluster/cron (reminders) disabled first — the
+  replay creates reminders dated at historical submission times and leaves any pre-existing ones orphaned. It
+  resets the selected articles, replays them by `date_submitted` under `freezegun`, and writes a CSV of
+  original vs new editor (with the winner's `matching_keywords`) plus a candidates CSV (`--candidates-file`,
+  default `<output>_candidates.csv`): one row per section editor sharing a keyword with the article, with rank,
+  `selected` and a `reason` (constants `REASON_*` in `events/assignment.py`), default non-special-issue path only.
+  The candidates are explained by `explain_default_assignment_candidates`, right before `dispatch_assignment` under
+  the same frozen time, reusing the helpers `default_assign_editors_to_articles` is built from
+  (`get_default_section_editors`, `exclude_article_authors`, `rank_default_candidates`, ...) — keep it that way, do
+  not restate the selection rules. Articles that reached typesetting, and articles that never had an editor
+  assigned historically (nothing to compare against), are skipped and left untouched; skipped articles are not in
+  either CSV but listed on stdout (`Skipped <id>: <reason>`). The "original editor" recorded for
+  comparison is the first editor ever assigned to the article, not the current or latest one. Articles already
+  replayed on this instance are also skipped — re-import the database if you need to replay them again.
+  Known limitations: replayed articles stay `EDITOR_SELECTED` for the rest of the batch, so the open-articles
+  metric (the special-issue and JCOM paths only) only ever grows across the replay — historically those
+  articles were eventually decided and freed capacity back up, and that metric also sees today's states of
+  articles outside the batch. On the default path the monthly/30-day windows count assignments by date, and the
+  WITHDRAWN exclusion uses the article's current state. The replay also uses today's `StaffWorkloadParameters` (workload,
+  brake_on, enabled, vacancies), today's role memberships and today's editor keywords, not the historical ones in
+  effect at submission time.

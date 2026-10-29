@@ -60,7 +60,7 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.timezone import now
+from django.utils.timezone import localtime, now
 from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
@@ -576,6 +576,11 @@ class AssignToReviewer:
     request: HttpRequest
     assignment: Optional[WorkflowReviewAssignment] = None
     log_operation: bool = True
+    # A reviewer cannot be an author of the article (see check_reviewer_conditions()). Set to
+    # False only by the importer (import_wjapp.import_logic.ReviewAssignmentAction.set_reviewer()):
+    # some old wjapp papers actually have an author assigned as reviewer, and the importer must
+    # replay that history as-is.
+    check_reviewer_author: bool = True
 
     @staticmethod
     def check_reviewer_conditions(workflow: ArticleWorkflow, reviewer: Account) -> bool:
@@ -611,7 +616,9 @@ class AssignToReviewer:
 
     def check_conditions(self) -> bool:
         """Check if the conditions for the assignment are met."""
-        reviewer_conditions = self.check_reviewer_conditions(self.workflow, self.reviewer)
+        reviewer_conditions = not self.check_reviewer_author or self.check_reviewer_conditions(
+            self.workflow, self.reviewer
+        )
         editor_conditions = self.check_editor_conditions(self.workflow, self.editor)
         article_state = self.check_article_conditions(self.workflow)
         return reviewer_conditions and editor_conditions and article_state
@@ -885,7 +892,7 @@ class EvaluateReview:
         """Check if the review is postponed far in the future"""
         date_due = self.form_data.get("date_due", None)
         if date_due:
-            return date_due > timezone.now().date() + datetime.timedelta(
+            return date_due > timezone.localtime(timezone.now()).date() + datetime.timedelta(
                 days=settings.REVIEW_REQUEST_DATE_DUE_MAX_THRESHOLD,
             )
         return False
@@ -1018,7 +1025,7 @@ class EvaluateReview:
             group_name="general",
             setting_name="default_review_days",
         )
-        default_date_due = now().date() + datetime.timedelta(days=default_review_days)
+        default_date_due = localtime(now()).date() + datetime.timedelta(days=default_review_days)
         return {
             "article": self.assignment.article,
             "request": self.request,
@@ -1995,6 +2002,11 @@ class PopulateRevisionStep6(BasePopulateRevisionStep):
 class PopulateRevisionStep7(BasePopulateRevisionStep):
     def run(self):
         if access_mode := self.revision_storage.data.get("access_mode"):
+            if self.article.submission_data.access_mode_id != access_mode:
+                # access mode recalculated (e.g. the affiliation changed): licence and copyright follow the new access
+                # mode instead of being kept from the previous one
+                self.article.submission_data.license_override = False
+                self.article.submission_data.rights_override = False
             self.article.submission_data.access_mode_id = access_mode
         if special_request := self.revision_storage.data.get("special_request"):
             modified = (
@@ -4207,6 +4219,13 @@ class OpenAppeal:
     new_editor: Account
     article: Article
     request: HttpRequest
+    # An appeal must not be opened again once the paper has already been rejected more than
+    # once (see _has_another_past_rejection()): past the first rejection, a further appeal
+    # cycle is no longer allowed. Set to False only to bypass this current-policy check for a
+    # historical wjapp action being replayed by the importer (see
+    # import_wjapp.import_logic.AdminOpensAppealAction), where the action happened under
+    # wjapp's older, more permissive rule and must be imported as-is.
+    check_past_rejection: bool = True
 
     @staticmethod
     def _is_current_editor(article: Article, editor: Account) -> bool:
@@ -4229,7 +4248,8 @@ class OpenAppeal:
     def check_conditions(self):
         """Check if the selected editor is an actual editor for the article's journal."""
         editor_conditions = has_any_editor_role_by_article(self.article.articleworkflow, self.new_editor)
-        return editor_conditions and not self._is_articles_author() and not self._has_another_past_rejection()
+        no_past_rejections = not self.check_past_rejection or not self._has_another_past_rejection()
+        return editor_conditions and not self._is_articles_author() and no_past_rejections
 
     def _handle_decision(self):
         """Instantiate HandleDecision to create the EditorRevisionRequest and the other collateral effects."""
@@ -4242,7 +4262,7 @@ class OpenAppeal:
             "decision": ArticleWorkflow.Decisions.OPEN_APPEAL,
             "decision_editor_report": "",
             "acceptance_due_date": None,
-            "date_due": timezone.now().date() + datetime.timedelta(days=appeal_revision_days),
+            "date_due": timezone.localtime(timezone.now()).date() + datetime.timedelta(days=appeal_revision_days),
         }
         HandleDecision(
             workflow=self.article.articleworkflow,
@@ -4865,12 +4885,26 @@ class ConvertManuscriptToPdf:
             # happens mid-run (e.g. during the Yakunin call above) doesn't surface as Article.DoesNotExist
             # here; it only shows up later, when _save_yakunin_log tries to refresh the now-deleted logfile
             # from the DB.
-            # Only treat this as the known benign race if the article is indeed gone: a logfile missing for
-            # any other reason (e.g. something else deleting File rows while the article is still alive) is
-            # a real bug and must not be silently swallowed.
-            if Article.objects.filter(pk=self.article_id).exists():
+            #
+            # A second, narrower race hits this same except clause without the article ever being deleted:
+            # the author replaces the manuscript file (e.g. a second upload a few seconds later) while this
+            # conversion -- started for the *previous* file, self.file_id -- is still mid-flight. The
+            # replacement deletes the old manuscript File row (and its logfile) out from under this task,
+            # the same way an article deletion would. A conversion for a file that is no longer current is
+            # moot: a new conversion has already started (or will start) for the replacement file.
+            #
+            # Only treat this as one of these known benign races if the article or the source file is
+            # indeed gone: a logfile missing for any other reason (e.g. something else deleting File rows
+            # while both are still alive) is a real bug and must not be silently swallowed.
+            if (
+                Article.objects.filter(pk=self.article_id).exists()
+                and core_models.File.objects.filter(pk=self.file_id).exists()
+            ):
                 raise
-            logger.info(f"Logfile for article {self.article_id} vanished mid-conversion; skipping.")
+            logger.info(
+                f"Logfile for article {self.article_id} (source file {self.file_id}) vanished mid-conversion "
+                "(article deleted or manuscript file superseded by a newer upload); skipping."
+            )
 
         finally:
             if tmpdir:

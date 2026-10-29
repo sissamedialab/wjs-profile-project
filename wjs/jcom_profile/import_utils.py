@@ -90,7 +90,9 @@ JOURNALS_DATA = {
         ),
         "wjapp_api_key": "WJAPP_JCAP_APIKEY",
         "section_order": {
-            "Article": (2, "Articles"),
+            "Paper": (2, "Papers"),
+            "Erratum": (3, "Errata"),
+            "Addendum": (4, "Addenda"),
         },
         "expected_languages": ("en"),
     },
@@ -159,7 +161,9 @@ SECTIONS_MAPPING = {
     "book review": "Book Review",
     "conference review": "Conference Review",
     "review": "Review",
-    "paper": "Article",
+    "paper": "Paper",
+    "erratum": "Erratum",
+    "addendum": "Addendum",
 }
 
 JANEWAY_LANGUAGES_BY_CODE = {t[0]: t[1] for t in submission_models.LANGUAGE_CHOICES}

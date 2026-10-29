@@ -1,0 +1,46 @@
+{% load i18n %}
+<h3 class="fs-5">{% translate "Selection" %}</h3>
+<dl>
+  <dt>{% translate "Algorithm" %}</dt>
+  <dd>
+    {% translate "The method that picked the editor: Default (keyword matching, then workload), Default (special issue) (the dedicated editors of the issue, by workload only) or JCOM (the director, by workload)." %}
+  </dd>
+  <dt>{% translate "Matched by keyword" %}</dt>
+  <dd>{% translate "Yes when the chosen editor shares at least one keyword with the article." %}</dd>
+  <dt>{% translate "Rank" %}</dt>
+  <dd>
+    {% translate "Position among the editors still eligible (not an author of the article, available, with monthly workload left). Candidates are ranked by keyword score, then by the number of shared keywords, then by 30-day availability. Rank 1 is the editor picked." %}
+  </dd>
+  <dt>{% translate "Outcome" %}</dt>
+  <dd>
+    {% translate "Why an editor won or lost: selected; lower keyword score; same score but fewer shared keywords; same score and shared keywords but less 30-day availability; or a full tie, lost on id. Editors that were not eligible show why: author of the article, not available (disabled, on leave or no workload) or monthly limit reached." %}
+  </dd>
+</dl>
+<h3 class="fs-5">{% translate "Keywords" %}</h3>
+<dl>
+  <dt>{% translate "Matching keywords" %}</dt>
+  <dd>
+    {% translate "How many keywords of the article the editor also has among their own. Each shared keyword is listed with its weight for the article and for the editor; a dash is an article keyword without a weight, counted as 100." %}
+  </dd>
+  <dt>{% translate "Max keyword weight" %}</dt>
+  <dd>{% translate "The highest weight, set by the EO, among the keywords of the editor that match the article." %}</dd>
+  <dt>{% translate "Keyword score" %}</dt>
+  <dd>
+    {% translate "How well the weighted keywords of the editor cover the weighted keywords of the article. Each shared keyword counts its article weight times the editor weight (capped at 100); the total is divided by the best possible total, with all the keywords of the article at editor weight 100. 100% means full coverage; a dash means no shared keyword, or a method that does not use keywords." %}
+  </dd>
+</dl>
+<h3 class="fs-5">{% translate "Workload" %}</h3>
+<dl>
+  <dt>{% translate "Workload cap" %}</dt>
+  <dd>
+    {% translate "The monthly limit that applied: the smaller of the own workload of the editor and the brake on set by the EO, when there is one. A brake on of -1 disables the editor (cap 0)." %}
+  </dd>
+  <dt>{% translate "Available workload" %}</dt>
+  <dd>
+    {% translate "How many more papers the editor could be assigned in the calendar month of the assignment, counting the papers already assigned that month, except the withdrawn ones. An editor with none left is not eligible for automatic assignment." %}
+  </dd>
+  <dt>{% translate "Available (30-day)" %}</dt>
+  <dd>
+    {% translate "Free capacity over the 30 days before the assignment: the cap minus the papers assigned in that window. It breaks the ties between editors with the same keyword results: more availability ranks higher." %}
+  </dd>
+</dl>

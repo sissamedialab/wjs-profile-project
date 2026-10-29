@@ -1,5 +1,6 @@
 """Import article from wjapp."""
 
+import gzip
 import io
 import os
 import shutil
@@ -19,7 +20,78 @@ from django.conf import settings
 from django.core.files import File as DjangoFile
 from django.core.files.base import ContentFile
 
-import wjs.jcom_profile.import_logic as import_logic
+import wjs.jcom_profile.import_wjapp.import_logic as import_logic
+
+# Individually-reviewed "File pdf not found" import failures (pdf/production_pdf only) -
+# one entry per preprintid, added only after checking that specific case:
+#   - "gz": wjapp's archive only has a gzip-compressed PDF (<filename>.gz) for that
+#     version - decompress it and use it.
+#   - None: the pdf is genuinely missing for that version - skip it, not an error.
+# A preprintid NOT in this dict is untouched: a missing pdf/production_pdf still raises
+# FileNotFoundError and aborts the import, exactly as before this list existed.
+# Populated from the 54 "File pdf not found" failures in import_20260921085919.log, reviewed
+# with wjs-utils-project/import/analyze_missing_pdfs.py against the raw (pre-dedup_sanitize.py)
+# archive. JCAP_042P_0705 (matter.pdf) and JCAP_061P_1111 (manuscript.pdf) initially looked like
+# "other pdf-like file present" cases, but the archive-build step bundles every file into the
+# source zip regardless of name, so a differently-named .pdf lying around doesn't mean the real
+# <preprintid>.pdf deliverable exists - confirmed missing by direct archive inspection, listed
+# as None like any other genuinely-missing case.
+PDF_GZ_FALLBACK_PREPRINTIDS = {
+    "JCAP008A1004": None,
+    "JCAP_022P_1004": None,
+    "JCAP_023P_1004": None,
+    "JCAP_025P_1004": None,
+    "JCAP_026P_1004": None,
+    "JCAP_012P_1104": None,
+    "JCAP_013P_1104": None,
+    "JCAP_026P_1104": None,
+    "JCAP_027P_1104": None,
+    "JCAP_005P_1204": None,
+    "JCAP_006P_1204": None,
+    "JCAP_013P_1204": None,
+    "JCAP_019P_1204": None,
+    "JCAP_023P_1204": None,
+    "JCAP_004P_0105": None,
+    "JCAP_007P_0105": None,
+    "JCAP_018P_0105": None,
+    "JCAP_002P_0205": None,
+    "JCAP_004P_0205": None,
+    "JCAP_011P_0205": None,
+    "JCAP_022P_0205": None,
+    "JCAP_023P_0205": None,
+    "JCAP_001P_0305": None,
+    "JCAP_048P_0305": None,
+    "JCAP_005P_0405": None,
+    "JCAP_006P_0405": None,
+    "JCAP_008P_0405": None,
+    "JCAP_021P_0405": None,
+    "JCAP_027P_0405": None,
+    "JCAP_004P_0505": None,
+    "JCAP_008P_0505": None,
+    "JCAP_006P_0705": None,
+    "JCAP_015P_0705": None,
+    "JCAP_018P_0705": None,
+    "JCAP_021P_0705": None,
+    "JCAP_027P_0705": None,
+    "JCAP_042P_0705": None,
+    "JCAP_013P_0805": None,
+    "JCAP_027P_0905": None,
+    "JCAP_028P_0905": None,
+    "JCAP_033P_0905": None,
+    "JCAP_038P_0905": None,
+    "JCAP_001P_1005": "gz",
+    "JCAP_004P_1005": None,
+    "JCAP_005P_1005": None,
+    "JCAP_007P_1005": None,
+    "JCAP_015P_1005": None,
+    "JCAP_028P_1005": None,
+    "JCAP_001P_1105": None,
+    "JCAP_008P_1105": None,
+    "JCAP_035P_0406": None,
+    "JCAP_053P_0108": None,
+    "JCAP_061P_1111": None,
+    "JCAP_062P_1111": None,
+}
 
 
 @dataclass
@@ -40,6 +112,7 @@ class ImportFileManager:
         "figure",  # any figure file of the latex archive
         "edrep_tex",
         "edrep_pdf",
+        "edrep_txt",  # old reports are only txt
         "rerep_tex",
         "rerep_pdf",
         "rerep_txt",  # old reports are only txt
@@ -85,6 +158,40 @@ class ImportFileManager:
 
         return (f"{archive_path_current_dedup}/{preprints_dir}", f"{archive_path_old_dedup}/{year_dir}")
 
+    # Preprintids confirmed (2026-10-03) to have a currentHidden/maintenance.report symlink
+    # whose target isn't resolvable through the sshfs/chroot-mounted "old" archive, failing
+    # with "Operation not permitted" even on a bare os.readlink() - wjapp-internal
+    # housekeeping, never read by the importer itself, safe to skip for exactly these two.
+    # Deliberately NOT a general tolerance: an unreadable symlink elsewhere could be
+    # something that actually matters for a different paper, so only these two confirmed
+    # cases are exempted rather than any symlink matching this error shape.
+    TOLERATE_UNREADABLE_SYMLINKS_PREPRINTIDS = {"JCAP_064P_1013", "JCAP_014P_0614"}
+
+    @classmethod
+    def copytree_tolerate_unreadable_symlinks(cls, src, dst, preprintid):
+        """Copy a tree like shutil.copytree(), tolerating symlinks whose target can't even be
+        read (os.readlink() itself raising OSError, not just a dangling target - which
+        shutil's own `ignore_dangling_symlinks` does not cover, since that flag only applies
+        to the exists()-check made *after* a successful readlink()) - only for preprintids in
+        TOLERATE_UNREADABLE_SYMLINKS_PREPRINTIDS. Any other copy failure, or the same failure
+        for any other preprintid, is still raised as before.
+        """
+        if preprintid not in cls.TOLERATE_UNREADABLE_SYMLINKS_PREPRINTIDS:
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+            return
+
+        try:
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+        except shutil.Error as err:
+            fatal = []
+            for src_path, dst_path, message in err.args[0]:
+                if os.path.islink(src_path) and "Operation not permitted" in message:
+                    import_logic.logger.warning(f"Skipped unreadable symlink while deduping archive: {src_path}")
+                else:
+                    fatal.append((src_path, dst_path, message))
+            if fatal:
+                raise shutil.Error(fatal) from err
+
     @classmethod
     def dedup_archive_directory(cls, journal, preprintid):
         """run optimization of the directory content creating a tmp directory without duplicated files."""
@@ -101,14 +208,18 @@ class ImportFileManager:
         preprintid_dir_current_orig = f"{archive_path_current_orig}/{preprintid}"
         if os.path.exists(preprintid_dir_current_orig) and not os.path.exists(preprintid_dir_current_dedup):
             os.makedirs(os.path.dirname(preprintid_dir_current_dedup), exist_ok=True)
-            shutil.copytree(preprintid_dir_current_orig, preprintid_dir_current_dedup, dirs_exist_ok=True)
+            ImportFileManager.copytree_tolerate_unreadable_symlinks(
+                preprintid_dir_current_orig, preprintid_dir_current_dedup, preprintid
+            )
             ImportFileManager.run_dedup_script(journal, preprintid_dir_current_dedup)
 
         preprintid_dir_old_dedup = f"{archive_path_old_dedup}/{preprintid}"
         preprintid_dir_old_orig = f"{archive_path_old_orig}/{preprintid}"
         if os.path.exists(preprintid_dir_old_orig) and not os.path.exists(preprintid_dir_old_dedup):
             os.makedirs(os.path.dirname(preprintid_dir_old_dedup), exist_ok=True)
-            shutil.copytree(preprintid_dir_old_orig, preprintid_dir_old_dedup, dirs_exist_ok=True)
+            ImportFileManager.copytree_tolerate_unreadable_symlinks(
+                preprintid_dir_old_orig, preprintid_dir_old_dedup, preprintid
+            )
             ImportFileManager.run_dedup_script(journal, preprintid_dir_old_dedup)
 
         return (archive_path_current_dedup, archive_path_old_dedup)
@@ -118,7 +229,7 @@ class ImportFileManager:
         """Run external script to deduplicate the preprintid directories"""
 
         script_path = getattr(settings, f"WJAPP_{journal.code.upper()}_IMPORT_DEDUP_SCRIPT", None)
-        script_args = [tmp_path, "--recursive"]
+        script_args = [tmp_path]
         import_logic.logger.debug(f"Script {script_path} run on {tmp_path} ...")
 
         try:
@@ -134,6 +245,7 @@ class ImportFileManager:
         except subprocess.CalledProcessError as e:
             import_logic.logger.error(f"Error during the execution: {e}")
             import_logic.logger.error(f"{e.stderr}")
+            raise RuntimeError("error during the archive deduplication")
 
     @classmethod
     def reset_preprintid_dedup(cls, journal, preprintid):
@@ -161,14 +273,34 @@ class ImportFileManager:
         # necessary to clear() when the version import files starts because
         # there are two files preprintid.docx and submit.zip.
         # If the version is a production version the manual clear() must not be executed.
+
         if not production_version:
             self.action_manager.article.source_files.clear()
             self.action_manager.article.data_figure_files.clear()
 
-        for data in self.get_list_of_files_to_import(
+        publication_version = self.action_manager.imported_version_state_cod == 22
+
+        files_to_import = self.get_list_of_files_to_import(
             production_version=production_version,
-        ):
+        )
+
+        has_attachment = any(data["filetype"] == "attachment" for data in files_to_import)
+
+        if self.action_manager.article.journal.code == "JCAP" and not publication_version and has_attachment:
+            files_at_acceptance = self.action_manager.article.articleworkflow.supplementary_files_at_acceptance.all()
+            for sf in self.action_manager.article.supplementary_files.all():
+                # like in logic production HandleDeleteSupplementaryFile
+                if production_version and sf not in files_at_acceptance:
+                    sf.file.unlink_file()
+                import_logic.logger.debug(f"SF remove: {sf.file}")
+                self.action_manager.article.supplementary_files.remove(sf)
+
+        for data in files_to_import:
             djfile = self.read_file_from_archive(**data)
+            if djfile is None:
+                # only "pdf"/"production_pdf" can return None (missing for this version,
+                # not an error) - see read_file_from_archive
+                continue
             import_logic.logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
 
             if data["filetype"] == "pdf":
@@ -184,31 +316,53 @@ class ImportFileManager:
                 self.save_pdf_galley(djfile)
                 continue
 
-            # attachments
-            if data["filetype"] == "attachment" and production_version:
-                ta_assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
-                    only_completed=False,
-                )
+            # attachments supplementary file
+            if data["filetype"] == "attachment":
+                if production_version:
+                    ta_assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
+                        only_completed=False,
+                    )
+                    user = ta_assignment.typesetter
+                else:
+                    user = self.action_manager.article.correspondence_author
+
                 dff_file = files.save_file_to_article(
                     djfile,
                     self.action_manager.article,
-                    ta_assignment.typesetter,
+                    user,
                 )
-                dff_file.label = data["attachType"]
-                dff_file.description = f"{data['attachTitle']} {data['attachDescription']}"
+                dff_file.label = data["attach_type"]
+                dff_file.description = f"{data['title']} {data['description']}"
                 dff_file.save()
-                # for a production version, each attachment is a SF
-                # TODO: verify the case of published version
-                publication_version = self.action_manager.imported_version_state_cod == 22
-                if production_version and not publication_version:
+
+                if (
+                    self.action_manager.article.journal.code in ("JCOM", "JCOMAL")
+                    and production_version
+                    and not publication_version
+                ):
+                    for sf in self.action_manager.article.supplementary_files.all():
+                        # like in logic production HandleDeleteSupplementaryFile
+                        sf.file.unlink_file()
+                        self.action_manager.article.supplementary_files.remove(sf)
                     self.action_manager.article.supplementary_files.add(
                         SupplementaryFile.objects.create(file=dff_file)
                     )
+                    import_logic.logger.debug(f"saved attachment production {dff_file}")
+
+                if self.action_manager.article.journal.code == "JCAP" and not publication_version:
+                    self.action_manager.article.supplementary_files.add(
+                        SupplementaryFile.objects.create(file=dff_file)
+                    )
+                    import_logic.logger.debug(
+                        f"saved attachment prod_v: {production_version} pub_v: {publication_version} {dff_file}"
+                    )
+
                 continue
 
-            # for a review version the attachment is a data figure file
-            if data["filetype"] == "attachment" and not production_version:
-                self.save_data_figure_file(djfile, data)
+            if self.action_manager.article.journal.code in ("JCOM", "JCOMAL"):
+                # for a review version in jcom and jcomal the attachment is a data figure file
+                if data["filetype"] == "attachment" and not production_version:
+                    self.save_data_figure_file(djfile, data)
 
     def get_list_of_files_to_import(self, production_version=False):
         """Read archive and for the current preprintid an version extract the list of file and file type to import"""
@@ -217,7 +371,7 @@ class ImportFileManager:
         # PREPRINT.pdf as TA.galleys_created public=False
 
         if production_version:
-            return [
+            files_list_production = [
                 {
                     "archive_path": None,
                     "subdir": "",
@@ -225,8 +379,27 @@ class ImportFileManager:
                     "filetype": "production_pdf",
                     "description": None,
                     "title": None,
+                    "attach_type": None,
                 }
             ]
+            # read attachments data from wjapp database and add the file files to the list
+            # with the same format, pdf, zip, ...
+            # the original name of the attachment file is not imported but it is not relevant
+
+            wjapp_attachments = self.action_manager.read_attachments_data()
+            for dff_data in wjapp_attachments:
+                files_list_production.append(
+                    {
+                        "archive_path": None,
+                        "subdir": "attachments",
+                        "filename": f"{dff_data['attachID']}.{dff_data['attachFormat']}",
+                        "filetype": "attachment",
+                        "description": dff_data["attachDescription"],
+                        "title": dff_data["attachTitle"],
+                        "attach_type": dff_data["attachType"],
+                    },
+                )
+            return files_list_production
 
         # PREPRINT.pdf
         # Note: PREPRINTID.tex is not imported because we want to have in wjs only the author source
@@ -239,6 +412,7 @@ class ImportFileManager:
                 "filetype": "pdf",
                 "description": None,
                 "title": None,
+                "attach_type": None,
             },
         ]
 
@@ -287,6 +461,7 @@ class ImportFileManager:
             "filetype": "source_zip",
             "description": None,
             "title": None,
+            "attach_type": None,
         }
         files_list.append(submission_archive)
 
@@ -296,6 +471,24 @@ class ImportFileManager:
 
         wjapp_attachments = self.action_manager.read_attachments_data()
         for dff_data in wjapp_attachments:
+            if dff_data["attachID"] in (
+                "JCAP_027P_0606_ATTACH00010606",
+                "JCAP_019P_0207_ATTACH00010207",
+                "JCAP_017P_0206_ATTACH00030206",
+                "JCAP_025P_1005_ATTACH00030406",
+                "JCAP_027P_0606_ATTACH00010606",
+                "JCAP_028P_0606_ATTACH00020606",
+                "JCAP_033P_0106_ATTACH00020106",
+                "JCAP_033P_0306_ATTACH00020306",
+                "ATTACH00010805",
+                "ATTACH00020805",
+                "JCAP_033P_0106_ATTACH00030106",
+                "JCAP_033P_0106_ATTACH00040106",
+                "JCAP_033P_0306_ATTACH00030306",
+                "JCAP_019P_0207_ATTACH00020207",
+                "JCAP_019P_0207_ATTACH00030207",
+            ):
+                dff_data["attachFormat"] = f"{dff_data['attachFormat']}.gz"
             files_list.append(
                 {
                     "archive_path": None,
@@ -304,6 +497,7 @@ class ImportFileManager:
                     "filetype": "attachment",
                     "description": dff_data["attachDescription"],
                     "title": dff_data["attachTitle"],
+                    "attach_type": dff_data["attachType"],
                 },
             )
 
@@ -353,7 +547,14 @@ class ImportFileManager:
 
         import_logic.logger.debug(f"{zip_path=}")
         # create zip archive
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        # JCAP_092P_0620/1: the archive contains a junk file (macOS AppleDouble resource fork
+        # "submission/ARCHIVE_BlindingSubmissionJCAP.tar.gz/plots/._Icon\r") with a pre-1980 mtime,
+        # which zipfile otherwise rejects outright. strict_timestamps=False only clamps the
+        # *stored* timestamp metadata for such files to the valid boundary, never their content -
+        # but limited to this one preprintid rather than applied generally, since it's the only
+        # case found across the whole corpus.
+        strict_timestamps = self.action_manager.preprintid != "JCAP_092P_0620"
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, strict_timestamps=strict_timestamps) as zipf:
             # iterate on all files and directory in preprint dir
             for item in version_dir.rglob("*"):
                 # calculate relative path
@@ -389,7 +590,7 @@ class ImportFileManager:
 
         import tarfile
 
-        import_logic.logger.debug(f"PATH:   {self.action_manager.old_archive=}")
+        import_logic.logger.debug(f"build prod tar.gz PATH:   {self.action_manager.old_archive=}")
 
         # directory definition
         if archive == "current":
@@ -451,9 +652,45 @@ class ImportFileManager:
 
         return targz_path
 
+    def _find_file_candidate(self, archive_path: str, subdir: str, filename: str) -> Optional[Path]:
+        """Look for `filename` in the given archive_path, or in current/old if not provided.
+
+        Returns the resolved Path if found, or None (does not raise) - callers decide
+        whether a missing file is fatal.
+        """
+        if archive_path:
+            candidate = Path(
+                f"{archive_path}/{self.action_manager.preprintid}/"
+                f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
+            ).resolve()
+            import_logic.logger.debug(f"search candidate {filename} in provided archive path: {candidate=}")
+            return candidate if candidate.exists() and candidate.is_file() else None
+
+        candidate = Path(
+            f"{self.action_manager.current_archive}/{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
+        ).resolve()
+        import_logic.logger.debug(f"search candidate {filename} in archive current: {candidate=}")
+        if candidate.exists() and candidate.is_file():
+            return candidate
+
+        candidate = Path(
+            f"{self.action_manager.old_archive}/{self.action_manager.preprintid}/"
+            f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
+        ).resolve()
+        import_logic.logger.debug(f"fallback search candidate {filename} in the archive old: {candidate}")
+        return candidate if candidate.exists() and candidate.is_file() else None
+
     def read_file_from_archive(
-        self, archive_path: str, subdir: str, filename: str, filetype: str, description: str, title: str
-    ) -> DjangoFile:
+        self,
+        archive_path: str,
+        subdir: str,
+        filename: str,
+        filetype: str,
+        description: str,
+        title: str,
+        attach_type: str,
+    ) -> Optional[DjangoFile]:
         """
         Read a file stored inside an archive directory on the filesystem and return it as a DjangoFile.
         The archive here is a directory on disk (not necessarily a zip). This function does NOT open
@@ -469,9 +706,15 @@ class ImportFileManager:
 
         Returns
         - DjangoFile wrapping a ContentFile containing the file bytes, with name set to filename.
+        - For filetype "pdf"/"production_pdf", when the plain file is missing AND preprintid
+          is a key in PDF_GZ_FALLBACK_PREPRINTIDS: None if that entry's value is None (reviewed,
+          known missing - skip, not an error), or the transparently-decompressed content of
+          "<filename>.gz" if the value is "gz" and that file exists.
 
         Raises
-        - FileNotFoundError: if archive directory or target file does not exist.
+        - FileNotFoundError: if the target file (and, for pdf/production_pdf, its reviewed
+          fallback if any) does not exist. A pdf/production_pdf whose preprintid is not a key
+          in PDF_GZ_FALLBACK_PREPRINTIDS raises exactly as every other filetype does.
         - ValueError: if filetype is not allowed.
         """
 
@@ -479,42 +722,62 @@ class ImportFileManager:
         if filetype not in self.file_types:
             raise ValueError(f"Unknown filetype: {filetype!r}. Allowed types: {', '.join(self.file_types)}")
 
-        if not archive_path:
-            # search in the current archive directory
-            candidate = Path(
-                f"{self.action_manager.current_archive}/{self.action_manager.preprintid}/"
-                f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
-            ).resolve()
-            import_logic.logger.debug(f"search candidate {filetype} in archive current: {candidate=}")
+        candidate = self._find_file_candidate(archive_path, subdir, filename)
+        compressed = False
 
-            if not candidate.exists() or not candidate.is_file():
-                # fallback search in the old archive directory
-                candidate = Path(
-                    f"{self.action_manager.old_archive}/{self.action_manager.preprintid}/"
-                    f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
-                ).resolve()
-                import_logic.logger.debug(f"fallback search candidate {filetype} in the archive old: {candidate}")
-                if not candidate.exists() or not candidate.is_file():
-                    raise FileNotFoundError(f"File {filetype} not found: {filename}")
-        else:
-            # provided archive path
-            candidate = Path(
-                f"{archive_path}/{self.action_manager.preprintid}/"
-                f"{self.action_manager.imported_version_num}/{subdir}/{filename}"
-            ).resolve()
-            import_logic.logger.debug(f"search candidate {filetype} in provided archive path: {candidate=}")
-            if not candidate.exists() or not candidate.is_file():
-                raise FileNotFoundError(f"File {filetype} not found: {filename} in provided {archive_path}")
+        if candidate is None and filetype in ("pdf", "production_pdf"):
+            preprintid = self.action_manager.preprintid
+            if preprintid in PDF_GZ_FALLBACK_PREPRINTIDS:
+                fallback = PDF_GZ_FALLBACK_PREPRINTIDS[preprintid]
+                if fallback == "gz":
+                    candidate = self._find_file_candidate(archive_path, subdir, f"{filename}.gz")
+                    compressed = candidate is not None
+                if candidate is None and fallback is None:
+                    import_logic.logger.warning(
+                        f"File {filetype} not found: {filename} for {preprintid}/"
+                        f"{self.action_manager.imported_version_num} - skipping (known missing, reviewed)"
+                    )
+                    return None
+            # preprintid not in the dict, or fallback == "gz" but the .gz wasn't found
+            # either (unexpected - the entry assumed it would be there): falls through
+            # to the same FileNotFoundError as if this list didn't exist at all.
+
+        if candidate is None:
+            location = f"in provided {archive_path}" if archive_path else ""
+            raise FileNotFoundError(f"File {filetype} not found: {filename} {location}".strip())
 
         # Read bytes
         with candidate.open("rb") as f:
             content = f.read()
 
+        if compressed:
+            content = gzip.decompress(content)
+            import_logic.logger.warning(
+                f"File {filetype} loaded from gzip fallback {candidate.name} for"
+                f" {self.action_manager.preprintid}/{self.action_manager.imported_version_num}"
+            )
+
         # Return DjangoFile wrapping ContentFile
         return DjangoFile(ContentFile(content), name=filename)
 
     def _read_text_file(self, path):
-        """Read a text file trying utf-8 first, then latin-1 as fallback."""
+        """Read a text file trying utf-8 first, then latin-1 as fallback.
+
+        JCAP_024P_1104's edrep source (EDREP001151204) is a known, confirmed exception: it's
+        UTF-16BE (verified via a leading fe ff BOM), which utf-8/latin-1 would otherwise misread
+        as garbled text full of spurious NUL characters (every ASCII char in UTF-16 is a NUL byte
+        followed by the ASCII byte; latin-1 never raises so it silently "succeeds" with that
+        garbage instead of the real content) - PostgreSQL then rejects the NUL bytes on save.
+        Only this one confirmed case is special-cased with a UTF-16 read, rather than sniffing
+        for a BOM on every file - this exact wjapp export quirk has only been seen once so far.
+        """
+        if path.stem == "EDREP001151204":
+            with open(path, "rb") as f:
+                bom = f.read(2)
+            if bom in (b"\xff\xfe", b"\xfe\xff"):
+                with open(path, encoding="utf-16") as f:
+                    return f.read().replace("\x00", "")
+
         for enc in ("utf-8", "latin-1"):
             try:
                 with open(path, encoding=enc) as f:
@@ -560,6 +823,106 @@ class ImportFileManager:
             f"/{self.action_manager.imported_version_num}"
         )
 
+    def import_edrep_file_pdf(self, edrep):
+        """Import the edrep files of the specific editor of the imported_version.
+
+        The edrep pdf file is imported during the related review actions, not
+        when the version paper files are imported.
+        """
+
+        # edrep file: to be managed by the send report action
+        path_edrep_current = (
+            Path(self.action_manager.current_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "EDREP"
+            / f"{edrep}"
+        )
+        if path_edrep_current.exists() and any(path_edrep_current.rglob(f"{edrep}.pdf")):
+            data = {
+                "archive_path": self.action_manager.current_archive,
+                "subdir": f"EDREP/{edrep}",
+                "filename": f"{edrep}.pdf",
+                "filetype": "edrep_pdf",
+                "description": None,
+                "title": None,
+                "attach_type": None,
+            }
+            return self.read_file_from_archive(**data)
+
+        path_rerep_old = (
+            Path(self.action_manager.old_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "EDREP"
+            / f"{edrep}"
+        )
+        if path_rerep_old.exists() and any(path_rerep_old.rglob(f"{edrep}.pdf")):
+            data = {
+                "archive_path": self.action_manager.old_archive,
+                "subdir": f"EDREP/{edrep}",
+                "filename": f"{edrep}.pdf",
+                "filetype": "edrep_pdf",
+                "description": None,
+                "title": None,
+                "attach_type": None,
+            }
+            return self.read_file_from_archive(**data)
+
+        if path_rerep_old.exists() and any(path_rerep_old.rglob(f"{edrep}.txt")):
+            data = {
+                "archive_path": self.action_manager.old_archive,
+                "subdir": f"EDREP/{edrep}",
+                "filename": f"{edrep}.txt",
+                "filetype": "edrep_txt",
+                "description": None,
+                "title": None,
+                "attach_type": None,
+            }
+            return self.read_file_from_archive(**data)
+
+        import_logic.logger.warning(
+            f"edrep {edrep} not found for {self.action_manager.preprintid}"
+            f"/{self.action_manager.imported_version_num}"
+        )
+
+    def import_rerep_file_source(self, rerep):
+        """Import the rerep source tex of the imported_version during the review action.
+
+        return: the content of the rerep tex source
+        """
+        base_old = (
+            Path(self.action_manager.old_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "REREP"
+            / f"{rerep}"
+        )
+        base_current = (
+            Path(self.action_manager.current_archive)
+            / f"{self.action_manager.preprintid}"
+            / f"{self.action_manager.imported_version_num}"
+            / "REREP"
+            / f"{rerep}"
+        )
+
+        candidates = [
+            (base_current / f"{rerep}.tex", "current tex"),
+            (base_old / f"{rerep}.tex", "old tex"),
+            (base_old / f"{rerep}.txt", "old txt"),
+        ]
+
+        for path, label in candidates:
+            import_logic.logger.debug(f"path rerep {label}: {path}")
+            if path.exists():
+                import_logic.logger.debug(f"found {label}: {path.name}")
+                return self._read_text_file(path)
+
+        import_logic.logger.warning(
+            f"rerep {rerep} source not found for {self.action_manager.preprintid}"
+            f"/{self.action_manager.imported_version_num}"
+        )
+
     def import_rerep_file_pdf(self, rerep):
         """Import the rerep files of the specific referee of the imported_version.
 
@@ -583,6 +946,7 @@ class ImportFileManager:
                 "filetype": "rerep_pdf",
                 "description": None,
                 "title": None,
+                "attach_type": None,
             }
             return self.read_file_from_archive(**data)
 
@@ -601,6 +965,7 @@ class ImportFileManager:
                 "filetype": "rerep_pdf",
                 "description": None,
                 "title": None,
+                "attach_type": None,
             }
             return self.read_file_from_archive(**data)
 
@@ -612,6 +977,7 @@ class ImportFileManager:
                 "filetype": "rerep_txt",
                 "description": None,
                 "title": None,
+                "attach_type": None,
             }
             return self.read_file_from_archive(**data)
 
@@ -619,6 +985,61 @@ class ImportFileManager:
             f"rerep {rerep} not found for {self.action_manager.preprintid}"
             f"/{self.action_manager.imported_version_num}"
         )
+
+    def get_publication_attachments(self):
+        """Get the attachments of the publication version of wjapp."""
+
+        publication_version = self.action_manager.imported_version_state_cod == 22
+        if not publication_version:
+            import_logic.logger.error(
+                f"not publication version: {self.action_manager.preprintid}/{self.action_manager.imported_version_num}"
+            )
+            return
+
+        attachment_list_publication = []
+        wjapp_attachments = self.action_manager.read_attachments_data()
+        for dff_data in wjapp_attachments:
+            attachment_list_publication.append(
+                {
+                    "archive_path": None,
+                    "subdir": "attachments",
+                    "filename": f"{dff_data['attachID']}.{dff_data['attachFormat']}",
+                    "filetype": "attachment",
+                    "description": dff_data["attachDescription"],
+                    "title": dff_data["attachTitle"],
+                    "attach_type": dff_data["attachType"],
+                },
+            )
+
+        # if the publication version has no attachments in any case the previous one must be removed
+        files_at_acceptance = self.action_manager.article.articleworkflow.supplementary_files_at_acceptance.all()
+        for sf in self.action_manager.article.supplementary_files.all():
+            # like in logic production HandleDeleteSupplementaryFile
+            if self.action_manager.article.journal.code != "JCAP" or sf not in files_at_acceptance:
+                sf.file.unlink_file()
+            import_logic.logger.debug(f"pub ver SF remove: {sf.file}")
+            self.action_manager.article.supplementary_files.remove(sf)
+
+        for data in attachment_list_publication:
+            djfile = self.read_file_from_archive(**data)
+            import_logic.logger.debug(
+                f"publication version attachment: {data['filetype']} {djfile.name=}  {djfile.size=}"
+            )
+            if data["filetype"] == "attachment":
+                ta_assignment = self.action_manager.article.articleworkflow.get_latest_typesetting_assignment(
+                    only_completed=False,
+                )
+                dff_file = files.save_file_to_article(
+                    djfile,
+                    self.action_manager.article,
+                    ta_assignment.typesetter,
+                )
+                dff_file.label = data["attach_type"]
+                dff_file.description = f"{data['title']} {data['description']}"
+                dff_file.save()
+                # for a published version, each attachment is a SF
+                self.action_manager.article.supplementary_files.add(SupplementaryFile.objects.create(file=dff_file))
+                import_logic.logger.debug(f"saved attachment publication {dff_file}")
 
     def get_publication_pdf(self):
         """Get the publication pdf generated by wjapp.
@@ -642,6 +1063,7 @@ class ImportFileManager:
                     "filetype": "publication_pdf",
                     "description": None,
                     "title": None,
+                    "attach_type": None,
                 }
                 djfile = self.read_file_from_archive(**data)
                 import_logic.logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
@@ -654,11 +1076,51 @@ class ImportFileManager:
                     "filetype": "publication_pdf",
                     "description": None,
                     "title": None,
+                    "attach_type": None,
                 }
                 djfile = self.read_file_from_archive(**data)
                 import_logic.logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
 
             self.save_pdf_galley(djfile, public=True)
+
+    def move_production_source_to_pub_galleys_source_file(self):
+        """Move production source to galleys source files"""
+
+        # the typesetter files sources can be in a previous typesetter round if in the last one
+        # there are no typesetter uploads
+        # Note: typesetter rounds are ordered descending
+        found = False
+        for t_round in self.action_manager.article.typesettinground_set.all():
+            ta = t_round.typesettingassignment
+            files_tt = list(ta.files_to_typeset.all())
+            if len(files_tt) == 1:
+                self.action_manager.article.articleworkflow.publication_galleys_source_file = files_tt[0]
+                self.action_manager.article.articleworkflow.save()
+
+                # TODO: after User Functonal Tests remove copy: ta.files_to_typeset.clear()
+
+                readme_dj = self.create_minimal_pdf_targz_djangofile("README", "tar.gz")
+                readme_dj.content_type = "application/zip"
+                placeholder_file = files.save_file_to_article(
+                    readme_dj,
+                    self.action_manager.article,
+                    ta.typesetter,
+                )
+                ta.files_to_typeset.add(placeholder_file)
+                import_logic.logger.warning(f"found files to typeset for {self.action_manager.article} TR: {t_round}")
+                import_logic.logger.debug(
+                    f"{self.action_manager.article.articleworkflow.publication_galleys_source_file=}"
+                )
+                found = True
+                break
+            else:
+                import_logic.logger.warning(f"no files to typeset for {self.action_manager.article} TR: {t_round}")
+
+        if not found:
+            raise ValueError(
+                f"no files to typeset found in any round for {self.action_manager.article}: "
+                "publication_galleys_source_file left unset"
+            )
 
     def get_production_source(self):
         """Get the production source archive which is managed by the typesetter upload action."""
@@ -673,6 +1135,8 @@ class ImportFileManager:
         )
         if current_production_source_path.exists():
             archive_path_found = self.action_manager.current_archive
+            self.build_production_source_targz_from_main_directory(archive="current")
+            archive_dir = "build_archive_dir"
         else:
             if not Path(f"{self.action_manager.old_archive}/" f"{self.action_manager.preprintid}").exists():
                 archive_path_found = self.action_manager.current_archive
@@ -698,6 +1162,7 @@ class ImportFileManager:
             "filetype": "production_source",
             "description": None,
             "title": None,
+            "attach_type": None,
         }
         djfile = self.read_file_from_archive(**data)
         import_logic.logger.debug(f"filetype: {data['filetype']} {djfile.name=}  {djfile.size=}")
@@ -718,9 +1183,9 @@ class ImportFileManager:
         )
 
         # search in current
-        found = path_auann_current.rglob(f"{author_annotation}.*")
+        found = list(path_auann_current.rglob(f"{author_annotation}.*"))
         data = {}
-        if any(found):
+        if found:
             for item in found:
                 if item.is_file():
                     import_logic.logger.debug(f"auann in current: {item=}")
@@ -731,6 +1196,7 @@ class ImportFileManager:
                         "filetype": "author_annotation",
                         "description": None,
                         "title": None,
+                        "attach_type": None,
                     }
         else:
             path_auann_old = (
@@ -750,10 +1216,10 @@ class ImportFileManager:
                         "filetype": "author_annotation",
                         "description": None,
                         "title": None,
+                        "attach_type": None,
                     }
 
         if not data:
-            import_logic.logger.warning(f"author annotation not found {author_annotation}")
             return (None, None)
 
         djfile = self.read_file_from_archive(**data)
@@ -852,8 +1318,60 @@ class ImportFileManager:
         dff_file.description = f"{data['title']} {data['description']}"
         dff_file.save()
         self.action_manager.article.save()
-        import_logic.logger.debug(f"saved attachment {dff_dj}")
+        import_logic.logger.debug(f"saved attachment review {dff_dj}")
         return
+
+    def create_minimal_pdf_targz_djangofile(self, filename: str, filetype: str) -> DjangoFile:
+        """
+        Create and return a minimal DjangoFile type pdf, containing a visible
+        placeholder message (e.g. when the real source file is missing).
+        """
+        ft = filetype.lower()
+        if ft == "pdf":
+            message = "Replacement for missing source file"
+
+            content_stream = (f"BT /F1 18 Tf 50 750 Td ({message}) Tj ET").encode("latin-1")
+
+            objects = []
+            objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
+            objects.append(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+            objects.append(
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
+            )
+            objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+            objects.append(
+                f"<< /Length {len(content_stream)} >>\nstream\n".encode("latin-1") + content_stream + b"\nendstream"
+            )
+
+            header = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
+            buf = bytearray(header)
+            offsets = [0]  # object 0 is free, placeholder
+
+            for i, obj in enumerate(objects, start=1):
+                offsets.append(len(buf))
+                buf += f"{i} 0 obj\n".encode("latin-1") + obj + b"\nendobj\n"
+
+            xref_offset = len(buf)
+            n = len(objects) + 1
+            buf += f"xref\n0 {n}\n".encode("latin-1")
+            buf += b"0000000000 65535 f \n"
+            for off in offsets[1:]:
+                buf += f"{off:010d} 00000 n \n".encode("latin-1")
+
+            buf += (f"trailer\n<< /Size {n} /Root 1 0 R >>\n" f"startxref\n{xref_offset}\n%%EOF\n").encode("latin-1")
+
+            return DjangoFile(ContentFile(bytes(buf)), name=filename)
+
+        if ft in ("tar.gz", "targz", "tar"):
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+                info = tarfile.TarInfo("readme.txt")
+                data = b"Files in AW.publication_galleys_source_file\n"
+                info.size = len(data)
+                tf.addfile(info, io.BytesIO(data))
+            buf.seek(0)
+            return DjangoFile(ContentFile(buf.read()), name=f"{filename}.tar.gz")
 
 
 @dataclass
@@ -955,7 +1473,7 @@ class ImportFileFakeManager:
                     self.action_manager.article,
                     ta_assignment.typesetter,
                 )
-                dff_file.label = dff_data["attachType"]
+                dff_file.label = dff_data["attach_type"]
                 dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
                 dff_file.save()
                 # for a production version, each attachment is as SF in a list
@@ -1168,7 +1686,7 @@ class ImportFileWebManager:
                         self.action_manager.article,
                         ta_assignment.typesetter,
                     )
-                    dff_file.label = dff_data["attachType"]
+                    dff_file.label = dff_data["attach_type"]
                     dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
                     dff_file.save()
                     # for a production version, each attachment is as SF in a list
@@ -1613,7 +2131,7 @@ class ImportFileWebManager:
 
         # url ex: JCOM_001A_0524/2/attachments/JCOM_001A_0524_ATTACH00360924.docx&fileType=Attachment
 
-        url_end_part = f"{dff_data['attachID']}.{dff_data['attachFormat']}&fileType={dff_data['attachType']}"
+        url_end_part = f"{dff_data['attachID']}.{dff_data['attachFormat']}&fileType={dff_data['attach_type']}"
         file_url = (
             f"{self.action_manager.url_base}{self.action_manager.preprintid}/"
             f"{self.action_manager.imported_version_num}/attachments/{url_end_part}"
@@ -1637,7 +2155,7 @@ class ImportFileWebManager:
             self.action_manager.article.correspondence_author,
         )
         self.action_manager.article.data_figure_files.add(dff_file)
-        dff_file.label = dff_data["attachType"]
+        dff_file.label = dff_data["attach_type"]
         dff_file.description = f"{dff_data['attachTitle']} {dff_data['attachDescription']}"
         dff_file.save()
         self.action_manager.article.save()
