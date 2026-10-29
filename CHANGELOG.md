@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.1.6] - 2026-10-29
+
+- [specs#3044: In "profile / affiliations", pagination of the list of affiliations does not bring along the query](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3044) — fix(jcom_profile): keep the search query in the affiliation search pagination (!1600)
+- [specs#3140: As a typesetter when a new file is uploaded it should appear in the timeline](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3140) — Add log to timeline when typesetter upload file (!1559)
+- [specs#3093: Enable new Section Editors to receive submissions by default](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3093) — fix(jcom_profile): create StaffWorkloadParameters when a staff role is granted (!1594)
+- [specs#2196: Import JCAP data into TEST system for System Stress test with real files](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2196) — Feature/import development branch (!1263)
+- [specs#2956: Test import jcap 2025](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2956) — Feature/import development branch (!1263)
+- [specs#2886: Populate Article.rights with default value for imported article](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2886) — Feature/import development branch (!1263)
+- [specs#3277: Update labels on Editor's decision page](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3277) — feat(wjs_review): new intro on the decision page without referee reports (!1598)
+- [wjs-profile-project#298: As EO I want to be notified on IOP XML ZIP transmission](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/298) — fix(wjs_review): flag the "XML sent to publisher" EO message as read (!1597)
+- [specs#3136: Test automatic editor assignment](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3136) — feat(wjs_review): automatic assignment audit trail and historical replay (!1534)
+- [specs#3136: Test automatic editor assignment](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3136) — Design automatic-assignment audit trail and historical replay (!1513)
+- [specs#1245: As Editor I want to be assigned new submissions automatically (aka, paper kwds vs. editor kwds)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/1245) — Port keyword-based editor matching into automatic assignment (!1512)
+- [specs#3184: As EO I want to disable editors silently](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3184) — Port keyword-based editor matching into automatic assignment (!1512)
+- [specs#3204: Add support for free to read access mode](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3204) — feat(settings): set Access Mode JCAP/JSTAT/JINST errata as free to read (!1554)
+- [specs#3293: Reminder tests fail between 22:00 and 24:00 UTC: dates computed on the UTC date instead of the local one](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3293) — Compute dates on the local date and run reminder tests at critical times (!1588)
+- [specs#3264: Attention Condition shown for typ even when not late](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3264) — fix(wjs_review): start typesetter/proofing late ACs the day after the due date (!1582)
+- [specs#3326: upgrade filelock to 4.2.1](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3326) — upgrade filelock to 4.2.1 (!1596)
+- [specs#3173: ERROR 2026-09-18 14:44:11, File matching query does not exist](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3173) — fix(wjs_review): skip Yakunin conversion race when manuscript file was superseded (!1590)
+- [specs#3085: error  File matching query does not exist](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3085) — fix(wjs_review): skip Yakunin conversion race when manuscript file was superseded (!1590)
+
 ## [2.1.5] - 2026-10-21
 
 - No linked issue — Allow parens in pubid pattern for images download (!1593)
