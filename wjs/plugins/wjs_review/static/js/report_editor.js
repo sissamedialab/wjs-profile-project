@@ -18,6 +18,10 @@ function checkDateVisibility(decision) {
 /**
  * Copies the content of a reviewer's report from a modal and appends it to the decision editor field.
  *
+ * The field is a TinyMCE rich-text editor on text-only journals (the report is copied as HTML through
+ * TinyMCE's API, since TinyMCE hides the textarea and ignores changes to its value) and a plain
+ * textarea on LaTeX journals (the report is copied as text).
+ *
  * @param {string} id - The identifier used to locate the specific modal containing the reviewer's report.
  * @param {int} reviewOrder - The order of the report.
  * @return {void} - Does not return a value.
@@ -27,6 +31,23 @@ function copyReviewerReport(id, reviewOrder) {
     `#author_review_tex_modal-${id} .modal-body, #author_review_modal-${id} .modal-body`
   );
   if (!src) return;
+  const editor = document.getElementById("id_decision_editor_report");
+  if (!editor) return;
+
+  const richEditor = typeof tinymce !== "undefined" ? tinymce.get(editor.id) : null;
+  if (richEditor) {
+    /* Copy the stored HTML, not the modal's: linebreaksbr puts <br> inside lists there, and TinyMCE */
+    /* splits a list at each of them. */
+    const source = document.getElementById(`author_review_source-${id}`);
+    const html = (source ? source.innerHTML : src.innerHTML).trim();
+    if (!html) return;
+    /* No <hr>: the field's HTML allowlist would strip it on save. */
+    let content = `<p><strong>Report ${reviewOrder}</strong></p>${html}`;
+    if (richEditor.getContent()) content = `<p>-------------------</p>${content}`;
+    richEditor.setContent(richEditor.getContent() + content);
+    richEditor.fire("change");
+    return;
+  }
 
   /* innerText globs away newlines (it behaves like textContent) if the element is not visible, */
   /* because there's no rendered layout to read from. */
@@ -41,8 +62,6 @@ function copyReviewerReport(id, reviewOrder) {
   clone.remove();
 
   if (!text) return;
-  const editor = document.getElementById("id_decision_editor_report");
-  if (!editor) return;
   let content = `Report ${reviewOrder}\n\n${text}`;
   if (editor.value) content = `\n\n-------------------\n\n${content}`;
   editor.value += content;

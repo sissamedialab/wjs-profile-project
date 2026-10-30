@@ -4,6 +4,7 @@ from typing import Callable, Iterable, List, Optional
 import freezegun
 import pytest
 from core.models import Account
+from django import forms
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core import mail
@@ -22,8 +23,9 @@ from review import models as review_models
 from review.models import ReviewAssignment, ReviewForm, ReviewRound
 from submission import models as submission_models
 from submission.models import Article
+from tinymce.widgets import TinyMCE
 from utils import setting_handler
-from utils.setting_handler import get_setting
+from utils.setting_handler import get_setting, save_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
@@ -2008,11 +2010,14 @@ def test_article_decision_triggered_twice_is_serialized(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("report_type", ["tex", "tex+text"])
 def test_decision_form_decisioneditorreport(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
+    report_type: str,
 ):
     """ """
+    save_setting("wjs_review", "reviewer_report_type", assigned_article.journal, report_type)
     editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = editor
     workflow = assigned_article.articleworkflow
@@ -2104,6 +2109,66 @@ def test_decision_page_with_reports_intro_is_unchanged(
     assert (
         '<p class="mb-1">The following form includes any reports' in content
     ), "The intro is its own block above the field"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("report_type", "expected_widget"),
+    (
+        ("text", TinyMCE),
+        ("tex", forms.Textarea),
+        ("tex+text", forms.Textarea),
+    ),
+)
+def test_decision_form_editor_report_widget(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    report_type: str,
+    expected_widget: type,
+):
+    """
+    The editor report is rich text (TinyMCE) for text-only journals and plain text for LaTeX journals.
+
+    report_editor.js (copyReviewerReport) relies on this to choose between TinyMCE's API and the textarea value.
+    """
+    save_setting("wjs_review", "reviewer_report_type", assigned_article.journal, report_type)
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    fake_request.user = editor
+    form = DecisionForm(
+        instance=assigned_article.articleworkflow,
+        user=editor,
+        request=fake_request,
+        initial={"decision": ArticleWorkflow.Decisions.ACCEPT},
+        has_pending_reviews=False,
+    )
+    widget = form.fields["decision_editor_report"].widget
+    assert type(widget) is expected_widget, f"{report_type}: got {type(widget).__name__}"
+
+
+@pytest.mark.django_db
+def test_decision_page_keeps_unrendered_reviewer_report(
+    client: Client,
+    submitted_review_assignment: WorkflowReviewAssignment,
+):
+    """
+    The decision page carries the reviewer report HTML as stored, next to the modal that renders it.
+
+    The modal applies linebreaksbr, which puts <br> inside lists; copyReviewerReport copies the stored
+    HTML instead, otherwise TinyMCE splits each list into one-item lists.
+    """
+    report = "<ol>\n<li>one</li>\n<li>two</li>\n</ol>"
+    submitted_review_assignment.report_form_answers["author_review"] = report
+    submitted_review_assignment.report_form_answers.pop("author_review_tex", None)
+    submitted_review_assignment.save()
+    article = submitted_review_assignment.article
+    save_setting("wjs_review", "reviewer_report_type", article.journal, "text")
+    client.force_login(WjsEditorAssignment.objects.get_current(article).editor)
+    url = reverse("wjs_article_decision", args=(article.articleworkflow.pk,))
+
+    content = client.get(url, {"decision": ArticleWorkflow.Decisions.ACCEPT}).content.decode()
+
+    source = f'<template id="author_review_source-{submitted_review_assignment.pk}">{report}</template>'
+    assert source in content, "The stored report HTML is on the page, without the modal's <br>"
 
 
 @pytest.mark.django_db
