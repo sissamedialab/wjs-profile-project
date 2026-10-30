@@ -81,6 +81,8 @@
               {% bootstrap_button type="button" content=use_report_label button_class="btn-danger js-copy-tex-btn" data_review_order=forloop.counter data_review_id=review.pk %}
             {% endif %}
             {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=author_review_modal_title modal_body=modal_content %}
+            {# Unrendered report HTML for copyReviewerReport: the modal body has linebreaksbr applied #}
+            <template id="author_review_source-{{ review.pk }}">{{ review.workflowreviewassignment.report_form_answers|get_value:'author_review'|safe }}</template>
           {% endwith %}
         {% else %}
           {% translate "Not provided" %}

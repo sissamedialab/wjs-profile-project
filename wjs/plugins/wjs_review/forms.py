@@ -733,7 +733,7 @@ class DecisionForm(forms.ModelForm):
         reviewer_report_type = get_setting(
             setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
         ).value
-        if "tex" in reviewer_report_type:
+        if reviewer_report_type in ("tex", "tex+text"):
             self.fields["decision_editor_report"] = CharField(
                 label=_("Editor Report for authors"),
                 required=False,
