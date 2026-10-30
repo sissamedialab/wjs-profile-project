@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.1.7] - 2026-10-30
+
+- [specs#2096: Create an experimental instance of Jaeger](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2096) — feat: add support for OpenTelemetry + Jaeger tracing (!1404)
+- [specs#3052: Deploy Jaeger / OTel on "dev" instance](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3052) — feat: add support for OpenTelemetry + Jaeger tracing (!1404)
+- [specs#3328: Ensure traces survive Jaeger restart](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3328) — feat: add support for OpenTelemetry + Jaeger tracing (!1404)
+- [specs#2293: Verify monitoring of JCOM / JCOMAL](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2293) — feat: add support for OpenTelemetry + Jaeger tracing (!1404)
+- [specs#3351: upgrade autobahn to 26.10.1](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3351) — upgrade autobahn to 26.10 (!1602)
+- [specs#3313: Cannot download files from Janeway's document management page](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3313) — fix(jcom_profile): stop article_figure url from shadowing Janeway's article file urls (!1601)
+
 ## [2.1.6] - 2026-10-29
 
 - [specs#3044: In "profile / affiliations", pagination of the list of affiliations does not bring along the query](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3044) — fix(jcom_profile): keep the search query in the affiliation search pagination (!1600)
