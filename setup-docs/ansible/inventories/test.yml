@@ -32,6 +32,13 @@ test:
       # instances themselves run on is pyenv_python, set on the janeway group.
       ansible_python_interpreter: auto
 
+# Machine hosting the services shared by the test instances (e.g. Jaeger, see
+# jaeger.yml). Deliberately not a child of "janeway": no instance runs there.
+services:
+  hosts:
+    wjs-services-test.ud.sissamedialab.it:
+      ansible_python_interpreter: auto
+
 # Machine used for the one-off import/setup playbooks (wjs-setup*.yml).
 # Deliberately not a child of "janeway": those playbooks are not meant to be
 # re-run against a live instance.

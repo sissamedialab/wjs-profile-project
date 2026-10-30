@@ -32,7 +32,7 @@ class JCOMProfileConfig(AppConfig):
         # TODO: Clarify this line (unused import but without them process breaks)
         from core import forms as core_forms
 
-        from wjs.jcom_profile import forms, signals, urls  # NOQA
+        from wjs.jcom_profile import forms, signals, tracing_djangoq, urls  # NOQA
 
         core_forms.RegistrationForm = forms.JCOMRegistrationForm
 
@@ -40,6 +40,8 @@ class JCOMProfileConfig(AppConfig):
         settings.TEMPLATES[0]["DIRS"].insert(0, os.path.join(self.path, "templates"))
         self.register_hooks()
         self._prevent_public_email_send()
+        # Trace django-q tasks too (no-op unless tracing is enabled)
+        tracing_djangoq.connect_signals()
 
     def register_hooks(self):
         """Register my functions to Janeway's hooks."""

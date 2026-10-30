@@ -1,0 +1,120 @@
+# Install Jaeger (see specs#2096 and specs#3052 for details)
+#
+# Jaeger runs on the "services" machine of each environment (see the inventories):
+# - test:       wjs-services-test.ud.sissamedialab.it
+# - production: wjs-services.ud.sissamedialab.it
+# The WJS instances send their traces there over OTLP/HTTP (port 4318); the
+# endpoint is set in systemd/gunicorn.service.j2. The instrumentation itself is
+# done in-code (wjs/jcom_profile/tracing.py) and the OTEL packages are regular
+# requirements of WJS (setup.cfg), so there is nothing to install on the
+# Janeway hosts.
+#
+# Test:
+#   ansible-playbook jaeger.yml
+#
+# Production (note the explicit inventory and confirmation):
+#   ansible-playbook -i inventories/prod.yml jaeger.yml -e confirm=PROD --check --diff
+#   ansible-playbook -i inventories/prod.yml jaeger.yml -e confirm=PROD
+#
+# The Jaeger UI (port 16686) is reachable through a vhost on wjs-test:
+# https://wjs-test-jaeger.wjapp.it/ (second play below). There is no such proxy
+# for production (yet).
+#
+# NB: traces are kept in memory and do not survive a restart of the container
+# (see specs#3328).
+#
+# On the services machines we only have the unprivileged "wjs" user, and Docker
+# runs rootless as that user: the modules talk to the user's daemon through
+# its socket in $XDG_RUNTIME_DIR. The community.docker modules do not need the
+# Docker SDK for Python on the remote host, only python3-requests.
+# For the container to come back after a reboot, the user's docker service must
+# be enabled and wjs must be "lingering" (`loginctl enable-linger wjs`, as root,
+# once per machine): this playbook checks both, but cannot fix the latter.
+---
+- name: Install Jaeger
+  hosts: services
+  remote_user: wjs
+  vars:
+    xdg_runtime_dir: "/run/user/{{ ansible_facts.user_uid }}"
+    # Jaeger publishes full X.Y.Z tags only (there is no "2.19"):
+    # https://hub.docker.com/r/jaegertracing/jaeger/tags
+    jaeger_image: cr.jaegertracing.io/jaegertracing/jaeger:2.19.0
+
+  module_defaults:
+    group/community.docker.docker:
+      docker_host: "unix://{{ xdg_runtime_dir }}/docker.sock"
+
+  pre_tasks:
+
+    - name: Guard against unintended production runs
+      import_tasks: tasks/assert-production-opt-in.yml
+
+    - name: Check that wjs's user units survive logout and reboot
+      command: loginctl show-user wjs --property=Linger --value
+      register: linger
+      changed_when: false
+
+    - name: Refuse to go on without linger
+      assert:
+        that:
+          - linger.stdout == "yes"
+        fail_msg: >-
+          wjs is not lingering on {{ inventory_hostname }}: rootless docker (and Jaeger
+          with it) would stop at logout and not start at boot.
+          Ask an admin to run `loginctl enable-linger wjs` there.
+
+    - name: Make sure the rootless docker daemon is enabled and running
+      ansible.builtin.systemd_service:
+        name: docker.service
+        scope: user
+        enabled: yes
+        state: started
+      environment:
+        XDG_RUNTIME_DIR: "{{ xdg_runtime_dir }}"
+
+  tasks:
+
+    - name: Pull Jaeger Docker image
+      community.docker.docker_image_pull:
+        name: "{{ jaeger_image }}"
+
+    - name: Run Jaeger
+      community.docker.docker_container:
+        name: jaeger
+        image: "{{ jaeger_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          # UI, proxied by the vhost below
+          - "16686:16686"
+          # OTLP/HTTP receiver, where the WJS instances send their traces
+          - "4318:4318"
+
+
+- name: Proxy the Jaeger UI from wjs-test to wjs-services-test
+  hosts: test
+  remote_user: root
+  become: yes
+
+  tasks:
+
+    - name: Copy jaeger proxy configuration for apache
+      copy:
+        src: apache/jaeger.conf
+        dest: /etc/apache2/sites-available/jaeger.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload Apache
+
+    - name: Enable jaeger proxy configuration
+      command: a2ensite jaeger.conf
+      args:
+        creates: /etc/apache2/sites-enabled/jaeger.conf
+      notify: Reload Apache
+
+  handlers:
+    - name: Reload Apache
+      service:
+        name: apache2
+        state: reloaded
