@@ -9,8 +9,8 @@
 #
 # Step 2 is enforced by tasks/assert-production-opt-in.yml, which every
 # production-capable playbook imports in its pre_tasks. It keys off the
-# is_production flag set below, so adding a host to this group is enough to
-# put it behind the guard.
+# is_production flag set below, so adding a host to one of these groups is
+# enough to put it behind the guard.
 #
 # Do a --check --diff run before the real one.
 
@@ -35,3 +35,13 @@ prod:
     # Add further production machines here, one per line, e.g.:
     # wjs-prod-2:
     #   ansible_python_interpreter: auto
+
+# Machine hosting the services shared by the production instances (e.g. Jaeger,
+# see jaeger.yml). Deliberately not a child of "janeway": no instance runs
+# there. It is production all the same, hence behind the same guard.
+services:
+  vars:
+    is_production: true
+  hosts:
+    wjs-services.ud.sissamedialab.it:
+      ansible_python_interpreter: auto

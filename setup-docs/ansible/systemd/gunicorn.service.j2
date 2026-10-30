@@ -30,6 +30,16 @@ WorkingDirectory=/home/wjs/{{ full_name }}/src
 # It is created by /etc/tmpfiles.d/wjs-rundir.conf (see wjs-setup.yml and
 # systemd/wjs-rundir.conf).
 
+# OpenTelemetry tracing (see wjs/jcom_profile/tracing.py): traces go to the Jaeger
+# installed by jaeger.yml on the "services" machine of the same environment.
+# Override for a single render with e.g. -e otel_performance_tracing_enabled=false
+# or -e otel_exporter_otlp_endpoint=http://some-host:4318
+# Each instance reports as its own service in Jaeger: "wjs" for production, "wjs-t3", ...
+Environment="OTEL_SERVICE_NAME=wjs{{ suffix }}"
+Environment="OTEL_PERFORMANCE_TRACING_ENABLED={{ otel_performance_tracing_enabled | default('true') }}"
+Environment="OTEL_ERROR_TRACING_ENABLED={{ otel_error_tracing_enabled | default('true') }}"
+Environment="OTEL_EXPORTER_OTLP_ENDPOINT={{ otel_exporter_otlp_endpoint | default('http://wjs-services.ud.sissamedialab.it:4318' if is_production | default(false) else 'http://wjs-services-test.ud.sissamedialab.it:4318') }}"
+
 # Start Gunicorn with Uvicorn workers and Unix socket
 # Production carries the real traffic and gets one worker more than a test
 # instance; override for a single render with -e gunicorn_workers=N.

@@ -15,9 +15,13 @@ from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
 from utils import load_janeway_settings
 
+from wjs.jcom_profile.tracing import configure_tracing
+
 # early init for django app
 os.environ.setdefault("JANEWAY_SETTINGS_MODULE", "core.settings")
 load_janeway_settings()
+# Initialise OpenTelemetry tracing before the app is built (no-op unless enabled).
+configure_tracing()
 django_app = get_asgi_application()
 
 from . import routing  # noqa: E402

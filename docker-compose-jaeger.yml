@@ -1,0 +1,45 @@
+# Jaeger all-in-one
+#
+# NB: data is _NOT_ persistent! (see specs#3328)
+# Persisting data probably requires (not tested):
+# - create/edit a config file(s)
+#   https://www.jaegertracing.io/docs/latest/deployment/configuration/
+# - bind-mount the config file and tell jaeger to use it
+# - add a docker volume and mount it where the selected storage needs it
+#   https://www.jaegertracing.io/docs/latest/storage/
+#
+# To test:
+# - the OTEL packages are regular requirements of WJS (setup.cfg): `pip install -e .` is enough
+# - run this compose file (e.g. `docker compose -f .../docker-compose-jaeger.yml up`)
+# - start WJS through the ASGI entrypoint (wjs.channels.asgi, where tracing is set up) with
+#   `OTEL_PERFORMANCE_TRACING_ENABLED=true` and/or `OTEL_ERROR_TRACING_ENABLED=true` in its environment
+#   (these are read from the process environment, not from the django settings);
+#   OTEL_EXPORTER_OTLP_ENDPOINT defaults to http://localhost:4318, i.e. this container
+# - visit some pages of WJS
+# - visit http://localhost:16686/search , select service "wjs" and click "Find traces"
+# See wjs/jcom_profile/tracing.py for all the available OTEL_* variables.
+#
+# To add custom "spans":
+# - tracing.py sets the global tracer provider, so any module can get a tracer and wrap
+#   some code with a span:
+#   ```
+#   from opentelemetry import trace
+#
+#   tracer = trace.get_tracer(__name__)
+#
+#   def get_form_kwargs(self):
+#       with tracer.start_as_current_span("span-name"):
+#           kwargs = {
+#               ...
+#   ```
+#   (when tracing is disabled, the tracer is a no-op)
+
+services:
+  jaeger:
+    # For the image, see also https://www.jaegertracing.io/download/
+    image: ${REGISTRY:-cr.jaegertracing.io/}jaegertracing/jaeger:${JAEGER_VERSION:-latest}
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    environment:
+      - LOG_LEVEL=debug
