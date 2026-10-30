@@ -65,8 +65,10 @@ urlpatterns = [
         journal_views.article,
         name="article_view",
     ),
+    # This pattern precedes all of Janeway's urls, so file_name must not contain "/": otherwise it would shadow
+    # e.g. article/id/<id>/file/<file_id>/ (article_file_download), .../print/, .../download/pdf/, etc.
     re_path(
-        r"^article/(?P<identifier_type>{})/(?P<identifier>[\w.()-]+)/(?P<file_name>.+)$"
+        r"^article/(?P<identifier_type>{})/(?P<identifier>[\w.()-]+)/(?P<file_name>[^/]+)$"
         "".format(NON_DOI_PIPE_SEPARATED_IDENTIFIERS),
         journal_views.identifier_figure,
         name="article_figure",

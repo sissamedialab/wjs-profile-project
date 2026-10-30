@@ -21,6 +21,16 @@ After=network.target
 # No! # Environment="Q_CLUSTER_NAME=qcluster-test"  # gives KeyError: 'ALT_CLUSTERS' (see docs)
 # User=wjs  # Not needed: this is a user unit, it already runs as wjs
 WorkingDirectory=/home/wjs/{{ full_name }}/src
+
+# OpenTelemetry tracing of the tasks (see wjs/jcom_profile/tracing_djangoq.py): same
+# settings as in gunicorn.service.j2 (keep them in sync), but the tasks report as
+# their own service, e.g. "wjs-qcluster" or "wjs-t3-qcluster". A task enqueued by a
+# web request shows up in the trace of that request.
+Environment="OTEL_SERVICE_NAME=wjs{{ suffix }}-qcluster"
+Environment="OTEL_PERFORMANCE_TRACING_ENABLED={{ otel_performance_tracing_enabled | default('true') }}"
+Environment="OTEL_ERROR_TRACING_ENABLED={{ otel_error_tracing_enabled | default('true') }}"
+Environment="OTEL_EXPORTER_OTLP_ENDPOINT={{ otel_exporter_otlp_endpoint | default('http://wjs-services.ud.sissamedialab.it:4318' if is_production | default(false) else 'http://wjs-services-test.ud.sissamedialab.it:4318') }}"
+
 ExecStart={{ venv_root }}/bin/python manage.py qcluster
 
 [Install]

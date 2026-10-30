@@ -744,3 +744,36 @@ SUBMISSION_CORRESPONDENCE_AUTHOR_VALIDATION_FUNCTION = {
     "JCOMAL": "wjs.jcom_profile.account_validation.jcom_correspondence_author_validation",
     None: "plugins.wjs_submission.account_validation.default_correspondence_author_validation",
 }
+
+# OpenTelemetry tracing
+# ---------------------
+# Disabled by default; enable per-environment with OTEL_PERFORMANCE_TRACING_ENABLED=true
+# and/or OTEL_ERROR_TRACING_ENABLED=true.
+# All journals report under a single service name. Setup lives in
+# wjs/jcom_profile/tracing.py (called from wjs/channels/asgi.py); Jaeger runs via the
+# repo-root docker-compose-jaeger.yml. Defaults are imported from tracing.py so the
+# settings layer and the asgi-time setup cannot drift.
+from wjs.jcom_profile.tracing import (
+    DEFAULT_OTLP_ENDPOINT,
+    DEFAULT_SAMPLER_RATIO,
+    DEFAULT_SERVICE_NAME,
+)
+
+OTEL_PERFORMANCE_TRACING_ENABLED = os.environ.get("OTEL_PERFORMANCE_TRACING_ENABLED", "false")
+OTEL_ERROR_TRACING_ENABLED = os.environ.get("OTEL_ERROR_TRACING_ENABLED", "false")
+OTEL_SERVICE_NAME = os.environ.get("OTEL_SERVICE_NAME", DEFAULT_SERVICE_NAME)
+OTEL_EXPORTER_OTLP_ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", DEFAULT_OTLP_ENDPOINT)
+OTEL_TRACES_SAMPLER_RATIO = os.environ.get("OTEL_TRACES_SAMPLER_RATIO", DEFAULT_SAMPLER_RATIO)
+
+OTEL_ERROR_TRACING_CAPTURE_LOCALS = os.environ.get("OTEL_ERROR_TRACING_CAPTURE_LOCALS", "true")
+
+# When error tracing captures locals, append the middleware that enriches error spans.
+from wjs.jcom_profile.tracing import (  # noqa: E402
+    capture_locals_enabled as _otel_capture_locals_enabled,
+)
+from wjs.jcom_profile.tracing import (
+    error_tracing_enabled as _otel_error_tracing_enabled,
+)
+
+if _otel_error_tracing_enabled() and _otel_capture_locals_enabled():
+    MIDDLEWARE = tuple(MIDDLEWARE) + ("wjs.jcom_profile.tracing.OTelErrorLocalsMiddleware",)
