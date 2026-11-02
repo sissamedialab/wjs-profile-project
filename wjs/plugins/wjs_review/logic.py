@@ -4624,7 +4624,7 @@ class YakuninClient:
         unpack_dir = tempfile.mkdtemp()
 
         with BytesIO(content) as file_obj, tarfile.open(fileobj=file_obj, mode="r:gz") as tar:
-            tar.extractall(path=unpack_dir)
+            tar.extractall(path=unpack_dir, filter="data")
         return Path(unpack_dir)
 
     @staticmethod
