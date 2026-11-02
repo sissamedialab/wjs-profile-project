@@ -18,10 +18,11 @@ janeway:
   children:
     prod:
   vars:
-    # See the identical note in inventories/test.yml: this is the pyenv-provided
-    # Python the Janeway virtualenvs are built on, not the OS interpreter
-    # Ansible uses for its modules.
-    pyenv_python: "3.13.15"
+    # See the identical note in inventories/test.yml: this is the system Python
+    # the Janeway virtualenvs are built on, not the interpreter Ansible uses for
+    # its modules. wjs-prod gets it with the upgrade to Debian 13; until then
+    # regenerate-venv-and-deploy.yml stops before touching the instance.
+    system_python: "3.13"
 
 prod:
   vars:
@@ -30,7 +31,7 @@ prod:
     wjs-prod:
       # System interpreter for Ansible's own modules; "auto" rather than a pin,
       # so an OS upgrade does not break every playbook at once. Not the python
-      # the instance runs on - that is pyenv_python, above.
+      # the instance runs on - that is system_python, above.
       ansible_python_interpreter: auto
     # Add further production machines here, one per line, e.g.:
     # wjs-prod-2:

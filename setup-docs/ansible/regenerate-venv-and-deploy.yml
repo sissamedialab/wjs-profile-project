@@ -1,17 +1,26 @@
-# Rebuild an instance's virtualenv on a fresh Python (3.13 by default) AND put
-# Janeway and WJS back into it, in one run.
+# Rebuild an instance's virtualenv on the system Python AND put Janeway and
+# WJS back into it, in one run.
 #
-# This is regenerate-venv.yml plus the deploy: same pyenv / interpreter /
-# virtualenv / symlink steps, but instead of stopping and handing over to the CI
-# it pulls Janeway, installs the packages, starts the instance back up and
-# reloads Apache. Use regenerate-venv.yml when the deploy must go through the CI
-# (a specific SHA on t1-t5, say); use this one to get an instance back on its
-# feet in a single command.
+# The virtualenv is based on Debian's own interpreter (/usr/bin/python3.13 by
+# default), not on one built with pyenv: a pyenv build never receives security
+# fixes, while Debian's is patched by apt like everything else (specs#3362).
+# The virtualenv links to /usr/bin/python3.X, so a patched interpreter is
+# picked up at the next restart of gunicorn/qcluster - no rebuild needed. A
+# rebuild IS needed when the minor version changes (e.g. a Debian upgrade
+# replacing 3.13 with 3.14).
 #
-# From specs#3084 (note 73742).
+# The instance is stopped, the virtualenv recreated, Janeway pulled, the
+# packages installed, the instance started again and Apache reloaded.
+#
+# From specs#3084 (note 73742), moved off pyenv in specs#3362.
 #
 # Test instance:
 #   ansible-playbook regenerate-venv-and-deploy.yml -e instance="t1"
+#
+# All the instances on wjs-test, one after the other:
+#   for i in t1 t2 t3 t4 t5 dev pp; do
+#       ansible-playbook regenerate-venv-and-deploy.yml -e instance="$i" || break
+#   done
 #
 # Production (note the explicit inventory and confirmation):
 #   ansible-playbook -i inventories/prod.yml regenerate-venv-and-deploy.yml \
@@ -21,8 +30,10 @@
 # empty value to work on an unsuffixed instance (/home/wjs/janeway).
 #
 # Useful knobs:
-#   -e pyenv_python=3.13.15  interpreter to build and to base the virtualenv on
-#   -e pyenv_ref=v2.4.7      pyenv revision to check out (default: master)
+#   -e system_python=3.13    minor version of the system interpreter to base
+#                            the virtualenv on (/usr/bin/python<version>). The
+#                            default comes from the janeway group in
+#                            inventories/.
 #   -e refresh_wjs=off       reinstall the WJS versions the instance already
 #                            had, instead of taking the current ones. Default
 #                            "on".
@@ -33,6 +44,16 @@
 #                            "-e key=value" stops at the first space and would
 #                            silently drop the rest:
 #                              -e '{"pip_options": "--pre --no-cache-dir"}'
+#
+# Requirements on the machine (as root, once; Debian 13 ships python3.13):
+#
+#   apt install python3.13 python3.13-dev virtualenvwrapper
+#
+# python3.13-dev provides the headers for building any dependency that has no
+# wheel for this platform. Both the interpreter and the headers are checked
+# before anything is touched, so a machine still on Debian 12 (python 3.11)
+# fails here and keeps its instance running. This is what keeps wjs-prod safe
+# until it has been upgraded.
 #
 # Janeway is pulled on whatever branch the checkout is already on - this
 # playbook never switches branch. Change branch by hand (or via the CI) first if
@@ -65,45 +86,7 @@
 # deleted: rolling back is a "mv" away. Nothing cleans those up, so remove them
 # once the instance is known good.
 #
-# "pyenv install" does NOT fail when a build dependency is missing: configure
-# quietly drops the affected module and the interpreter is built without it.
-# Install these as root before the first run (the issue reports Debian 13
-# already has everything):
-#
-#   apt install build-essential pkg-config curl ca-certificates xz-utils \
-#       libreadline-dev libncurses-dev libssl-dev zlib1g-dev libbz2-dev \
-#       liblzma-dev libzstd-dev libsqlite3-dev libffi-dev uuid-dev \
-#       libgdbm-dev libgdbm-compat-dev
-#
-# Notes on that list:
-#   - readline needs libreadline-dev AND libncurses-dev: it links against
-#     terminfo, so ncurses headers alone decide whether the module appears
-#   - libssl-dev is the one that hurts most - without it pip cannot reach any
-#     index, so the deploy fails at the first install
-#   - xz-utils and curl are for pyenv itself (fetching and unpacking the source
-#     tarball), not for CPython
-#   - libzstd-dev is only used by 3.14's compression.zstd; harmless before that
-#   - tk-dev (tkinter) is left out: nothing here uses it. libmpdec-dev
-#     (_decimal) is left out too because Debian 12 does not package it - check
-#     "import decimal" on a freshly built interpreter
-#
-# It extends the list in the issue, which also had three mistakes:
-# "xz-utils-dev" does not exist (it is "xz-utils"), "libncursesw5-dev" is gone
-# in Debian 13 (superseded by "libncurses-dev", present in 12 too), and
-# "libnss3-dev" is not a CPython build dependency at all.
-#
-# Check what a finished interpreter actually got:
-#
-#   ~/.pyenv/versions/<version>/bin/python -c "import bz2, ctypes, curses, \
-#       dbm.gnu, decimal, lzma, readline, sqlite3, ssl, uuid, zlib"
-#
-# Installing a missing library afterwards is not enough on its own: "pyenv
-# install -s" and this playbook's "creates:" both skip an interpreter that
-# already exists, so a crippled one would be silently reused. Force it with
-# "pyenv install -f <version>" first, then re-run.
-#
-# "--check" runs say little here: the interpreter and the virtualenv are built
-# by commands, and nothing after them can run against a virtualenv check mode
+# "--check" runs say little here: the virtualenv is built by a command, and nothing after them can run against a virtualenv check mode
 # never created.
 
 ---
@@ -127,16 +110,14 @@
     python: "{{ venv_root }}/bin/python"
     pip: "{{ venv_root }}/bin/pip"
     ansible_ssh_common_args: "-o ForwardAgent=yes"
-    # pyenv, and the interpreter it must provide. Pin the patch level: the
-    # virtualenv is built from an explicit ".../versions/<version>/bin/python".
-    pyenv_root: /home/wjs/.pyenv
-    pyenv_version: "{{ pyenv_ref | default('master') }}"
-    python_version: "{{ pyenv_python | default('3.13.15') }}"
-    pyenv_python_bin: "{{ pyenv_root }}/versions/{{ python_version }}/bin/python"
-    # "3.13.15" -> "3.13", which is how the interpreter spells its own lib
-    # directory. Derived from the same variable that picks the interpreter, so
+    # The system interpreter the virtualenv is based on. Versioned on purpose
+    # ("python3.13", not "python3"): /usr/bin/python3 moves on the next Debian
+    # upgrade, and this playbook must fail then rather than quietly build on a
+    # python nobody asked for.
+    python_xy: "{{ system_python | default('3.13') }}"
+    system_python_bin: "/usr/bin/python{{ python_xy }}"
+    # Derived from python_xy, the same variable that picks the interpreter, so
     # the two cannot drift apart.
-    python_xy: "{{ python_version.split('.')[:2] | join('.') }}"
     site_packages: "{{ venv_root }}/lib/python{{ python_xy }}/site-packages"
     virtualenvwrapper: /usr/share/virtualenvwrapper/virtualenvwrapper.sh
     # Spelled out rather than discovered: the virtualenv is still empty when the
@@ -205,35 +186,29 @@
           {{ virtualenvwrapper }} not found on {{ inventory_hostname }}.
           Install virtualenvwrapper, or adapt this playbook to plain "python -m venv".
 
-  tasks:
-
-    - name: Install or update pyenv
-      # The issue pipes https://pyenv.run into bash; the git checkout is the
-      # same thing without the pipe, and is what wjs-setup-user.yml already
-      # does. We only need pyenv itself - the virtualenv comes from
-      # virtualenvwrapper.
-      git:
-        repo: https://github.com/pyenv/pyenv.git
-        dest: "{{ pyenv_root }}"
-        version: "{{ pyenv_version }}"
-
-    - name: Add pyenv to the wjs user's environment
-      lineinfile:
-        path: /home/wjs/.bashrc
-        line: "{{ item }}"
-        create: yes
+    - name: Check that the system interpreter and its headers are installed
+      # Before the old virtualenv is touched: on a machine without
+      # python{{ python_xy }} (e.g. Debian 12, which has 3.11) the run must stop
+      # here, with the instance still up.
+      stat:
+        path: "{{ item }}"
       loop:
-        - 'export PYENV_ROOT="$HOME/.pyenv"'
-        - 'export PATH="$PYENV_ROOT/bin:$PATH"'
-        - 'eval "$(pyenv init -)"'
+        - "{{ system_python_bin }}"
+        - "/usr/include/python{{ python_xy }}/Python.h"
+      register: system_python_files
+      changed_when: false
 
-    - name: Build Python {{ python_version }} with pyenv
-      # Deliberately no "pyenv global": the machine hosts several instances, and
-      # each one pins its interpreter through the virtualenv it was created
-      # with. A global switch would move all of them at once.
-      command: "{{ pyenv_root }}/bin/pyenv install -s {{ python_version }}"
-      args:
-        creates: "{{ pyenv_python_bin }}"
+    - name: Fail early if the system interpreter is not usable
+      assert:
+        that:
+          - system_python_files.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          {{ system_python_bin }} or its headers are missing on
+          {{ inventory_hostname }}. As root: apt install python{{ python_xy }}
+          python{{ python_xy }}-dev. If the machine runs a different python,
+          pass -e system_python=<major.minor>.
+
+  tasks:
 
     - name: Stop the instance's services
       systemd:
@@ -334,14 +309,13 @@
         chdir: "{{ project_dir }}"
       changed_when: true
 
-    - name: Create the virtualenv on Python {{ python_version }}
+    - name: Create the virtualenv on {{ system_python_bin }}
       # "-a" records the project directory, so "workon {{ full_name }}" still
-      # lands in src/. Expect three "Wheel for pip for Python 3.13 is
-      # unavailable" exceptions here (reported in the issue): noisy, harmless.
+      # lands in src/.
       shell: |
         export WORKON_HOME={{ workon_home }}
         source {{ virtualenvwrapper }}
-        mkvirtualenv -a {{ project_dir }} -p {{ pyenv_python_bin }} {{ full_name }}
+        mkvirtualenv -a {{ project_dir }} -p {{ system_python_bin }} {{ full_name }}
       args:
         executable: /bin/bash
         creates: "{{ python }}"
