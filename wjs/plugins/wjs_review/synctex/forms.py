@@ -23,6 +23,7 @@ from plugins.wjs_submission.models import (
     ArticleSubmission,
     Collaboration,
     CollaborationRelation,
+    SubmissionArticleFunding,
 )
 from plugins.wjs_submission.unique_check import check_article_unique
 from submission import models as submission_models
@@ -1716,26 +1717,56 @@ class SyncAuthorsForm(forms.Form):
         return message
 
 
+@dataclass(frozen=True)
+class RegistryFunder:
+    """A funder as described by a registry (Crossref or ROR)."""
+
+    #: The name of the registry, for messages.
+    registry: str
+    #: The main name of the funder.
+    name: str
+    #: All the names of the funder that the TeX may use (the main name included).
+    names: tuple[str, ...]
+    country: str
+
+
 class SyncFundingsForm(forms.Form):
     """
     Form used to receive the green-light to synchronize the fundings between TeX and DB.
 
     The TeX fundings come from the ``funders`` key (jmeta schema v3): a (possibly empty) list of dicts
-    with keys ``name``, ``doi``, ``grant`` and ``note``, as set by ``\\funder{<name>}{<doi>}{<grant>}[<note>]``.
+    with keys ``name``, ``doi``, ``grant`` and ``note``, as set by ``\\funder{<name>}{<id>}{<grant>}[<note>]``.
     They are translated into dicts with the keys of the DB fundings (``name``, ``fundref_id``,
     ``funding_id`` and ``funding_statement``). The DB fundings are the article's ArticleFunding
     entries. get_form_context_data() returns both lists so the template can show them side by side;
     sync() replaces the DB fundings with the TeX ones.
+
+    The funder id in the TeX can be a Crossref funder DOI (``10.13039/...`` or a ``https://doi.org/...`` URI)
+    or a ROR id (``018mejw64`` or ``https://ror.org/018mejw64``). Either way, it is stored in the DB as a URI
+    (``https://doi.org/10.13039/...`` or ``https://ror.org/...``) in ``fundref_id``.
+
+    The fundings are saved as SubmissionArticleFunding (as during the submission), because that is what
+    the article page and the typesetter's preamble read. The TeX has no country: when the form is
+    validated, each TeX funding gets the ``country`` of its funder from the registry (Crossref or ROR),
+    or "" if the registry has none or if the funding has no funder id.
     """
 
     action = forms.CharField(widget=forms.HiddenInput(), initial="sync_fundings")
 
-    # Fundref ids are stored as URIs like https://dx.doi.org/10.13039/501100021082; the funder
+    # Fundref ids are stored as URIs like https://doi.org/10.13039/501100021082; the funder
     # registry id (used to query Crossref) is the part after the "10.13039/" DOI prefix.
     FUNDREF_ID_RE = re.compile(r"10\.13039/(\S+)")
-    # The TeX has the bare DOI of the funder (e.g. 10.13039/501100021082).
-    FUNDREF_URI_PREFIX = "https://dx.doi.org/"
+    # A TeX funder id is a DOI if it is a bare DOI (10.13039/501100021082) or a DOI URI; otherwise it is a ROR id.
+    DOI_RE = re.compile(r"^(?:10\.|https?://(?:dx\.)?doi\.)")
+    # The DOI part of a DOI (bare or URI).
+    DOI_PART_RE = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/)?(10\..+)$")
+    DOI_URI_PREFIX = "https://doi.org/"
     CROSSREF_FUNDERS_URL = "https://api.crossref.org/funders/{funder_id}"
+    # A ROR id is "0", 6 Crockford base32 characters and a 2-digit checksum (see ror_id_is_valid()).
+    ROR_ID_RE = re.compile(r"^(?:https?://ror\.org/)?(0[0-9a-hjkmnp-tv-z]{6}[0-9]{2})$")
+    ROR_BASE32 = "0123456789abcdefghjkmnpqrstvwxyz"
+    ROR_URI_PREFIX = "https://ror.org/"
+    ROR_ORGANIZATIONS_URL = "https://api.ror.org/v2/organizations/{ror_id}"
 
     FUNDING_KEYS = ("name", "fundref_id", "funding_id", "funding_statement")
     TEX_FUNDERS_KEY = "funders"
@@ -1773,24 +1804,80 @@ class SyncFundingsForm(forms.Form):
             return []
         return [
             {
-                db_key: self._doi_to_uri(funder[tex_key]) if db_key == "fundref_id" else funder[tex_key]
-                for tex_key, db_key in self.TEX_FUNDER_KEYS.items()
+                **{
+                    db_key: self._funder_id_to_uri(funder[tex_key]) if db_key == "fundref_id" else funder[tex_key]
+                    for tex_key, db_key in self.TEX_FUNDER_KEYS.items()
+                },
+                # Not in the TeX: set from the registry by clean() (None means "not looked up").
+                "country": None,
+                # Set by clean() when the TeX name does not match the registry one.
+                "name_warning": "",
             }
             for funder in funders
         ]
 
     @classmethod
-    def _doi_to_uri(cls, doi: str) -> str:
-        """Turn the bare DOI of a funder into a URI, as the fundref ids are stored in the DB."""
-        if not doi or doi.startswith("http"):
-            return doi
-        return f"{cls.FUNDREF_URI_PREFIX}{doi}"
+    def _is_doi(cls, funder_id: str) -> bool:
+        """Tell if a funder id is a DOI (bare or URI); any other non-empty funder id is considered a ROR id."""
+        return bool(cls.DOI_RE.match(funder_id))
+
+    @classmethod
+    def ror_id_is_valid(cls, ror_id: str) -> bool:
+        """
+        Tell if a bare ROR id is valid: format and checksum.
+
+        The checksum (last 2 digits) is ISO/IEC 7064 MOD 97-10 of the number that the first 7 characters
+        represent in Crockford base32 (see https://ror.readme.io/docs/identifier).
+        """
+        if not cls.ROR_ID_RE.match(ror_id) or ror_id.startswith("http"):
+            return False
+        number = 0
+        for character in ror_id[:7]:
+            number = number * 32 + cls.ROR_BASE32.index(character)
+        return f"{98 - (number * 100) % 97:02d}" == ror_id[7:]
+
+    @classmethod
+    def _bare_ror_id(cls, funder_id: str) -> str | None:
+        """Return the bare, valid ROR id of a funder id (bare or URI), or None if it is not a valid ROR id."""
+        match = cls.ROR_ID_RE.match(funder_id.strip().lower())
+        if not match or not cls.ror_id_is_valid(match.group(1)):
+            return None
+        return match.group(1)
+
+    @classmethod
+    def _funder_id_to_uri(cls, funder_id: str) -> str:
+        """
+        Turn the funder id of the TeX into a URI, as the funder ids are stored in the DB.
+
+        A DOI (bare or URI) becomes a ``https://doi.org/`` URI and a ROR id (bare or URI) becomes a
+        ``https://ror.org/`` URI. Anything else (an invalid id, reported by clean()) is returned as it is.
+        """
+        if not funder_id:
+            return funder_id
+        if cls._is_doi(funder_id):
+            match = cls.DOI_PART_RE.match(funder_id.strip())
+            return f"{cls.DOI_URI_PREFIX}{match.group(1)}" if match else funder_id
+        ror_id = cls._bare_ror_id(funder_id)
+        return f"{cls.ROR_URI_PREFIX}{ror_id}" if ror_id else funder_id
 
     def _get_db_fundings(self) -> list[dict]:
-        """Return the article's fundings as a list of dicts (comparable with the TeX ones)."""
+        """
+        Return the article's fundings as a list of dicts (comparable with the TeX ones).
+
+        Also record in self.db_has_plain_fundings whether some of them are plain ArticleFunding (without the
+        SubmissionArticleFunding part): earlier syncs created such fundings, which the article page does not
+        show, so they must be synced again even if they match the TeX ones.
+        """
+        article = self.texdata.workflow.article
+        countries = dict(SubmissionArticleFunding.objects.filter(article=article).values_list("pk", "country"))
+        fundings = list(article.funders)
+        self.db_has_plain_fundings = any(funding.pk not in countries for funding in fundings)
         return [
-            {key: getattr(funding, key) or "" for key in self.FUNDING_KEYS}
-            for funding in self.texdata.workflow.article.funders
+            {
+                **{key: getattr(funding, key) or "" for key in self.FUNDING_KEYS},
+                "country": countries.get(funding.pk),
+            }
+            for funding in fundings
         ]
 
     @classmethod
@@ -1798,61 +1885,133 @@ class SyncFundingsForm(forms.Form):
         """
         Turn a list of funding dicts into a sorted list of tuples for order-independent comparison.
 
-        Fundref ids are compared on the funder registry id, so that different URI forms of the same DOI
+        Funder ids are compared on the registry id, so that different URI forms of the same DOI or ROR id
         (http/https, dx.doi.org/doi.org, ...) do not make TeX and DB look out of sync.
         """
         return sorted(
             tuple(
-                cls._fundref_registry_id(funding.get(key) or "") if key == "fundref_id" else funding.get(key) or ""
+                cls._registry_id(funding.get(key) or "") if key == "fundref_id" else funding.get(key) or ""
                 for key in cls.FUNDING_KEYS
             )
             for funding in fundings
         )
 
     @classmethod
-    def _fundref_registry_id(cls, fundref_id: str) -> str:
-        """Return the funder registry id of a fundref id, or the fundref id itself if it is not a fundref DOI."""
-        match = cls.FUNDREF_ID_RE.search(fundref_id)
-        return match.group(1) if match else fundref_id
+    def _registry_id(cls, funder_id: str) -> str:
+        """Return the registry id of a funder id (DOI or ROR), or the funder id itself if it is neither."""
+        if match := cls.FUNDREF_ID_RE.search(funder_id):
+            return match.group(1)
+        if ror_id := cls._bare_ror_id(funder_id):
+            return f"ror:{ror_id}"
+        return funder_id
 
-    def _get_crossref_funder_name(self, fundref_id: str) -> str | None:
-        """Query Crossref for the funder name of ``fundref_id``, or None if it cannot be resolved."""
-        match = self.FUNDREF_ID_RE.search(fundref_id)
-        if not match:
-            return None
-        url = self.CROSSREF_FUNDERS_URL.format(funder_id=match.group(1))
+    @staticmethod
+    def _get_json(url: str) -> dict | None:
+        """GET a JSON document, or None if it cannot be retrieved."""
         try:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
-        except requests.exceptions.RequestException:
+            return response.json()
+        except (requests.exceptions.RequestException, ValueError):
             return None
-        return response.json().get("message", {}).get("name")
+
+    def _get_crossref_funder(self, fundref_id: str) -> RegistryFunder | None:
+        """Query Crossref for the funder of the DOI ``fundref_id``, or None if it cannot be resolved."""
+        match = self.FUNDREF_ID_RE.search(fundref_id)
+        if not match:
+            return None
+        message = (self._get_json(self.CROSSREF_FUNDERS_URL.format(funder_id=match.group(1))) or {}).get("message")
+        if not message or not message.get("name"):
+            return None
+        return RegistryFunder(
+            registry="Crossref",
+            name=message["name"],
+            names=(message["name"],),
+            country=message.get("location") or "",
+        )
+
+    def _get_ror_funder(self, ror_uri: str) -> RegistryFunder | None:
+        """Query ROR for the organization of ``ror_uri``, or None if it cannot be resolved."""
+        ror_id = self._bare_ror_id(ror_uri)
+        if not ror_id:
+            return None
+        record = self._get_json(self.ROR_ORGANIZATIONS_URL.format(ror_id=ror_id))
+        if not record:
+            return None
+        names = tuple(name["value"] for name in record.get("names", []) if name.get("value"))
+        display_names = [name["value"] for name in record.get("names", []) if "ror_display" in name.get("types", [])]
+        if not names:
+            return None
+        countries = [
+            location.get("geonames_details", {}).get("country_name") or "" for location in record.get("locations", [])
+        ]
+        return RegistryFunder(
+            registry="ROR",
+            name=display_names[0] if display_names else names[0],
+            names=names,
+            country=countries[0] if countries else "",
+        )
+
+    def _check_funder_id(self, funder_id: str) -> tuple[RegistryFunder | None, str | None]:
+        """
+        Look up a (non-empty) funder id in its registry.
+
+        Return the funder, or an error message if the funder id is invalid or cannot be resolved.
+        """
+        if self._is_doi(funder_id):
+            if not self.FUNDREF_ID_RE.search(funder_id):
+                return None, f"'{funder_id}' is not a Crossref funder DOI (10.13039/...)!"
+            registry_funder = self._get_crossref_funder(funder_id)
+            registry = "Crossref"
+        else:
+            if not self._bare_ror_id(funder_id):
+                return None, f"'{funder_id}' is neither a DOI nor a valid ROR id!"
+            registry_funder = self._get_ror_funder(funder_id)
+            registry = "ROR"
+        if registry_funder is None:
+            return None, f"Could not verify funder id '{funder_id}' on {registry}!"
+        return registry_funder, None
 
     def clean(self):
-        """Verify each TeX funding's name against Crossref when a fundref id is present."""
+        """
+        Verify each TeX funding's name against its registry (Crossref or ROR) when a funder id is present.
+
+        Also set the country of each TeX funding from the registry. All the fundings are checked (and get
+        a country), and all the problems are reported together.
+
+        A name mismatch is only a warning (in the funding's ``name_warning``): funders are often named after a
+        programme or with an acronym, and the TeX name is kept.
+        """
         cleaned_data = super().clean()
         if self.tex_data_error:
             raise ValidationError(self.tex_data_error)
-        # The Crossref check hits the network, so skip it when there is nothing to sync.
+        # The registry check hits the network, so skip it when there is nothing to sync.
         if not self.should_sync():
             return cleaned_data
+        errors = []
         for funding in self.fundings_tex:
-            fundref_id = funding.get("fundref_id")
-            if not fundref_id:
+            funding["country"] = ""
+            funder_id = funding.get("fundref_id")
+            if not funder_id:
                 continue
-            crossref_name = self._get_crossref_funder_name(fundref_id)
-            if crossref_name is None:
-                raise ValidationError(f"Could not verify fundref id '{fundref_id}' on Crossref!")
-            if crossref_name != funding.get("name"):
-                raise ValidationError(
-                    f"Funder name mismatch for fundref id '{fundref_id}': "
-                    f"TeX says '{funding.get('name')}' but Crossref says '{crossref_name}'!"
+            registry_funder, error = self._check_funder_id(funder_id)
+            if error:
+                errors.append(ValidationError(error))
+                continue
+            funding["country"] = registry_funder.country
+            if funding.get("name") not in registry_funder.names:
+                mismatch = (
+                    f"Name mismatch: TeX says '{funding.get('name')}' "
+                    f"but {registry_funder.registry} says '{registry_funder.name}'!"
                 )
+                funding["name_warning"] = mismatch
+        if errors:
+            raise ValidationError(errors)
         return cleaned_data
 
     def should_sync(self) -> bool:
         """Tell if DB and TeX fundings are out of sync."""
-        return self._normalize(self.fundings_tex) != self._normalize(self.fundings_db)
+        return self.db_has_plain_fundings or self._normalize(self.fundings_tex) != self._normalize(self.fundings_db)
 
     def sync(self):
         """
@@ -1865,17 +2024,21 @@ class SyncFundingsForm(forms.Form):
             raise ValueError(self.errors.as_text())
         article = self.texdata.workflow.article
         try:
-            article.funders.delete()
-            for funding in self.fundings_tex:
-                submission_models.ArticleFunding.objects.create(
-                    article=article,
-                    **{key: funding.get(key) or "" for key in self.FUNDING_KEYS},
-                )
+            with transaction.atomic():
+                article.funders.delete()
+                for funding in self.fundings_tex:
+                    SubmissionArticleFunding.objects.create(
+                        article=article,
+                        country=funding.get("country") or "",
+                        **{key: funding.get(key) or "" for key in self.FUNDING_KEYS},
+                    )
         except Exception as e:  # noqa: BLE001 - surface any persistence failure as a ValueError
             raise ValueError(str(e)) from e
 
     def get_form_context_data(self) -> dict:
         """Return fundings-related context to be merged into the view's context."""
+        # Validate eagerly: clean() sets the TeX fundings' countries, shown in the template before the errors.
+        self.is_valid()
         return {
             "form_fundings": self,
             "fundings_tex": self.fundings_tex,

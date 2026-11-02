@@ -38,6 +38,7 @@ from plugins.wjs_review.synctex.forms import (
     CreateCorrespondenceForm,
     DeleteAuthorRecordForm,
     OrphanAuthorRow,
+    RegistryFunder,
     SyncAuthorsForm,
     SyncCasDasForm,
     SyncCollaborationsForm,
@@ -55,6 +56,7 @@ from plugins.wjs_submission.models import (
     Collaboration,
     CollaborationRelation,
     RevisionStorage,
+    SubmissionArticleFunding,
 )
 from plugins.wjs_submission.revision import RevisionStartConfirmView
 from plugins.wjs_submission.step8.views import SubmissionStep8View
@@ -5777,13 +5779,14 @@ def test_sync_texdb_rights(article: Article):
 @pytest.mark.django_db
 def test_sync_texdb_fundings(article: Article):
     """SyncFundingsForm translates the TeX funders onto the DB fundings."""
-    submission_models.ArticleFunding.objects.create(
+    SubmissionArticleFunding.objects.create(
         article=article,
         name="European Research Council",
         # An older form of the same DOI: it must not make TeX and DB look out of sync.
         fundref_id="http://dx.doi.org/10.13039/501100000781",
         funding_id="ERC-2021-STG",
         funding_statement="",
+        country="Belgium",
     )
     texdata = MetadataFromTeX(workflow=article.articleworkflow)
     texdata.data = {
@@ -5795,9 +5798,11 @@ def test_sync_texdb_fundings(article: Article):
     assert form.fundings_tex == [
         {
             "name": "European Research Council",
-            "fundref_id": "https://dx.doi.org/10.13039/501100000781",
+            "fundref_id": "https://doi.org/10.13039/501100000781",
             "funding_id": "ERC-2021-STG",
             "funding_statement": "",
+            "country": None,
+            "name_warning": "",
         },
     ], "The TeX funders should be translated onto the DB keys"
     assert not form.should_sync(), "Different URIs of the same fundref DOI are the same funder"
@@ -5805,15 +5810,25 @@ def test_sync_texdb_fundings(article: Article):
     texdata.data["funders"].append({"name": "Some Foundation", "doi": "", "grant": "42", "note": "Thanks!"})
     form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
     assert form.should_sync(), "TeX has one more funder"
-    with patch.object(SyncFundingsForm, "_get_crossref_funder_name", return_value="European Research Council"):
+    crossref_funder = RegistryFunder(
+        "Crossref", "European Research Council", ("European Research Council",), "Belgium"
+    )
+    with patch.object(SyncFundingsForm, "_get_crossref_funder", return_value=crossref_funder):
         form.sync()
+    assert [funding["country"] for funding in form.fundings_tex] == [
+        "Belgium",
+        "",
+    ], "The country should come from Crossref (empty without a fundref id)"
     fundings = set(
-        article.funders.values_list("name", "fundref_id", "funding_id", "funding_statement"),
+        SubmissionArticleFunding.objects.filter(article=article).values_list(
+            "name", "fundref_id", "funding_id", "funding_statement", "country"
+        ),
     )
     assert fundings == {
-        ("European Research Council", "https://dx.doi.org/10.13039/501100000781", "ERC-2021-STG", ""),
-        ("Some Foundation", "", "42", "Thanks!"),
-    }, "The DB fundings should be replaced with the TeX ones"
+        ("European Research Council", "https://doi.org/10.13039/501100000781", "ERC-2021-STG", "", "Belgium"),
+        ("Some Foundation", "", "42", "Thanks!", ""),
+    }, "The DB fundings should be replaced with the TeX ones, as SubmissionArticleFunding"
+    assert article.funders.count() == 2, "No plain ArticleFunding should be left behind"
 
     for data in (
         {},
@@ -5827,6 +5842,246 @@ def test_sync_texdb_fundings(article: Article):
         with pytest.raises(ValueError, match="funders"):
             form.sync()
     assert article.funders.count() == 2, "Nothing should be deleted when the TeX data is broken"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_fundings_plain_articlefunding(article: Article):
+    """Plain ArticleFunding (created by earlier syncs) are out of sync and are replaced by SubmissionArticleFunding."""
+    submission_models.ArticleFunding.objects.create(
+        article=article,
+        name="European Research Council",
+        fundref_id="https://dx.doi.org/10.13039/501100000781",
+        funding_id="ERC-2021-STG",
+        funding_statement="",
+    )
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "funders": [
+            {"name": "European Research Council", "doi": "10.13039/501100000781", "grant": "ERC-2021-STG", "note": ""},
+        ],
+    }
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    assert form.fundings_db[0]["country"] is None, "A plain ArticleFunding has no country"
+    assert form.should_sync(), "A plain ArticleFunding is not shown in the article page: it must be synced again"
+    crossref_funder = RegistryFunder(
+        "Crossref", "European Research Council", ("European Research Council",), "Belgium"
+    )
+    with patch.object(SyncFundingsForm, "_get_crossref_funder", return_value=crossref_funder):
+        form.sync()
+    assert list(SubmissionArticleFunding.objects.filter(article=article).values_list("name", "country")) == [
+        ("European Research Council", "Belgium"),
+    ], "The plain ArticleFunding should be replaced by a SubmissionArticleFunding"
+    assert article.funders.count() == 1, "The plain ArticleFunding should be deleted"
+
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    assert not form.should_sync(), "TeX and DB should be in sync after the sync"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_fundings_no_country_warning(article: Article):
+    """The TeX funders without a country from Crossref are flagged with a warning."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "funders": [
+            {"name": "European Research Council", "doi": "10.13039/501100000781", "grant": "", "note": ""},
+            {"name": "Some Foundation", "doi": "10.13039/000000000000", "grant": "", "note": ""},
+        ],
+    }
+    crossref_funders = {
+        "https://doi.org/10.13039/501100000781": RegistryFunder(
+            "Crossref", "European Research Council", ("European Research Council",), "Belgium"
+        ),
+        "https://doi.org/10.13039/000000000000": RegistryFunder(
+            "Crossref", "Some Foundation", ("Some Foundation",), ""
+        ),
+    }
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    with patch.object(SyncFundingsForm, "_get_crossref_funder", side_effect=crossref_funders.get):
+        context = form.get_form_context_data()
+    assert [funding["country"] for funding in context["fundings_tex"]] == ["Belgium", ""], "Unexpected countries"
+    html = render_to_string("wjs_review/sync_texdb/fundings.html", context)
+    assert "- Belgium" in html, "The Crossref country should be shown"
+    assert html.count("bi-exclamation-triangle") == 1, "Only the funder without a country should be flagged"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_fundings_all_checked(article: Article):
+    """All the TeX funders are checked (and get a country) even if some fail: the problems are reported together."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "funders": [
+            {"name": "German Research Foundation", "doi": "018mejw64", "grant": "", "note": ""},
+            # A ROR id with a wrong checksum.
+            {"name": "Some Foundation", "doi": "018mejw65", "grant": "", "note": ""},
+            # A DOI, but not a funder DOI.
+            {"name": "Another Foundation", "doi": "10.1234/abc", "grant": "", "note": ""},
+            {"name": "Unknown Funder", "doi": "10.13039/000000000000", "grant": "", "note": ""},
+            {"name": "European Research Council", "doi": "10.13039/501100000781", "grant": "", "note": ""},
+        ],
+    }
+    crossref_funders = {
+        "https://doi.org/10.13039/501100000781": RegistryFunder(
+            "Crossref", "European Research Council", ("European Research Council",), "Belgium"
+        )
+    }
+    dfg = RegistryFunder(
+        "ROR",
+        "Deutsche Forschungsgemeinschaft",
+        ("DFG", "Deutsche Forschungsgemeinschaft", "German Research Foundation"),
+        "Germany",
+    )
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    assert [funding["fundref_id"] for funding in form.fundings_tex] == [
+        "https://ror.org/018mejw64",
+        "018mejw65",
+        "https://doi.org/10.1234/abc",
+        "https://doi.org/10.13039/000000000000",
+        "https://doi.org/10.13039/501100000781",
+    ], "Valid funder ids should be turned into URIs"
+    with (
+        patch.object(SyncFundingsForm, "_get_crossref_funder", side_effect=crossref_funders.get) as crossref,
+        patch.object(SyncFundingsForm, "_get_ror_funder", return_value=dfg) as ror,
+    ):
+        assert not form.is_valid(), "Form should not validate"
+    assert crossref.call_count == 2, "Crossref should be queried for every funder DOI"
+    assert ror.call_count == 1, "ROR should be queried for every valid ROR id"
+    errors = form.non_field_errors()
+    assert len(errors) == 3, f"All the problems should be reported: {errors}"
+    assert "'018mejw65' is neither a DOI nor a valid ROR id!" in errors
+    assert "'https://doi.org/10.1234/abc' is not a Crossref funder DOI (10.13039/...)!" in errors
+    assert "Could not verify funder id 'https://doi.org/10.13039/000000000000' on Crossref!" in errors
+    assert [funding["country"] for funding in form.fundings_tex] == [
+        "Germany",
+        "",
+        "",
+        "",
+        "Belgium",
+    ], "Every funder should be looked up, also those after a failing one"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_fundings_name_mismatch_is_a_warning(article: Article):
+    """A name that does not match the registry (ROR or Crossref) is only a warning: the TeX name is saved."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "funders": [
+            {
+                "name": "German Federal Ministry of Education and Research (BMBF)",
+                "doi": "04pz7b180",
+                "grant": "",
+                "note": "",
+            },
+        ],
+    }
+    bmftr = RegistryFunder(
+        "ROR",
+        "Bundesministerium für Forschung, Technologie und Raumfahrt",
+        ("Bundesministerium für Forschung, Technologie und Raumfahrt", "BMFTR"),
+        "Germany",
+    )
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    with patch.object(SyncFundingsForm, "_get_ror_funder", return_value=bmftr):
+        context = form.get_form_context_data()
+    assert form.is_valid(), f"A ROR name mismatch should not be an error: {form.errors}"
+    warning = context["fundings_tex"][0]["name_warning"]
+    assert "but ROR says 'Bundesministerium für Forschung, Technologie und Raumfahrt'" in warning, warning
+    html = render_to_string("wjs_review/sync_texdb/fundings.html", context)
+    assert "tex-name-warning" in html, "The name warning should be shown"
+
+    form.sync()
+    assert list(
+        SubmissionArticleFunding.objects.filter(article=article).values_list("name", "fundref_id", "country")
+    ) == [
+        ("German Federal Ministry of Education and Research (BMBF)", "https://ror.org/04pz7b180", "Germany"),
+    ], "The TeX name should be saved, with the ROR URI and country"
+
+    texdata.data = {
+        "funders": [{"name": "ERC", "doi": "10.13039/501100000781", "grant": "", "note": ""}],
+    }
+    erc = RegistryFunder("Crossref", "European Research Council", ("European Research Council",), "Belgium")
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    with patch.object(SyncFundingsForm, "_get_crossref_funder", return_value=erc):
+        assert form.is_valid(), f"A Crossref name mismatch should not be an error: {form.errors}"
+    assert (
+        form.fundings_tex[0]["name_warning"]
+        == "Name mismatch: TeX says 'ERC' but Crossref says 'European Research Council'!"
+    ), "A Crossref name mismatch should be a warning"
+    form.sync()
+    assert list(
+        SubmissionArticleFunding.objects.filter(article=article).values_list("name", "fundref_id", "country")
+    ) == [
+        ("ERC", "https://doi.org/10.13039/501100000781", "Belgium"),
+    ], "The TeX name should be saved, with the DOI URI and the Crossref country"
+
+
+@pytest.mark.parametrize(
+    "tex_id,uri",
+    (
+        ("", ""),
+        ("10.13039/501100000781", "https://doi.org/10.13039/501100000781"),
+        ("https://doi.org/10.13039/501100000781", "https://doi.org/10.13039/501100000781"),
+        ("http://dx.doi.org/10.13039/501100000781", "https://doi.org/10.13039/501100000781"),
+        ("https://dx.doi.org/10.13039/501100000781", "https://doi.org/10.13039/501100000781"),
+        ("018mejw64", "https://ror.org/018mejw64"),
+        ("https://ror.org/018mejw64", "https://ror.org/018mejw64"),
+        ("018MEJW64", "https://ror.org/018mejw64"),
+        # Invalid ROR ids (checksum, letters not in Crockford base32, length) are kept as they are.
+        ("018mejw65", "018mejw65"),
+        ("018mejl64", "018mejl64"),
+        ("018mejw6", "018mejw6"),
+    ),
+)
+def test_sync_texdb_fundings_funder_id_to_uri(tex_id: str, uri: str):
+    """The TeX funder ids are stored as URIs: DOIs as DOI URIs, ROR ids as ror.org URIs."""
+    assert SyncFundingsForm._funder_id_to_uri(tex_id) == uri, f"Unexpected URI for {tex_id!r}"
+
+
+def test_sync_texdb_fundings_same_funder_different_uris():
+    """Different URI forms of the same DOI or ROR id identify the same funder."""
+    registry_id = SyncFundingsForm._registry_id
+    assert registry_id("https://dx.doi.org/10.13039/501100000781") == registry_id(
+        "https://doi.org/10.13039/501100000781"
+    ), "Same DOI"
+    assert registry_id("https://ror.org/018mejw64") == registry_id("http://ror.org/018mejw64"), "Same ROR id"
+    assert registry_id("https://ror.org/018mejw64") != registry_id("https://ror.org/04pz7b180"), "Different ROR ids"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_fundings_registry_records(article: Article):
+    """The registry funders are read from the Crossref and ROR (v2) records."""
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {"funders": []}
+    form = SyncFundingsForm(texdata, data={"action": "sync_fundings"})
+    ror_record = {
+        "id": "https://ror.org/018mejw64",
+        "names": [
+            {"value": "DFG", "types": ["acronym"]},
+            {"value": "Deutsche Forschungsgemeinschaft", "types": ["ror_display", "label"]},
+            {"value": "German Research Foundation", "types": ["label"]},
+        ],
+        "locations": [{"geonames_details": {"country_name": "Germany"}}],
+    }
+    with patch.object(SyncFundingsForm, "_get_json", return_value=ror_record) as get_json:
+        funder = form._get_ror_funder("https://ror.org/018mejw64")
+    get_json.assert_called_once_with("https://api.ror.org/v2/organizations/018mejw64")
+    assert funder == RegistryFunder(
+        "ROR",
+        "Deutsche Forschungsgemeinschaft",
+        ("DFG", "Deutsche Forschungsgemeinschaft", "German Research Foundation"),
+        "Germany",
+    ), "Unexpected ROR funder"
+
+    crossref_record = {"message": {"name": "Deutsche Forschungsgemeinschaft", "location": "Germany"}}
+    with patch.object(SyncFundingsForm, "_get_json", return_value=crossref_record) as get_json:
+        funder = form._get_crossref_funder("https://doi.org/10.13039/501100001659")
+    get_json.assert_called_once_with("https://api.crossref.org/funders/501100001659")
+    assert funder == RegistryFunder(
+        "Crossref", "Deutsche Forschungsgemeinschaft", ("Deutsche Forschungsgemeinschaft",), "Germany"
+    ), "Unexpected Crossref funder"
+
+    with patch.object(SyncFundingsForm, "_get_json", return_value=None):
+        assert form._get_ror_funder("https://ror.org/018mejw64") is None, "An unreachable record is not a funder"
+        assert form._get_crossref_funder("https://doi.org/10.13039/501100001659") is None, "Idem"
 
 
 @pytest.mark.parametrize(
