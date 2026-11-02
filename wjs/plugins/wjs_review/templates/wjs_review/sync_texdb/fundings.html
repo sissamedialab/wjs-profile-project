@@ -1,16 +1,35 @@
 {% load django_bootstrap5 i18n %}
 <div>
   <p>
-    {% translate "Fundings extracted from the TeX source compared with the DB ones. The update button is enabled only when the two lists differ (and every TeX funder name matches Crossref)." %}
+    {% translate "Fundings extracted from the TeX source compared with the DB ones. The update button is enabled only when the two lists differ (and every TeX funder id is valid and found in its registry: Crossref for funder DOIs, ROR for ROR ids). A name that does not match the registry is only a warning: the TeX name is kept. The country of the TeX fundings is taken from the registry." %}
   </p>
 </div>
 <div class="row">
   <div class="col-6">
     <h5>{% translate "TeX" %}</h5>
     <dl>
+      {% translate "No country from Crossref/ROR for this funder (or no funder id): it will be saved without a country." as no_country_warning %}
       {% for funding in fundings_tex %}
-        <dt>{{ funding.name }} ({{ funding.fundref_id }})</dt>
-        <dd>{{ funding.funding_id }} - {{ funding.funding_statement }}</dd>
+        <div class="border rounded p-2 mb-2">
+          <dt>
+            {{ funding.name }} ({{ funding.fundref_id }})
+            {% if funding.country %}
+              - {{ funding.country }}
+            {% elif funding.country == "" %}
+              <span class="badge text-bg-warning tex-warning" title="{{ no_country_warning }}">
+                <i class="bi bi-exclamation-triangle"></i>
+              </span>
+            {% endif %}
+          </dt>
+          <dd class="mb-0">
+            {{ funding.funding_id }} - {{ funding.funding_statement|default:'(no statement)' }}
+            {% if funding.name_warning %}
+              <div class="small text-warning-emphasis tex-name-warning mt-1">
+                <i class="bi bi-exclamation-triangle"></i> {{ funding.name_warning }}
+              </div>
+            {% endif %}
+          </dd>
+        </div>
       {% empty %}
         <dd class="text-muted">{% translate "No fundings" %}</dd>
       {% endfor %}
@@ -20,8 +39,13 @@
     <h5>{% translate "DB" %}</h5>
     <dl>
       {% for funding in fundings_db %}
-        <dt>{{ funding.name }} ({{ funding.fundref_id }})</dt>
-        <dd>{{ funding.funding_id }} - {{ funding.funding_statement }}</dd>
+        <div class="border rounded p-2 mb-2">
+          <dt>
+            {{ funding.name }} ({{ funding.fundref_id }})
+            {% if funding.country %}- {{ funding.country }}{% endif %}
+          </dt>
+          <dd class="mb-0">{{ funding.funding_id }} - {{ funding.funding_statement }}</dd>
+        </div>
       {% empty %}
         <dd class="text-muted">{% translate "No fundings" %}</dd>
       {% endfor %}
