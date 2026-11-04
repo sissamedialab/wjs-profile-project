@@ -2,6 +2,7 @@
 
 import re
 import uuid
+from datetime import MAXYEAR, MINYEAR
 
 from core import models as core_models
 from django import forms
@@ -583,7 +584,7 @@ class SearchForm(JanewaySearchForm):
     def clean_year(self):
         """Check if the year is a valid year."""
         year = self.cleaned_data.get("year")
-        if year and not year.isdigit():
+        if year and not (year.isdigit() and MINYEAR <= int(year) <= MAXYEAR):
             raise forms.ValidationError("Please enter a valid year.")
         return year
 
