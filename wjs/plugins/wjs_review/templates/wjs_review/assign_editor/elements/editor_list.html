@@ -9,8 +9,7 @@
     <td>
       {{ user.get_full_name }} {% if user.article_editor %}[ {% translate "past editor" %} ]{% endif %}
       {% if user|user_vacancy_dates:journal %} - <span class="text-muted">{% translate "Unavailable" %} {{ user|user_vacancy_dates:journal }}</span>{% endif %}
-      {% if not user|is_enabled_as_editor:journal %} - <span class="text-danger">{% translate "Permanently self disabled" %}</span>{% endif %}
-      {% if user|is_disabled_by_eo:journal %} - <span class="text-danger">{% translate "Disabled by EO" %}</span>{% endif %}
+      {% if user|is_permanently_disabled_as_editor:journal %} - <span class="text-danger">{% translate "Permanently disabled" %}</span>{% endif %}
     </td>
     {% if workflow.article.journal|show_editor_keywords %}
       <td>{{ user.matching_keywords|join:", " }}</td>

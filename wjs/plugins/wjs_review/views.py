@@ -3666,7 +3666,7 @@ class SupervisorAssignEditor(BaseRelatedViewsMixin, HtmxMixin, UpdateView):
         Matches wjs-develop's pre-existing behavior: every SECTION_EDITOR_ROLE editor stays
         visible and selectable regardless of availability (disabled, on vacation, over their
         monthly cap, or with no StaffWorkloadParameters configured at all) — availability only
-        differentiates via the workload annotation and the template's existing "self disabled"/
+        differentiates via the workload annotation and the template's existing "permanently disabled"/
         "unavailable" badges (see editor_list.html), it never excludes. This is a deliberate
         difference from automatic assignment, which does hard-exclude on availability
         (get_available_editor_parameters): the EO needs to see everyone to make an informed

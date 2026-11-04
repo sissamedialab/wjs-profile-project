@@ -2225,3 +2225,61 @@ def test_get_editor_keywords_ordered_by_weight_then_word(journal, editors, keywo
     words = [staff_keyword.keyword.word for staff_keyword in get_editor_keywords(editor, journal)]
 
     assert words == ["1-keyword", "0-keyword", "2-keyword", "3-keyword"], f"Unexpected keyword order: {words}"
+
+
+@pytest.mark.django_db
+def test_assign_editor_shows_unified_label_once(
+    submitted_workflow: ArticleWorkflow,
+    eo_user: JCOMProfile,
+    create_jcom_user: Callable,
+    review_settings,
+):
+    """Self-disabled and EO-disabled editors both show "Permanently disabled", once per editor."""
+    journal = submitted_workflow.article.journal
+    for name, enabled, brake_on in (
+        ("self_disabled", False, 0),
+        ("eo_disabled", True, -1),
+        ("both_disabled", False, -1),
+        ("fully_enabled", True, 0),
+    ):
+        editor = create_jcom_user(name)
+        editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+        StaffWorkloadParameters.objects.update_or_create(
+            user=editor.janeway_account,
+            journal=journal,
+            defaults={"workload": 10, "enabled": enabled, "brake_on": brake_on},
+        )
+    client = Client()
+    client.force_login(eo_user.janeway_account)
+
+    response = client.get(reverse("wjs_assign_editor", args=(submitted_workflow.pk,)))
+
+    content = response.content.decode()
+    assert response.status_code == 200, "EO can open the page"
+    assert content.count("Permanently disabled") == 3, "one label for each of the three disabled editors"
+    assert "Permanently self disabled" not in content, "old self-disabled label is gone"
+    assert "Disabled by EO" not in content, "old EO label is gone"
+
+
+@pytest.mark.django_db
+def test_select_reviewer_shows_unified_label(
+    client: Client,
+    section_editor: JCOMProfile,
+    reviewer: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """A reviewer who disabled themselves is listed as "Permanently disabled"."""
+    StaffWorkloadParameters.objects.update_or_create(
+        user=reviewer.janeway_account,
+        journal=assigned_article.journal,
+        defaults={"enabled": False},
+    )
+    client.force_login(section_editor.janeway_account)
+
+    response = client.get(reverse("wjs_select_reviewer", args=(assigned_article.pk,)), {"search": reviewer.email})
+
+    content = response.content.decode()
+    assert response.status_code == 200, "editor can open the page"
+    assert reviewer.janeway_account in response.context["reviewers"], "the searched reviewer is listed"
+    assert "Permanently disabled" in content, "self-disabled reviewer is labelled"
+    assert "Permanently self disabled" not in content, "old label is gone"

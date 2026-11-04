@@ -6,6 +6,8 @@ from core import files as core_files
 from django.core.files import File as DjangoFile
 from typesetting.models import GalleyProofing, TypesettingAssignment
 
+from wjs.jcom_profile.models import StaffWorkloadParameters
+
 from ..communication_utils import log_operation
 from ..models import ProphyAccount, WjsEditorAssignment
 
@@ -682,3 +684,20 @@ def test_author_withdraw_preprint(assigned_article, client):
         f"withdraw/{assigned_article.articleworkflow.pk}/"
     )
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize("brake_on,expected", ((-1, True), (0, False)))
+@pytest.mark.django_db
+def test_journal_editors_unified_label_for_eo_disabled(journal, eo_user, section_editor, client, brake_on, expected):
+    """The Editor Management page labels EO-disabled editors "Permanently disabled", enabled ones not at all."""
+    StaffWorkloadParameters.objects.update_or_create(
+        user=section_editor.janeway_account,
+        journal=journal,
+        defaults={"workload": 10, "enabled": True, "brake_on": brake_on},
+    )
+    client.force_login(eo_user)
+    response = client.get(f"/{journal.code}/plugins/wjs-review-articles/journal_editors/")
+    content = response.content.decode()
+    assert response.status_code == 200, "EO can open the page"
+    assert ("Permanently disabled" in content) is expected, f"label presence must be {expected} for {brake_on=}"
+    assert "Permanently self disabled" not in content, "old label is gone"
