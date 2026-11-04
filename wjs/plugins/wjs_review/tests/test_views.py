@@ -32,7 +32,7 @@ from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadPara
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
-from ..forms import DecisionForm
+from ..forms import DecisionForm, InviteUserForm
 from ..logic import AssignToEditor, HandleDecision, HandleEditorDeclinesAssignment
 from ..models import (
     ArticleWorkflow,
@@ -40,6 +40,7 @@ from ..models import (
     EditorRevisionRequest,
     Message,
     PastEditorAssignment,
+    ProphyAccount,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
@@ -470,6 +471,109 @@ def test_invite_function_creates_inactive_user(
     assert message_to_reviewer.message_type == Message.MessageTypes.SYSTEM
     assert message_to_reviewer.actor == section_editor
     assert list(message_to_reviewer.recipients.all()) == [invited_user.janeway_account]
+
+
+def _invite_data(fake_request: HttpRequest) -> dict:
+    return {
+        "first_name": "Name",
+        "last_name": "Surname",
+        "suffix": "Suffix",
+        "email": "email@email.it",
+        "message": "random message",
+        "acceptance_due_date": now().date()
+        + datetime.timedelta(
+            days=fake_request.journal.get_setting("wjs_review", "default_review_acceptance_days"),
+        ),
+    }
+
+
+@pytest.mark.django_db
+def test_invite_modal_form_targets_invite_view(
+    client: Client,
+    assigned_article: submission_models.Article,
+):
+    """The shared select / invite modal template must post to the invite view when rendered for an invitation."""
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
+    client.force_login(section_editor)
+    response = client.get(url, HTTP_HX_REQUEST="true")
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert 'id="new-reviewer-invite-form"' in content
+    assert f'hx-post="{url}"' in content
+    assert reverse("wjs_select_reviewer", args=(assigned_article.articleworkflow.pk,)) not in content
+    assert 'name="invite-reviewer-message"' in content
+
+
+@pytest.mark.django_db
+def test_invite_modal_submit_via_htmx(
+    client: Client,
+    assigned_article: submission_models.Article,
+    review_form: ReviewForm,
+    fake_request: HttpRequest,
+):
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
+    client.force_login(section_editor)
+    response = client.post(
+        url,
+        data=_invite_data(fake_request),
+        HTTP_HX_REQUEST="true",
+        HTTP_HX_TRIGGER="new-reviewer-invite-form",
+    )
+    assert response.status_code == 200
+    assert response["HX-Redirect"]
+    assert JCOMProfile.objects.filter(email="email@email.it").exists()
+
+
+@pytest.mark.django_db
+def test_invite_modal_update_preview_via_htmx(
+    client: Client,
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+):
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
+    client.force_login(section_editor)
+    response = client.post(
+        url,
+        data=_invite_data(fake_request),
+        HTTP_HX_REQUEST="true",
+        HTTP_HX_TRIGGER="update-btn-select",
+        HTTP_HX_TRIGGER_NAME="invite-reviewer-message",
+    )
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert 'id="reviewer-message-preview"' in content
+    assert "modal-header" not in content
+    assert not JCOMProfile.objects.filter(email="email@email.it").exists()
+
+
+@pytest.mark.django_db
+def test_invite_form_prefilled_from_prophy_account(
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+):
+    prophy_account = ProphyAccount.objects.create(
+        author_id=1234,
+        first_name="Jane",
+        middle_name="Q",
+        last_name="Doe",
+        email="jane@example.com",
+    )
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    revision = assigned_article.articleworkflow.get_review_versions(section_editor)[0]
+    form = InviteUserForm(
+        request=fake_request,
+        user=section_editor,
+        instance=assigned_article.articleworkflow,
+        revision=revision,
+        prophy_account_id=prophy_account.author_id,
+    )
+    assert form.prophy_account == prophy_account
+    assert form.initial["first_name"] == "Jane Q"
+    assert form.initial["last_name"] == "Doe"
+    assert form.initial["email"] == "jane@example.com"
 
 
 @pytest.mark.django_db
