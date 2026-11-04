@@ -1138,6 +1138,7 @@ class SelectReviewerView(
 
         review_versions = self.object.get_review_versions(self.request.user)
         context["review_version"] = review_versions[0]
+        context["form_type"] = "select"
         return context
 
     def get_form_kwargs(self) -> Dict[str, Any]:
@@ -1209,13 +1210,14 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
         context["preview"] = self._render_message_preview(form=context["form"])
         review_versions = self.object.get_review_versions(self.request.user)
         context["review_version"] = review_versions[0]
+        context["form_type"] = "invite"
         return context
 
     def get_template_names(self) -> List[str]:
         """Select the template based on the request type."""
         if self.request.headers.get("Hx-Trigger-Name") == "invite-reviewer-message":
             return ["wjs_review/select_reviewer/elements/select_reviewer_message_preview.html"]
-        return ["wjs_review/select_reviewer/invite_external_reviewer.html"]
+        return ["wjs_review/select_reviewer/elements/select_reviewer_form.html"]
 
     def get_success_url(self):
         return reverse("wjs_article_details", args=(self.object.pk,))
@@ -1225,6 +1227,9 @@ class InviteReviewerView(HtmxMixin, ArticleAssignedEditorMixin, EditorRequiredMi
         kwargs["user"] = self.request.user
         kwargs["request"] = self.request
         kwargs["instance"] = self.object
+        revisions = self.object.get_review_versions(self.request.user)
+        if revisions:
+            kwargs["revision"] = revisions[0]
         if "prophy_account_id" in self.kwargs.keys():
             kwargs["prophy_account_id"] = self.kwargs["prophy_account_id"]
         return kwargs

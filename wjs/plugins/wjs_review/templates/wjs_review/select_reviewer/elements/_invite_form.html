@@ -1,0 +1,11 @@
+{% load django_bootstrap5 %}
+<div class="col-lg-7 col-md-12 d-flex flex-column select-reviewer-form mb-3">
+  {% bootstrap_field form.acceptance_due_date %}
+  <div class="d-flex gap-2">
+    {% bootstrap_field form.first_name %}
+    {% bootstrap_field form.last_name %}
+    {% bootstrap_field form.email %}
+  </div>
+  {% bootstrap_field form.message_subject %}
+  {% bootstrap_field form.message wrapper_class="d-flex flex-column flex-grow-1" %}
+</div>
