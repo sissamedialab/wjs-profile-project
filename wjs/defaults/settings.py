@@ -536,6 +536,11 @@ PROCESS_BODY_FUNCTION = {
 # See TypesetterTestsGalleyGeneration._mock_jcom_assistant_client()
 JCOMASSISTANT_MOCK_FILE = ""
 
+# While the test-galley generation of the latest sources is running, the typesetter cannot upload new sources.
+# After this many minutes we assume that the generation died without reporting (see
+# ArticleWorkflow.galley_generation_in_progress()). Keep it above Q_CLUSTER["timeout"] (and some queueing time).
+WJS_GALLEY_GENERATION_STALE_AFTER_MINUTES = 15
+
 # Useful in development: set this to the path of a file mimicking files for typesetting uploaded by the author.
 WJS_TYPESET_REVISION_MOCK_FILE = ""
 

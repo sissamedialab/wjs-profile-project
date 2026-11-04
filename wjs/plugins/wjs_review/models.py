@@ -733,6 +733,25 @@ class ArticleWorkflow(TimeStampedModel):
             and self.production_flag_no_queries
         )
 
+    def galley_generation_in_progress(self) -> bool:
+        """Test if the test-galley generation of the latest uploaded sources has started and not completed yet.
+
+        The flag is NOT_TESTED both while the (asynchronous) generation is running and when it never ran or died
+        without reporting (e.g. sources uploaded by an import, or a worker killed by the task timeout). We tell the
+        two cases apart by the age of the sources: after WJS_GALLEY_GENERATION_STALE_AFTER_MINUTES we assume that the
+        generation is not running anymore, so that the typesetter can upload the sources again.
+        """
+        if self.production_flag_galleys_ok != ArticleWorkflow.GalleysStatus.NOT_TESTED:
+            return False
+        typesetting_assignment = self.get_latest_typesetting_assignment(only_completed=False)
+        if typesetting_assignment is None:
+            return False
+        source_file = typesetting_assignment.files_to_typeset.first()
+        if source_file is None:
+            return False
+        stale_after = datetime.timedelta(minutes=settings.WJS_GALLEY_GENERATION_STALE_AFTER_MINUTES)
+        return source_file.date_uploaded > timezone.now() - stale_after
+
     def compute_pubid(self, save_eid: bool = False, publication_data: Optional[dict[str, str]] = None) -> str:
         """
         Compute and return the pubid that the Article would get now.
