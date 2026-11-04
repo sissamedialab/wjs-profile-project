@@ -440,7 +440,8 @@ def _assigned_to_typesetter_article_with_files_to_typeset(
         assignment=assignment,
         file_to_upload=zip_with_tex_with_query(assigned_to_typesetter_article),
     ).run()
-    article_with_file.articleworkflow.save()
+    # Don't save(): the (sync) galley generation has already updated the workflow, and our copy is older
+    article_with_file.articleworkflow.refresh_from_db()
     return article_with_file
 
 

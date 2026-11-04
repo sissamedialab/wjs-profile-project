@@ -385,11 +385,7 @@ def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow
 
 def galley_generation_in_progress(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return true if the galley generation test started and is not completed yet."""
-    files_to_typeset_loaded = workflow.get_latest_typesetting_assignment(
-        only_completed=False,
-    ).files_to_typeset.exists()
-    galley_not_tested = workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
-    return files_to_typeset_loaded and galley_not_tested
+    return workflow.galley_generation_in_progress()
 
 
 @dataclasses.dataclass
@@ -1092,6 +1088,7 @@ class TypesetterSelected(BaseState):
             label="Upload typeset preprint",
             view_name="wjs_typesetter_upload_files",
             custom_get_url=get_url_with_typesetting_assignment_pk,
+            disabled=galley_generation_in_progress,
             is_modal=True,
         ),
         ArticleAction(
