@@ -508,6 +508,10 @@ class ArticleWorkflow(TimeStampedModel):
     production_flag_no_checks_needed = models.BooleanField(
         default=False, verbose_name=_("No special check is required on the latest typesetted files")
     )
+    production_flag_iop_ready = models.BooleanField(
+        default=False,
+        verbose_name=_("The publisher confirmed that the paper can be published"),
+    )
 
     latest_state_change = models.DateTimeField(default=timezone.now, null=True, blank=True)
     latex_desc = models.TextField(null=True, blank=True)
@@ -751,6 +755,17 @@ class ArticleWorkflow(TimeStampedModel):
             return False
         stale_after = datetime.timedelta(minutes=settings.WJS_GALLEY_GENERATION_STALE_AFTER_MINUTES)
         return source_file.date_uploaded > timezone.now() - stale_after
+
+    def requires_publisher_confirmation(self) -> bool:
+        """Test if the article's journal needs the publisher's green light before publication."""
+        return self.article.journal.code in settings.WJS_JOURNALS_REQUIRING_PUBLISHER_CONFIRMATION
+
+    def publisher_confirmation_missing(self) -> bool:
+        """Test if publication must wait for the publisher's green light.
+
+        The flag only gates publication: it plays no role in :py:meth:`can_be_set_rfp`.
+        """
+        return self.requires_publisher_confirmation() and not self.production_flag_iop_ready
 
     def compute_pubid(self, save_eid: bool = False, publication_data: Optional[dict[str, str]] = None) -> str:
         """

@@ -1,3 +1,5 @@
+{% comment %}A disabled action ignores the pointer (Bootstrap .disabled): its cause goes on a hoverable wrapper.{% endcomment %}
+{% if action.disabled and action.disabled_cause %}<span class="d-inline-block" tabindex="0" title="{{ action.disabled_cause }}">{% endif %}
 <a id="target-{{ action.name|slugify }}"
   {% if action.is_htmx %}
     {% if action.is_modal %}
@@ -23,6 +25,7 @@
   {% endif %}
   {{ error|default:'' }}
 </a>
+{% if action.disabled and action.disabled_cause %}</span>{% endif %}
 {% if action.is_post %}
   <script>
     const sendPost{{ action.id }} = () => {

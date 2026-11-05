@@ -106,6 +106,7 @@ class ArticleWorkflowInline(admin.StackedInline):
         "production_flag_no_queries",
         "production_flag_galleys_ok",
         "production_flag_no_checks_needed",
+        "production_flag_iop_ready",
         "latest_state_change",
         "latex_desc",
         "social_media_short_description",
