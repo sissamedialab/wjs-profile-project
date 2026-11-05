@@ -695,6 +695,11 @@ def journal_requires_social_media_files(journal: Journal) -> bool:
     return journal.code in settings.WJS_JOURNALS_WITH_SOCIAL_MEDIA_FILES
 
 
+def journal_requires_publisher_confirmation(workflow: ArticleWorkflow, user: Account) -> bool:
+    """Check if the article's journal needs the publisher's green light before publication."""
+    return workflow.requires_publisher_confirmation()
+
+
 def article_in_special_issue(workflow: ArticleWorkflow) -> bool:
     """
     Check if the article is in a special issue.

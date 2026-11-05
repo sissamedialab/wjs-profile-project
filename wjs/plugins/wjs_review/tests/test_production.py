@@ -18,6 +18,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import get_messages
 from django.core import mail
+from django.core.exceptions import ValidationError
 from django.db import connection
 from django.db.models import QuerySet
 from django.http import HttpRequest
@@ -34,7 +35,7 @@ from plugins.wjs_review.states import BaseState
 from press.models import Press
 from submission import models as submission_models
 from submission.models import Article, FrozenAuthor, Keyword, Section
-from typesetting.models import GalleyProofing
+from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils import setting_handler
 
 from wjs.jcom_profile import article_links, constants
@@ -589,6 +590,8 @@ def test_author_deems_paper_rfp(stage_proofing_article: Article, client, user_is
 
     client.force_login(operator)
     workflow.state = initial_state
+    # The fixtures ran the galley generation: bring the galleys flag back to its default
+    workflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.NOT_TESTED
     workflow.save()
 
     # These are the default states of the production flags:
@@ -795,6 +798,331 @@ def test_production_flag_galleys_ok(
 
         assert mail.outbox[0].subject == "Galleys generation error"
         assert "I am a teapot" in mail.outbox[0].body
+
+
+def _upload_sources_without_galleys(article: Article, fake_request: HttpRequest, zip_file) -> TypesettedFilesUpload:
+    """Upload the sources without running the galley generation, i.e. as if it were still running."""
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+    fake_request.user = assignment.typesetter
+    service = TypesettedFilesUpload(
+        typesetter=assignment.typesetter,
+        request=fake_request,
+        assignment=assignment,
+        file_to_upload=zip_file,
+        do_create_galleys=False,
+    )
+    service.run()
+    return service
+
+
+@pytest.mark.django_db
+def test_upload_refused_while_galley_generation_in_progress(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+    settings,
+):
+    """New sources cannot be uploaded while the galleys of the previous ones are being generated (specs#3256)."""
+    article = assigned_to_typesetter_article
+    workflow = article.articleworkflow
+    assert not workflow.galley_generation_in_progress(), "No sources uploaded yet: nothing should be in progress"
+
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    workflow.refresh_from_db()
+    assert workflow.galley_generation_in_progress(), "Sources just uploaded and not tested yet: should be in progress"
+
+    upload_action = next(
+        action
+        for action in BaseState.get_state_class(workflow).article_actions
+        if action.view_name == "wjs_typesetter_upload_files"
+    )
+    typesetter = workflow.get_latest_typesetting_assignment(only_completed=False).typesetter
+    assert upload_action.as_dict(workflow, typesetter)["disabled"], "The upload action should be grayed out"
+
+    with pytest.raises(ValidationError, match="still being generated"):
+        _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+
+    # If the generation never reported back, after a while we assume it died and let the typesetter upload again
+    assignment = workflow.get_latest_typesetting_assignment(only_completed=False)
+    old_date = timezone.now() - timezone.timedelta(minutes=settings.WJS_GALLEY_GENERATION_STALE_AFTER_MINUTES + 1)
+    assignment.files_to_typeset.update(date_uploaded=old_date)
+    assert not workflow.galley_generation_in_progress(), "Stale sources: the generation should be considered dead"
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+
+
+@pytest.mark.django_db
+def test_upload_allowed_after_galley_generation_completed(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+):
+    article = assigned_to_typesetter_article
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    for status in (ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED, ArticleWorkflow.GalleysStatus.TEST_FAILED):
+        article.articleworkflow.production_flag_galleys_ok = status
+        article.articleworkflow.save()
+        assert (
+            not article.articleworkflow.galley_generation_in_progress()
+        ), f"{status.label}: should not be in progress"
+        _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+
+
+def _complete_typesetting_assignment(workflow: ArticleWorkflow) -> None:
+    TypesettingAssignment.objects.filter(
+        pk=workflow.get_latest_typesetting_assignment(only_completed=False).pk,
+    ).update(completed=timezone.now())
+
+
+def _deem_ready_for_publication(workflow: ArticleWorkflow) -> None:
+    # Use a separate object, as the typesetter would do from another request
+    ArticleWorkflow.objects.filter(pk=workflow.pk).update(state=ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION)
+    _complete_typesetting_assignment(workflow)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "change_paper,expected_reason",
+    (
+        (_complete_typesetting_assignment, "typesetting assignment has been completed"),
+        (_deem_ready_for_publication, "typesetting assignment has been completed"),
+        (
+            lambda workflow: ArticleWorkflow.objects.filter(pk=workflow.pk).update(
+                state=ArticleWorkflow.ReviewStates.SEND_TO_EDITOR_FOR_CHECK
+            ),
+            "has moved to state",
+        ),
+    ),
+)
+def test_galley_generation_result_discarded_if_paper_moved_on(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+    change_paper: Callable,
+    expected_reason: str,
+):
+    """While jcomassistant is working, the paper moves on: the result must not touch the paper (specs#3256)."""
+    article = assigned_to_typesetter_article
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+    state_before = None
+
+    def jcomassistant_while_paper_moves_on(self, source_file):
+        nonlocal state_before
+        change_paper(article.articleworkflow)
+        state_before = ArticleWorkflow.objects.get(pk=article.articleworkflow.pk).state
+        return create_mock_zip().getvalue()
+
+    mail.outbox = []
+    with mock.patch.object(
+        TypesetterTestsGalleyGeneration,
+        "_get_galleys_archive",
+        jcomassistant_while_paper_moves_on,
+    ):
+        TypesetterTestsGalleyGeneration(assignment, fake_request).run()
+
+    workflow = ArticleWorkflow.objects.get(pk=article.articleworkflow.pk)
+    assert workflow.state == state_before, "The galley generation must not revert the state of the paper"
+    assert (
+        workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
+    ), "The galley generation must not set the flag of a paper that moved on"
+    assert not assignment.galleys_created.exists(), "No galleys should have been attached"
+    assert [m.subject for m in mail.outbox] == [
+        "Galleys generation result discarded"
+    ], "Expected only the discard mail"
+    assert expected_reason in mail.outbox[0].body, "The reason should be explained to the typesetter"
+
+
+@pytest.mark.django_db
+def test_galley_generation_result_discarded_if_new_sources(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+    zip_with_tex_with_query: Callable,
+):
+    """The result of the generation of superseded sources must not be saved (specs#3256)."""
+    article = assigned_to_typesetter_article
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    article.articleworkflow.refresh_from_db()
+    assert article.articleworkflow.production_flag_no_queries, "First sources have no queries"
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+
+    def jcomassistant_while_typesetter_uploads(self, source_file):
+        # Pretend the first generation is old enough for the typesetter to be allowed to upload again
+        assignment.files_to_typeset.update(date_uploaded=timezone.now() - timezone.timedelta(days=1))
+        _upload_sources_without_galleys(article, fake_request, zip_with_tex_with_query(article))
+        return create_mock_zip().getvalue()
+
+    mail.outbox = []
+    with mock.patch.object(
+        TypesetterTestsGalleyGeneration,
+        "_get_galleys_archive",
+        jcomassistant_while_typesetter_uploads,
+    ):
+        TypesetterTestsGalleyGeneration(assignment, fake_request).run()
+
+    workflow = ArticleWorkflow.objects.get(pk=article.articleworkflow.pk)
+    assert workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED, "Flag must not be set"
+    assert not workflow.production_flag_no_queries, "The queries flag of the new sources must not be overwritten"
+    assert not assignment.galleys_created.exists(), "No galleys should have been attached"
+    assert [m.subject for m in mail.outbox] == [
+        "Galleys generation result discarded"
+    ], "Expected only the discard mail"
+    assert "New sources have been uploaded" in mail.outbox[0].body, "The reason should be explained"
+
+
+@pytest.mark.django_db
+def test_galley_generation_not_started_if_paper_already_moved_on(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+):
+    article = assigned_to_typesetter_article
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+    _complete_typesetting_assignment(article.articleworkflow)
+    assignment.refresh_from_db()
+
+    mail.outbox = []
+    with mock.patch.object(TypesetterTestsGalleyGeneration, "_get_galleys_archive") as mocked_jcomassistant:
+        TypesetterTestsGalleyGeneration(assignment, fake_request).run()
+    assert not mocked_jcomassistant.called, "Jcomassistant should not be bothered"
+    assert [m.subject for m in mail.outbox] == [
+        "Galleys generation result discarded"
+    ], "Expected only the discard mail"
+
+
+@pytest.mark.django_db
+def test_galley_generation_not_started_if_sources_replaced(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+    zip_with_tex_with_query: Callable,
+):
+    """A (queued or retried) generation of superseded sources must not compile the new ones (specs#3256)."""
+    article = assigned_to_typesetter_article
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+    old_source_file_id = assignment.files_to_typeset.get().pk
+    # Pretend the first generation is old enough for the typesetter to be allowed to upload again
+    assignment.files_to_typeset.update(date_uploaded=timezone.now() - timezone.timedelta(days=1))
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_with_query(article))
+
+    mail.outbox = []
+    with mock.patch.object(TypesetterTestsGalleyGeneration, "_get_galleys_archive") as mocked_jcomassistant:
+        TypesetterTestsGalleyGeneration(assignment, fake_request, source_file_id=old_source_file_id).run()
+    assert not mocked_jcomassistant.called, "Jcomassistant should not be bothered"
+    assert [m.subject for m in mail.outbox] == [
+        "Galleys generation result discarded"
+    ], "Expected only the discard mail"
+    assert "New sources have been uploaded" in mail.outbox[0].body, "The reason should be explained"
+
+
+@pytest.mark.django_db
+def test_upload_enqueues_galley_generation_of_uploaded_sources(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+):
+    """The galley generation task must know which sources it was requested for (specs#3256)."""
+    article = assigned_to_typesetter_article
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+    fake_request.user = assignment.typesetter
+    with mock.patch(f"{TypesettedFilesUpload.__module__}.async_task") as mocked_async_task:
+        TypesettedFilesUpload(
+            typesetter=assignment.typesetter,
+            request=fake_request,
+            assignment=assignment,
+            file_to_upload=zip_with_tex_without_query(article),
+            do_create_galleys=True,
+        ).run()
+    assert mocked_async_task.call_args.args[1:] == (
+        assignment.pk,
+        assignment.files_to_typeset.get().pk,
+    ), "The task should receive the assignment and the uploaded sources"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("failing_method", ("_get_galleys_archive", "_save_galleys"))
+def test_galley_generation_error_sets_flag(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+    failing_method: str,
+):
+    """A failure of jcomassistant or of saving the galleys is recorded on the paper."""
+    article = assigned_to_typesetter_article
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+
+    mail.outbox = []
+    with (
+        mock.patch.object(
+            TypesetterTestsGalleyGeneration, "_get_galleys_archive", return_value=create_mock_zip().getvalue()
+        ),
+        mock.patch.object(TypesetterTestsGalleyGeneration, failing_method, side_effect=RuntimeError("Boom")),
+    ):
+        TypesetterTestsGalleyGeneration(assignment, fake_request).run()
+
+    workflow = ArticleWorkflow.objects.get(pk=article.articleworkflow.pk)
+    assert workflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED, "State should not change"
+    assert workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_FAILED, "Failure not recorded"
+    assert [m.subject for m in mail.outbox] == ["Galleys generation error"], "Expected only the error mail"
+    assert "Boom" in mail.outbox[0].body, "The error should be reported to the typesetter"
+
+
+@pytest.mark.django_db
+def test_galley_generation_error_discarded_if_paper_moved_on(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+):
+    """A failure must not be recorded on a paper that moved on meanwhile (specs#3256)."""
+    article = assigned_to_typesetter_article
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+
+    def jcomassistant_fails_while_paper_moves_on(self, source_file):
+        _complete_typesetting_assignment(article.articleworkflow)
+        raise RuntimeError("Boom")
+
+    mail.outbox = []
+    with mock.patch.object(
+        TypesetterTestsGalleyGeneration,
+        "_get_galleys_archive",
+        jcomassistant_fails_while_paper_moves_on,
+    ):
+        TypesetterTestsGalleyGeneration(assignment, fake_request).run()
+
+    workflow = ArticleWorkflow.objects.get(pk=article.articleworkflow.pk)
+    assert (
+        workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
+    ), "The galley generation must not set the flag of a paper that moved on"
+    assert [m.subject for m in mail.outbox] == [
+        "Galleys generation result discarded"
+    ], "Expected only the discard mail"
+    assert "typesetting assignment has been completed" in mail.outbox[0].body, "The reason should be explained"
+    assert "Boom" in mail.outbox[0].body, "The error should be reported too"
+
+
+@pytest.mark.django_db
+def test_galley_generation_succeeds_without_touching_other_fields(
+    assigned_to_typesetter_article: Article,
+    fake_request: HttpRequest,
+    zip_with_tex_without_query: Callable,
+    mock_jcomassistant_post: Callable,  # noqa: ARG001
+):
+    article = assigned_to_typesetter_article
+    _upload_sources_without_galleys(article, fake_request, zip_with_tex_without_query(article))
+    assignment = article.articleworkflow.get_latest_typesetting_assignment(only_completed=False)
+
+    mail.outbox = []
+    TypesetterTestsGalleyGeneration(assignment, fake_request).run()
+
+    workflow = ArticleWorkflow.objects.get(pk=article.articleworkflow.pk)
+    assert workflow.state == ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED, "State should not change"
+    assert workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED, "Galleys should be ok"
+    assert assignment.galleys_created.exists(), "Galleys should have been attached"
+    assert [m.subject for m in mail.outbox] == ["Galleys are ready"], "Expected the success mail"
 
 
 @pytest.mark.django_db

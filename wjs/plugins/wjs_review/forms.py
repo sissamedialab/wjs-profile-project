@@ -145,14 +145,18 @@ class BaseInviteSelectReviewerForm(forms.Form):
             }
         ),
     )
-    message = WjsMiniHTMLFormField(label=_("Message"), required=False)
+    message = WjsMiniHTMLFormField(label=_("Message"), required=False, height="30m")
     author_note_visible = forms.BooleanField(
-        label=_("Allow reviewer to see author's cover letter"), required=False, initial=True
+        label=_("Allow reviewer to see author's cover letter"),
+        required=False,
+        initial=True,
+        help_text=_('Click "Show me author cover letter" to check it'),
     )
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request")
         self.user = kwargs.pop("user")
+        self.revision = kwargs.pop("revision")
         super().__init__(*args, **kwargs)
 
         c_data = self.data.copy()
@@ -176,6 +180,12 @@ class BaseInviteSelectReviewerForm(forms.Form):
         self.fields["acceptance_due_date"].widget = forms.DateInput(attrs=date_attrs)
         if not self.data.get("acceptance_due_date", None):
             self.data["acceptance_due_date"] = self.default_acceptance_due_date
+
+        review_round = self.instance.article.current_review_round()
+
+        has_cover_letter = self.revision.cover_letter.text or self.revision.cover_letter.file
+        if review_round == 1 and not has_cover_letter:
+            self.fields["author_note_visible"].widget = forms.HiddenInput()
 
     def _prepare_message_and_subject(self):
         """Prepare the default message and subject.
@@ -213,6 +223,7 @@ class BaseInviteSelectReviewerForm(forms.Form):
         )
         self.data["message_subject"] = default_subject
         self.fields["message_subject"].initial = default_subject
+        print(default_subject)
 
     def clean_acceptance_due_date(self):
         """Ensure that the due date is in the future.
@@ -266,14 +277,7 @@ class SelectReviewerForm(BaseInviteSelectReviewerForm, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self._today = localtime(now()).date()
         self.editor_assigns_themselves_as_reviewer = kwargs.pop("editor_assigns_themselves_as_reviewer", False)
-        self.revision = kwargs.pop("revision")
         super().__init__(*args, **kwargs)
-
-        review_round = self.instance.article.current_review_round()
-
-        has_cover_letter = self.revision.cover_letter.text or self.revision.cover_letter.file
-        if review_round == 1 and not has_cover_letter:
-            self.fields["author_note_visible"].widget = forms.HiddenInput()
 
         if self.editor_assigns_themselves_as_reviewer:
             self.fields["acceptance_due_date"].label = _("I will send my review by")
@@ -362,42 +366,41 @@ class InviteUserForm(BaseInviteSelectReviewerForm):
 
     def __init__(self, *args, **kwargs):
         self.instance = kwargs.pop("instance")
+        prophy_account_id = kwargs.pop("prophy_account_id", None)
         self.prophy_account = None
-        if "prophy_account_id" in kwargs:
-            # FIXME: breaks badly if filter returns an empty queryset
-            prophy_account = ProphyAccount.objects.filter(author_id=kwargs.pop("prophy_account_id"))[0]
-            # Cleanup None values where they could be
-            if prophy_account.middle_name in [None, "None"]:
-                prophy_account.middle_name = ""
-            if prophy_account.suffix in [None, "None"]:
-                prophy_account.suffix = ""
-            # Set the attribute full_name, that could be used in the template of the initial message
-            # (adapted from Account.full_name())
-            prophy_account.full_name = " ".join(
-                [
-                    piece
-                    for piece in [
-                        prophy_account.first_name,
-                        prophy_account.middle_name,
-                        prophy_account.last_name,
-                        prophy_account.suffix,
+        if prophy_account_id:
+            prophy_account = ProphyAccount.objects.filter(author_id=prophy_account_id).first()
+            if prophy_account:
+                # Cleanup None values where they could be
+                if prophy_account.middle_name in [None, "None"]:
+                    prophy_account.middle_name = ""
+                if prophy_account.suffix in [None, "None"]:
+                    prophy_account.suffix = ""
+                # Set the attribute full_name, that could be used in the template of the initial message
+                # (adapted from Account.full_name())
+                prophy_account.full_name = " ".join(
+                    [
+                        piece
+                        for piece in [
+                            prophy_account.first_name,
+                            prophy_account.middle_name,
+                            prophy_account.last_name,
+                            prophy_account.suffix,
+                        ]
+                        if piece
                     ]
-                    if piece
-                ]
-            )
-            self.prophy_account = prophy_account
+                )
+                self.prophy_account = prophy_account
 
         super().__init__(*args, **kwargs)
         if self.prophy_account:
             self.initial = {
                 # Add .strip() to remove trailing spaces in case of empty middle_name
-                "first_name": f"{prophy_account.first_name} {prophy_account.middle_name}".strip(),
-                "last_name": prophy_account.last_name,
-                "suffix": prophy_account.suffix,
-                "email": prophy_account.email,
+                "first_name": f"{self.prophy_account.first_name} {self.prophy_account.middle_name}".strip(),
+                "last_name": self.prophy_account.last_name,
+                "suffix": self.prophy_account.suffix,
+                "email": self.prophy_account.email,
             }
-        if not self.instance.article.comments_editor:
-            self.fields["author_note_visible"].widget = forms.HiddenInput()
 
         self._prepare_message_and_subject()
 
@@ -733,7 +736,7 @@ class DecisionForm(forms.ModelForm):
         reviewer_report_type = get_setting(
             setting_group_name="wjs_review", setting_name="reviewer_report_type", journal=self.request.journal
         ).value
-        if "tex" in reviewer_report_type:
+        if reviewer_report_type in ("tex", "tex+text"):
             self.fields["decision_editor_report"] = CharField(
                 label=_("Editor Report for authors"),
                 required=False,

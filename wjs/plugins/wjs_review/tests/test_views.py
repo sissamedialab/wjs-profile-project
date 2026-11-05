@@ -4,6 +4,7 @@ from typing import Callable, Iterable, List, Optional
 import freezegun
 import pytest
 from core.models import Account
+from django import forms
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core import mail
@@ -22,15 +23,16 @@ from review import models as review_models
 from review.models import ReviewAssignment, ReviewForm, ReviewRound
 from submission import models as submission_models
 from submission.models import Article
+from tinymce.widgets import TinyMCE
 from utils import setting_handler
-from utils.setting_handler import get_setting
+from utils.setting_handler import get_setting, save_setting
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
 from wjs.jcom_profile.tests.conftest import _journal_factory
 from wjs.jcom_profile.utils import generate_token, render_template_from_setting
 
-from ..forms import DecisionForm
+from ..forms import DecisionForm, InviteUserForm
 from ..logic import AssignToEditor, HandleDecision, HandleEditorDeclinesAssignment
 from ..models import (
     ArticleWorkflow,
@@ -38,6 +40,7 @@ from ..models import (
     EditorRevisionRequest,
     Message,
     PastEditorAssignment,
+    ProphyAccount,
     WjsEditorAssignment,
     WorkflowReviewAssignment,
 )
@@ -468,6 +471,109 @@ def test_invite_function_creates_inactive_user(
     assert message_to_reviewer.message_type == Message.MessageTypes.SYSTEM
     assert message_to_reviewer.actor == section_editor
     assert list(message_to_reviewer.recipients.all()) == [invited_user.janeway_account]
+
+
+def _invite_data(fake_request: HttpRequest) -> dict:
+    return {
+        "first_name": "Name",
+        "last_name": "Surname",
+        "suffix": "Suffix",
+        "email": "email@email.it",
+        "message": "random message",
+        "acceptance_due_date": now().date()
+        + datetime.timedelta(
+            days=fake_request.journal.get_setting("wjs_review", "default_review_acceptance_days"),
+        ),
+    }
+
+
+@pytest.mark.django_db
+def test_invite_modal_form_targets_invite_view(
+    client: Client,
+    assigned_article: submission_models.Article,
+):
+    """The shared select / invite modal template must post to the invite view when rendered for an invitation."""
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
+    client.force_login(section_editor)
+    response = client.get(url, HTTP_HX_REQUEST="true")
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert 'id="new-reviewer-invite-form"' in content
+    assert f'hx-post="{url}"' in content
+    assert reverse("wjs_select_reviewer", args=(assigned_article.articleworkflow.pk,)) not in content
+    assert 'name="invite-reviewer-message"' in content
+
+
+@pytest.mark.django_db
+def test_invite_modal_submit_via_htmx(
+    client: Client,
+    assigned_article: submission_models.Article,
+    review_form: ReviewForm,
+    fake_request: HttpRequest,
+):
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
+    client.force_login(section_editor)
+    response = client.post(
+        url,
+        data=_invite_data(fake_request),
+        HTTP_HX_REQUEST="true",
+        HTTP_HX_TRIGGER="new-reviewer-invite-form",
+    )
+    assert response.status_code == 200
+    assert response["HX-Redirect"]
+    assert JCOMProfile.objects.filter(email="email@email.it").exists()
+
+
+@pytest.mark.django_db
+def test_invite_modal_update_preview_via_htmx(
+    client: Client,
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+):
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    url = reverse("wjs_invite_reviewer", args=(assigned_article.articleworkflow.pk,))
+    client.force_login(section_editor)
+    response = client.post(
+        url,
+        data=_invite_data(fake_request),
+        HTTP_HX_REQUEST="true",
+        HTTP_HX_TRIGGER="update-btn-select",
+        HTTP_HX_TRIGGER_NAME="invite-reviewer-message",
+    )
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert 'id="reviewer-message-preview"' in content
+    assert "modal-header" not in content
+    assert not JCOMProfile.objects.filter(email="email@email.it").exists()
+
+
+@pytest.mark.django_db
+def test_invite_form_prefilled_from_prophy_account(
+    assigned_article: submission_models.Article,
+    fake_request: HttpRequest,
+):
+    prophy_account = ProphyAccount.objects.create(
+        author_id=1234,
+        first_name="Jane",
+        middle_name="Q",
+        last_name="Doe",
+        email="jane@example.com",
+    )
+    section_editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    revision = assigned_article.articleworkflow.get_review_versions(section_editor)[0]
+    form = InviteUserForm(
+        request=fake_request,
+        user=section_editor,
+        instance=assigned_article.articleworkflow,
+        revision=revision,
+        prophy_account_id=prophy_account.author_id,
+    )
+    assert form.prophy_account == prophy_account
+    assert form.initial["first_name"] == "Jane Q"
+    assert form.initial["last_name"] == "Doe"
+    assert form.initial["email"] == "jane@example.com"
 
 
 @pytest.mark.django_db
@@ -2008,11 +2114,14 @@ def test_article_decision_triggered_twice_is_serialized(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("report_type", ["tex", "tex+text"])
 def test_decision_form_decisioneditorreport(
     fake_request: HttpRequest,
     assigned_article: submission_models.Article,
+    report_type: str,
 ):
     """ """
+    save_setting("wjs_review", "reviewer_report_type", assigned_article.journal, report_type)
     editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
     fake_request.user = editor
     workflow = assigned_article.articleworkflow
@@ -2107,6 +2216,66 @@ def test_decision_page_with_reports_intro_is_unchanged(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("report_type", "expected_widget"),
+    (
+        ("text", TinyMCE),
+        ("tex", forms.Textarea),
+        ("tex+text", forms.Textarea),
+    ),
+)
+def test_decision_form_editor_report_widget(
+    fake_request: HttpRequest,
+    assigned_article: submission_models.Article,
+    report_type: str,
+    expected_widget: type,
+):
+    """
+    The editor report is rich text (TinyMCE) for text-only journals and plain text for LaTeX journals.
+
+    report_editor.js (copyReviewerReport) relies on this to choose between TinyMCE's API and the textarea value.
+    """
+    save_setting("wjs_review", "reviewer_report_type", assigned_article.journal, report_type)
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+    fake_request.user = editor
+    form = DecisionForm(
+        instance=assigned_article.articleworkflow,
+        user=editor,
+        request=fake_request,
+        initial={"decision": ArticleWorkflow.Decisions.ACCEPT},
+        has_pending_reviews=False,
+    )
+    widget = form.fields["decision_editor_report"].widget
+    assert type(widget) is expected_widget, f"{report_type}: got {type(widget).__name__}"
+
+
+@pytest.mark.django_db
+def test_decision_page_keeps_unrendered_reviewer_report(
+    client: Client,
+    submitted_review_assignment: WorkflowReviewAssignment,
+):
+    """
+    The decision page carries the reviewer report HTML as stored, next to the modal that renders it.
+
+    The modal applies linebreaksbr, which puts <br> inside lists; copyReviewerReport copies the stored
+    HTML instead, otherwise TinyMCE splits each list into one-item lists.
+    """
+    report = "<ol>\n<li>one</li>\n<li>two</li>\n</ol>"
+    submitted_review_assignment.report_form_answers["author_review"] = report
+    submitted_review_assignment.report_form_answers.pop("author_review_tex", None)
+    submitted_review_assignment.save()
+    article = submitted_review_assignment.article
+    save_setting("wjs_review", "reviewer_report_type", article.journal, "text")
+    client.force_login(WjsEditorAssignment.objects.get_current(article).editor)
+    url = reverse("wjs_article_decision", args=(article.articleworkflow.pk,))
+
+    content = client.get(url, {"decision": ArticleWorkflow.Decisions.ACCEPT}).content.decode()
+
+    source = f'<template id="author_review_source-{submitted_review_assignment.pk}">{report}</template>'
+    assert source in content, "The stored report HTML is on the page, without the modal's <br>"
+
+
+@pytest.mark.django_db
 def test_authors_accordion_shows_author_records(assigned_article: Article):
     """
     The "Authors" accordion of the status page shows the author records of the paper.
@@ -2160,3 +2329,61 @@ def test_get_editor_keywords_ordered_by_weight_then_word(journal, editors, keywo
     words = [staff_keyword.keyword.word for staff_keyword in get_editor_keywords(editor, journal)]
 
     assert words == ["1-keyword", "0-keyword", "2-keyword", "3-keyword"], f"Unexpected keyword order: {words}"
+
+
+@pytest.mark.django_db
+def test_assign_editor_shows_unified_label_once(
+    submitted_workflow: ArticleWorkflow,
+    eo_user: JCOMProfile,
+    create_jcom_user: Callable,
+    review_settings,
+):
+    """Self-disabled and EO-disabled editors both show "Permanently disabled", once per editor."""
+    journal = submitted_workflow.article.journal
+    for name, enabled, brake_on in (
+        ("self_disabled", False, 0),
+        ("eo_disabled", True, -1),
+        ("both_disabled", False, -1),
+        ("fully_enabled", True, 0),
+    ):
+        editor = create_jcom_user(name)
+        editor.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+        StaffWorkloadParameters.objects.update_or_create(
+            user=editor.janeway_account,
+            journal=journal,
+            defaults={"workload": 10, "enabled": enabled, "brake_on": brake_on},
+        )
+    client = Client()
+    client.force_login(eo_user.janeway_account)
+
+    response = client.get(reverse("wjs_assign_editor", args=(submitted_workflow.pk,)))
+
+    content = response.content.decode()
+    assert response.status_code == 200, "EO can open the page"
+    assert content.count("Permanently disabled") == 3, "one label for each of the three disabled editors"
+    assert "Permanently self disabled" not in content, "old self-disabled label is gone"
+    assert "Disabled by EO" not in content, "old EO label is gone"
+
+
+@pytest.mark.django_db
+def test_select_reviewer_shows_unified_label(
+    client: Client,
+    section_editor: JCOMProfile,
+    reviewer: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """A reviewer who disabled themselves is listed as "Permanently disabled"."""
+    StaffWorkloadParameters.objects.update_or_create(
+        user=reviewer.janeway_account,
+        journal=assigned_article.journal,
+        defaults={"enabled": False},
+    )
+    client.force_login(section_editor.janeway_account)
+
+    response = client.get(reverse("wjs_select_reviewer", args=(assigned_article.pk,)), {"search": reviewer.email})
+
+    content = response.content.decode()
+    assert response.status_code == 200, "editor can open the page"
+    assert reviewer.janeway_account in response.context["reviewers"], "the searched reviewer is listed"
+    assert "Permanently disabled" in content, "self-disabled reviewer is labelled"
+    assert "Permanently self disabled" not in content, "old label is gone"

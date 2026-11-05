@@ -145,6 +145,21 @@ class JCOMProfile(Account):
         except AttributeError:
             return False
 
+    def is_permanently_disabled_as_editor(self, journal: Journal) -> bool:
+        """
+        Check if this editor is permanently disabled for the given journal.
+
+        An editor is permanently disabled when they disabled themselves
+        (see :py:meth:`is_enabled_as_editor`) or when the EO disabled them (see :py:meth:`is_disabled_by_eo`).
+        This is the single condition behind the "Permanently disabled" label.
+
+        :param journal: The journal instance to check.
+        :type journal: Journal
+        :return: True if the editor is self-disabled or disabled by the EO.
+        :rtype: bool
+        """
+        return not self.is_enabled_as_editor(journal) or self.is_disabled_by_eo(journal)
+
     def vacancy_dates(self, journal: Journal) -> str:
         """
         Generate and return a string representation of vacancy dates for a given journal.

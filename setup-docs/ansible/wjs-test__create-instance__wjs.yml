@@ -44,12 +44,11 @@
     pip: "{{ venv_root }}/bin/pip"
     ansible_ssh_common_args: "-o ForwardAgent=yes"
     janeway_version: "{{ janeway | default('wjs-develop') }}"
-    # Interpreter the virtualenv is built on. Comes from pyenv (see the
-    # janeway group in inventories/), NOT from /usr/bin: new instances must be
-    # born on the same python as the ones regenerate-venv-and-deploy.yml rebuilds.
-    pyenv_root: /home/wjs/.pyenv
-    python_version: "{{ pyenv_python | default('3.13.15') }}"
-    pyenv_python_bin: "{{ pyenv_root }}/versions/{{ python_version }}/bin/python"
+    # Interpreter the virtualenv is built on: the system one (see the janeway
+    # group in inventories/ and specs#3362). New instances must be born on the
+    # same python as the ones regenerate-venv-and-deploy.yml rebuilds.
+    python_xy: "{{ system_python | default('3.13') }}"
+    system_python_bin: "/usr/bin/python{{ python_xy }}"
     # Third-party Janeway plugin, cloned into src/plugins (see below)
     hydra_repo: git@gitlab.sissamedialab.it:wjs/hydra.git
     hydra_version: wjs-production
@@ -69,21 +68,23 @@
           redis_db is "{{ redis_db }}": pass a free DB index with -e redis=N
           (1..15, excluding 10 and 11).
 
-    - name: Check that the pyenv interpreter is available
+    - name: Check that the system interpreter and its headers are installed
       stat:
-        path: "{{ pyenv_python_bin }}"
-      register: pyenv_interpreter
+        path: "{{ item }}"
+      loop:
+        - "{{ system_python_bin }}"
+        - "/usr/include/python{{ python_xy }}/Python.h"
+      register: system_python_files
       changed_when: false
 
-    - name: Fail early if the interpreter has not been built yet
+    - name: Fail early if the system interpreter is not usable
       assert:
         that:
-          - pyenv_interpreter.stat.exists
+          - system_python_files.results | rejectattr('stat.exists') | list | length == 0
         fail_msg: >-
-          {{ pyenv_python_bin }} does not exist. Build it first - regenerate-venv.yml
-          installs pyenv and the interpreter - or pass -e pyenv_python=<version>
-          for one that is already installed
-          ({{ pyenv_root }}/versions holds the current ones).
+          {{ system_python_bin }} or its headers are missing. As root: apt install
+          python{{ python_xy }} python{{ python_xy }}-dev. If the machine runs a
+          different python, pass -e system_python=<major.minor>.
 
     - name: Clone Janeway repo
       # See also wjs-setup-user.yml
@@ -101,7 +102,7 @@
       shell: |
         export WORKON_HOME={{ workon_home }}
         source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-        mkvirtualenv -a $(pwd) -p {{ pyenv_python_bin }} {{ full_name }}
+        mkvirtualenv -a $(pwd) -p {{ system_python_bin }} {{ full_name }}
       args:
         chdir: "/home/wjs/{{ full_name }}/src"
         executable: /bin/bash

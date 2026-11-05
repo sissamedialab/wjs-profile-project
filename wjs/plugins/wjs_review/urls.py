@@ -83,6 +83,7 @@ from .views__production import (  # noqa F401;
     ListSupplementaryFileView,
     ReadyForProofreadingView,
     ReadyForPublicationView,
+    SetPublisherConfirmedFlagView,
     SimulatePubidView,
     TogglePublishableFlagView,
     TypesetterArchived,
@@ -306,6 +307,11 @@ urlpatterns = [
     ),
     path("annotated_files/<int:pk>/", ListAnnotatedFilesView.as_view(), name="wjs_list_annotated_files"),
     path("paper_publishable/<int:pk>/", TogglePublishableFlagView.as_view(), name="wjs_toggle_publishable"),
+    path(
+        "paper_publisher_confirmed/<int:pk>/",
+        SetPublisherConfirmedFlagView.as_view(),
+        name="wjs_set_publisher_confirmed",
+    ),
     path(
         "article/<int:pk>/permissions/<int:user_id>/",
         EditUserPermissions.as_view(),

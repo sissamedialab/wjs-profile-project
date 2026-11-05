@@ -43,6 +43,7 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.module_loading import import_string
+from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed, has_transition_perm
 from django_q.tasks import async_task
 from events import logic as events_logic
@@ -620,8 +621,12 @@ class RequestProofs:
 
 def typesettertestsgalleygeneration_wrapper(
     assignment_id: int,
+    source_file_id: Optional[int] = None,
 ):
-    """Wrap the call to :py:class:`TypesetterTestsGalleyGeneration` to allow for async processing."""
+    """Wrap the call to :py:class:`TypesetterTestsGalleyGeneration` to allow for async processing.
+
+    `source_file_id` is optional only for the tasks enqueued before it was introduced (see specs#3256).
+    """
     # See also logic__production.finishpublication_wrapper().
     assignment = get_object_or_404(TypesettingAssignment, pk=assignment_id)
     request = create_fake_request(user=assignment.typesetter, journal=assignment.round.article.journal)
@@ -630,10 +635,12 @@ def typesettertestsgalleygeneration_wrapper(
         logic_instance = TypesetterTestsGalleyGeneration(
             assignment=assignment,
             request=request,
+            source_file_id=source_file_id,
         )
         logic_instance.run()
     except Exception as e:
-        article = assignment.round.article  # just an alias
+        # TypesetterTestsGalleyGeneration handles the failures of the generation itself, deciding under lock whether
+        # the paper can be touched. Anything reaching here is unexpected: just notify and leave the paper alone.
         msg = str(e)
         msg += "\n\n"
         msg += traceback.format_exc()
@@ -642,11 +649,8 @@ def typesettertestsgalleygeneration_wrapper(
             message_subject="Galleys generation error",
             message_body=msg,
             recipients=[assignment.typesetter],
-            article=article,
+            article=assignment.round.article,
         )
-
-        article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED.value
-        article.articleworkflow.save()
 
 
 @dataclasses.dataclass
@@ -705,6 +709,14 @@ class TypesettedFilesUpload:
                 raise ValueError("Invalid article state")
             if not self._check_file_condition():
                 raise ValueError("Invalid file upload")
+            if self.assignment.round.article.articleworkflow.galley_generation_in_progress():
+                # A new upload would start a second galley generation, racing with the running one (see specs#3256)
+                raise ValidationError(
+                    _(
+                        "The galleys of the sources uploaded previously are still being generated."
+                        " Please wait for the email notifying that they are ready before uploading new sources."
+                    )
+                )
             # Check if there are any files already associated
             if self.assignment.files_to_typeset.exists():
                 self._delete_core_files_record()
@@ -727,6 +739,7 @@ class TypesettedFilesUpload:
                 async_task(
                     typesettertestsgalleygeneration_wrapper,
                     self.assignment.pk,
+                    uploaded_file.pk,
                     task_name="test-galley-generation",
                 )
             except Exception as e:
@@ -1122,6 +1135,43 @@ class TogglePublishableFlag:
 
 
 @dataclasses.dataclass
+class SetPublisherConfirmedFlag:
+    """EO records (or revokes) the publisher's green light for publication (wjs/specs#2914).
+
+    The requested value is explicit (not a toggle): a click from a stale page asking for the value already stored is
+    refused, so a "Revoke" button can never end up confirming the paper.
+    """
+
+    workflow: ArticleWorkflow
+    confirmed: bool
+
+    def _check_conditions(self) -> bool:
+        return self.workflow.requires_publisher_confirmation() and self.workflow.state in [
+            ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+            ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+            ArticleWorkflow.ReviewStates.PROOFREADING,
+            ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
+        ]
+
+    def _set_flag(self):
+        self.workflow.production_flag_iop_ready = self.confirmed
+        # Write only the flag: other production flags of the same row can be updated concurrently (e.g. galley tests).
+        self.workflow.save(update_fields=["production_flag_iop_ready"])
+
+    def run(self) -> ArticleWorkflow:
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("The publisher confirmation cannot be changed for this paper now.")
+            self.workflow.refresh_from_db(fields=["production_flag_iop_ready"])
+            if self.workflow.production_flag_iop_ready == self.confirmed:
+                if self.confirmed:
+                    raise ValueError("The publisher confirmation is already recorded.")
+                raise ValueError("The publisher confirmation is already revoked.")
+            self._set_flag()
+        return self.workflow
+
+
+@dataclasses.dataclass
 class AttachGalleys:
     """Attach some galley files to an Article.
 
@@ -1406,7 +1456,8 @@ class AttachGalleys:
             #
             # Errors should should have already been logged when they have happened.
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
-            self.article.articleworkflow.save()
+            # Save only the flag: the workflow might be an old copy (e.g. loaded when an async task started)
+            self.article.articleworkflow.save(update_fields=["production_flag_galleys_ok"])
             galleys_created = self.save_japrocessed_result()
             message_subject = "Galleys generation error"
             message_body = f"""Please check
@@ -1419,7 +1470,7 @@ Error:
 """
         else:
             self.article.articleworkflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_SUCCEEDED
-            self.article.articleworkflow.save()
+            self.article.articleworkflow.save(update_fields=["production_flag_galleys_ok"])
             message_subject = "Galleys are ready"
             message_body = f"""Dear {self.request.user.full_name()},
 <br><br>
@@ -1476,6 +1527,8 @@ class TypesetterTestsGalleyGeneration:
 
     assignment: TypesettingAssignment
     request: HttpRequest  # Used in Janeway's save_galley, in log_operation and maybe in _check_conditions
+    source_file_id: Optional[int] = None
+    "The sources to compile, as they were when the generation was requested. None means the current ones."
 
     expected_galleys: list[str] = dataclasses.field(init=False)
     "The galleys that should be generated for this journal"
@@ -1509,52 +1562,48 @@ class TypesetterTestsGalleyGeneration:
         [g.unlink_files() for g in self.assignment.galleys_created.all()]
         self.assignment.galleys_created.all().delete()
         self.assignment.round.article.render_galley = None
-        self.assignment.round.article.save()
+        # Save only the changed field: the article might be an old copy, loaded when the (async) task started
+        self.assignment.round.article.save(update_fields=["render_galley"])
         self.assignment.round.article.galley_set.all().delete()
 
-    def _jcom_assistant_client(self):
+    def _jcom_assistant_client(self, source_file: JanewayFile) -> bytes:
         assistant = JcomAssistantClient(
-            archive_with_files_to_process=self.assignment.files_to_typeset.first(),
+            archive_with_files_to_process=source_file,
             user=self.assignment.typesetter,
             galleys_to_request=self.expected_galleys,
         )
         response = assistant.ask_jcomassistant_to_process()
-        return response
+        return response.content
 
-    def _mock_jcom_assistant_client(self, path_to_mock_file):
+    def _mock_jcom_assistant_client(self, path_to_mock_file) -> bytes:
         """
-        Invoke :py:class:`AttachGalleys` with a mock JCOM Assistant response file
+        Return a mock JCOM Assistant response read from a file.
 
-        This runs the class without access to JCOM Assistant endpoint.
+        This allows to run the galley generation without access to JCOM Assistant endpoint.
         """
         with open(path_to_mock_file, "rb") as f:
-            response = f.read()
-        return AttachGalleys(
-            archive_with_galleys=response,
-            article=self.assignment.round.article,
-            request=self.request,
-            public_galley=False,
-            expected_galleys=self.expected_galleys,
-        ).run()
+            return f.read()
 
-    def _get_and_save_galleys(self):
+    def _get_galleys_archive(self, source_file: JanewayFile) -> bytes:
         """
-        Use Jcom Assistant to render the galleys and then attach them to the article.
+        Use Jcom Assistant to render the galleys.
 
         If settings.JCOMASSISTANT_MOCK_FILE is set, use the path as a mock response file instead of contacting
         the JCOM Assistant service.
         """
         if settings.JCOMASSISTANT_MOCK_FILE:
-            galleys_created = self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK_FILE)
-        else:
-            response = self._jcom_assistant_client()
-            galleys_created = AttachGalleys(
-                archive_with_galleys=response.content,
-                article=self.assignment.round.article,
-                request=self.request,
-                public_galley=False,
-                expected_galleys=self.expected_galleys,
-            ).run()
+            return self._mock_jcom_assistant_client(settings.JCOMASSISTANT_MOCK_FILE)
+        return self._jcom_assistant_client(source_file)
+
+    def _save_galleys(self, archive_with_galleys: bytes):
+        """Attach the galleys rendered by Jcom Assistant to the typesetting assignment."""
+        galleys_created = AttachGalleys(
+            archive_with_galleys=archive_with_galleys,
+            article=self.assignment.round.article,
+            request=self.request,
+            public_galley=False,
+            expected_galleys=self.expected_galleys,
+        ).run()
         # Detach the galleys from the article:
         # A.galley_set should contain only publication-ready galleys
         Galley.objects.filter(id__in=[g.id for g in galleys_created]).update(article=None)
@@ -1562,24 +1611,138 @@ class TypesetterTestsGalleyGeneration:
         # Attach the gallyes to the TA
         self.assignment.galleys_created.set(galleys_created)
 
-    def run(self) -> None:
-        if self._check_conditions():
-            self._clean_galleys()
-            self._get_and_save_galleys()
-        else:
-            msg = f"""Galley generation failed to start
-            article: {self.assignment.round.article.id}
-            user: {self.request.user} is good: {self._check_user_conditions()}
-            source files exist: {self._check_files_conditions()}
-            """
-            logger.error(msg.replace("\n", "  "))
+    def _get_discarded_reason(self, workflow: ArticleWorkflow, source_file_id: int) -> str | None:
+        """
+        Return why the result of the galley generation must be discarded, or None if it can be used.
 
-            communication_utils.notify_async_event(
-                message_subject="Galley generation failed to start",
-                message_body=msg,
-                recipients=[self.request.user],
-                article=self.assignment.round.article,
-            )
+        The generation is asynchronous and takes some time (and the task might wait in the queue or be retried):
+        meanwhile the paper might have moved on (e.g. the typesetter sent it for proofreading or to the editor for
+        check, or, for a task re-run by django-q after a timeout, even deemed it ready for publication) or new sources
+        might have been uploaded. In these cases the result refers to something that does not exist anymore and
+        saving it would mess up the paper (see specs#3256). Pass a fresh (and possibly locked) workflow.
+        """
+        if self.assignment.completed:
+            return "The typesetting assignment has been completed in the meantime."
+        if workflow.state != ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED:
+            return f'The paper has moved to state "{workflow.get_state_display()}" in the meantime.'
+        # The replaced sources are deleted, so we check the relation by id
+        if not self.assignment.files_to_typeset.filter(pk=source_file_id).exists():
+            return "New sources have been uploaded in the meantime."
+        return None
+
+    def _notify_discarded(self, reason: str, error: str | None = None) -> None:
+        article = self.assignment.round.article
+        message_body = f"""The galleys generation for
+<a href="{article.articleworkflow.url}">{article.id}</a>
+has been discarded: no galleys have been attached to the paper and the paper has not been changed.
+<br><br>
+{reason}
+"""
+        log_message = f"Discarding galley generation of TA {self.assignment.pk} (paper {article.id}): {reason}"
+        if error is not None:
+            message_body += "<br><br>The generation had failed anyway with this error:<br><br>"
+            message_body += error.replace("\n", "<br>")
+            log_message += f" The generation had failed with: {error}"
+        logger.warning(log_message)
+        communication_utils.notify_async_event(
+            message_subject="Galleys generation result discarded",
+            message_body=message_body,
+            recipients=[self.request.user],
+            article=article,
+        )
+
+    def _notify_failed_to_start(self) -> None:
+        msg = f"""Galley generation failed to start
+        article: {self.assignment.round.article.id}
+        user: {self.request.user} is good: {self._check_user_conditions()}
+        source files exist: {self._check_files_conditions()}
+        """
+        logger.error(msg.replace("\n", "  "))
+
+        communication_utils.notify_async_event(
+            message_subject="Galley generation failed to start",
+            message_body=msg,
+            recipients=[self.request.user],
+            article=self.assignment.round.article,
+        )
+
+    def _notify_error(self, error: str) -> None:
+        communication_utils.notify_async_event(
+            message_subject="Galleys generation error",
+            message_body=error.replace("\n", "<br>"),
+            recipients=[self.request.user],
+            article=self.assignment.round.article,
+        )
+
+    @staticmethod
+    def _format_error(e: Exception) -> str:
+        """Describe the exception being handled. Must be called in the except block."""
+        return f"{e}\n\n{traceback.format_exc()}"
+
+    def _lock_and_refresh(self) -> ArticleWorkflow:
+        """
+        Lock the workflow until the end of the transaction and refresh the objects that we use.
+
+        Must be called inside a transaction.
+        """
+        workflow = self.assignment.round.article.articleworkflow
+        ArticleWorkflow.objects.select_for_update().get(pk=workflow.pk)
+        workflow.refresh_from_db()
+        self.assignment.refresh_from_db()
+        return workflow
+
+    def run(self) -> None:
+        """
+        Generate the galleys and "attach" them.
+
+        - check if the business logic allows the generation (_check_conditions)
+        - then check if something changed after the async task was enqueued (the first _get_discarded_reason)
+        - perform the generation (_get_galleys_archive)
+        - lock and re-check:
+          - did something change while we were generating the galleys (the second _get_discarded_reason)?
+          - was there any error during the generation (network error, timeout,...)?
+          - save the generated galleys (_save_galleys)
+          - was there any error while saving the galleys?
+        """
+        if not self._check_conditions():
+            self._notify_failed_to_start()
+            return
+
+        source_file_id = self.source_file_id or self.assignment.files_to_typeset.first().pk
+        workflow = self.assignment.round.article.articleworkflow
+
+        # Pre-check: the task might start long after it was enqueued or be a retry of a task killed by the Q_CLUSTER
+        # timeout. If the paper has moved on, or the sources have been replaced, don't make jcomassistant compile
+        # something that we would discard anyway.
+        if discarded_reason := self._get_discarded_reason(workflow, source_file_id):
+            self._notify_discarded(discarded_reason)
+            return
+
+        error = None
+        try:
+            archive_with_galleys = self._get_galleys_archive(self.assignment.files_to_typeset.get(pk=source_file_id))
+        except Exception as e:
+            # Whether the failure can be recorded on the paper is decided below, under lock
+            error = self._format_error(e)
+
+        # Lock the workflow while we save the result (or the failure), so that the paper cannot move on in the meantime
+        with transaction.atomic():
+            workflow = self._lock_and_refresh()
+            if discarded_reason := self._get_discarded_reason(workflow, source_file_id):
+                self._notify_discarded(discarded_reason, error)
+                return
+            if error is None:
+                try:
+                    # Savepoint: if saving fails, we still hold the lock to record the failure
+                    with transaction.atomic():
+                        self._clean_galleys()
+                        self._save_galleys(archive_with_galleys)
+                    return
+                except Exception as e:
+                    error = self._format_error(e)
+            workflow.production_flag_galleys_ok = ArticleWorkflow.GalleysStatus.TEST_FAILED
+            workflow.save(update_fields=["production_flag_galleys_ok"])
+        self._notify_error(error)
 
 
 @dataclasses.dataclass
@@ -1803,6 +1966,13 @@ class HandleEOSendBackToTypesetter:
             return self.workflow
 
 
+# FIXME: Move this constant somewhere
+PUBLISHER_CONFIRMATION_MISSING_MESSAGE = (
+    "Please ensure that the publisher confirmed that this paper can be published "
+    "(and click on the appropriate action)"
+)
+
+
 @dataclasses.dataclass
 class BeginPublication:
     """Begin the publication process.
@@ -1867,6 +2037,8 @@ class BeginPublication:
             return (False, "Paper has no section associated.")
         if not hasattr(section, "wjssection") or not section.wjssection.pubid_and_tex_sectioncode:
             return (False, f'Section "{section}" has no PUBID code. Please correct from the admin interface.')
+        if self.workflow.publisher_confirmation_missing():
+            return (False, PUBLISHER_CONFIRMATION_MISSING_MESSAGE)
         return (True, None)
 
     def ensure_doi(self) -> None:

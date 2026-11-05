@@ -43,6 +43,7 @@ from .logic__production import (
     MissingIssueError,
     ReadyForPublication,
     RequestProofs,
+    SetPublisherConfirmedFlag,
     SimulatePublicationIdentifiers,
     TogglePublishableFlag,
     finishpublication_wrapper,
@@ -488,6 +489,36 @@ class TogglePublishableFlagView(HtmxMixin, AuthenticatedUserPassesTest, View):
             messages.error(self.request, str(e))
             return self.get(request, **kwargs)
         return HttpResponseRedirect(self.get_success_url())
+
+
+class SetPublisherConfirmedFlagView(AuthenticatedUserPassesTest, View):
+    """EO sets `production_flag_iop_ready`: the publisher confirmed that the paper can be published.
+
+    The requested value comes from the `confirmed` querystring parameter (`1` or `0`).
+    """
+
+    model = ArticleWorkflow
+    http_method_names = ["post"]
+
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Only EO can record the publisher's confirmation."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        redirect_url = reverse("wjs_article_details", kwargs={"pk": self.object.pk})
+        confirmed = {"1": True, "0": False}.get(request.GET.get("confirmed"))
+        if confirmed is None:
+            messages.error(request=self.request, message=_("Invalid request: please reload the page and retry."))
+            return HttpResponseRedirect(redirect_url)
+        try:
+            SetPublisherConfirmedFlag(workflow=self.object, confirmed=confirmed).run()
+        except ValueError as e:
+            messages.error(request=self.request, message=str(e))
+        return HttpResponseRedirect(redirect_url)
 
 
 class ReadyForPublicationView(AuthenticatedUserPassesTest, TemplateView):

@@ -69,3 +69,31 @@ def test_is_disabled_by_eo_reflects_brake_on_sentinel(editors, journal):
     parameters.brake_on = 0
     parameters.save()
     assert editor.jcomprofile.is_disabled_by_eo(journal) is False
+
+
+@pytest.mark.parametrize(
+    "enabled,brake_on,expected",
+    (
+        (True, 0, False),
+        (True, 5, False),
+        (False, 0, True),
+        (True, -1, True),
+        (False, -1, True),
+    ),
+)
+@pytest.mark.django_db
+def test_is_permanently_disabled_as_editor_covers_self_and_eo_disable(editors, journal, enabled, brake_on, expected):
+    """An editor is permanently disabled when self-disabled or disabled by the EO."""
+    editor = editors[0]
+    StaffWorkloadParameters.objects.filter(user=editor, journal=journal).update(enabled=enabled, brake_on=brake_on)
+    assert (
+        editor.jcomprofile.is_permanently_disabled_as_editor(journal) is expected
+    ), f"enabled={enabled}, brake_on={brake_on} should give {expected}"
+
+
+@pytest.mark.django_db
+def test_is_permanently_disabled_as_editor_without_parameters(editors, journal):
+    """An editor without a parameters row counts as permanently disabled."""
+    editor = editors[0]
+    StaffWorkloadParameters.objects.filter(user=editor, journal=journal).delete()
+    assert editor.jcomprofile.is_permanently_disabled_as_editor(journal) is True, "no parameters means disabled"

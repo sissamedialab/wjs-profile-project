@@ -372,6 +372,29 @@ def get_publishable_confirm_text(action: "ArticleAction", workflow: "ArticleWork
     return _("Are you sure you want to mark the paper as publishable?")
 
 
+def get_publisher_confirmed_label(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return the label for the button that toggles the publisher's confirmation.
+
+    The label describes the action that would be done, not the state of the article.
+    """
+    if workflow.production_flag_iop_ready:
+        return _("Revoke publisher confirmation")
+    return _("Publisher confirmed paper is publishable")
+
+
+def get_publisher_confirmed_url(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return the URL that sets the publisher's confirmation to the opposite of its current value."""
+    url = reverse("wjs_set_publisher_confirmed", kwargs={"pk": workflow.id})
+    return f"{url}?confirmed={0 if workflow.production_flag_iop_ready else 1}"
+
+
+def get_publisher_confirmed_confirm_text(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return the confirmation text for the button that toggles the publisher's confirmation."""
+    if workflow.production_flag_iop_ready:
+        return _("Are you sure you want to revoke the publisher confirmation? The paper will not be publishable.")
+    return _("Are you sure the publisher confirmed that this paper can be published?")
+
+
 def cannot_be_set_rfp_or_galleys_not_present(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return true if the article can be set ready for publication."""
     return not can_be_set_rfp_wrapper(workflow) or galleys_cannot_be_tested(action, workflow, user)
@@ -385,11 +408,12 @@ def galleys_cannot_be_tested(action: "ArticleAction", workflow: "ArticleWorkflow
 
 def galley_generation_in_progress(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
     """Return true if the galley generation test started and is not completed yet."""
-    files_to_typeset_loaded = workflow.get_latest_typesetting_assignment(
-        only_completed=False,
-    ).files_to_typeset.exists()
-    galley_not_tested = workflow.production_flag_galleys_ok == ArticleWorkflow.GalleysStatus.NOT_TESTED
-    return files_to_typeset_loaded and galley_not_tested
+    return workflow.galley_generation_in_progress()
+
+
+def publisher_confirmation_missing(action: "ArticleAction", workflow: "ArticleWorkflow", user: Account):
+    """Return true if the publication must wait for the publisher's green light."""
+    return workflow.publisher_confirmation_missing()
 
 
 @dataclasses.dataclass
@@ -405,6 +429,8 @@ class ArticleButton:
     tooltip: str = None
     querystring_params: dict = None
     disabled: Optional[Callable] = None
+    # Shown on hover when the button is disabled (a disabled button itself cannot be hovered).
+    disabled_cause: str = ""
     custom_get_url: Optional[Callable] = None
     custom_get_label: Optional[Callable] = None
     condition: Optional[Callable] = None
@@ -421,6 +447,7 @@ class ArticleButton:
             "url": self.get_url(workflow, user),
             "tag": self.tag,
             "disabled": self.disabled(self, workflow, user) if self.disabled else None,
+            "disabled_cause": self.disabled_cause,
             "id": id(self),
             "button_class": self.button_class,
             "target": self.target,
@@ -489,6 +516,22 @@ class ArticleAction(ArticleButton):
             }
         )
         return dict_data
+
+
+# EO records the publisher's green light (wjs/specs#2914). Shared by every production state where it can be toggled.
+# TODO: we need to evaluate if we want to extend the pattern of defining actions separately from state:
+# Once decided this should be moved away.
+PUBLISHER_CONFIRMED_ACTION = ArticleAction(
+    permission=permissions.has_eo_role_by_article,
+    condition=conditions.journal_requires_publisher_confirmation,
+    name="toggle publisher confirmed flag",
+    label="Publisher confirmed paper is publishable",
+    view_name="wjs_set_publisher_confirmed",
+    custom_get_url=get_publisher_confirmed_url,
+    custom_get_label=get_publisher_confirmed_label,
+    custom_get_confirm=get_publisher_confirmed_confirm_text,
+    is_post=True,
+)
 
 
 @dataclasses.dataclass
@@ -1067,6 +1110,7 @@ class ReadyForTypesetter(BaseState):
             view_name="wjs_typ_take_in_charge",
             is_post=True,
         ),
+        PUBLISHER_CONFIRMED_ACTION,
     ) + BaseState.article_actions
     article_buttons = (
         ArticleButton(
@@ -1092,6 +1136,7 @@ class TypesetterSelected(BaseState):
             label="Upload typeset preprint",
             view_name="wjs_typesetter_upload_files",
             custom_get_url=get_url_with_typesetting_assignment_pk,
+            disabled=galley_generation_in_progress,
             is_modal=True,
         ),
         ArticleAction(
@@ -1161,6 +1206,7 @@ class TypesetterSelected(BaseState):
             label="Sync TeX and DB",
             view_name="wjs_sync_tex_db",
         ),
+        PUBLISHER_CONFIRMED_ACTION,
     ) + BaseState.article_actions
     article_buttons = (
         ArticleButton(
@@ -1251,6 +1297,7 @@ class Proofreading(BaseState):
             label="View HTML",
             view_name="wjs_draft_article_page",
         ),
+        PUBLISHER_CONFIRMED_ACTION,
     ) + BaseState.article_actions
     article_buttons = (
         ArticleButton(
@@ -1290,6 +1337,11 @@ class ReadyForPublication(BaseState):
             label="Publish",
             tooltip="Begin the publication process",
             view_name="wjs_review_begin_publication",
+            disabled=publisher_confirmation_missing,
+            disabled_cause=(
+                "Waiting for the publisher confirmation: "
+                'use the "Publisher confirmed paper is publishable" action first.'
+            ),
             confirm=_("Are you sure you want to start the publication process?"),
             is_post=True,
         ),
@@ -1320,6 +1372,7 @@ class ReadyForPublication(BaseState):
             label="View HTML",
             view_name="wjs_draft_article_page",
         ),
+        PUBLISHER_CONFIRMED_ACTION,
     ) + BaseState.article_actions
 
 

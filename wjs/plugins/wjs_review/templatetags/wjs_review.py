@@ -115,6 +115,7 @@ def is_enabled_as_editor(user: Account, journal: Journal) -> bool:
 
     This function evaluates whether the given user has made themselves enabled as editor.
     It relies on the `is_enabled_as_editor` method of the user's `jcomprofile`.
+    For the "Permanently disabled" UI label use `is_permanently_disabled_as_editor` instead.
 
     :param user: The account to check for editor enabling.
     :type user: Account
@@ -133,6 +134,7 @@ def is_disabled_by_eo(user: Account, journal: Journal) -> bool:
 
     This is the EO/director-only ``brake_on == -1`` override, separate from (and invisible
     to) the editor's own self-disable checked by `is_enabled_as_editor`.
+    For the "Permanently disabled" UI label use `is_permanently_disabled_as_editor` instead.
 
     :param user: The account to check for EO-level disablement.
     :type user: Account
@@ -142,6 +144,23 @@ def is_disabled_by_eo(user: Account, journal: Journal) -> bool:
     :rtype: bool
     """
     return user.jcomprofile.is_disabled_by_eo(journal)
+
+
+@register.filter
+def is_permanently_disabled_as_editor(user: Account, journal: Journal) -> bool:
+    """
+    Check if a user is permanently disabled as an editor for a journal.
+
+    True when the editor disabled themselves or when the EO disabled them.
+
+    :param user: The account to check.
+    :type user: Account
+    :param journal: The journal to evaluate the disablement for.
+    :type journal: Journal
+    :return: True if the user is self-disabled or disabled by the EO as an editor for the journal.
+    :rtype: bool
+    """
+    return user.jcomprofile.is_permanently_disabled_as_editor(journal)
 
 
 @register.filter

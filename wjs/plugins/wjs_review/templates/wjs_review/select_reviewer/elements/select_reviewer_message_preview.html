@@ -1,24 +1,16 @@
 {% load i18n %}
 {% if preview %}
-  <div class="card" id="reviewer-message-preview">
+  <div class="card collapse show" id="reviewer-message-preview">
     <div class="card-body">
       <h5 class="card-title">{% translate "Preview full message for reviewer" %}</h5>
-      <p class="card-text">
-        {{ preview|safe }}
-      </p>
+      <div class="card-text">
+      {{ preview|safe }}
+      </div>
     </div>
   </div>
 {% endif %}
-
-<script>
-  document.addEventListener("htmx:afterSwap", function(event) {
-    if (event.detail.target.id === "reviewer-message-preview") {
-      const previewButtons = document.querySelectorAll("#preview-btn-invite, #preview-btn-select");
-      const updateButtons = document.querySelectorAll("#update-btn-invite, #update-btn-select");
-
-      previewButtons.forEach(button => button.style.display = "none");
-      updateButtons.forEach(button => button.style.display = "inline-block");
-
-    }
-  });
-</script>
+{% if can_see_cover_letter %}
+  {% if review_version.cover_letter.file or review_version.cover_letter.text %}
+    {% include "wjs_review/select_reviewer/elements/author_note.html" %}
+  {% endif %}
+{% endif %}

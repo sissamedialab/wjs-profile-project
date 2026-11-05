@@ -536,6 +536,11 @@ PROCESS_BODY_FUNCTION = {
 # See TypesetterTestsGalleyGeneration._mock_jcom_assistant_client()
 JCOMASSISTANT_MOCK_FILE = ""
 
+# While the test-galley generation of the latest sources is running, the typesetter cannot upload new sources.
+# After this many minutes we assume that the generation died without reporting (see
+# ArticleWorkflow.galley_generation_in_progress()). Keep it above Q_CLUSTER["timeout"] (and some queueing time).
+WJS_GALLEY_GENERATION_STALE_AFTER_MINUTES = 15
+
 # Useful in development: set this to the path of a file mimicking files for typesetting uploaded by the author.
 WJS_TYPESET_REVISION_MOCK_FILE = ""
 
@@ -550,6 +555,11 @@ BOOTSTRAP5 = {
 
 # The list of journals that supports multiple languages and needs base english for display on the website
 WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]
+
+# Journals whose publisher must give a green light before the EO can publish a paper
+# (wjs/specs#2914): the EO records it with the "Publisher confirmed paper is publishable" action
+# (ArticleWorkflow.production_flag_iop_ready) and BeginPublication refuses to start without it.
+WJS_JOURNALS_REQUIRING_PUBLISHER_CONFIRMATION = ["JCAP"]
 
 # The list of journals for which the "send short description and image for social media" feature is enabled
 # and the "social" email notification is sent on publication.
