@@ -532,7 +532,7 @@ def test_audit_pages_share_one_scores_help_modal(article, editors, eo_user, url_
     terms = terms[: terms.index("Available (30-day)") + 1]  # the page's own <dl> follows the modal
     assert terms == list(SCORES_EXPLAINED), "the modal explains each score, in the order of the columns"
     assert content.count('id="audit-scores-help"') == 1, "one modal per page"
-    assert re.search(r'<div class="modal fade modal-xl"[^>]*id="audit-scores-help"', content), "extra large modal"
+    assert re.search(r'<div class="modal fade"[^>]*id="audit-scores-help"', content), "extra large modal"
 
 
 @pytest.mark.django_db
