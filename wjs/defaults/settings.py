@@ -556,6 +556,11 @@ BOOTSTRAP5 = {
 # The list of journals that supports multiple languages and needs base english for display on the website
 WJS_JOURNALS_WITH_ENGLISH_CONTENT = ["JCOMAL"]
 
+# Journals whose publisher must give a green light before the EO can publish a paper
+# (wjs/specs#2914): the EO records it with the "Publisher confirmed paper is publishable" action
+# (ArticleWorkflow.production_flag_iop_ready) and BeginPublication refuses to start without it.
+WJS_JOURNALS_REQUIRING_PUBLISHER_CONFIRMATION = ["JCAP"]
+
 # The list of journals for which the "send short description and image for social media" feature is enabled
 # and the "social" email notification is sent on publication.
 # Kept linked to WJS_ARTICLE_PUBLISHED_SOCIAL_NOTIFICATION_EMAILS (refs wjs/specs#3016).

@@ -1135,6 +1135,43 @@ class TogglePublishableFlag:
 
 
 @dataclasses.dataclass
+class SetPublisherConfirmedFlag:
+    """EO records (or revokes) the publisher's green light for publication (wjs/specs#2914).
+
+    The requested value is explicit (not a toggle): a click from a stale page asking for the value already stored is
+    refused, so a "Revoke" button can never end up confirming the paper.
+    """
+
+    workflow: ArticleWorkflow
+    confirmed: bool
+
+    def _check_conditions(self) -> bool:
+        return self.workflow.requires_publisher_confirmation() and self.workflow.state in [
+            ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+            ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+            ArticleWorkflow.ReviewStates.PROOFREADING,
+            ArticleWorkflow.ReviewStates.READY_FOR_PUBLICATION,
+        ]
+
+    def _set_flag(self):
+        self.workflow.production_flag_iop_ready = self.confirmed
+        # Write only the flag: other production flags of the same row can be updated concurrently (e.g. galley tests).
+        self.workflow.save(update_fields=["production_flag_iop_ready"])
+
+    def run(self) -> ArticleWorkflow:
+        with transaction.atomic():
+            if not self._check_conditions():
+                raise ValueError("The publisher confirmation cannot be changed for this paper now.")
+            self.workflow.refresh_from_db(fields=["production_flag_iop_ready"])
+            if self.workflow.production_flag_iop_ready == self.confirmed:
+                if self.confirmed:
+                    raise ValueError("The publisher confirmation is already recorded.")
+                raise ValueError("The publisher confirmation is already revoked.")
+            self._set_flag()
+        return self.workflow
+
+
+@dataclasses.dataclass
 class AttachGalleys:
     """Attach some galley files to an Article.
 
@@ -1929,6 +1966,13 @@ class HandleEOSendBackToTypesetter:
             return self.workflow
 
 
+# FIXME: Move this constant somewhere
+PUBLISHER_CONFIRMATION_MISSING_MESSAGE = (
+    "Please ensure that the publisher confirmed that this paper can be published "
+    "(and click on the appropriate action)"
+)
+
+
 @dataclasses.dataclass
 class BeginPublication:
     """Begin the publication process.
@@ -1993,6 +2037,8 @@ class BeginPublication:
             return (False, "Paper has no section associated.")
         if not hasattr(section, "wjssection") or not section.wjssection.pubid_and_tex_sectioncode:
             return (False, f'Section "{section}" has no PUBID code. Please correct from the admin interface.')
+        if self.workflow.publisher_confirmation_missing():
+            return (False, PUBLISHER_CONFIRMATION_MISSING_MESSAGE)
         return (True, None)
 
     def ensure_doi(self) -> None:
