@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.8] - 2026-11-05
+
+- [specs#2914: Allow for a green light from IOP before publication](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2914) — feat(wjs_review): require publisher confirmation before publishing (!1580)
+- [specs#2678: Make requirements for IoP's role in JCAP](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2678) — feat(wjs_review): require publisher confirmation before publishing (!1580)
+- [specs#3256: Race condition: async test-galley generation can revert the state of a paper (e.g. RFP → TypesetterSelected)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3256) — fix(wjs_review): prevent async galley test from reverting the paper state (!1595)
+- [specs#3257: Fix size of invite reviewer modal](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3257) — feat(wjs_review): improve UI for select / invite reviewer modals (!1574)
+- [specs#3333: Reword "Permanently self disabled"](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3333) — fix(wjs_review): show "Permanently disabled" for self- and EO-disabled users (!1605)
+- [specs#3288: Funders invisible after update](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3288) — fix(synctex): save synced fundings as SubmissionArticleFunding (!1585)
+- [specs#3289: Prefer ROR ids to Crossref funder DOIs for funders](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3289) — fix(synctex): save synced fundings as SubmissionArticleFunding (!1585)
+- [specs#3050: wjs-test and wjs-prod debian upgrade](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3050) — harden YakuninClient tar.gz extraction with filter="data" (!1608)
+- [specs#3362: Use system python in wjs-test and wjs-prod venvs](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3362) — feat(ansible): build instance virtualenvs on the system python (!1607)
+- [specs#3228: Attention condition banner overlaps badly with rounded box below](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3228) — fix: adjust border radius to ac accordion button (!1577)
+- [specs#3141: Verify that editor pasting reviewer report in editor report loosing HTML is ok](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3141) — fix: copyReviewerReport html (!1576)
+
 ## [2.1.7] - 2026-10-30
 
 - [specs#2096: Create an experimental instance of Jaeger](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2096) — feat: add support for OpenTelemetry + Jaeger tracing (!1404)
