@@ -2043,7 +2043,7 @@ Thank you and best regards,
 <br>
 {{ request.user.full_name }}
 <br>
-{{ article.journal.code }} {{ request.user.role.slug }}
+{{ article.journal.code }} {{ sender_role_label }}
 """,
             "translations": {},
         }
