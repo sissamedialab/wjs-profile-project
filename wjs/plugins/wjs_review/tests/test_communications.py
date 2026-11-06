@@ -350,6 +350,71 @@ def test_emit_message_email_reduced(
         )
 
 
+@pytest.mark.django_db
+def test_emit_message_email_with_several_markers(
+    article: Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    eo_group: Group,
+):
+    """Test email message is truncated on the first marker when the body contains more than one."""
+    msg1 = "<p>First paragraph</p>"
+    msg2 = "<p>Second paragraph</p>"
+    msg3 = "<p>Third paragraph</p>"
+    chakotay = create_jcom_user("Chakotay")
+    tuvok = create_jcom_user("Tuvok")
+    msg = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body=f"{msg1}{Message.SPLIT_MARKER}{msg2}{Message.SPLIT_MARKER}{msg3}",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.pk,
+    )
+    msg.recipients.add(tuvok)
+    msg.emit_notification()
+    assert len(mail.outbox) == 1, "One email must be sent"
+    html_body = mail.outbox[0].alternatives[0][0]
+    assert msg1 in html_body, "The teaser must contain the text before the first marker"
+    assert "read more" in html_body, "The teaser must link to the full message"
+    assert msg2 not in html_body, "The teaser must stop at the first marker"
+    assert msg3 not in html_body, "The teaser must stop at the first marker"
+    assert Message.SPLIT_MARKER not in html_body, "No marker must be left in the email"
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    (
+        ("<p>Thank you for submitting [...] the paper.</p>", "<p>Thank you for submitting  the paper.</p>"),
+        (
+            "<p>as soon as possible [...].</p><p>more [...]<br>end</p>",
+            "<p>as soon as possible .</p><p>more <br>end</p>",
+        ),
+        ("<p>No marker</p>", "<p>No marker</p>"),
+        ("[...]", ""),
+        ("", ""),
+    ),
+)
+def test_strip_split_marker(body: str, expected: str):
+    """Test that every split marker is removed from a text, and nothing else."""
+    assert Message.strip_split_marker(body) == expected, "Every split marker must be removed, nothing else"
+
+
+@pytest.mark.parametrize(
+    "message_type,marker_kept",
+    (
+        (Message.MessageTypes.SYSTEM, False),
+        (Message.MessageTypes.USER, True),
+        (Message.MessageTypes.NOTE, True),
+        (Message.MessageTypes.HIJACK, True),
+    ),
+)
+def test_message_display_body_strips_marker_only_for_system(message_type: str, marker_kept: bool):
+    """Test that the body shown on the site hides the split marker of system messages only."""
+    msg = Message(body=f"<p>before</p>{Message.SPLIT_MARKER}<p>after</p>", message_type=message_type)
+    assert "<p>before</p>" in msg.display_body, "The full text must be shown"
+    assert "<p>after</p>" in msg.display_body, "The full text must be shown"
+    assert (Message.SPLIT_MARKER in msg.display_body) is marker_kept, "Marker stripped only for system messages"
+
+
 @pytest.mark.parametrize(
     "message_type", (Message.MessageTypes.SYSTEM, Message.MessageTypes.USER, Message.MessageTypes.HIJACK)
 )

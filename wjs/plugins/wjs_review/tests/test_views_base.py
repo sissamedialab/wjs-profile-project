@@ -9,7 +9,7 @@ from typesetting.models import GalleyProofing, TypesettingAssignment
 from wjs.jcom_profile.models import StaffWorkloadParameters
 
 from ..communication_utils import log_operation
-from ..models import ProphyAccount, WjsEditorAssignment
+from ..models import Message, ProphyAccount, WjsEditorAssignment
 
 
 @pytest.mark.django_db
@@ -386,6 +386,35 @@ def test_wjs_article_messages(assigned_article, client):
         f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/{assigned_article.articleworkflow.pk}/"
     )
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_wjs_article_messages_hides_split_marker(assigned_article, client):
+    """The split marker of system messages is not shown on the article messages page; user messages are verbatim."""
+    author = assigned_article.correspondence_author
+    log_operation(
+        message_subject="System message",
+        message_body=f"<p>Thank you for submitting {Message.SPLIT_MARKER} the paper.</p>",
+        article=assigned_article,
+        recipients=[author],
+    )
+    log_operation(
+        message_subject="User message",
+        message_body=f"<p>quoting {Message.SPLIT_MARKER} omitted</p>",
+        article=assigned_article,
+        recipients=[author],
+        message_type=Message.MessageTypes.USER,
+    )
+    client.force_login(author)
+    response = client.get(
+        f"/{assigned_article.journal.code}/plugins/wjs-review-articles/messages/{assigned_article.articleworkflow.pk}/"
+    )
+    assert response.status_code == 200, "The messages page must be reachable by the author"
+    content = response.content.decode()
+    assert "Thank you for submitting" in content, "The system message text must be shown"
+    assert "the paper." in content, "The system message must be shown in full"
+    assert f"submitting {Message.SPLIT_MARKER}" not in content, "The split marker of system messages must be hidden"
+    assert f"quoting {Message.SPLIT_MARKER} omitted" in content, "User messages must be shown verbatim"
 
 
 @pytest.mark.django_db
