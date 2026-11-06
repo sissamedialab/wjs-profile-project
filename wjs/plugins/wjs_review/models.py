@@ -1790,6 +1790,23 @@ class Message(TimeStampedModel):
         """Return a string suitable to be shown in a notification."""
         return self.subject if self.subject else self.body[: Message.verbine_lenght]
 
+    @staticmethod
+    def strip_split_marker(text: str) -> str:
+        """Remove every split marker from the given text."""
+        return text.replace(Message.SPLIT_MARKER, "")
+
+    @property
+    def display_body(self) -> str:
+        """
+        Return the body to be shown on the site.
+
+        For system messages the split marker only tells where the email teaser ends (see :py:meth:`render_message`):
+        the site shows the full text, so the marker is removed. Other message types are shown verbatim.
+        """
+        if self.message_type == Message.MessageTypes.SYSTEM:
+            return self.strip_split_marker(self.body)
+        return self.body
+
     def get_url(self, recipient: Account) -> str:
         """Return the URL to be embedded in the notification email for the given recipient."""
 
@@ -1881,7 +1898,7 @@ class Message(TimeStampedModel):
         """Render the message content for the given recipient."""
         notification_body = self.body
         if self.message_type == Message.MessageTypes.SYSTEM and self.SPLIT_MARKER in notification_body:
-            notification_body, __ = notification_body.split(self.SPLIT_MARKER)
+            notification_body, __, __ = notification_body.partition(self.SPLIT_MARKER)
             notification_body = f"{notification_body} {self._render_read_more(recipient)}"
 
         header = self._render_header(recipient)
@@ -2524,6 +2541,15 @@ class Reminder(models.Model):
     def reminder_level(self):
         """Return the order of the reminder among the same classes."""
         return self.code[-1]
+
+    @property
+    def display_body(self) -> str:
+        """
+        Return the message body to be shown on the site.
+
+        Reminders are sent as system messages, so the split marker is removed as in :py:attr:`Message.display_body`.
+        """
+        return Message.strip_split_marker(self.message_body)
 
     def render_subject(self) -> str:
         """Render the reminder message subject."""
