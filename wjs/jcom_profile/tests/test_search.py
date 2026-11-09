@@ -10,6 +10,8 @@ from django.utils.timezone import now
         "/search/?SearchableText=zivkovic%27",
         "/search/?page=99%27",
         "/search/?year=-1",
+        "/search/?year=0",
+        "/search/?year=99999",
         "/search/?year=a",
         "/search/?year=1%27",
         "/search/?sort=-date_published%27",
