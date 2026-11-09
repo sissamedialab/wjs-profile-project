@@ -1352,7 +1352,7 @@ ORDER BY reminderDate
                                 logger.debug(f"reminder date_sent added: {reminder}")
                                 reminder.save()
                             if not wjapp_reminder["enabled"]:
-                                reminder.disable = True
+                                reminder.disabled = True
                                 logger.warning(f"reminder disabled: {reminder}")
                                 reminder.save()
                             wjs_reminder_match = True
@@ -2754,9 +2754,9 @@ ORDER BY dl.submissionDate
             if r.recipient == review_assignment.reviewer and r.code == "REEA1":
                 # REEA1 "Reviewer should evaluate assignment" -> refereeReminderEnabled/Date
                 if not reviewer_data["refereeReminderEnabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["refereeReminderDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminderDate"]
@@ -2782,9 +2782,9 @@ ORDER BY dl.submissionDate
             if r.recipient == review_assignment.reviewer and r.code == "REEA2":
                 # REEA2 "Reviewer should evaluate assignment" -> refereeReminder2Enabled/Date
                 if not reviewer_data["refereeReminder2Enabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["refereeReminder2Date"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminder2Date"]
@@ -2805,9 +2805,9 @@ ORDER BY dl.submissionDate
             if r.recipient == review_assignment.editor and r.code == "REEA3":
                 # REEA3 "Reviewer should evaluate assignment" > editorReminderEnabled/Date
                 if not reviewer_data["editorReminderEnabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["editorReminderDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["editorReminderDate"]
@@ -2830,9 +2830,9 @@ ORDER BY dl.submissionDate
                 # REWR1 "Reviewer should write review" -> refereeReminder1ForRefereeReportEnabled
                 # e.g. JCOM_002N_0125 JCOM_002N_1224 JCOM_009A_0325
                 if not reviewer_data["refereeReminder1ForRefereeReportEnabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["refereeReminder1ForRefereeReportDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminder1ForRefereeReportDate"]
@@ -2855,9 +2855,9 @@ ORDER BY dl.submissionDate
             if r.recipient == review_assignment.editor and r.code == "REWR2":
                 # REWR2 "Reviewer should write review" -> editorReminderForRefereeReportDate
                 if not reviewer_data["editorReminderForRefereeReportEnabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["editorReminderForRefereeReportDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["editorReminderForRefereeReportDate"]
