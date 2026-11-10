@@ -561,3 +561,75 @@ def test_scores_help_modal_section_headings_are_larger_than_the_text(article, ed
     sections = re.findall(r'<h3 class="([^"]*)">(Selection|Keywords|Workload)</h3>', content)
     assert [title for _, title in sections] == ["Selection", "Keywords", "Workload"], "the three sections"
     assert all(css == "fs-5" for css, _ in sections), "section headings are fs-5"
+
+
+def _make_author(article, user, author_kind):
+    """Make user an author of article, as frozen author or as correspondence author only."""
+    if author_kind == "frozen_author":
+        article.authors.add(user.janeway_account)
+    else:
+        article.correspondence_author = user.janeway_account
+        article.save()
+
+
+@pytest.mark.parametrize("author_kind", ("frozen_author", "correspondence_author_only"))
+@pytest.mark.parametrize("with_audit_rows", (True, False))
+@pytest.mark.django_db
+def test_article_audit_page_forbidden_to_director_author(article, editors, director, author_kind, with_audit_rows):
+    """A director who is an author of the paper gets 403, even if the paper has no audit rows."""
+    if with_audit_rows:
+        _make_audit(article, editors[0])
+    _make_author(article, director, author_kind)
+    client = Client()
+    client.force_login(director)
+
+    response = client.get(reverse("wjs-automatic-assignment-audit-article", args=(article.pk,)))
+
+    assert response.status_code == 403, "director-authors must not see the editor selection of their paper"
+
+
+@pytest.mark.django_db
+def test_article_audit_page_allowed_to_non_author_director(article, editors, director):
+    """A director who is not an author keeps seeing the article audit."""
+    _make_audit(article, editors[0])
+    client = Client()
+    client.force_login(director)
+
+    response = client.get(reverse("wjs-automatic-assignment-audit-article", args=(article.pk,)))
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("author_kind", ("frozen_author", "correspondence_author_only"))
+@pytest.mark.django_db
+def test_audit_list_hides_director_authored_papers(article, editors, director, eo_user, author_kind):
+    """The audit list does not show a director the audits of their own papers; EO and other directors see them."""
+    audit = _make_audit(article, editors[0])
+    client = Client()
+
+    client.force_login(director)
+    assert audit in client.get(reverse("wjs-automatic-assignment-audit")).context["audits"], "not an author yet"
+
+    _make_author(article, director, author_kind)
+    assert audit not in client.get(reverse("wjs-automatic-assignment-audit")).context["audits"]
+
+    client.force_login(eo_user)
+    assert audit in client.get(reverse("wjs-automatic-assignment-audit")).context["audits"]
+
+    # EO is not affected by authorship, not even when the EO user is also a director
+    _make_author(article, eo_user, author_kind)
+    assert audit in client.get(reverse("wjs-automatic-assignment-audit")).context["audits"]
+
+
+@pytest.mark.django_db
+def test_audit_link_hidden_from_director_author(article, editors, director):
+    """The article page does not offer the audit link to a director who is an author of the paper."""
+    from ..templatetags.wjs_permissions import user_can_view_assignment_audit
+
+    _make_audit(article, editors[0])
+    workflow = article.articleworkflow
+    assert user_can_view_assignment_audit({}, workflow, director, editors[0])
+
+    article.authors.add(director.janeway_account)
+
+    assert not user_can_view_assignment_audit({}, workflow, director, editors[0])

@@ -163,3 +163,23 @@ def user_can_view_assignment_audit(
         and permissions.has_eo_or_director_role_by_article(workflow, user)
         and AutomaticAssignmentAudit.objects.for_article_and_editor(workflow.article, editor).exists()
     )
+
+
+@register.simple_tag
+def user_is_director_author(workflow: ArticleWorkflow, user: Account) -> bool:
+    """
+    Check if the user is a director who is also an author of the article (and so must not see its editor).
+
+    .. block:: html
+
+        {% user_is_director_author workflow request.user as hide_editor %}
+        {% if not hide_editor %}{{ editor }}{% endif %}
+
+    :param workflow: The workflow whose article is checked.
+    :type workflow: ArticleWorkflow
+    :param user: The user to check.
+    :type user: Account
+    :return: True if the user is a (non EO) director and an author of the article, False otherwise.
+    :rtype: bool
+    """
+    return permissions.is_director_and_author(workflow, user)
