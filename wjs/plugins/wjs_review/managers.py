@@ -18,6 +18,15 @@ if TYPE_CHECKING:
 
 
 class ArticleWorkflowQuerySet(models.QuerySet):
+    def exclude_authored_by(self, user: Account) -> "ArticleWorkflowQuerySet":
+        """Exclude the workflows of the articles of which the user is an author.
+
+        The user is an author if they are a frozen author or the correspondence author (which is not always a
+        frozen author). Keep in sync with the equivalent predicate in
+        :py:func:`communication_utils.get_messages_related_to_me`.
+        """
+        return self.exclude(Q(article__frozenauthor__author=user) | Q(article__correspondence_author=user))
+
     def get_article_with_latest_round(self, mode: str = None) -> QuerySet:
         """
         Returns the queryset annotated with the latest round for each article. The method has four different modes,

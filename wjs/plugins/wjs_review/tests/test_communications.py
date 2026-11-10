@@ -1774,3 +1774,39 @@ def test_get_director_user_ignores_main_director_of_other_journals(
 
     # No main director in the article's journal: fallback on the director with the lowest id
     assert get_director_user(article) == director.janeway_account
+
+
+@pytest.mark.django_db
+def test_director_correspondence_author_does_not_see_own_article_messages(
+    article: Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    director: JCOMProfile,
+):
+    """A director who is only the correspondence author (no FrozenAuthor row) is treated as author for messages."""
+    tuvok = create_jcom_user("Tuvok")
+    article.correspondence_author = director.janeway_account
+    article.save()
+    assert not article.frozenauthor_set.filter(author=director.janeway_account).exists()
+    content_type = ContentType.objects.get_for_model(article)
+    msg = Message.objects.create(
+        actor=tuvok,
+        subject="",
+        body="Not for the author",
+        content_type=content_type,
+        object_id=article.pk,
+    )
+    msg.recipients.add(tuvok)
+
+    assert not get_messages_related_to_me(director, article).filter(pk=msg.pk).exists()
+
+    msg.recipients.add(director)
+    assert get_messages_related_to_me(director, article).filter(pk=msg.pk).exists(), "recipient sees it"
+    own_msg = Message.objects.create(
+        actor=director.janeway_account,
+        subject="",
+        body="Written by the author-director",
+        content_type=content_type,
+        object_id=article.pk,
+    )
+    own_msg.recipients.add(tuvok)
+    assert get_messages_related_to_me(director, article).filter(pk=own_msg.pk).exists(), "actor sees it"

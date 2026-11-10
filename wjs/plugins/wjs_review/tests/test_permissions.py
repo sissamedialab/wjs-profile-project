@@ -18,6 +18,7 @@ from plugins.wjs_review.permissions import (
     can_edit_note,
     can_see_other_user_name,
     has_director_role_by_article,
+    has_eo_or_director_role_by_article,
     is_one_of_the_authors,
     main_role_by_article,
 )
@@ -192,3 +193,29 @@ def test_main_role_by_article(
     assert article.typesettinground_set.first().typesettingassignment.typesetter == typesetter.janeway_account
     # The actual test:
     assert main_role_by_article(article=aw, user=typesetter) == constants.TYPESETTER_ROLE
+
+
+@pytest.mark.parametrize("author_kind", ("frozen_author", "correspondence_author_only"))
+@pytest.mark.django_db
+def test_has_eo_or_director_role_by_article(
+    assigned_article: Article,
+    director: JCOMProfile,
+    eo_user: JCOMProfile,
+    author_kind: str,
+):
+    """A director who is an author loses the director role on the article; EO is not affected by authorship."""
+    workflow = assigned_article.articleworkflow
+    assert has_eo_or_director_role_by_article(workflow, director)
+    assert has_eo_or_director_role_by_article(workflow, eo_user)
+
+    for user in (director, eo_user):
+        if author_kind == "frozen_author":
+            assigned_article.authors.add(user.janeway_account)
+        else:
+            assigned_article.correspondence_author = user.janeway_account
+            assigned_article.save()
+        # reload: the workflow caches its article, which would still have the old correspondence author
+        workflow = ArticleWorkflow.objects.get(pk=workflow.pk)
+        expected = user is eo_user
+        # requests carry an Account, which is what the correspondence author is compared with
+        assert has_eo_or_director_role_by_article(workflow, user.janeway_account) is expected
