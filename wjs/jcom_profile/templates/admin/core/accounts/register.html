@@ -21,9 +21,8 @@
         {% csrf_token %}
 
         <div class="row">
-          <div class="col-md-2">{% bootstrap_field form.salutation %}</div>
-          <div class="col-md-3">{% bootstrap_field form.first_name %}</div>
-          <div class="col-md-3">{% bootstrap_field form.middle_name %}</div>
+          <div class="col-md-4">{% bootstrap_field form.first_name %}</div>
+          <div class="col-md-4">{% bootstrap_field form.middle_name %}</div>
           <div class="col-md-4">{% bootstrap_field form.last_name %}</div>
         </div>
 

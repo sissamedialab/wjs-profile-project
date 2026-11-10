@@ -112,6 +112,12 @@ class TestJCOMWIP:
         assert form.fields.get("profession").required
 
     @pytest.mark.django_db
+    def test_registration_form_has_no_salutation_field(self, journal: Journal):
+        """The registration form must not ask for a salutation (specs#3271)."""
+        form = JCOMRegistrationForm(journal=journal)
+        assert "salutation" not in form.fields, "The registration form must not ask for a salutation"
+
+    @pytest.mark.django_db
     def test_gdpr_checkbox_is_mandatory(self, journal: Journal):
         """The field "profession" is mandatory in the registration form."""
         form = JCOMRegistrationForm(journal=journal)

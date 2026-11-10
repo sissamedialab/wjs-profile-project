@@ -112,7 +112,6 @@ class JCOMRegistrationForm(ModelForm, CaptchaForm, GDPRAcceptanceForm):
         model = JCOMProfile
         fields = (
             "email",
-            "salutation",
             "first_name",
             "middle_name",
             "last_name",
