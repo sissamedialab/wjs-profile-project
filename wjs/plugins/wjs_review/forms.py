@@ -34,7 +34,7 @@ from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
 from wjs.jcom_profile import permissions as base_permissions
-from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE, role_label
+from wjs.jcom_profile.constants import EO_GROUP, SECTION_EDITOR_ROLE
 from wjs.jcom_profile.models import WjsMiniHTMLFormField, WjsSimpleBleach
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
@@ -1510,15 +1510,13 @@ class SupervisorAssignEditorForm(forms.ModelForm):
     def get_new_editor_message_context(self):
         """Build a context suitable to render the editor_assignment_manual_body message.
 
-        ``sender_role_label`` is the label of the sender's role on the article (e.g. "EO", "Director"), used in the
-        message signature.
+        ``sender_role_label`` holds the sender's role words for the message signature (e.g. "Editorial Office",
+        "Director"); they are the same as in the "write a message" signature.
         """
         return {
             "editor": self.selected_editor,
             "article": self.instance.article,
-            "sender_role_label": role_label(
-                communication_utils.role_for_article(self.instance.article, self.request.user),
-            ),
+            "sender_role_label": communication_utils.sender_signature_role(self.instance, self.request.user),
         }
 
     def get_logic_instance(self) -> SupervisorChangeEditorAssignment | AssignToEditor:

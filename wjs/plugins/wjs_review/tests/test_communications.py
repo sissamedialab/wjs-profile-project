@@ -55,6 +55,7 @@ from ..communication_utils import (
     get_messages_related_to_me,
     log_operation,
     role_for_article,
+    sender_signature_role,
     should_notify_actor,
 )
 from . import conftest
@@ -1676,15 +1677,38 @@ def test_role_for_article(
     assert role_for_article(article, eo_user) == constants.EO_GROUP
 
 
+def _set_directors_sign_as_director(journal: Journal, value: bool):
+    """Override the ``directors_sign_as_director`` setting for ``journal``."""
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="directors_sign_as_director",
+        journal=journal,
+        value=value,
+    )
+
+
+def _director_labels(sign_as_director: bool) -> tuple[str, str]:
+    """Return the expected (main director, other director) signature roles."""
+    if sign_as_director:
+        return "Director", "Director"
+    return "Editor-in-chief", "Deputy Editor"
+
+
 @pytest.mark.django_db
+@pytest.mark.parametrize("sign_as_director", [True, False])
 def test_message_initial_body(
     assigned_article: Article,
     director: JCOMProfile,
     main_director: JCOMProfile,
     eo_user: JCOMProfile,
     fake_request: HttpRequest,
+    sign_as_director: bool,
 ):
     """Test that the expected per-role signatures are present in the initial body."""
+    if not sign_as_director:
+        _set_directors_sign_as_director(assigned_article.journal, False)
+    main_label, other_label = _director_labels(sign_as_director)
+    code = assigned_article.journal.code
     view = views.WriteMessage()
     view.request = fake_request
     view.article = assigned_article
@@ -1693,20 +1717,17 @@ def test_message_initial_body(
 
     fake_request.user = main_director
     initial_body = view.get_initial_body()
-    assert "Editor-in-chief" in initial_body
-    assert assigned_article.journal.code in initial_body
+    assert f"{code} {main_label}\n" in initial_body
     assert main_director.full_name() not in initial_body
 
     fake_request.user = director
     initial_body = view.get_initial_body()
-    assert "Deputy Editor" in initial_body
-    assert assigned_article.journal.code in initial_body
+    assert f"{code} {other_label}\n" in initial_body
     assert director.full_name() not in initial_body
 
     fake_request.user = editor
     initial_body = view.get_initial_body()
-    assert "Editor-in-charge" in initial_body
-    assert assigned_article.journal.code in initial_body
+    assert f"{code} Editor-in-charge\n" in initial_body
     assert editor.full_name() not in initial_body
 
     fake_request.user = author
@@ -1715,8 +1736,7 @@ def test_message_initial_body(
 
     fake_request.user = eo_user
     initial_body = view.get_initial_body()
-    assert "Editorial Office" in initial_body
-    assert assigned_article.journal.code in initial_body
+    assert f"{code} Editorial Office\n" in initial_body
     assert eo_user.full_name() in initial_body
 
     # Simulate JCOM: the director and the main director have the section-editor role also
@@ -1725,11 +1745,11 @@ def test_message_initial_body(
 
     fake_request.user = main_director
     initial_body = view.get_initial_body()
-    assert "Editor-in-chief" in initial_body
+    assert f"{code} {main_label}\n" in initial_body
 
     fake_request.user = director
     initial_body = view.get_initial_body()
-    assert "Deputy Editor" in initial_body
+    assert f"{code} {other_label}\n" in initial_body
 
     # Let the main director be a past editor (this is common in JCOM) and check again:
     PastEditorAssignment.objects.create(
@@ -1741,11 +1761,71 @@ def test_message_initial_body(
 
     fake_request.user = main_director
     initial_body = view.get_initial_body()
-    assert "Editor-in-chief" in initial_body
+    assert f"{code} {main_label}\n" in initial_body
 
     fake_request.user = editor
     initial_body = view.get_initial_body()
-    assert "Editor-in-charge" in initial_body
+    assert f"{code} Editor-in-charge\n" in initial_body
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("sign_as_director", [True, False])
+def test_sender_signature_role(
+    assigned_article: Article,
+    director: JCOMProfile,
+    main_director: JCOMProfile,
+    eo_user: JCOMProfile,
+    sign_as_director: bool,
+):
+    """The signature role follows the EO > editor-in-charge > main director > director order."""
+    if not sign_as_director:
+        _set_directors_sign_as_director(assigned_article.journal, False)
+    main_label, other_label = _director_labels(sign_as_director)
+    workflow = assigned_article.articleworkflow
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+
+    assert sender_signature_role(workflow, eo_user.janeway_account) == "Editorial Office"
+    assert sender_signature_role(workflow, editor) == "Editor-in-charge"
+    assert sender_signature_role(workflow, main_director.janeway_account) == main_label
+    assert sender_signature_role(workflow, director.janeway_account) == other_label
+    assert sender_signature_role(workflow, assigned_article.correspondence_author) == ""
+
+    # An EO user who is also a director signs as Editorial Office
+    eo_user.add_account_role("director", assigned_article.journal)
+    assert sender_signature_role(workflow, eo_user.janeway_account) == "Editorial Office"
+
+    # JCOM case: directors with the section-editor role still sign as directors
+    main_director.add_account_role(constants.SECTION_EDITOR_ROLE, assigned_article.journal)
+    director.add_account_role(constants.SECTION_EDITOR_ROLE, assigned_article.journal)
+    assert sender_signature_role(workflow, main_director.janeway_account) == main_label
+    assert sender_signature_role(workflow, director.janeway_account) == other_label
+
+    # A main director who is a past editor still signs as a director
+    PastEditorAssignment.objects.create(
+        article=assigned_article,
+        editor=main_director,
+        date_assigned=now() - datetime.timedelta(days=30),
+        date_unassigned=now() - datetime.timedelta(days=10),
+    )
+    assert sender_signature_role(workflow, main_director.janeway_account) == main_label
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("sign_as_director", [True, False])
+def test_sender_signature_role_director_as_editor(
+    fake_request: HttpRequest,
+    submitted_article: Article,
+    main_director: JCOMProfile,
+    review_settings,
+    sign_as_director: bool,
+):
+    """A director who is the paper's current editor-in-charge signs as "Editor-in-charge" (JCOM case)."""
+    if not sign_as_director:
+        _set_directors_sign_as_director(submitted_article.journal, False)
+    main_director.add_account_role(constants.SECTION_EDITOR_ROLE, submitted_article.journal)
+    article = conftest._assign_article(fake_request, submitted_article, main_director.janeway_account)
+    assert WjsEditorAssignment.objects.get_current(article).editor == main_director.janeway_account
+    assert sender_signature_role(article.articleworkflow, main_director.janeway_account) == "Editor-in-charge"
 
 
 @pytest.mark.django_db

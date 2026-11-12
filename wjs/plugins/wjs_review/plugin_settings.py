@@ -1048,6 +1048,33 @@ Do not hesitate to contact the Editor in charge or the Editorial Office from thi
             ),
         )
 
+    def directors_sign_as_director() -> tuple[SettingValue, ...]:
+        directors_sign_as_director_setting: SettingParams = {
+            "name": "directors_sign_as_director",
+            "group": wjs_review_settings_group,
+            "types": "boolean",
+            "pretty_name": _("Directors sign as Director"),
+            "description": _(
+                "If true, all directors sign their messages as 'Director'; otherwise the main director signs as "
+                "'Editor-in-chief' and the other directors as 'Deputy Editor'.",
+            ),
+            "is_translatable": False,
+        }
+        directors_sign_as_director_setting_value: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": "on",
+            "translations": {},
+        }
+        return (
+            create_customization_setting(
+                directors_sign_as_director_setting,
+                directors_sign_as_director_setting_value,
+                directors_sign_as_director_setting["name"],
+                force=force,
+            ),
+        )
+
     def prophy_settings() -> tuple[SettingValue, ...]:
         prophy_journal_setting: SettingParams = {
             "name": "prophy_journal",
@@ -2404,6 +2431,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(revision_request_postpone_date_due_messages())
         csv_writer.write_settings(technical_revision_body())
         csv_writer.write_settings(author_can_contact_director())
+        csv_writer.write_settings(directors_sign_as_director())
         csv_writer.write_settings(hijack_notification_message())
         csv_writer.write_settings(admin_deems_unimportant())
         csv_writer.write_settings(admin_requires_resubmission())
