@@ -74,7 +74,11 @@ from wjs.jcom_profile.pagination import CountlessPaginator
 from wjs.jcom_profile.utils import get_eo_user
 
 from . import ac_service, permissions
-from .communication_utils import get_messages_related_to_me, group_messages_by_version
+from .communication_utils import (
+    get_messages_related_to_me,
+    group_messages_by_version,
+    sender_signature_role,
+)
 from .conversion import LatexReportConvertService
 from .events.assignment import annotate_workload_availability
 from .filters import (
@@ -2614,39 +2618,17 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         return permissions.main_role_by_article(self.article.articleworkflow, self.request.user)
 
     def get_initial_body(self):
-        """Retun a default user's signature to prefill the message body."""
-        if permissions.has_eo_role_by_article(self.article.articleworkflow, self.request.user):
-            return f"""
+        """Return a default user's signature to prefill the message body."""
+        role = sender_signature_role(self.article.articleworkflow, self.request.user)
+        if not role:
+            return ""
+        sender_name = f"{self.request.user}<br>\n" if role == "Editorial Office" else ""
+        return f"""
 <p>
 Thank you and best regards,<br>
-{self.request.user}<br>
-{self.request.journal.code} Editorial Office
+{sender_name}{self.request.journal.code} {role}
 </p>
 """
-        # NB: ...has_SECTION_editor_role...
-        # Remember that we generally use the "section-editor" role, not Janway's all-mighty "editor" role.
-        if permissions.is_article_editor(self.article.articleworkflow, self.request.user):
-            return f"""
-<p>
-Thank you and best regards,<br>
-{self.request.journal.code} Editor-in-charge
-</p>
-"""
-        if permissions.has_main_director_role_by_article(self.article.articleworkflow, self.request.user):
-            return f"""
-<p>
-Thank you and best regards,<br>
-{self.request.journal.code} Editor-in-chief
-</p>
-"""
-        if permissions.has_director_role_by_article(self.article.articleworkflow, self.request.user):
-            return f"""
-<p>
-Thank you and best regards,<br>
-{self.request.journal.code} Deputy Editor
-</p>
-"""
-        return ""
 
     def get_initial(self):
         """Populate the hidden fields.

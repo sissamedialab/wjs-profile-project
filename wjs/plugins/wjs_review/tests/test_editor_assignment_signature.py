@@ -8,11 +8,13 @@ from django.apps import apps as django_apps
 from django.http import HttpRequest
 from journal.models import Journal
 from submission.models import Article
+from utils.setting_handler import get_setting, save_setting
 
 from wjs.jcom_profile.models import JCOMProfile
 
 from ..forms import SupervisorAssignEditorForm
 from ..models import ArticleWorkflow
+from ..plugin_settings import set_default_plugin_settings
 
 
 def _initial_body(article: Article, user: Account, fake_request: HttpRequest) -> str:
@@ -29,19 +31,41 @@ def _initial_body(article: Article, user: Account, fake_request: HttpRequest) ->
     return form.fields["note_for_new_editor"].initial
 
 
+def _signature(body: str) -> str:
+    """Return the last line of the body: the "<journal code> <role>" signature."""
+    return body.rstrip().splitlines()[-1]
+
+
 @pytest.mark.django_db
 def test_signature_shows_eo_label(review_settings, article: Article, fake_request: HttpRequest, eo_user: JCOMProfile):
     body = _initial_body(article, eo_user.janeway_account, fake_request)
-    assert f"{article.journal.code} EO" in body
+    assert _signature(body) == f"{article.journal.code} Editorial Office"
     assert "role.slug" not in body
 
 
 @pytest.mark.django_db
 def test_signature_shows_director_label(
-    review_settings, article: Article, fake_request: HttpRequest, director: JCOMProfile
+    review_settings, article: Article, fake_request: HttpRequest, director: JCOMProfile, main_director: JCOMProfile
 ):
+    for user in (director, main_director):
+        body = _initial_body(article, user.janeway_account, fake_request)
+        assert _signature(body) == f"{article.journal.code} Director"
+
+
+@pytest.mark.django_db
+def test_signature_main_director_without_setting(
+    review_settings, article: Article, fake_request: HttpRequest, director: JCOMProfile, main_director: JCOMProfile
+):
+    save_setting(
+        setting_group_name="wjs_review",
+        setting_name="directors_sign_as_director",
+        journal=article.journal,
+        value=False,
+    )
+    body = _initial_body(article, main_director.janeway_account, fake_request)
+    assert _signature(body) == f"{article.journal.code} Editor-in-chief"
     body = _initial_body(article, director.janeway_account, fake_request)
-    assert f"{article.journal.code} Director" in body
+    assert _signature(body) == f"{article.journal.code} Deputy Editor"
 
 
 @pytest.mark.django_db
@@ -50,8 +74,7 @@ def test_signature_eo_wins_over_director(
 ):
     eo_user.add_account_role("director", article.journal)
     body = _initial_body(article, eo_user.janeway_account, fake_request)
-    assert f"{article.journal.code} EO" in body
-    assert f"{article.journal.code} Director" not in body
+    assert _signature(body) == f"{article.journal.code} Editorial Office"
 
 
 MIGRATION_MODULE = "plugins.wjs_review.migrations.0023_editor_assignment_signature_role"
@@ -135,3 +158,75 @@ def test_migration_backwards_restores_old_placeholder(review_settings, journal: 
     migration.backwards(django_apps, None)
     default.refresh_from_db()
     assert default.value == f"Regards,<br>{{{{ article.journal.code }}}} {OLD}\n"
+
+
+DIRECTORS_MIGRATION = "plugins.wjs_review.migrations.0024_directors_sign_as_director"
+DIRECTORS_SETTING = "directors_sign_as_director"
+
+
+def _signs_as_director(journal: Journal) -> bool:
+    return get_setting("wjs_review", DIRECTORS_SETTING, journal).processed_value
+
+
+def _override_journals() -> set[str]:
+    """Codes of the journals with an override of ``directors_sign_as_director``."""
+    return set(
+        SettingValue.objects.filter(setting__name=DIRECTORS_SETTING, journal__isnull=False).values_list(
+            "journal__code", flat=True
+        )
+    )
+
+
+@pytest.mark.django_db
+def test_0024_creates_false_overrides(review_settings, journal: Journal, journal_factory):
+    jcomal = journal_factory("JCOMAL")
+    jcap = journal_factory("JCAP")
+    importlib.import_module(DIRECTORS_MIGRATION).forwards(django_apps, None)
+    assert _override_journals() == {"JCOM", "JCOMAL"}
+    assert _signs_as_director(journal) is False
+    assert _signs_as_director(jcomal) is False
+    assert _signs_as_director(jcap) is True
+
+
+@pytest.mark.django_db
+def test_0024_is_idempotent(review_settings, journal: Journal):
+    migration = importlib.import_module(DIRECTORS_MIGRATION)
+    migration.forwards(django_apps, None)
+    migration.forwards(django_apps, None)
+    overrides = SettingValue.objects.filter(setting__name=DIRECTORS_SETTING, journal=journal)
+    assert overrides.count() == 1
+    assert overrides.get().value == ""
+
+
+@pytest.mark.django_db
+def test_0024_backwards_removes_overrides(review_settings, journal: Journal):
+    migration = importlib.import_module(DIRECTORS_MIGRATION)
+    migration.forwards(django_apps, None)
+    migration.backwards(django_apps, None)
+    assert _override_journals() == set()
+    assert SettingValue.objects.get(setting__name=DIRECTORS_SETTING, journal=None).value == "on"
+    assert _signs_as_director(journal) is True
+
+
+@pytest.mark.django_db
+def test_0024_without_target_journals_adds_only_default(review_settings, journal: Journal):
+    journal.code = "JCAP"
+    journal.save()
+    Setting.objects.filter(name=DIRECTORS_SETTING).delete()
+    importlib.import_module(DIRECTORS_MIGRATION).forwards(django_apps, None)
+    assert _override_journals() == set()
+    assert SettingValue.objects.get(setting__name=DIRECTORS_SETTING, journal=None).value == "on"
+    assert _signs_as_director(journal) is True
+
+
+@pytest.mark.django_db
+def test_0024_before_install(review_settings, journal: Journal, journal_factory):
+    """Without install(), the migration alone makes the setting readable for every journal."""
+    jcap = journal_factory("JCAP")
+    Setting.objects.filter(name=DIRECTORS_SETTING).delete()
+    importlib.import_module(DIRECTORS_MIGRATION).forwards(django_apps, None)
+    assert _signs_as_director(journal) is False
+    assert _signs_as_director(jcap) is True
+    set_default_plugin_settings(force=True)
+    assert _signs_as_director(journal) is False
+    assert _signs_as_director(jcap) is True
