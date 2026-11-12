@@ -2170,11 +2170,10 @@ class ToggleDisableRemindersForm(forms.ModelForm):
         instance = super().save(commit=commit)
 
         # -- Materialized AC updates --
-        # Re-evaluate time-based ACs for the article. NB: condition functions
-        # currently ignore Reminder.disabled (they only check date_sent), so
-        # the toggle itself cannot change any AC: this is just an opportunistic
-        # refresh. If "late" becomes due-date-aware for disabled reminders
-        # (see the reminders-vs-late issue), this hook becomes effective.
+        # Re-evaluate time-based ACs for the article. The "late" conditions count
+        # a disabled (never sent) reminder from its due date (wjs/specs#2215), so
+        # disabling an overdue reminder can raise an AC right away, and
+        # re-enabling it resolves the AC until the reminder is actually sent.
         article = instance.get_related_article()
         if article and hasattr(article, "articleworkflow"):
             from .ac_service import ACStateEvaluator
