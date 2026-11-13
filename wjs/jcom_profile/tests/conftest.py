@@ -68,6 +68,7 @@ from wjs.jcom_profile.factories import (
     yesterday,
 )
 from wjs.jcom_profile.models import JCOMProfile, StaffKeyword, StaffWorkloadParameters
+from wjs.jcom_profile.tests.global_request import isolated_global_request
 from wjs.jcom_profile.utils import create_rich_fake_request, generate_token, get_eo_user
 
 fake = Faker()
@@ -133,6 +134,18 @@ def clear_cache():
     """Clear cache after any test to avoid flip-flapping test results due Janeway journal/press domain."""
     yield
     cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def clear_global_request():
+    """
+    Reset the request stored by ``GlobalRequestMiddleware`` around every test.
+
+    The request is kept in a ContextVar that nothing resets: a request set by a test (e.g. a hijacked one) would leak
+    into the following tests of the same worker, whose users no longer exist. See wjs-profile-project#302.
+    """
+    with isolated_global_request():
+        yield
 
 
 @pytest.fixture(autouse=True)
