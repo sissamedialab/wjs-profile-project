@@ -1,7 +1,13 @@
 """Test the search UI."""
 
+from datetime import timedelta
+
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils.timezone import now
+
+from wjs.jcom_profile.tests.conftest import _create_searchable_article
 
 
 @pytest.mark.parametrize(
@@ -25,6 +31,11 @@ from django.utils.timezone import now
         "/search/?article_search=50%25%2520chance%2520to%2520double%2520or%2520half%2520amount",
         "/search/?article_search=100% pure",
         "/search/?article_search=%",
+        # Payloads from the 03/10/2026 access log (wjs/specs#3274).
+        "/search/?article_search=1*1&sort=relevance",
+        "/search/?article_search=o%27reilly",
+        "/search/?abstract=on&article_search=&sort=relevanceHi9BvUPf%27))"
+        "%20OR%20355=(SELECT%20355%20FROM%20PG_SLEEP(15))--&title=on",
     ),
 )
 @pytest.mark.django_db
@@ -78,3 +89,72 @@ def test_search_view(journal, published_articles, client, search_query):
     elif "sections" in search_query:
         assert published_articles[0] in results
         assert published_articles[1] in results
+
+
+def _search(client, journal, **params):
+    """Run the search page and return the listed articles."""
+    response = client.get(f"/{journal.code}/search/", params)
+    assert response.status_code == 200, "search page did not render"
+    return list(response.context["articles"])
+
+
+@pytest.mark.django_db
+def test_search_matches_keyword(journal, client):
+    """Free-text search finds articles by keyword (regression since the 1.6 form rewrite)."""
+    target = _create_searchable_article(journal, keywords=["xylophone"])
+    _create_searchable_article(journal, keywords=["other"])
+
+    assert _search(client, journal, article_search="xylophone") == [target], "keyword not searched"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("sort", ("title", "-title", "date_published", "-date_published"))
+def test_search_sort_with_term(journal, client, sort):
+    older = _create_searchable_article(journal, title="Alpha xylophone", date_published=now() - timedelta(days=9))
+    newer = _create_searchable_article(journal, title="Beta xylophone", date_published=now() - timedelta(days=2))
+    expected = {
+        "title": [older, newer],
+        "-title": [newer, older],
+        "date_published": [older, newer],
+        "-date_published": [newer, older],
+    }[sort]
+
+    assert _search(client, journal, article_search="xylophone", sort=sort) == expected, f"wrong order for {sort}"
+
+
+@pytest.mark.django_db
+def test_search_relevance_order(journal, client):
+    by_full_text = _create_searchable_article(journal, full_texts=["a xylophone"])
+    by_title = _create_searchable_article(journal, title="xylophone")
+
+    results = _search(client, journal, article_search="xylophone", sort="relevance")
+
+    assert results == [by_title, by_full_text], "title match must rank before full-text match"
+
+
+@pytest.mark.django_db
+def test_search_does_not_use_raw_sql(journal, client):
+    _create_searchable_article(journal, title="xylophone")
+
+    with CaptureQueriesContext(connection) as queries:
+        _search(client, journal, article_search="xylophone")
+
+    assert not any(") AS search" in query["sql"] for query in queries.captured_queries), "raw search SQL used"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "params",
+    (
+        {"article_search": "xylophone", "sort": "relevance"},
+        {"article_search": "xylophone", "sort": "-date_published"},
+        {"sort": "title"},
+    ),
+)
+def test_search_order_is_total(journal, client, params):
+    """Ties are broken by pk, so equal dates or titles cannot move between pages."""
+    _create_searchable_article(journal, title="xylophone")
+
+    response = client.get(f"/{journal.code}/search/", params)
+
+    assert response.context["paginator"].object_list.query.order_by[-1] == "pk", "order has no final tie-breaker"
