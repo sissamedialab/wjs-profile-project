@@ -2472,8 +2472,8 @@ msgid "Select a decline reason"
 msgstr "Selecione um motivo de recusa"
 
 #: plugins/wjs_review/models.py:1736
-msgid "Already too busy with JCOM editorial work"
-msgstr "Já muito ocupado com o trabalho editorial do JCOM"
+msgid "Too busy with other editorial tasks"
+msgstr "Muito ocupado com outras tarefas editoriais"
 
 #: plugins/wjs_review/models.py:1737
 msgid "Too busy in general"
