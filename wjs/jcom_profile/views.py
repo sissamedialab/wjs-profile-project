@@ -14,7 +14,6 @@ from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.mail import send_mail
 from django.db.models import Q
-from django.db.models.query import RawQuerySet
 from django.forms import modelformset_factory
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -46,6 +45,7 @@ from .mixins import HasJournalAdminRoleMixin, HtmxMixin, PaginatedViewMixin
 from .models import JCOMProfile, StaffWorkloadParameters
 from .permissions import get_hijacker, has_reviewer_role, has_section_editor_role
 from .profile.views import KeywordsHierarchyContextMixin, ProfilePersonalEditView
+from .search import search_articles
 
 logger = get_logger(__name__)
 
@@ -801,39 +801,29 @@ class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
         return [pin.article for pin in PinnedArticle.objects.filter(journal=self.request.journal)]
 
     def get_queryset(self):
+        """
+        Return the published articles matching the form filters and the free-text term, in the requested order.
+
+        With a term (``article_search``, or ``article_authors`` for an authors-only search) the articles go through
+        :py:func:`wjs.jcom_profile.search.search_articles` in the same query as the filters; ``relevance`` sorting
+        uses the rank it annotates.
+        """
         filters = self._get_filters()
         pinned_article_pks = [article.pk for article in self._get_pinned_articles()]
 
         search_term = ""
+        authors_only = False
         global_filters = self.form.get_search_filters()
         author_filter = self.form.get_author_filter()
 
         if global_filters:
             search_term = next(iter(global_filters.values()))
-            search_filters = global_filters
         elif author_filter:
             search_term = next(iter(author_filter.values()))
-            search_filters = author_filter
+            authors_only = True
 
-        if search_term:
-            articles = self.model.objects.search(
-                search_term,
-                search_filters,
-                sort=self.get_order_by(search_term),
-                site=self.request.site_object,
-            )
-            if isinstance(articles, RawQuerySet):
-                try:
-                    articles_pk = [article.id for article in articles]
-                except IndexError:
-                    # TODO: investigate and fix the querystring escape problem
-                    logger.warning("index error due to search_term escape problem")
-                    articles_pk = []
-                articles = self.model.objects.filter(pk__in=articles_pk)
-        else:
-            articles = self.model.objects.all()
         articles = (
-            articles.filter(**filters)
+            self.model.objects.filter(**filters)
             .prefetch_related(
                 "frozenauthor_set",
             )
@@ -852,9 +842,13 @@ class PublishedArticlesListView(PaginatedViewMixin, FormMixin, ListView):
             articles = article_links.exclude_children(articles)
 
         if search_term:
-            # if text search is used, articles are already ordered
-            return articles
-        return articles.order_by(self.get_order_by(search_term))
+            # specs#3274: one query with one search vector per article, filters and ordering included
+            articles = search_articles(articles, search_term, authors_only=authors_only)
+        order_by = self.get_order_by(search_term)
+        # pk breaks ties, so articles with the same date/title/relevance keep their page across requests
+        if order_by == "relevance":
+            return articles.order_by("-relevance", "-date_published", "pk")
+        return articles.order_by(order_by, "pk")
 
     def get_order_by(self, search_term):
         sort = self.form.cleaned_data.get("sort", "-date_published")

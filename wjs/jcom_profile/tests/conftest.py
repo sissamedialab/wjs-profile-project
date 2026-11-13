@@ -8,6 +8,7 @@ from typing import Callable, List, Optional
 import factory
 import pytest
 import pytest_factoryboy
+import swapper
 from core.models import Account, File, Role, Setting, SupplementaryFile
 from django.conf import settings as django_settings
 from django.contrib.auth.models import Group
@@ -711,6 +712,50 @@ def published_articles(author, editor, journal, sections, keywords):
 
     Corresponding author (owner), keywords and section are random"""
     return _create_published_articles(author, editor, journal, sections, keywords)
+
+
+def _create_searchable_article(
+    journal,
+    title="Plain",
+    abstract="Plain",
+    authors=(),
+    keywords=(),
+    full_texts=(),
+    date_published=None,
+):
+    """Create a published article whose searchable parts are all explicit.
+
+    :param authors: ``(first_name, last_name)`` pairs, stored as frozen authors
+    :param keywords: keyword words
+    :param full_texts: texts indexed as the full text of one galley each
+    """
+    date_published = date_published or now() - timedelta(days=3)
+    article = submission_models.Article.objects.create(
+        journal=journal,
+        title=title,
+        abstract=abstract,
+        date_submitted=date_published,
+        date_accepted=date_published,
+        date_published=date_published,
+        stage=submission_models.STAGE_PUBLISHED,
+        language="eng",
+    )
+    for order, (first_name, last_name) in enumerate(authors, start=1):
+        submission_models.FrozenAuthor.objects.create(
+            article=article,
+            first_name=first_name,
+            last_name=last_name,
+            order=order,
+        )
+    for word in keywords:
+        keyword, __ = submission_models.Keyword.objects.get_or_create(word=word)
+        article.keywords.add(keyword)
+    file_text_model = swapper.load_model("core", "FileText")
+    for text in full_texts:
+        file_text = file_text_model.objects.create(contents=file_text_model.preprocess_contents(text))
+        file_obj = File.objects.create(article_id=article.pk, original_filename="galley.html", text=file_text)
+        create_galley(article, file_obj)
+    return article
 
 
 @pytest.fixture
