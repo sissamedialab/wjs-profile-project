@@ -1976,9 +1976,9 @@ class PopulateRevisionStep6(BasePopulateRevisionStep):
 
     def run(self):
         self.article.submission_data.cas = self.revision_storage.data.get("cas")
-        self.article.submission_data.cas_url = self.revision_storage.data.get("cas_url")
+        self.article.submission_data.cas_text = self.revision_storage.data.get("cas_text", "")
         self.article.submission_data.das = self.revision_storage.data.get("das")
-        self.article.submission_data.das_url = self.revision_storage.data.get("das_url")
+        self.article.submission_data.das_text = self.revision_storage.data.get("das_text", "")
 
         # Files
         # (remember that the files from the previous version have already been saved to revision-request

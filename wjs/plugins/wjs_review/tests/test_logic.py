@@ -103,6 +103,7 @@ from ..logic import (  # WithdrawPreprint,
     HandleDecision,
     HandleEditorDeclinesAssignment,
     InviteReviewer,
+    PopulateRevisionStep6,
     PopulateRevisionStep7,
     PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
@@ -5641,9 +5642,11 @@ def test_sync_texdb_collaborations(
         # Partial dict.
         ({"cas": {"type": "", "text": ""}, "das": {"type": "no"}}, "das"),
         # Declaration unknown to the DB.
-        ({"cas": {"type": "other", "text": "Ask me."}, "das": {"type": "", "text": ""}}, "cas"),
+        ({"cas": {"type": "unknown-type", "text": "Ask me."}, "das": {"type": "", "text": ""}}, "cas"),
         # Declared as "url", but no URL in the text.
         ({"cas": {"type": "", "text": ""}, "das": {"type": "url", "text": "Somewhere."}}, "das"),
+        # Declared as "other", but no statement text.
+        ({"cas": {"type": "other", "text": ""}, "das": {"type": "", "text": ""}}, "cas"),
     ),
 )
 @pytest.mark.django_db
@@ -5662,7 +5665,7 @@ def test_sync_texdb_casdas(article: Article):
     submission_data = article.submission_data
     submission_data.cas = ArticleSubmission.CasDeclaration.NO
     submission_data.das = ArticleSubmission.DasDeclaration.URL
-    submission_data.das_url = "https://old.example.org/data"
+    submission_data.das_text = "https://old.example.org/data"
     submission_data.save()
     texdata = MetadataFromTeX(workflow=article.articleworkflow)
     texdata.data = {
@@ -5675,18 +5678,87 @@ def test_sync_texdb_casdas(article: Article):
     assert form.tex_cas_url == "https://github.com/example/repo", "Trailing punctuation should be dropped"
     assert form.tex_das_url == "", "URL should be extracted only for 'url' declarations"
     assert form.should_sync(), "TeX and DB differ"
-    assert form.das_url_will_be_removed, "The DB DAS URL is not in the TeX"
-    assert not form.cas_url_will_be_removed, "There is no DB CAS URL to remove"
+    assert form.das_text_will_be_cleared, "The DB DAS text is not in the TeX"
+    assert not form.cas_text_will_be_cleared, "There is no DB CAS text to clear"
 
     form.sync()
     submission_data.refresh_from_db()
     assert submission_data.cas == "url", "CAS should be taken from the TeX"
-    assert submission_data.cas_url == "https://github.com/example/repo", "CAS URL should be taken from the TeX text"
+    assert submission_data.cas_text == "https://github.com/example/repo", "CAS text should be the URL from the TeX"
     assert submission_data.das == "esm", "DAS should be taken from the TeX"
-    assert submission_data.das_url == "", "DAS URL should be cleared"
+    assert submission_data.das_text == "", "DAS text should be cleared"
 
     form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
     assert not form.should_sync(), "TeX and DB should be in sync after the sync"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_casdas_other(article: Article):
+    """SyncCasDasForm persists the free text when the declaration is 'other', and clears it otherwise."""
+    submission_data = article.submission_data
+    submission_data.cas = ""
+    submission_data.cas_text = ""
+    submission_data.das = ""
+    submission_data.das_text = ""
+    submission_data.save()
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "cas": {"type": "other", "text": "Code available upon reasonable request."},
+        "das": {"type": "other", "text": "Data available upon reasonable request."},
+    }
+
+    form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+    assert form.is_valid(), f"Unexpected errors {form.errors}"
+    assert form.should_sync(), "TeX and DB differ"
+
+    form.sync()
+    submission_data.refresh_from_db()
+    assert submission_data.cas == "other"
+    assert submission_data.cas_text == "Code available upon reasonable request."
+    assert submission_data.das == "other"
+    assert submission_data.das_text == "Data available upon reasonable request."
+
+    form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+    assert not form.should_sync(), "TeX and DB should be in sync after the sync"
+
+    # Switching away from "other" clears the stored free text.
+    texdata.data = {
+        "cas": {"type": "no", "text": ""},
+        "das": {"type": "no", "text": ""},
+    }
+    form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+    assert form.is_valid(), f"Unexpected errors {form.errors}"
+    assert form.should_sync(), "TeX and DB differ"
+    form.sync()
+    submission_data.refresh_from_db()
+    assert submission_data.cas == "no"
+    assert submission_data.cas_text == "", "The free text must be cleared once the type is no longer 'other'"
+    assert submission_data.das == "no"
+    assert submission_data.das_text == "", "The free text must be cleared once the type is no longer 'other'"
+
+
+@pytest.mark.django_db
+def test_sync_texdb_casdas_other_incidental_text_does_not_trigger_sync(article: Article):
+    """
+    A non-'other' statement with incidental TeX text must not be compared/persisted as the free text.
+
+    Regression guard: ``tex_cas_text``/``tex_das_text`` hold the raw TeX text regardless of the
+    declared type (kept for display); only the normalized ``*_to_store`` value, which is empty
+    unless the type is "other", must drive ``should_sync()``/``sync()``.
+    """
+    submission_data = article.submission_data
+    submission_data.cas = ArticleSubmission.CasDeclaration.NO
+    submission_data.cas_text = ""
+    submission_data.save()
+    texdata = MetadataFromTeX(workflow=article.articleworkflow)
+    texdata.data = {
+        "cas": {"type": "no", "text": "Some incidental remark that is not a statement."},
+        "das": {"type": "", "text": ""},
+    }
+
+    form = SyncCasDasForm(texdata, data={"action": "sync_casdas"})
+    assert form.is_valid(), f"Unexpected errors {form.errors}"
+    assert not form.should_sync(), "An incidental text on a non-'other' statement must not count as out of sync"
 
 
 @pytest.mark.django_db
@@ -6371,6 +6443,37 @@ def test_submission_special_request_revision_status(
         assert message.actor == article.correspondence_author.janeway_account
     else:
         assert not Message.objects.all().exists()
+
+
+@pytest.mark.django_db
+def test_populate_revision_step6_cas_das_text(editor_revision: EditorRevisionRequest):
+    """PopulateRevisionStep6 copies the single cas_text/das_text field back to the article."""
+    from core.models import File as CoreFile  # noqa: PLC0415
+
+    article = editor_revision.article
+    revision_storage = RevisionStorage.objects.create(
+        article=article,
+        revision_flow_type=RevisionStorage.RevisionFlowType.FULL,
+        data={
+            "cas": ArticleSubmission.CasDeclaration.OTHER,
+            "cas_text": "some code statement",
+            "das": ArticleSubmission.DasDeclaration.OTHER,
+            "das_text": "some data statement",
+            "manuscript_files": CoreFile.objects.create(original_filename="new_manuscript.pdf").pk,
+            "source_files": CoreFile.objects.create(original_filename="new_source.tex").pk,
+            "data_figure_files": [],
+            "supplementary_files": [],
+        },
+    )
+
+    PopulateRevisionStep6(
+        article=article,
+        revision=editor_revision,
+        revision_storage=revision_storage,
+    ).run()
+
+    assert article.submission_data.cas_text == "some code statement"
+    assert article.submission_data.das_text == "some data statement"
 
 
 @pytest.mark.parametrize("access_mode_changed", [True, False])
