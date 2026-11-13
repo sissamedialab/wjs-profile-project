@@ -61,7 +61,7 @@
       {% translate "CAS Declaration" %}
       <ul class="list-group mb-1">
         <li class="list-group-item fw-medium">
-          {{ article.submission_data.get_cas_display }}<br>{% if article.submission_data.cas_url %}<a href="{{ article.submission_data.cas_url }}" target="_blank">{{ article.submission_data.cas_url }}</a>{% endif %}
+          {{ article.submission_data.get_cas_display }}{% if article.submission_data.cas_text %}<br>{% if article.submission_data.cas == "url" %}<a href="{{ article.submission_data.cas_text }}" target="_blank">{{ article.submission_data.cas_text }}</a>{% else %}{{ article.submission_data.cas_text }}{% endif %}{% endif %}
         </li>
       </ul>
     </li>
@@ -72,7 +72,7 @@
       {% translate "DAS Declaration" %}
       <ul class="list-group mb-1">
         <li class="list-group-item fw-medium">
-          {{ article.submission_data.get_das_display }}<br>{% if article.submission_data.das_url %}<a href="{{ article.submission_data.das_url }}" target="_blank">{{ article.submission_data.das_url }}</a>{% endif %}
+          {{ article.submission_data.get_das_display }}{% if article.submission_data.das_text %}<br>{% if article.submission_data.das == "url" %}<a href="{{ article.submission_data.das_text }}" target="_blank">{{ article.submission_data.das_text }}</a>{% else %}{{ article.submission_data.das_text }}{% endif %}{% endif %}
         </li>
       </ul>
     </li>

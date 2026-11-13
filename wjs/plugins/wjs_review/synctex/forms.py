@@ -379,9 +379,9 @@ class SyncCasDasForm(forms.Form):
     - ``text`` is the free statement text, purified from LaTeX markup (``\\url{u}`` becomes ``u``,
       ``\\href{u}{t}`` becomes ``t (u)``).
 
-    The DB has no "other" declaration nor a field for the free text, so "other" is reported as an
-    unknown declaration and the text is only shown for reference. The DB URL is extracted from the
-    text when the type is "url".
+    "url" and "other" share a single ``cas_text``/``das_text`` DB field: for "url" it holds the URL
+    extracted from the statement text, for "other" the statement text itself, and it is cleared for
+    every other type.
     """
 
     action = forms.CharField(widget=forms.HiddenInput(), initial="sync_casdas")
@@ -391,18 +391,16 @@ class SyncCasDasForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": 2}),
         disabled=True,
         required=False,
-        help_text=_("Statement text from TeX, for reference only: it is not stored in the DB."),
+        help_text=_("The URL ('url' declarations) or statement text ('other' declarations) that will be stored."),
     )
-    cas_url = forms.CharField(label=_("CAS URL"), disabled=True, required=False)
     das = forms.CharField(label=_("Data Availability Statement"), disabled=True, required=False)
     das_text = forms.CharField(
         label=_("DAS text"),
         widget=forms.Textarea(attrs={"rows": 2}),
         disabled=True,
         required=False,
-        help_text=_("Statement text from TeX, for reference only: it is not stored in the DB."),
+        help_text=_("The URL ('url' declarations) or statement text ('other' declarations) that will be stored."),
     )
-    das_url = forms.CharField(label=_("DAS URL"), disabled=True, required=False)
 
     # Characters that can follow a URL in a sentence without being part of it.
     URL_TRAILING_PUNCTUATION = ".,;:!?'\""
@@ -421,35 +419,44 @@ class SyncCasDasForm(forms.Form):
         self.tex_das_url = self._extract_url(self.tex_das, self.tex_das_text)
         submission_data = self._get_submission_data()
         self.db_cas = submission_data.cas if submission_data else None
-        self.db_cas_url = submission_data.cas_url if submission_data else None
+        self.db_cas_text = submission_data.cas_text if submission_data else None
         self.db_das = submission_data.das if submission_data else None
-        self.db_das_url = submission_data.das_url if submission_data else None
+        self.db_das_text = submission_data.das_text if submission_data else None
+        # What will actually be persisted: the URL for "url", the statement text for "other",
+        # empty otherwise (mirrors how `tex_cas_url` is normalized by `_extract_url`).
+        self.tex_cas_text_to_store = self._text_to_store(self.tex_cas, self.tex_cas_url, self.tex_cas_text)
+        self.tex_das_text_to_store = self._text_to_store(self.tex_das, self.tex_das_url, self.tex_das_text)
         # The fields are disabled, so their values come from self.initial.
         self.initial["cas"] = self.tex_cas
-        self.initial["cas_text"] = self.tex_cas_text
-        self.initial["cas_url"] = self.tex_cas_url
+        self.initial["cas_text"] = self.tex_cas_text_to_store
         self.initial["das"] = self.tex_das
-        self.initial["das_text"] = self.tex_das_text
-        self.initial["das_url"] = self.tex_das_url
+        self.initial["das_text"] = self.tex_das_text_to_store
         cas_labels = dict(ArticleSubmission.CasDeclaration.choices)
         das_labels = dict(ArticleSubmission.DasDeclaration.choices)
         self.fields["cas"].help_text = (
             f"TeX: {self._display(self.tex_cas, cas_labels)} vs DB: {self._display(self.db_cas, cas_labels)}"
         )
-        self.fields["cas_url"].help_text = (
-            f"TeX (from the statement text): {self._display(self.tex_cas_url)} "
-            f"vs DB: {self._display(self.db_cas_url)}"
+        self.fields["cas_text"].help_text = (
+            f"TeX: {self._display(self.tex_cas_text_to_store)} vs DB: {self._display(self.db_cas_text)}"
         )
         self.fields["das"].help_text = (
             f"TeX: {self._display(self.tex_das, das_labels)} vs DB: {self._display(self.db_das, das_labels)}"
         )
-        self.fields["das_url"].help_text = (
-            f"TeX (from the statement text): {self._display(self.tex_das_url)} "
-            f"vs DB: {self._display(self.db_das_url)}"
+        self.fields["das_text"].help_text = (
+            f"TeX: {self._display(self.tex_das_text_to_store)} vs DB: {self._display(self.db_das_text)}"
         )
-        # Flag the case where syncing would drop an existing DB URL (the TeX has none).
-        self.cas_url_will_be_removed = bool(self.db_cas_url) and not self.tex_cas_url
-        self.das_url_will_be_removed = bool(self.db_das_url) and not self.tex_das_url
+        # Flag the case where syncing would drop an existing DB statement text (the TeX has none).
+        self.cas_text_will_be_cleared = bool(self.db_cas_text) and not self.tex_cas_text_to_store
+        self.das_text_will_be_cleared = bool(self.db_das_text) and not self.tex_das_text_to_store
+
+    @staticmethod
+    def _text_to_store(statement_type: str, url: str, text: str) -> str:
+        """Return what must be persisted to the shared text field for this statement."""
+        if statement_type == "url":
+            return url
+        if statement_type == "other":
+            return text
+        return ""
 
     def _extract_statement(self, key: str) -> tuple[str, str]:
         """
@@ -496,7 +503,9 @@ class SyncCasDasForm(forms.Form):
         except ArticleSubmission.DoesNotExist:
             return None
 
-    def _validate_statement(self, key: str, tex_value: str, db_value: str | None, tex_url: str, choices: dict):
+    def _validate_statement(
+        self, key: str, tex_value: str, db_value: str | None, tex_text: str, tex_url: str, choices: dict
+    ):
         """Ensure the TeX statement ``key`` is well-formed and is a known declaration."""
         if key in self.tex_data_errors:
             raise ValidationError(self.tex_data_errors[key])
@@ -508,18 +517,30 @@ class SyncCasDasForm(forms.Form):
             raise ValidationError(f"Unknown {name} declaration '{tex_value}'!")
         if tex_value == "url" and not tex_url:
             raise ValidationError(f"{name} declared as 'url', but no URL found in its text!")
+        if tex_value == "other" and not tex_text:
+            raise ValidationError(f"{name} declared as 'other', but no statement text found!")
 
     def clean_cas(self):
         """Ensure the TeX CAS is a well-formed and known Code Availability Statement declaration."""
         self._validate_statement(
-            "cas", self.tex_cas, self.db_cas, self.tex_cas_url, dict(ArticleSubmission.CasDeclaration.choices)
+            "cas",
+            self.tex_cas,
+            self.db_cas,
+            self.tex_cas_text,
+            self.tex_cas_url,
+            dict(ArticleSubmission.CasDeclaration.choices),
         )
         return self.cleaned_data["cas"]
 
     def clean_das(self):
         """Ensure the TeX DAS is a well-formed and known Data Availability Statement declaration."""
         self._validate_statement(
-            "das", self.tex_das, self.db_das, self.tex_das_url, dict(ArticleSubmission.DasDeclaration.choices)
+            "das",
+            self.tex_das,
+            self.db_das,
+            self.tex_das_text,
+            self.tex_das_url,
+            dict(ArticleSubmission.DasDeclaration.choices),
         )
         return self.cleaned_data["das"]
 
@@ -528,10 +549,8 @@ class SyncCasDasForm(forms.Form):
         return (
             (self.tex_cas or "") != (self.db_cas or "")
             or (self.tex_das or "") != (self.db_das or "")
-            # cas_url/das_url are always taken from the TeX (syncing clears the DB value when the
-            # TeX has none), so any difference — including a removal — counts as out of sync.
-            or (self.tex_cas_url or "") != (self.db_cas_url or "")
-            or (self.tex_das_url or "") != (self.db_das_url or "")
+            or (self.tex_cas_text_to_store or "") != (self.db_cas_text or "")
+            or (self.tex_das_text_to_store or "") != (self.db_das_text or "")
         )
 
     def sync(self):
@@ -548,10 +567,10 @@ class SyncCasDasForm(forms.Form):
             raise ValueError("This article has no submission data!")
         submission_data.cas = self.tex_cas
         submission_data.das = self.tex_das
-        # cas_url/das_url are always taken from the TeX, so syncing clears the DB value when the
-        # TeX has none.
-        submission_data.cas_url = self.tex_cas_url
-        submission_data.das_url = self.tex_das_url
+        # The shared text field is always taken from the TeX, so syncing clears the DB value when
+        # the TeX has none (see tex_cas_text_to_store/tex_das_text_to_store).
+        submission_data.cas_text = self.tex_cas_text_to_store
+        submission_data.das_text = self.tex_das_text_to_store
         try:
             submission_data.save()
         except Exception as e:  # noqa: BLE001 - surface any persistence failure as a ValueError

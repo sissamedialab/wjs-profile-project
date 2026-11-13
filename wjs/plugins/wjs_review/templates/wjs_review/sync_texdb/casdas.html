@@ -11,18 +11,16 @@
     {% bootstrap_field form_casdas.action %}
     {% bootstrap_field form_casdas.cas %}
     {% bootstrap_field form_casdas.cas_text %}
-    {% bootstrap_field form_casdas.cas_url %}
-    {% if form_casdas.cas_url_will_be_removed %}
+    {% if form_casdas.cas_text_will_be_cleared %}
       <div class="alert alert-warning" role="alert">
-        {% translate "Warning: removing CAS URL!" %}
+        {% translate "Warning: clearing the CAS text!" %}
       </div>
     {% endif %}
     {% bootstrap_field form_casdas.das %}
     {% bootstrap_field form_casdas.das_text %}
-    {% bootstrap_field form_casdas.das_url %}
-    {% if form_casdas.das_url_will_be_removed %}
+    {% if form_casdas.das_text_will_be_cleared %}
       <div class="alert alert-warning" role="alert">
-        {% translate "Warning: removing DAS URL!" %}
+        {% translate "Warning: clearing the DAS text!" %}
       </div>
     {% endif %}
     <button type="submit"
