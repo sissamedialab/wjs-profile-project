@@ -711,6 +711,33 @@ def test_brake_on_is_editable_only_by_eo(
     assert parameters.brake_on == expected, f"brake_on should be {expected} when changed by {user_role}"
 
 
+@pytest.mark.django_db
+@pytest.mark.parametrize("enabled", (True, False))
+def test_director_update_keeps_editor_enabled_flag(journal, roles, admin, editor, enabled):
+    """
+    Submitting the editor parameters page must not change the editor's own ``enabled`` flag.
+
+    The browser does not submit the (read-only) ``enabled`` checkbox: the form must keep the stored value
+    instead of reading the missing checkbox as unchecked and marking the editor as "Permanently self disabled".
+    """
+    parameters = StaffWorkloadParameters.objects.update_or_create(
+        user=editor, journal=journal, defaults={"enabled": enabled}
+    )[0]
+    client = Client()
+    client.force_login(admin)
+    url = f"/{journal.code}/update/parameters/{editor.janeway_account.pk}/"
+
+    response = client.get(url)
+    assert response.context["form"].fields["enabled"].disabled
+
+    data = _director_parameters_post_data(client, url, workload=parameters.workload, brake_on=parameters.brake_on)
+    response_post = client.post(url, data)
+    assert response_post.status_code == 302
+
+    parameters.refresh_from_db()
+    assert parameters.enabled is enabled
+
+
 @pytest.mark.parametrize(
     "user_role,hijacked,success",
     (

@@ -254,12 +254,15 @@ class DirectorStaffWorkloadParametersForm(forms.ModelForm):
             "workload": forms.TextInput(attrs={"readonly": True}),
             "vacancy_start": forms.DateInput(attrs={"readonly": True, "type": "date"}),
             "vacancy_end": forms.DateInput(attrs={"readonly": True, "type": "date"}),
-            "enabled": forms.CheckboxInput(attrs={"disabled": True}),
         }
 
     def __init__(self, *args, can_edit_brake_on: bool = False, **kwargs):
         """
-        Make ``brake_on`` read-only unless the user is allowed to change it.
+        Make ``enabled`` read-only, and ``brake_on`` too unless the user is allowed to change it.
+
+        ``enabled`` is the editor's own choice: it is shown but never changed here. It must be a disabled form
+        field (not just a disabled widget): browsers do not submit disabled checkboxes, so a widget-only
+        ``disabled`` would be read as unchecked and would disable the editor on every save.
 
         ``brake_on`` (-1 disables the editor) is set by the EO, directors can only see it.
         A disabled field ignores submitted data, so it cannot be changed by a crafted request either.
@@ -267,6 +270,7 @@ class DirectorStaffWorkloadParametersForm(forms.ModelForm):
         :param can_edit_brake_on: whether the current user is allowed to change ``brake_on``
         """
         super().__init__(*args, **kwargs)
+        self.fields["enabled"].disabled = True
         if not can_edit_brake_on:
             self.fields["brake_on"].disabled = True
 
