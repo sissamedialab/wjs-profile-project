@@ -744,10 +744,14 @@ SUBMISSION_CORRECTION_ACCESS_MODE_CODE = {
     "JINST": "free-to-read",
 }
 
-# Overrides wjs-submission's DEFAULT_CORRESPONDENCE_AUTHOR_VALIDATION_FUNCTION: JCOM/JCOMAL/JCAP need
-# JCOMProfile fields (profession, biography, records_*), so their validators live here instead of in
-# wjs-submission, which must not depend on wjs.jcom_profile (see wjs-submission-project#30). This dict
-# fully replaces the default (no merging), so the `None` fallback is repeated here too.
+# Overrides wjs-submission's DEFAULT_CORRESPONDENCE_AUTHOR_VALIDATION_FUNCTION: injection point for journals
+# whose rules the required-fields dict below (SUBMISSION_CORRESPONDENCE_AUTHOR_REQUIRED_FIELDS) cannot express.
+# Signature: `validation(user, journal) -> bool`.
+# At present all the functions listed here just evaluate that dict; JCAP and JCOM/JCOMAL still have their own so
+# that one journal can be given different logic without refactoring.
+# Step 4 always lists the labels of the dict: a journal injecting its own logic should adjust its dict entry too.
+#
+# This dict fully replaces the default defined in wjs-submission (no merging), so the `None` fallback is repeated.
 SUBMISSION_CORRESPONDENCE_AUTHOR_VALIDATION_FUNCTION = {
     "JCAP": "wjs.jcom_profile.account_validation.jcap_correspondence_author_validation",
     "JCOM": "wjs.jcom_profile.account_validation.jcom_correspondence_author_validation",
@@ -787,3 +791,96 @@ from wjs.jcom_profile.tracing import (
 
 if _otel_error_tracing_enabled() and _otel_capture_locals_enabled():
     MIDDLEWARE = tuple(MIDDLEWARE) + ("wjs.jcom_profile.tracing.OTelErrorLocalsMiddleware",)
+
+# Required profile fields of a correspondence author per journal, with the public labels shown in submission
+# step 4. The entry format (label, paths, allowed, profile) and its evaluation rules are documented in
+# `wjs.jcom_profile.constants.ProfileRequiredFieldEntry`.
+# JCOM/JCOMAL/JCAP need JCOMProfile fields (profession, biography, records_*), which wjs-submission must not
+# depend on (see wjs-submission-project#30). Fully replaces the default (no merging): repeat the `None` entry.
+from wjs.jcom_profile.constants import (  # noqa: E402
+    PROFESSIONAL_LINKS_GROUP_HELP,
+    PROFESSIONAL_LINKS_LABEL,
+    PROFESSIONS,
+    ProfileHint,
+    ProfileRequiredFieldEntry,
+)
+
+# Keep the `jcomprofile.*` paths first: a user without a JCOMProfile must raise (as the former JCAP validator did)
+# instead of passing thanks to a social handle.
+# All the link fields count for every journal, even those a journal hides (see `PROFILE_FIELDS`): a value left from
+# an import counts as well. Accepted limitation, see `is_required_field_entry_satisfied` in wjs-submission.
+_PROFESSIONAL_LINKS_ENTRY: ProfileRequiredFieldEntry = {
+    "label": PROFESSIONAL_LINKS_LABEL,
+    "paths": [
+        "jcomprofile.records_scix",
+        "jcomprofile.records_inspire",
+        "jcomprofile.records_arxiv",
+        "jcomprofile.records_other",
+        "facebook",
+        "twitter",
+        "linkedin",
+    ],
+    "profile": {
+        "section": "core_edit_profile_additional",
+        "group_help": PROFESSIONAL_LINKS_GROUP_HELP,
+        "fields": [
+            "records_scix",
+            "records_inspire",
+            "records_arxiv",
+            "records_other",
+            "facebook",
+            "twitter",
+            "linkedin",
+        ],
+    },
+}
+_NAME_ENTRY: ProfileRequiredFieldEntry = {
+    "label": _("Name"),
+    "paths": ["last_name", "first_name"],
+    "profile": {"section": "core_edit_profile", "fields": ["first_name", "last_name"]},
+}
+_EMAIL_ENTRY: ProfileRequiredFieldEntry = {
+    "label": _("Email"),
+    "paths": ["email"],
+    "profile": {"section": "core_edit_profile_email", "fields": ["email"]},
+}
+_ACTIVE_ENTRY: ProfileRequiredFieldEntry = {"label": _("Active account"), "paths": ["is_active"]}
+_AFFILIATION_PROFILE: ProfileHint = {"section": "core_edit_profile_affiliations", "fields": []}
+_JCOM_REQUIRED_FIELDS: list[ProfileRequiredFieldEntry] = [
+    _ACTIVE_ENTRY,
+    _NAME_ENTRY,
+    _EMAIL_ENTRY,
+    {
+        "label": _("Profession"),
+        "paths": ["jcomprofile.profession"],
+        "allowed": [choice[0] for choice in PROFESSIONS],
+        "profile": {"section": "core_edit_profile", "fields": ["profession"]},
+    },
+    {
+        "label": _("Biography"),
+        "paths": ["biography"],
+        "profile": {"section": "core_edit_profile", "fields": ["biography"]},
+    },
+    _PROFESSIONAL_LINKS_ENTRY,
+]
+SUBMISSION_CORRESPONDENCE_AUTHOR_REQUIRED_FIELDS: dict[str | None, list[ProfileRequiredFieldEntry]] = {
+    "JCOM": _JCOM_REQUIRED_FIELDS,
+    "JCOMAL": _JCOM_REQUIRED_FIELDS,
+    "JCAP": [
+        _ACTIVE_ENTRY,
+        {
+            "label": _("First name"),
+            "paths": ["first_name"],
+            "profile": {"section": "core_edit_profile", "fields": ["first_name"]},
+        },
+        _EMAIL_ENTRY,
+        {"label": _("Affiliation"), "paths": ["affiliation"], "profile": _AFFILIATION_PROFILE},
+        _PROFESSIONAL_LINKS_ENTRY,
+    ],
+    None: [
+        _ACTIVE_ENTRY,
+        _NAME_ENTRY,
+        _EMAIL_ENTRY,
+        {"label": _("Affiliation"), "paths": ["institution"], "profile": _AFFILIATION_PROFILE},
+    ],
+}

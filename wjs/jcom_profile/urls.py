@@ -15,6 +15,11 @@ NON_DOI_PIPE_SEPARATED_IDENTIFIERS = "|".join(NON_DOI_IDENTIFIER_TYPES)
 
 urlpatterns = [
     path("profile/", profile_views.ProfilePersonalEditView.as_view(), name="core_edit_profile"),
+    path(
+        "profile/back-to-submission/",
+        profile_views.ProfileBackToSubmissionView.as_view(),
+        name="core_edit_profile_back_to_submission",
+    ),
     path("profile/email/", profile_views.ProfileEmailEditView.as_view(), name="core_edit_profile_email"),
     path("profile/password/", profile_views.ProfilePasswordEditView.as_view(), name="core_edit_profile_password"),
     path("profile/info/", profile_views.ProfileAdditionalEditView.as_view(), name="core_edit_profile_additional"),

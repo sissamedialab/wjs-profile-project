@@ -8,6 +8,7 @@
 
 {% block content_wrapper %}
   {% get_profile_section as profile_section %}
+  {% get_profile_correspondence_author_requirements as correspondence_author_requirements %}
   {% user_has_role request "section-editor" False as user_is_editor %}
   {% user_has_role request "reviewer" False as user_is_reviewer %}
   {% user_has_eo_role request.user as user_is_eo %}
@@ -37,6 +38,7 @@
         </div>
       </div>
     </div>
+    {% include "wjs/profile/includes/correspondence_author_requirements_banner.html" %}
     <div class="row">
       {% if request.user.is_authenticated %}
         <div class="col-sm-12 col-md-3">
@@ -44,13 +46,13 @@
             <nav class="wjs-profile-nav" aria-label="Profile navigation">
               <ul class="wjs-profile-nav__list">
                 <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile" %} wjs-profile-nav__item--active{% endif %}">
-                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile }}">{% translate "Personal Details" %}</a>
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile }}">{% translate "Personal Details" %}{% if correspondence_author_requirements.missing_by_section.core_edit_profile %} <span class="badge text-bg-warning">{{ correspondence_author_requirements.missing_by_section.core_edit_profile }}</span>{% endif %}</a>
                 </li>
                 <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile_affiliations" %} wjs-profile-nav__item--active{% endif %}">
-                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_affiliations }}">{% translate "Affiliations" %}</a>
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_affiliations }}">{% translate "Affiliations" %}{% if correspondence_author_requirements.missing_by_section.core_edit_profile_affiliations %} <span class="badge text-bg-warning">{{ correspondence_author_requirements.missing_by_section.core_edit_profile_affiliations }}</span>{% endif %}</a>
                 </li>
                 <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile_email" %} wjs-profile-nav__item--active{% endif %}">
-                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_email }}">{% translate "Email" %}</a>
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_email }}">{% translate "Email" %}{% if correspondence_author_requirements.missing_by_section.core_edit_profile_email %} <span class="badge text-bg-warning">{{ correspondence_author_requirements.missing_by_section.core_edit_profile_email }}</span>{% endif %}</a>
                 </li>
                 <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile_password" %} wjs-profile-nav__item--active{% endif %}">
                   <a class="wjs-profile-nav__link" href="{{ core_edit_profile_password }}">{% translate "Password" %}</a>
@@ -66,7 +68,7 @@
                   </li>
                 {% endif %}
                 <li class="wjs-profile-nav__item{% if profile_section == "core_edit_profile_additional" %} wjs-profile-nav__item--active{% endif %}">
-                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_additional }}">{% translate "Additional information" %}</a>
+                  <a class="wjs-profile-nav__link" href="{{ core_edit_profile_additional }}">{% translate "Additional information" %}{% if correspondence_author_requirements.missing_by_section.core_edit_profile_additional %} <span class="badge text-bg-warning">{{ correspondence_author_requirements.missing_by_section.core_edit_profile_additional }}</span>{% endif %}</a>
                 </li>
                 {% if journal|is_field_available:"publication_alert" %}
                   <li class="wjs-profile-nav__item{% if profile_section == "edit_newsletters" %} wjs-profile-nav__item--active{% endif %}">

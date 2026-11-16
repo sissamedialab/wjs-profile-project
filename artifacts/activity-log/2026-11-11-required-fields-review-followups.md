@@ -1,0 +1,14 @@
+## 2026-11-11 — Review follow-ups on the required-fields highlight (MR 1587 / 178)
+**What:** Handled five review threads on wjs-profile-project!1587 one at a time: the entry format is now documented by typed dicts (`RequiredFieldEntry` in wjs-submission, `ProfileRequiredFieldEntry`/`ProfileHint` in the profile project) with a test pinning shipped entries to their keys; the validation-function comment in settings was rewritten; the professional links entry no longer names any field (label "Additional information (at least one field)", help text via a new optional `group_help` hint key); `submission_requirements` was renamed `correspondence_author_requirements` across the feature. Both MR descriptions updated, replies posted on threads 1, 2, 3 and 5 (unresolved, left to the reviewer).
+**Why:** The reviewer found the entry format undocumented, help text naming links a journal hides (SciX/INSPIRE/arXiv on JCOM, social handles on JCAP), and a name clashing with the step 1 `Article.submission_requirements`.
+**Decisions:** TypedDict (plain dicts at runtime, no settings change) over a dataclass; typed format lives in wjs-submission, the `profile` hint in the profile project so wjs-submission keeps ignoring it. Generic links text instead of !1623's per-journal split, because that split changed eligibility (hidden fields stop counting) while part 1 promised equivalence with the old validators; eligibility left unchanged. Rename restricted to the feature's files (step 1 usages in wjs_review untouched); the tag keeps its `profile_` prefix so it does not shadow the function.
+**Agent usage:**
+
+| Stage | Agent/skill | Tokens | Time |
+|---|---|---|---|
+| Implementation | inline, per-thread analysis and fixes (TDD) | ≈250k | ≈90m |
+| Review | code-eval, doc-sync | ≈15k | ≈5m |
+
+**Considered & dropped:** Startup validation of entries (system check); literal comment suggestion for thread 1 (glued the format to one entry); !1623 per-journal entries and the form-mixin `is_field_available` filter (redundant once hints are right, and an eligibility change); abbreviated `corr_author_reqs` variable.
+**Follow-ups:** A link field the journal hides still satisfies the requirement: accepted as a known limitation (documented in `is_required_field_entry_satisfied` and next to the links entry), to revisit if a journal changes its fields. Startup validation of entries (system check) was considered and dropped. Screenshots on wjs/specs#2728 predate the banner and help text changes and are not going to be refreshed. The review threads on !1587 are resolved by the author, not by the agent. Whoever runs tests must repoint `janeway/src/plugins/wjs_submission` to wjs-submission-project (it pointed at the wt-3330 worktree).
+**Refs:** wjs-profile-project!1587, wjs-submission-project!178, closed !1623, wjs/specs#2728. Eval: 78% — artifacts/evaluations/2026-11-11-required-fields-review-followups.md
