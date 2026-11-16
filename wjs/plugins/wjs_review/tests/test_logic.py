@@ -12,7 +12,13 @@ import pycountry
 import pytest
 import requests
 from core.files import save_file_to_article
-from core.models import Account, Setting, SettingGroup, SettingValue
+from core.models import (
+    Account,
+    ControlledAffiliation,
+    Setting,
+    SettingGroup,
+    SettingValue,
+)
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
@@ -50,6 +56,7 @@ from plugins.wjs_review.synctex.forms import (
 )
 from plugins.wjs_review.synctex.logic import MetadataFromTeX
 from plugins.wjs_review.synctex.views import SyncTeXDB
+from plugins.wjs_submission import settings as wjs_submission_settings
 from plugins.wjs_submission.models import (
     ArticleCollaboration,
     ArticleSubmission,
@@ -93,6 +100,7 @@ from ..forms import (
 )
 from ..logic import (  # WithdrawPreprint,
     AdminActions,
+    AffiliationChangedInRevisionNotification,
     AssignToEditor,
     AssignToReviewer,
     AuthorHandleRevision,
@@ -103,6 +111,7 @@ from ..logic import (  # WithdrawPreprint,
     HandleDecision,
     HandleEditorDeclinesAssignment,
     InviteReviewer,
+    PopulateRevisionStep4,
     PopulateRevisionStep6,
     PopulateRevisionStep7,
     PostponeReviewerDueDate,
@@ -6585,6 +6594,113 @@ def test_populate_revision_step7_special_request(
     assert storage_special_request in message.body
     assert list(message.recipients.all()) == [get_eo_user(article)]
     assert message.actor.pk == article.correspondence_author.pk
+
+
+@pytest.mark.parametrize("has_old_affiliation", (True, False))
+@pytest.mark.django_db
+def test_affiliation_changed_in_revision_notification(
+    editor_revision: EditorRevisionRequest,
+    review_settings,
+    has_old_affiliation: bool,
+):
+    """The notification sends EO an unread system message reporting the old and the new affiliation."""
+    article = editor_revision.article
+    old_author = article.correspondence_author
+    old_affiliation = (
+        ControlledAffiliation.objects.create(account=old_author, department="Old Dept")
+        if has_old_affiliation
+        else None
+    )
+    new_affiliation = ControlledAffiliation.objects.create(account=old_author, department="New Dept")
+    article.submission_data.affiliation = new_affiliation
+    article.submission_data.save()
+    Message.objects.all().delete()
+
+    AffiliationChangedInRevisionNotification(
+        article=article,
+        old_affiliation=old_affiliation,
+        old_correspondence_author=old_author,
+    ).run()
+
+    message = Message.objects.get()
+    assert "Corresponding author affiliation changed in revision" in message.subject, message.subject
+    assert f"{article.journal.code}-{article.pk}" in message.subject, message.subject
+    assert len(message.subject) < 111, "subject must fit Message.subject max_length"
+    assert "New Dept" in message.body, message.body
+    expected_previous = "Old Dept" if has_old_affiliation else "Previous: none"
+    assert expected_previous in message.body, message.body
+    assert list(message.recipients.all()) == [get_eo_user(article)], "EO must be the only recipient"
+    assert not message.read_by_eo, "EO must see the message as unread"
+    assert message.verbosity == Message.MessageVerbosity.FULL, "message must go to timeline and email"
+    assert message.actor == get_system_user(), "message must come from the system, not the author"
+
+
+@pytest.mark.parametrize(
+    ("case", "is_iop", "expect_message"),
+    (
+        ("same_author_new_affiliation", True, True),
+        ("author_changed", True, True),
+        ("old_none", True, True),
+        ("unchanged", True, False),
+        ("missing", True, False),
+        ("same_author_new_affiliation", False, False),
+    ),
+)
+@pytest.mark.django_db
+def test_populate_revision_step4_affiliation_change_notification(
+    editor_revision: EditorRevisionRequest,
+    review_settings,
+    create_jcom_user: Callable,
+    monkeypatch,
+    case: str,
+    is_iop: bool,
+    expect_message: bool,
+):
+    """PopulateRevisionStep4 notifies EO only when an IoP paper's affiliation actually changes."""
+    article = editor_revision.article
+    old_author = article.correspondence_author
+    other_author = create_jcom_user("other-author").janeway_account
+    old_affiliation = ControlledAffiliation.objects.create(account=old_author, department="Old Dept")
+    old_author_new_affiliation = ControlledAffiliation.objects.create(account=old_author, department="New Dept")
+    other_author_affiliation = ControlledAffiliation.objects.create(account=other_author, department="Other Dept")
+    monkeypatch.setattr(wjs_submission_settings, "IOP_JOURNALS", [article.journal.code] if is_iop else [])
+
+    article_affiliation, storage_data = {
+        "same_author_new_affiliation": (old_affiliation, {"affiliation_pk": old_author_new_affiliation.pk}),
+        "author_changed": (
+            old_affiliation,
+            {"correspondence_author": other_author.pk, "affiliation_pk": other_author_affiliation.pk},
+        ),
+        "old_none": (None, {"affiliation_pk": old_author_new_affiliation.pk}),
+        "unchanged": (old_affiliation, {"affiliation_pk": old_affiliation.pk}),
+        "missing": (old_affiliation, {"affiliation_pk": None}),
+    }[case]
+    article.submission_data.affiliation = article_affiliation
+    article.submission_data.save()
+    revision_storage = RevisionStorage.objects.create(
+        article=article,
+        revision_flow_type=RevisionStorage.RevisionFlowType.FULL,
+        data=storage_data,
+    )
+    Message.objects.all().delete()
+
+    PopulateRevisionStep4(article=article, revision=editor_revision, revision_storage=revision_storage).run()
+    # PopulateRevisionStep4 only mutates the in-memory instance; persist it as AuthorHandleRevision._store_data does.
+    article.submission_data.save()
+    article.submission_data.refresh_from_db()
+
+    expected_affiliation_pk = storage_data["affiliation_pk"] or article_affiliation.pk
+    assert article.submission_data.affiliation_id == expected_affiliation_pk, "affiliation must follow the revision"
+    assert Message.objects.count() == (1 if expect_message else 0), list(Message.objects.values_list("subject"))
+    if not expect_message:
+        return
+    message = Message.objects.get()
+    assert list(message.recipients.all()) == [get_eo_user(article)], "EO must be the only recipient"
+    assert not message.read_by_eo, "EO must see the message as unread"
+    if case == "author_changed":
+        assert old_author.full_name() in message.body, message.body
+        assert other_author.full_name() in message.body, message.body
+        assert "Other Dept" in message.body, message.body
 
 
 @pytest.mark.parametrize(
