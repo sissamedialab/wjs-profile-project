@@ -16,6 +16,11 @@
     </div>
 
     <div class="wjs-profile-form__footer mt-4">
+      {% if back_to_submission_url %}
+        <a class="btn btn-outline-primary mb-3" href="{% url "core_edit_profile_back_to_submission" %}">
+          <i class="bi bi-arrow-left"></i> {% translate "Back to submission" %}
+        </a>
+      {% endif %}
       {% translate "Update" as update_label %}
       {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
     </div>

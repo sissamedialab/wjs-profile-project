@@ -26,7 +26,8 @@ from wjs.jcom_profile.constants import EO_GROUP
 from wjs.jcom_profile.permissions import has_director_role, has_eo_role
 from wjs.jcom_profile.utils import get_eo_user, render_template_from_setting
 
-from .models import Message, MessageRecipients, Reminder
+from . import permissions
+from .models import ArticleWorkflow, Message, MessageRecipients, Reminder
 from .role_cache import CURRENT_REVIEWER_ROLE, get_or_refresh_role_cache_entry
 
 Account = get_user_model()
@@ -147,7 +148,10 @@ def get_messages_related_to_me(
             & Q(pk__gt=0),
         )
         # for directors we want to exclude papers for which they are an author (unless they are actor / recipient)
-        authored_articles = Article.objects.filter(frozenauthor__author=user).values_list("pk", flat=True)
+        # (frozen author or correspondence author; keep in sync with ArticleWorkflowQuerySet.exclude_authored_by)
+        authored_articles = Article.objects.filter(
+            Q(frozenauthor__author=user) | Q(correspondence_author=user)
+        ).values_list("pk", flat=True)
         # We must use a negative Q syntax + filter (applied last at the end of the function) because using
         # exclude function creates wrong queries: we must then use a filter and NOT query
         # _has_recipient annotation avoids the M2M JOIN on recipients
@@ -348,6 +352,31 @@ def log_operation(
             flag_as_read_by_eo=True,
         )
     return message
+
+
+def sender_signature_role(workflow: ArticleWorkflow, user: Account) -> str:
+    """
+    Return the role words that sign a message sent by ``user`` about the paper of ``workflow``.
+
+    The roles are checked in this order (the first match wins): EO ("Editorial Office"), current editor-in-charge
+    ("Editor-in-charge"), main director, other director. Directors sign as "Director" when the journal's
+    ``directors_sign_as_director`` setting is true; otherwise the main director signs as "Editor-in-chief" and the
+    other directors as "Deputy Editor". Anyone else gets an empty string.
+
+    Used by both the "write a message" signature and the ``editor_assignment_manual_body`` setting
+    (``sender_role_label``), so that they always agree.
+    """
+    if permissions.has_eo_role_by_article(workflow, user):
+        return "Editorial Office"
+    # NB: we generally use the "section-editor" role, not Janeway's all-mighty "editor" role.
+    if permissions.is_article_editor(workflow, user):
+        return "Editor-in-charge"
+    is_main_director = permissions.has_main_director_role_by_article(workflow, user)
+    if not is_main_director and not permissions.has_director_role_by_article(workflow, user):
+        return ""
+    if get_setting("wjs_review", "directors_sign_as_director", workflow.article.journal).processed_value:
+        return "Director"
+    return "Editor-in-chief" if is_main_director else "Deputy Editor"
 
 
 def role_for_article(  # noqa: PLR0911

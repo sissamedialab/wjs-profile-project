@@ -1352,7 +1352,7 @@ ORDER BY reminderDate
                                 logger.debug(f"reminder date_sent added: {reminder}")
                                 reminder.save()
                             if not wjapp_reminder["enabled"]:
-                                reminder.disable = True
+                                reminder.disabled = True
                                 logger.warning(f"reminder disabled: {reminder}")
                                 reminder.save()
                             wjs_reminder_match = True
@@ -2754,9 +2754,9 @@ ORDER BY dl.submissionDate
             if r.recipient == review_assignment.reviewer and r.code == "REEA1":
                 # REEA1 "Reviewer should evaluate assignment" -> refereeReminderEnabled/Date
                 if not reviewer_data["refereeReminderEnabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["refereeReminderDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminderDate"]
@@ -2782,9 +2782,9 @@ ORDER BY dl.submissionDate
             if r.recipient == review_assignment.reviewer and r.code == "REEA2":
                 # REEA2 "Reviewer should evaluate assignment" -> refereeReminder2Enabled/Date
                 if not reviewer_data["refereeReminder2Enabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["refereeReminder2Date"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminder2Date"]
@@ -2805,9 +2805,9 @@ ORDER BY dl.submissionDate
             if r.recipient == review_assignment.editor and r.code == "REEA3":
                 # REEA3 "Reviewer should evaluate assignment" > editorReminderEnabled/Date
                 if not reviewer_data["editorReminderEnabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["editorReminderDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["editorReminderDate"]
@@ -2830,9 +2830,9 @@ ORDER BY dl.submissionDate
                 # REWR1 "Reviewer should write review" -> refereeReminder1ForRefereeReportEnabled
                 # e.g. JCOM_002N_0125 JCOM_002N_1224 JCOM_009A_0325
                 if not reviewer_data["refereeReminder1ForRefereeReportEnabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["refereeReminder1ForRefereeReportDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["refereeReminder1ForRefereeReportDate"]
@@ -2855,9 +2855,9 @@ ORDER BY dl.submissionDate
             if r.recipient == review_assignment.editor and r.code == "REWR2":
                 # REWR2 "Reviewer should write review" -> editorReminderForRefereeReportDate
                 if not reviewer_data["editorReminderForRefereeReportEnabled"]:
-                    r.disable = True
+                    r.disabled = True
                     r.save()
-                    logger.debug(f"reminder {r} modified disable:{r.disable}")
+                    logger.debug(f"reminder {r} modified disabled:{r.disabled}")
 
                 if reviewer_data["editorReminderForRefereeReportDate"] and r.date_sent != rome_timezone.localize(
                     reviewer_data["editorReminderForRefereeReportDate"]
@@ -3969,6 +3969,44 @@ class ED_CON_NOT_SUIT(EditorDecisionAction):  # noqa N801
         self.setting_name = "review_decision_not_suitable_subject"
 
 
+@dataclass
+class ADMIN_CON_NOT_SUIT(BaseActionManager):  # noqa N801
+    """Manages wjapp action "EO/administrator confirms not suitable".
+
+    Unlike every other editor-decision action, this one cannot go through
+    EditorDecisionAction.editor_decides()/HandleDecision: on wjapp it is issued directly by the
+    Editorial Office (e.g. following instructions from the Scientific Director) without the
+    editor ever writing a report, so there is no EDREP Document_Layer to replay -
+    read_editor_report_message() finds zero rows and raises. There is also no ArticleWorkflow
+    FSM transition from EditorSelected/EditorToBeSelected directly to NotSuitable
+    (editor_deems_paper_not_suitable() requires PaperHasEditorReport,
+    admin_deems_paper_not_suitable() requires PaperMightHaveIssues - neither matches this
+    action's actual source state). So this forces ArticleWorkflow.state/Article.stage/
+    Article.date_declined directly, bypassing the FSM, mirroring the manual stopgap applied to
+    JCAP_178P_0926 (found unmanaged, silently skipped, no history replay, during the JCAP
+    production import) - confirmed with the EO: this paper's editor (Licia Verde) genuinely
+    left "No report" on wjapp, it's not a data gap.
+    """
+
+    def run(self):
+        self.check_editor_set()
+
+        action_date = rome_timezone.localize(self.action["actionDate"])
+        with freezegun.freeze_time(action_date):
+            self.article.articleworkflow.state = ArticleWorkflow.ReviewStates.NOT_SUITABLE
+            self.article.articleworkflow.save()
+            self.article.stage = submission_models.STAGE_REJECTED
+            self.article.date_declined = action_date
+            self.article.date_accepted = None
+            self.article.save()
+
+        logger.warning(
+            f"{self.preprintid}/{self.imported_version_num}: forced state=NotSuitable stage=Rejected"
+            f" date_declined={action_date} for ADMIN_CON_NOT_SUIT (no editor report on wjapp, no FSM"
+            " transition available from this source state)"
+        )
+
+
 # TBV: DEBUG 2024-06-02 11:00:33,000 M:logic: No XML galleys found for crossref citation extraction
 # TO FIX: exeception
 @dataclass
@@ -4372,7 +4410,7 @@ class SelectCoauthorAction(BaseActionManager):
         )
         logger.debug(f"Creating coauthor of {self.article.id} user: {coauthor}")
 
-        # NOTE: the wjapp message related to select coauthor acion is imported to wjs
+        # NOTE: the wjapp message related to select coauthor action is imported to wjs
         # as general correspondence
         with freezegun.freeze_time(
             rome_timezone.localize(coauthor_assign_date),
@@ -4380,11 +4418,17 @@ class SelectCoauthorAction(BaseActionManager):
             if not coauthor.check_role(self.journal, "author", staff_override=False):
                 coauthor.add_account_role("author", self.journal)
             order = self.article.next_frozen_author_order()
+            # Unlike Account.snapshot_as_author() (used for the submitting/main author),
+            # this used to only set "order", leaving first_name/last_name blank - FrozenAuthor.email
+            # has a fallback property to self.author.email, but full_name() does not fall back to
+            # self.author, so every co-author's name showed up blank (specs#2956, JCAP_001P_0124).
             submission_models.FrozenAuthor.objects.get_or_create(
                 article=self.article,
                 author=coauthor,
                 defaults={
                     "order": order,
+                    "first_name": coauthor.first_name,
+                    "last_name": coauthor.last_name,
                 },
             )
 

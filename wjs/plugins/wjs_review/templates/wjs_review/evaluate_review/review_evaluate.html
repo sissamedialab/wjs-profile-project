@@ -68,7 +68,7 @@
               <strong>Review requested</strong> by {{ editor }} on {{ date_requested }}
            {% endblocktranslate %}
            <br><br>
-           {% with modal_id="editor_invite_modal" modal_target="#editor_invite_modal" modal_content=assignment.workflowreviewassignment.editor_invite_message.body %}
+           {% with modal_id="editor_invite_modal" modal_target="#editor_invite_modal" modal_content=assignment.workflowreviewassignment.editor_invite_message.display_body %}
               {% bootstrap_button content=editor_message_label button_class="btn-link" data_bs_toggle="modal" data_bs_target=modal_target %}
               {% include "wjs_review/base/elements/modal.html" with modal_id=modal_id modal_title=editor_message_title modal_body=modal_content|safe modal_title_tag=4 %}
            {% endwith %}

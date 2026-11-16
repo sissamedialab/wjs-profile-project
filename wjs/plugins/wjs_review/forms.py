@@ -56,11 +56,13 @@ from .logic import (
     PostponeRevisionRequestDueDate,
     SubmitReview,
     SupervisorChangeEditorAssignment,
+    ToggleAttentionConditionDismissal,
     WithdrawPreprint,
 )
 from .logic__visibility import get_recipient_label
 from .models import (
     ArticleWorkflow,
+    AttentionCondition,
     EditorRevisionRequest,
     Message,
     MessageRecipients,
@@ -1226,6 +1228,32 @@ class ToggleMessageReadForm(forms.ModelForm):
         return instance
 
 
+class ToggleAttentionConditionDismissalForm(forms.ModelForm):
+    """Dismiss or restore an attention condition of the user."""
+
+    class Meta:
+        model = AttentionCondition
+        fields = []
+
+    def __init__(self, *args, user: Account, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+    def get_logic_instance(self) -> ToggleAttentionConditionDismissal:
+        """Instantiate :py:class:`ToggleAttentionConditionDismissal` class."""
+        return ToggleAttentionConditionDismissal(attention_condition=self.instance, user=self.user)
+
+    def save(self, commit: bool = True) -> AttentionCondition:
+        """Toggle the dismissal of the attention condition."""
+        try:
+            self.get_logic_instance().run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
+
+
 class ToggleMessageReadByEOForm(forms.ModelForm):
 
     class Meta:
@@ -1508,10 +1536,15 @@ class SupervisorAssignEditorForm(forms.ModelForm):
         }
 
     def get_new_editor_message_context(self):
-        """Build a context suitable to render the unassign_editor message."""
+        """Build a context suitable to render the editor_assignment_manual_body message.
+
+        ``sender_role_label`` holds the sender's role words for the message signature (e.g. "Editorial Office",
+        "Director"); they are the same as in the "write a message" signature.
+        """
         return {
             "editor": self.selected_editor,
             "article": self.instance.article,
+            "sender_role_label": communication_utils.sender_signature_role(self.instance, self.request.user),
         }
 
     def get_logic_instance(self) -> SupervisorChangeEditorAssignment | AssignToEditor:
@@ -2165,11 +2198,10 @@ class ToggleDisableRemindersForm(forms.ModelForm):
         instance = super().save(commit=commit)
 
         # -- Materialized AC updates --
-        # Re-evaluate time-based ACs for the article. NB: condition functions
-        # currently ignore Reminder.disabled (they only check date_sent), so
-        # the toggle itself cannot change any AC: this is just an opportunistic
-        # refresh. If "late" becomes due-date-aware for disabled reminders
-        # (see the reminders-vs-late issue), this hook becomes effective.
+        # Re-evaluate time-based ACs for the article. The "late" conditions count
+        # a disabled (never sent) reminder from its due date (wjs/specs#2215), so
+        # disabling an overdue reminder can raise an AC right away, and
+        # re-enabling it resolves the AC until the reminder is actually sent.
         article = instance.get_related_article()
         if article and hasattr(article, "articleworkflow"):
             from .ac_service import ACStateEvaluator

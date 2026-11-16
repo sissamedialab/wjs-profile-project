@@ -81,11 +81,51 @@ def is_available(self, workflow, user) -> bool:
 (`models.py:1896-1905`) for review-scoped actions. `views__production.py:472` is the one place a view calls
 `get_state_class` directly (server-side gating), rather than only templates.
 
-`BaseState.article_requires_attention(cls, article, user)` (`states.py:643-658`) is a **role-keyed hook-method
-convention**: it dispatches to `article_requires_<role>_attention` on the state subclass if one exists for the
-caller's role (via `communication_utils.role_for_article`), falling back to a generic unread-message check —
-define the hook only where a state actually needs to flag urgency for that role; absence means no flag, not
-an error.
+`BaseState.article_requires_attention(cls, article, user)` no longer computes anything: it returns the message of
+the most urgent active row of the materialized `AttentionCondition` table (see "Attention conditions" below).
+
+## Attention conditions (ACs)
+
+ACs are **materialized** in `AttentionCondition` (`models.py`): one reused row per `(article, user, code)`
+(`unique_together`), never deleted. `ac_service.py` is the only writer; `ACStateEvaluator.evaluate_all()` (called
+from logic classes, from the message read toggles and from the nightly `rebuild_attention_conditions`) re-evaluates
+the codes of the article's current state.
+
+**Statuses and lifecycle:**
+- `ACTIVE` → the condition applies. `DISMISSED` → it applies, but its user set it aside (wjs/specs#3272).
+  `RESOLVED` → it no longer applies. `EXPIRED`/`SUPPRESSED` are unused.
+- `upsert_ac()` creates a row ACTIVE; on an existing row it refreshes message/priority, **keeps DISMISSED**, and
+  turns any other status ACTIVE. So a dismissal survives re-evaluations while the condition holds, and a RESOLVED row
+  raised again is a new, active AC (AC-4 of the wiki `Review/AttentionConditions`): a "new AC" means the code stopped
+  applying and applied again, not a different trigger of the same code.
+- All resolvers (`resolve_ac`, `resolve_all_for_article`, `resolve_all_for_user_on_article`, `resolve_ac_batch`,
+  `resolve_for_role_batch`) resolve ACTIVE and DISMISSED rows, so a dismissal does not outlive its condition.
+- `HAS_UNREAD_MESSAGE` is never dismissible; it is written only by the event-driven `sync_unread_message_ac*`
+  functions and `rebuild_unread_message_acs()`.
+- Known gaps: `rebuild_attention_conditions` does not heal rows left over from a previous state (only time-based
+  codes), and `resolve_for_role` reaches only the current role holders, so a user who loses a role keeps their row
+  (and a dismissal comes back with the role). Both predate dismissal; they are to be audited separately.
+
+**Visibility (`AttentionConditionQuerySet.visible_to`):** everybody sees their own rows. EO ACs are written for each
+EO person **and** for the EO system user (`get_eo_user`); EO people see the system user's rows only for
+`HAS_UNREAD_MESSAGE` (shared by the whole office), or when they have no displayable row of their own for that code
+(EO group members with no role on the journal, members added since the last evaluation). Such fallback rows are
+read-only for them.
+
+**Dismissal (write path):** `logic.ToggleAttentionConditionDismissal` (owner only, not `HAS_UNREAD_MESSAGE`, only
+ACTIVE ↔ DISMISSED, `ValidationError` otherwise) ← `forms.ToggleAttentionConditionDismissalForm` ←
+`ToggleAttentionConditionDismissalView` (`toggle-attention-condition`, POST, HTMX). The view re-renders
+`details/sections/attention_panel.html` (container `#attention-panel`), echoing the `show_all` POST value.
+
+**Read path:** `ac_service.ArticleAttention` (`active`, `dismissed`, `unread`, `has_active`, `has_any`,
+`legacy_message`; each normal AC carries `dismissible`), built by `get_article_attention()` or, for a page of a
+listing, `get_articles_attention()` (one query). Templates use the `article_attention` filter; listing views attach
+`_prefetched_attention` to the page's workflows, the detail view puts `attention` in the context.
+The legacy single-message filter (`article_requires_attention_tt` + `_prefetched_acs`) is now used only for the
+row highlight and bold cells of the listings (`lists/elements/*/table_item.html`, `corresponding_author.html`) and
+in `details/sections/metadata.html`; `details/sections/attention.html` is no longer included anywhere. The listing
+icons (`lists/elements/attention.html`) and the article page panel (`details/sections/attention_panel.html`) use
+`article_attention` (#3272/#3367).
 
 ## Business logic layer: `@dataclass` + `run()`
 
@@ -113,8 +153,8 @@ class AssignToEditor:
         return self.assignment
 ```
 
-`HandleDecision.run()` (`logic.py:2332-2947`) is the **one class in the whole set** that uses
-`select_for_update()` (`logic.py:2937`, to serialize concurrent decisions against double-click races) — many
+`HandleDecision.run()` (`logic.py:2332-2947`) is one of the **very few classes** (with
+`ToggleAttentionConditionDismissal`) that use `select_for_update()` (`logic.py:2937`, to serialize concurrent decisions against double-click races) — many
 other classes doing read-check-write on shared rows (`AssignToEditor`, `AssignToReviewer`, `AssignTypesetter`,
 `BeginPublication`) don't, which is a judgment call rather than a rule violation, but worth knowing before
 assuming every `run()` is race-safe.
@@ -387,7 +427,7 @@ asked, and so you don't copy them into new code either:
 | Business logic | `ValueError` instead of `ValidationError` on most condition failures | Most of `logic.py`/`logic__production.py`; only a handful of spots use `ValidationError` |
 | Business logic | Subclassing one logic class from another instead of composition | `BasePopulateRevisionStep`→`PopulateRevisionStep1/4/5/6/7`, `BaseConvertLatexReport`→its two subclasses |
 | Business logic | `run()` with no `transaction.atomic()` | `PressNotificationHandler`, `ConvertManuscriptToPdf`, `BaseConvertLatexReport`, `AccessModeSpecialRequestNotification`, `AttachGalleys`, `TypesetterTestsGalleyGeneration` |
-| Business logic | `select_for_update()` used in exactly one class | `HandleDecision` only |
+| Business logic | `select_for_update()` used in very few classes | `HandleDecision`, `ToggleAttentionConditionDismissal` |
 | Views | Business logic run directly in a view, bypassing the form | `ArticleDecision.form_valid`, `TypesetterTakeInCharge.post()` |
 | Views | Hand-rolled pagination instead of django-filter/queryset method | `SelectReviewerView` |
 | Views | Domain query/filter logic living on the view, not a queryset | `ArticleDetails`, `EditUserPermissions` |

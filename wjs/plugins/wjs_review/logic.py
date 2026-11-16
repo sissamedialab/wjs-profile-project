@@ -121,6 +121,7 @@ from .logic__production import (  # noqa: F401
 )
 from .models import (
     ArticleWorkflow,
+    AttentionCondition,
     EditorDecision,
     EditorRevisionRequest,
     LatexPreamble,
@@ -1976,9 +1977,9 @@ class PopulateRevisionStep6(BasePopulateRevisionStep):
 
     def run(self):
         self.article.submission_data.cas = self.revision_storage.data.get("cas")
-        self.article.submission_data.cas_url = self.revision_storage.data.get("cas_url")
+        self.article.submission_data.cas_text = self.revision_storage.data.get("cas_text", "")
         self.article.submission_data.das = self.revision_storage.data.get("das")
-        self.article.submission_data.das_url = self.revision_storage.data.get("das_url")
+        self.article.submission_data.das_text = self.revision_storage.data.get("das_text", "")
 
         # Files
         # (remember that the files from the previous version have already been saved to revision-request
@@ -5354,3 +5355,38 @@ class AccessModeSpecialRequestNotification:
         with transaction.atomic():
             if self._check_conditions(modified):
                 self._send_notification()
+
+
+@dataclasses.dataclass
+class ToggleAttentionConditionDismissal:
+    """Dismiss an active attention condition, or restore a dismissed one, for the user it belongs to.
+
+    Only normal ACs can be dismissed: the unread-messages AC cannot, and an AC that is no longer active or dismissed
+    (e.g. resolved) cannot be toggled either.
+    """
+
+    attention_condition: AttentionCondition
+    user: Account
+
+    def _check_conditions(self, attention_condition: AttentionCondition) -> None:
+        """Raise a ValidationError if the user cannot toggle the attention condition."""
+        from .ac_service import HAS_UNREAD_MESSAGE
+
+        if attention_condition.user_id != self.user.pk:
+            raise ValidationError(_("You can only dismiss your own attention conditions."))
+        if attention_condition.code == HAS_UNREAD_MESSAGE:
+            raise ValidationError(_("Unread messages cannot be dismissed."))
+        if attention_condition.status not in (AttentionCondition.Status.ACTIVE, AttentionCondition.Status.DISMISSED):
+            raise ValidationError(_("This attention condition no longer applies."))
+
+    def run(self) -> AttentionCondition:
+        """Flip the attention condition between active and dismissed."""
+        with transaction.atomic():
+            attention_condition = AttentionCondition.objects.select_for_update().get(pk=self.attention_condition.pk)
+            self._check_conditions(attention_condition)
+            if attention_condition.status == AttentionCondition.Status.ACTIVE:
+                attention_condition.status = AttentionCondition.Status.DISMISSED
+            else:
+                attention_condition.status = AttentionCondition.Status.ACTIVE
+            attention_condition.save(update_fields=["status", "updated_at"])
+        return attention_condition

@@ -74,7 +74,11 @@ from wjs.jcom_profile.pagination import CountlessPaginator
 from wjs.jcom_profile.utils import get_eo_user
 
 from . import ac_service, permissions
-from .communication_utils import get_messages_related_to_me, group_messages_by_version
+from .communication_utils import (
+    get_messages_related_to_me,
+    group_messages_by_version,
+    sender_signature_role,
+)
 from .conversion import LatexReportConvertService
 from .events.assignment import annotate_workload_availability
 from .filters import (
@@ -110,6 +114,7 @@ from .forms import (
     SelectReviewerForm,
     SupervisorAssignEditorForm,
     TimelineFilterForm,
+    ToggleAttentionConditionDismissalForm,
     ToggleDisableRemindersForm,
     ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
@@ -362,24 +367,20 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
             prefetch_related_objects([self.request.user], "groups")
 
             # -- Prefetch materialized attention conditions for the current user --
-            # Build a dict article_id -> message (highest priority AC per article)
-            # and attach it to each workflow object so the template filter
-            # can look it up in O(1) instead of making N queries.
-            # EO users see also the ACs of the editorial office as a whole,
-            # i.e. the ones of the EO system user (see visible_to).
-            user_acs_qs = (
-                ac_service.AttentionCondition.objects.active()
-                .visible_to(self.request.user, self.request.journal)
-                .order_by("article_id", "priority", "created_at")
+            # Load the ACs of the articles on the current page only, in one query, and attach them to each
+            # workflow so the template filters can look them up without further queries:
+            # - _prefetched_attention_conditions: article_id -> ArticleAttentionConditions (active, dismissed and
+            #   unread ACs);
+            # - _prefetched_acs: article_id -> message of the most urgent active AC, for the legacy filter.
+            # EO users see also some ACs of the editorial office as a whole (see visible_to).
+            workflows = context.get("workflows", [])
+            attention = ac_service.get_articles_attention_conditions(
+                [workflow.article_id for workflow in workflows], self.request.user, self.request.journal
             )
-
-            acs_dict: dict[int, str] = {}
-            for ac in user_acs_qs:
-                if ac.article_id not in acs_dict:
-                    acs_dict[ac.article_id] = ac.message
-
-            for workflow in context.get("workflows", []):
-                workflow._prefetched_acs = acs_dict
+            legacy_messages = {article_id: value.legacy_message for article_id, value in attention.items()}
+            for workflow in workflows:
+                workflow._prefetched_attention_conditions = attention
+                workflow._prefetched_acs = legacy_messages
 
         context["filter"] = self.filterset
         context["ordering_value"] = self._get_ordering_value()
@@ -718,16 +719,20 @@ class DirectorPending(ArticleWorkflowBaseMixin):
 
     def _apply_base_filters(self, qs):
         """
-        Get all articles in review state except the ones where the director is also the author.
+        Get the journal's articles except the ones where the director is also the author, narrowed by state.
+
+        This is the only place where the author exclusion is applied: subclasses specialize
+        :py:meth:`_apply_state_filters` instead of overriding this method, so they can't drop the exclusion.
 
         Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
         sure to use the original method.
         """
-        return (
-            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
-            .filter(state__in=states_when_article_is_considered_in_review_for_eo_and_director)
-            .exclude(article__frozenauthor__author=self.request.user)
-        )
+        qs = ArticleWorkflowBaseMixin._apply_base_filters(self, qs).exclude_authored_by(self.request.user)
+        return self._apply_state_filters(qs)
+
+    def _apply_state_filters(self, qs):
+        """Narrow the queryset to the articles listed by the view: here, the ones in review."""
+        return qs.filter(state__in=states_when_article_is_considered_in_review_for_eo_and_director)
 
 
 class DirectorArchived(DirectorPending):
@@ -740,18 +745,9 @@ class DirectorArchived(DirectorPending):
     paginate_by = 20
     ordering = ["-sort_date"]
 
-    def _apply_base_filters(self, qs):
-        """
-        Get all articles in final states except the ones where the director is also the author.
-
-        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
-        sure to use the original method.
-        """
-        return (
-            ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
-            .filter(state__in=states_when_article_is_considered_archived)
-            .exclude(article__frozenauthor__author=self.request.user)
-        ).annotate(
+    def _apply_state_filters(self, qs):
+        """Get all articles in final states."""
+        return qs.filter(state__in=states_when_article_is_considered_archived).annotate(
             sort_date=Coalesce(
                 F("article__date_published"),
                 F("article__date_declined"),
@@ -765,16 +761,9 @@ class DirectorProduction(DirectorPending):
     configuration_options = {"show_filter_typesetter": True, "table_type": "production"}
     ordering = ["-article__date_accepted"]
 
-    def _apply_base_filters(self, qs):
-        """
-        Get all articles in production.
-
-        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
-        sure to use the original method.
-        """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs).filter(
-            state__in=states_when_article_is_considered_in_production,
-        )
+    def _apply_state_filters(self, qs):
+        """Get all articles in production."""
+        return qs.filter(state__in=states_when_article_is_considered_in_production)
 
 
 class DirectorWorkOnAPaper(DirectorPending):
@@ -785,14 +774,9 @@ class DirectorWorkOnAPaper(DirectorPending):
     filterset: WorkOnAPaperArticleWorkflowFilter
     paginate_by = 100
 
-    def _apply_base_filters(self, qs):
-        """
-        Get all the articles in pending state.
-
-        Method uses explicitly FilterSetMixin.get_queryset because the mro is a bit complicated and we want to make
-        sure to use the original method.
-        """
-        return ArticleWorkflowBaseMixin._apply_base_filters(self, qs)
+    def _apply_state_filters(self, qs):
+        """Do not filter by state: the director can search all the journal's articles (but their own)."""
+        return qs
 
 
 class AuthorPending(ArticleWorkflowBaseMixin):
@@ -1384,6 +1368,7 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["form"] = self.get_form(self.request.GET)
+        context["attention"] = ac_service.get_article_attention_conditions(self.object.article, self.request.user)
         messages = get_messages_related_to_me(self.request.user, self.object.article)
         messages = messages.exclude(verbosity=Message.MessageVerbosity.EMAIL)
         context["timeline_messages"] = group_messages_by_version(
@@ -2306,12 +2291,21 @@ class AutomaticAssignmentAuditList(BaseRelatedViewsMixin, FilterView):
         return base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
 
     def get_queryset(self):
-        """Return the current journal's audit rows, newest first."""
-        return (
+        """Return the current journal's audit rows, newest first, without the papers the user is an author of.
+
+        EO users see all the rows: the exclusion applies to directors only.
+        """
+        audits = (
             AutomaticAssignmentAudit.objects.for_journal(self.request.journal)
             .select_related("article__articleworkflow", "editor")
             .order_by("-created_at", "-pk")
         )
+        user = self.request.user
+        if not base_permissions.has_eo_role(user):
+            # Directors must not see the editor selected for the papers they are an author of.
+            # Same predicate as ArticleWorkflowQuerySet.exclude_authored_by
+            audits = audits.exclude(Q(article__frozenauthor__author=user) | Q(article__correspondence_author=user))
+        return audits
 
 
 class AutomaticAssignmentAuditArticle(BaseRelatedViewsMixin, ListView):
@@ -2324,8 +2318,15 @@ class AutomaticAssignmentAuditArticle(BaseRelatedViewsMixin, ListView):
     allow_empty = False
 
     def test_func(self):
-        """Allow access only to EO or directors."""
-        return base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+        """Allow access only to EO or directors, but not to directors who are authors of the article."""
+        if not base_permissions.has_eo_or_director_role(self.request.journal, self.request.user):
+            return False
+        workflow = get_object_or_404(
+            ArticleWorkflow,
+            article__pk=self.kwargs["article_pk"],
+            article__journal=self.request.journal,
+        )
+        return permissions.has_eo_or_director_role_by_article(workflow, self.request.user)
 
     def get_queryset(self):
         """Return the article's audit rows in the current journal, newest first."""
@@ -2615,39 +2616,17 @@ class WriteMessage(BaseRelatedViewsMixin, CreateView):
         return permissions.main_role_by_article(self.article.articleworkflow, self.request.user)
 
     def get_initial_body(self):
-        """Retun a default user's signature to prefill the message body."""
-        if permissions.has_eo_role_by_article(self.article.articleworkflow, self.request.user):
-            return f"""
+        """Return a default user's signature to prefill the message body."""
+        role = sender_signature_role(self.article.articleworkflow, self.request.user)
+        if not role:
+            return ""
+        sender_name = f"{self.request.user}<br>\n" if role == "Editorial Office" else ""
+        return f"""
 <p>
 Thank you and best regards,<br>
-{self.request.user}<br>
-{self.request.journal.code} Editorial Office
+{sender_name}{self.request.journal.code} {role}
 </p>
 """
-        # NB: ...has_SECTION_editor_role...
-        # Remember that we generally use the "section-editor" role, not Janway's all-mighty "editor" role.
-        if permissions.is_article_editor(self.article.articleworkflow, self.request.user):
-            return f"""
-<p>
-Thank you and best regards,<br>
-{self.request.journal.code} Editor-in-charge
-</p>
-"""
-        if permissions.has_main_director_role_by_article(self.article.articleworkflow, self.request.user):
-            return f"""
-<p>
-Thank you and best regards,<br>
-{self.request.journal.code} Editor-in-chief
-</p>
-"""
-        if permissions.has_director_role_by_article(self.article.articleworkflow, self.request.user):
-            return f"""
-<p>
-Thank you and best regards,<br>
-{self.request.journal.code} Deputy Editor
-</p>
-"""
-        return ""
 
     def get_initial(self):
         """Populate the hidden fields.
@@ -2876,6 +2855,49 @@ class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateVi
             ).evaluate_all()
 
         return self.render_to_response(self.get_context_data(form=form, message=self.object))
+
+
+class ToggleAttentionConditionDismissalView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
+    """Let the user dismiss one of their attention conditions, or restore it, and re-render the attention panel."""
+
+    model = AttentionCondition
+    form_class = ToggleAttentionConditionDismissalForm
+    template_name = "wjs_review/details/sections/attention_panel.html"
+    http_method_names = ["post"]
+
+    def load_initial(self, request, *args, **kwargs):
+        """Load the workflow and the attention condition, which must belong to the workflow's article."""
+        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+        self.object = get_object_or_404(AttentionCondition, pk=self.kwargs["ac_pk"], article=self.workflow.article)
+
+    def test_func(self):
+        """User must be the one the attention condition belongs to."""
+        return self.object.user_id == self.request.user.pk
+
+    def get_object(self, queryset=None):
+        """Return the attention condition already loaded (and checked against the article) in load_initial."""
+        return self.object
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Add the panel context: the workflow, the user's attention data and the echoed "show all" state."""
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.workflow
+        context["attention"] = ac_service.get_article_attention_conditions(self.workflow.article, self.request.user)
+        context["show_all"] = self.request.POST.get("show_all") == "1"
+        return context
+
+    def form_valid(self, form: ToggleAttentionConditionDismissalForm):
+        """Toggle the dismissal and render the panel again: no redirect, the panel is swapped by HTMX."""
+        try:
+            self.object = form.save()
+        except ValidationError:
+            return self.form_invalid(form)
+        return self.render_to_response(self.get_context_data(form=form))
 
 
 class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
@@ -3295,10 +3317,10 @@ class ArticleReminders(HtmxMixin, BaseRelatedViewsMixin, FilterView):
             self.workflow = self.assignment.article.articleworkflow
 
     def test_func(self):
-        """Let's show reminders only to EO or director or editor."""
+        """Let's show reminders only to admin, a director who is not an author of the article, or the editor."""
         is_eo_or_director = base_permissions.has_admin_role(
             self.request.journal, self.request.user
-        ) or base_permissions.has_director_role(self.request.journal, self.request.user)
+        ) or permissions.has_director_role_by_article(self.workflow, self.request.user)
         if self.assignment:
             return is_eo_or_director or permissions.is_article_editor(self.workflow, self.request.user)
         return is_eo_or_director
@@ -3429,9 +3451,15 @@ class ToggleDisableReminders(AuthenticatedUserPassesTest, UpdateView):
     context_object_name = "reminder"
 
     def test_func(self):
-        """User must EO or director or editor (of the RA)."""
+        """User must be EO, a director who is not an author of the article, or the editor (of the RA)."""
         self.object = self.get_object()
-        is_eo_or_director = base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
+        article = self.object.get_related_article()
+        if workflow := getattr(article, "articleworkflow", None):
+            is_eo_or_director = permissions.has_eo_or_director_role_by_article(workflow, self.request.user)
+        else:
+            # Without an article (or its workflow) we can't tell if the director is one of the authors:
+            # keep the journal-level check
+            is_eo_or_director = base_permissions.has_eo_or_director_role(self.request.journal, self.request.user)
         is_article_editor = (
             permissions.is_article_editor(self.object.target.article.articleworkflow, self.request.user)
             if self.object.content_type.model_class() == WorkflowReviewAssignment

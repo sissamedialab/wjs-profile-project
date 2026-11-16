@@ -123,7 +123,7 @@
             <div id="collapse-source_message-body" class="accordion-collapse collapse" aria-labelledby="source_message-body" data-bs-parent="">
               <div class="accordion-body">
                 {% include "wjs_review/messages_overview/elements/message_from_to.html" with message=source_message user=user article=article %}
-                {{ source_message.body|safe }}
+                {{ source_message.display_body|safe }}
               </div>
             </div>
           </div>

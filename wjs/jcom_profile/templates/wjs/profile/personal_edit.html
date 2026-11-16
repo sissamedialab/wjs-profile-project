@@ -5,6 +5,7 @@
 
 {% block profile_form %}
   <h1 class="wjs-profile-form__title">{% translate "Personal details" %}</h1>
+  {% include "wjs/profile/includes/correspondence_author_requirements_tab_banner.html" with section="core_edit_profile" %}
   <p>
     {% blocktranslate %}
       Please enter as much information as possible in the different tabs. Year of birth and gender will be used only in aggregated form for statistical purposes. The other data will be used for the review process and, if included in published papers, will be proofread by you before publication.
@@ -50,10 +51,15 @@
     {% endif %}
     {% bootstrap_field form.privacy_notice wrapper_class="mb-4" %}
     {% bootstrap_field form.gdpr_checkbox wrapper_class="mb-4" %}
-    <div class="wjs-profile-form__footer">
-      <p class="w-50 mb-0">
+      <p class="mb-3">
         {% blocktranslate %}If you have any questions about how your personal data is managed, please contact <a href="mailto:privacy@medialab.sissa.it">privacy@medialab.sissa.it</a>{% endblocktranslate %}
       </p>
+    <div class="wjs-profile-form__footer">
+      {% if back_to_submission_url %}
+        <a class="btn btn-outline-primary mb-3" href="{% url "core_edit_profile_back_to_submission" %}">
+          <i class="bi bi-arrow-left"></i> {% translate "Back to submission" %}
+        </a>
+      {% endif %}
       {% translate "Update" as update_label %}
       {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
     </div>

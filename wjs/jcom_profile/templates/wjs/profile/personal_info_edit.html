@@ -5,6 +5,7 @@
 
 {% block profile_form %}
   <h1 class="wjs-profile-form__title">{% translate "Additional information" %}</h1>
+  {% include "wjs/profile/includes/correspondence_author_requirements_tab_banner.html" with section="core_edit_profile_additional" %}
   <form class="wjs-profile-form" method="post" enctype="multipart/form-data">
     <div class="wjs-profile-form__main">
       <p>{% translate "Please provide as much information as possible to help the Journal, its editors and reviewers get to know you better." %}</p>
@@ -32,6 +33,11 @@
       {% endif %}
     </div>
     <div class="wjs-profile-form__footer">
+      {% if back_to_submission_url %}
+        <a class="btn btn-outline-primary mb-3" href="{% url "core_edit_profile_back_to_submission" %}">
+          <i class="bi bi-arrow-left"></i> {% translate "Back to submission" %}
+        </a>
+      {% endif %}
       {% translate "Update" as update_label %}
       {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
     </div>

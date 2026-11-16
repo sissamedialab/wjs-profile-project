@@ -1,0 +1,7 @@
+## 2026-11-09 — Profile required-fields feedback moved to a global banner plus per-tab banners
+**What:** After trying the first implementation (see `2026-11-09-profile-highlights-fields-required-for-submission.md`), the global banner became a short pointer to the highlighted tabs, and each tab shows its own banner under the title listing what is still to fill in there. The "at least one of" help text now names the fields (the always-required field just says Required). The banner moved above both columns.
+**Why:** A required label can be buried under a scroll; the list of fields belongs on the tab where they are edited, while the sidebar badges already tell which tabs need work. "These fields" did not say which fields.
+**Decisions:** No field outline or group box (not used elsewhere in the UI); the spec has an amendment. Tab names and per-tab banners reuse the sidebar order; the template tag returns the missing labels grouped by tab. Alternative fields are explained by help text only, since Middle name sits between First and Last name.
+**Considered & dropped:** Chips and two-column banner variants; a grouped-by-tab list in the global banner (replaced by per-tab banners); a visual box around the alternative fields.
+**Follow-ups:** The deferred minors of the previous entry still apply.
+**Refs:** branch feature/issue-2728-submission-required-highlight; spec amendment in `artifacts/specs/2026-11-09-profile-required-fields-highlight-design.md`.

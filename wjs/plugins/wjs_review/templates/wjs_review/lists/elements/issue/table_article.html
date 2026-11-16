@@ -1,4 +1,4 @@
-{% load django_bootstrap5 i18n wjs_articles wjs_review wjs_tags %}
+{% load django_bootstrap5 i18n wjs_articles wjs_permissions wjs_review wjs_tags %}
 {% translate "Issue Files" as modal_title_label %}
 {% if article.articleworkflow.pk %}
   {% article_css_classes workflow as article_classes %}
@@ -34,9 +34,12 @@
       {{ article.title|truncatewords:6|safe }}
     </td>
     <td>
-      {% with editor_assignment_data=article|article_current_editor %}
-        {{ editor_assignment_data.editor }}
-      {% endwith %}
+      {% user_is_director_author workflow request.user as is_director_author %}
+      {% if not is_director_author %}
+        {% with editor_assignment_data=article|article_current_editor %}
+          {{ editor_assignment_data.editor }}
+        {% endwith %}
+      {% endif %}
     </td>
     <td>
       <span class="badge {% if publish_status %}{{ article_classes.publishable_css }}{% else %}{{ article_classes.state_css }}{% endif %}" title="State: {{ workflow.state_label }}">{{ workflow.state_label }}</span>

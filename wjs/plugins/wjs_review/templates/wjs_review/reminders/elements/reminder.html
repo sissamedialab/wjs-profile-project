@@ -22,7 +22,7 @@
         {% translate "To" %}: {{ reminder.recipient }}
       </div>
       <h3 class="fs-5">{% translate "Subject" %}: <b>{{ reminder.message_subject }}</b></h3>
-      <div class="body">{{ reminder.message_body|safe }}</div>
+      <div class="body">{{ reminder.display_body|safe }}</div>
     </div>
     <div class="card-footer">
       {% translate "Sender" %}: <i>{{ reminder.actor }}</i><br>

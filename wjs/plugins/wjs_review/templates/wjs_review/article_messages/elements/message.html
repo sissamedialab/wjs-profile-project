@@ -17,7 +17,7 @@
           </div>
         {% endif %}
       </div>
-      <div class="body">{{ message.body|safe }}</div>
+      <div class="body">{{ message.display_body|safe }}</div>
       {% if message.attachments.exists %}
         <div class="d-flex mt-1">
           {% for attachment in message.attachments.all %}

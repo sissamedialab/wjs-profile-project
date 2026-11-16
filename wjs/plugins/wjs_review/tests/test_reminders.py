@@ -2396,3 +2396,10 @@ class TestResetDate:
         assert "Reviewer does not respond. Please take action" == any_reviewer_is_late_after_reminder(
             review_assignment.article
         )
+
+
+def test_reminder_display_body_strips_split_marker():
+    """Test that the reminder preview hides the split marker and shows the full text."""
+    reminder = Reminder(message_body=f"<p>due date expires today. {Message.SPLIT_MARKER}</p><p>Please</p>")
+    assert Message.SPLIT_MARKER not in reminder.display_body, "Reminder preview must hide the split marker"
+    assert "<p>Please</p>" in reminder.display_body, "The full reminder text must be shown"

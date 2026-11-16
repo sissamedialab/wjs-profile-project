@@ -287,6 +287,12 @@ def repair_history_specific_article(history, preprintid, imported_version_num, e
         import_logic.logger.warning(f"del from history: {preprintid}/{imported_version_num}: {history[3]['actionID']}")
         del history[3]  # remove in place PM_REQ_ED_CHECK
 
+    # Same PM_REQ_ED_CHECK ED_APPROVES pair as the cases above - JCAP_148P_0426/5, found in
+    # the 2026 extended-import batch (outside the original 23-case catalogue below).
+    if preprintid == "JCAP_148P_0426" and imported_version_num == 5:
+        import_logic.logger.warning(f"del from history: {preprintid}/{imported_version_num}: {history[1]['actionID']}")
+        del history[1]  # remove in place PM_REQ_ED_CHECK
+
     # JCAP_113P_0224 - PM_REQ_ED_CHECK ED_RESTARTS_REV
     # removed all the actions of 6 versions
     if preprintid == "JCAP_113P_0224":
@@ -360,6 +366,36 @@ def repair_history_specific_article(history, preprintid, imported_version_num, e
             del history[0]  # remove in place TYP_UPLOADS_FOR_PM
 
         elif imported_version_num == 4:
+            import_logic.logger.warning(
+                f"change history: {preprintid}/{imported_version_num}: {history[0]['actionID']}" "to AU_SUB_REV"
+            )
+            history[0]["actionID"] = "AU_SUB_REV"  # changed from AU_SUB_REV_ED_CH
+
+    # JCAP_164P_0226 - PM_REQ_ED_CHECK ED_RESTARTS_REV, found in the 2026 extended-import
+    # batch (outside the original 23-case catalogue below). Same pattern as JCAP_113P_0224/
+    # JCAP_036P_0625/JCAP_132P_0625: the version-2 acceptance was really an accept-with-minor-
+    # revision (editor later reopened it for a real re-review via PM_REQ_ED_CHECK/
+    # ED_RESTARTS_REV in version 7), so the intervening aborted production attempt (versions
+    # 3-7, including version 6's PM_PUBLISHES - confirmed on the wjapp UI as an internal
+    # production step, redone after the new acceptance, not a real press publish) is dropped
+    # wholesale and the real new review cycle resumes in version 8.
+    if preprintid == "JCAP_164P_0226":
+        if imported_version_num == 2:
+            import_logic.logger.warning(
+                f"del actions from history: {preprintid}/{imported_version_num}"
+                f" {history[4]['actionID']} {history[3]['actionID']}"
+                f" change history: {preprintid}/{imported_version_num}: {history[2]['actionID']}"
+                " to ED_ACC_DOC_WMC"
+            )
+            del history[4]  # remove in place TYP_TAKES_CHARGE
+            del history[3]  # remove in place ADMIN_CONFIRMS_TA
+            history[2]["actionID"] = "ED_ACC_DOC_WMC"
+
+        elif imported_version_num in (3, 4, 5, 6, 7):
+            import_logic.logger.warning(f"del all actions from history: {preprintid}/{imported_version_num}")
+            del history[:]
+
+        elif imported_version_num == 8:
             import_logic.logger.warning(
                 f"change history: {preprintid}/{imported_version_num}: {history[0]['actionID']}" "to AU_SUB_REV"
             )
@@ -1112,6 +1148,9 @@ def repair_history_specific_article(history, preprintid, imported_version_num, e
     # (next to JCAP_032P_0326), 3 ADMIN_REMINDS_ED (same fix as ED_APPROVES - it also resolves
     # to ED_APPROVES, just with a reminder logged in between). JCAP_069P_1225/7, caught live in
     # a later reimport, now also resolved via ED_APPROVES - see next to JCAP_017P_0920 above.
+    # JCAP_148P_0426/5 and JCAP_164P_0226 (found later, in the 2026 extended-import batch, so
+    # outside this original 23-case catalogue) are resolved the same way - see next to
+    # JCAP_075P_0619 (ED_APPROVES) and JCAP_132P_0625 (ED_RESTARTS_REV) above.
 
     # JCAP_080P_1026/1: editor 1 (Henneaux) decides ED_CON_NOT_SUIT (NOT_SUITABLE - a terminal
     # decision wjs defines no appeal for, confirmed with the EO). Admin then overrides that by

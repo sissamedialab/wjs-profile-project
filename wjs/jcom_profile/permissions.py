@@ -4,11 +4,13 @@ from core.models import AccountRole
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from journal.models import Journal
+from utils.logger import get_logger
 
 from . import constants
 from .models import StaffWorkloadParameters
 
 Account = get_user_model()
+logger = get_logger(__name__)
 
 
 def main_role(journal: Journal, user: Account) -> str:
@@ -305,6 +307,8 @@ def get_hijacker() -> Optional[Account]:
     Return the hijacker of the given message.
 
     Request object is fetch using :py:class:`core.middleware.GlobalRequestMiddleware`.
+
+    If the hijacker account in the hijack history no longer exists, a warning is logged and ``None`` is returned.
     """
     from core.middleware import GlobalRequestMiddleware
 
@@ -316,6 +320,10 @@ def get_hijacker() -> Optional[Account]:
             hijack_history = request.session["hijack_history"]
             if hijack_history:
                 hijacker_id = hijack_history[-1]
-                return Account.objects.get(pk=hijacker_id)
+                try:
+                    return Account.objects.get(pk=hijacker_id)
+                except Account.DoesNotExist:
+                    logger.warning(f"Hijacker account {hijacker_id} in hijack history does not exist.")
+                    return None
     except AttributeError:
         pass

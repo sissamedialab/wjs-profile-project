@@ -297,3 +297,20 @@ def test_reviewer_is_available_with_params(user: Account, article: Article, with
         assert not StaffWorkloadParameters.objects.filter(user=user, journal=article.journal).exists()
     annotated = Account.objects.annotate_is_reviewer_available(article).filter(pk=user.pk).get()
     assert annotated.is_available_as_reviewer is expected
+
+
+@pytest.mark.parametrize("author_kind", ("frozen_author", "correspondence_author_only"))
+@pytest.mark.django_db
+def test_exclude_authored_by(assigned_article: Article, director: JCOMProfile, author_kind: str):
+    """exclude_authored_by drops papers where the user is a frozen author or the correspondence author."""
+    workflow = assigned_article.articleworkflow
+    assert ArticleWorkflow.objects.exclude_authored_by(director).filter(pk=workflow.pk).exists(), "non-author keeps it"
+
+    if author_kind == "frozen_author":
+        assigned_article.authors.add(director.janeway_account)
+    else:
+        assigned_article.correspondence_author = director.janeway_account
+        assigned_article.save()
+        assert not assigned_article.frozenauthor_set.filter(author=director.janeway_account).exists()
+
+    assert not ArticleWorkflow.objects.exclude_authored_by(director).filter(pk=workflow.pk).exists()

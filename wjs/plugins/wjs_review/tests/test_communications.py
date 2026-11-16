@@ -55,6 +55,7 @@ from ..communication_utils import (
     get_messages_related_to_me,
     log_operation,
     role_for_article,
+    sender_signature_role,
     should_notify_actor,
 )
 from . import conftest
@@ -348,6 +349,71 @@ def test_emit_message_email_reduced(
         assert reverse("wjs_article_messages", kwargs={"pk": article.articleworkflow.pk}) not in email.body.replace(
             "\n", ""
         )
+
+
+@pytest.mark.django_db
+def test_emit_message_email_with_several_markers(
+    article: Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    eo_group: Group,
+):
+    """Test email message is truncated on the first marker when the body contains more than one."""
+    msg1 = "<p>First paragraph</p>"
+    msg2 = "<p>Second paragraph</p>"
+    msg3 = "<p>Third paragraph</p>"
+    chakotay = create_jcom_user("Chakotay")
+    tuvok = create_jcom_user("Tuvok")
+    msg = Message.objects.create(
+        actor=chakotay,
+        subject="",
+        body=f"{msg1}{Message.SPLIT_MARKER}{msg2}{Message.SPLIT_MARKER}{msg3}",
+        content_type=ContentType.objects.get_for_model(article),
+        object_id=article.pk,
+    )
+    msg.recipients.add(tuvok)
+    msg.emit_notification()
+    assert len(mail.outbox) == 1, "One email must be sent"
+    html_body = mail.outbox[0].alternatives[0][0]
+    assert msg1 in html_body, "The teaser must contain the text before the first marker"
+    assert "read more" in html_body, "The teaser must link to the full message"
+    assert msg2 not in html_body, "The teaser must stop at the first marker"
+    assert msg3 not in html_body, "The teaser must stop at the first marker"
+    assert Message.SPLIT_MARKER not in html_body, "No marker must be left in the email"
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    (
+        ("<p>Thank you for submitting [...] the paper.</p>", "<p>Thank you for submitting  the paper.</p>"),
+        (
+            "<p>as soon as possible [...].</p><p>more [...]<br>end</p>",
+            "<p>as soon as possible .</p><p>more <br>end</p>",
+        ),
+        ("<p>No marker</p>", "<p>No marker</p>"),
+        ("[...]", ""),
+        ("", ""),
+    ),
+)
+def test_strip_split_marker(body: str, expected: str):
+    """Test that every split marker is removed from a text, and nothing else."""
+    assert Message.strip_split_marker(body) == expected, "Every split marker must be removed, nothing else"
+
+
+@pytest.mark.parametrize(
+    "message_type,marker_kept",
+    (
+        (Message.MessageTypes.SYSTEM, False),
+        (Message.MessageTypes.USER, True),
+        (Message.MessageTypes.NOTE, True),
+        (Message.MessageTypes.HIJACK, True),
+    ),
+)
+def test_message_display_body_strips_marker_only_for_system(message_type: str, marker_kept: bool):
+    """Test that the body shown on the site hides the split marker of system messages only."""
+    msg = Message(body=f"<p>before</p>{Message.SPLIT_MARKER}<p>after</p>", message_type=message_type)
+    assert "<p>before</p>" in msg.display_body, "The full text must be shown"
+    assert "<p>after</p>" in msg.display_body, "The full text must be shown"
+    assert (Message.SPLIT_MARKER in msg.display_body) is marker_kept, "Marker stripped only for system messages"
 
 
 @pytest.mark.parametrize(
@@ -1611,15 +1677,38 @@ def test_role_for_article(
     assert role_for_article(article, eo_user) == constants.EO_GROUP
 
 
+def _set_directors_sign_as_director(journal: Journal, value: bool):
+    """Override the ``directors_sign_as_director`` setting for ``journal``."""
+    setting_handler.save_setting(
+        setting_group_name="wjs_review",
+        setting_name="directors_sign_as_director",
+        journal=journal,
+        value=value,
+    )
+
+
+def _director_labels(sign_as_director: bool) -> tuple[str, str]:
+    """Return the expected (main director, other director) signature roles."""
+    if sign_as_director:
+        return "Director", "Director"
+    return "Editor-in-chief", "Deputy Editor"
+
+
 @pytest.mark.django_db
+@pytest.mark.parametrize("sign_as_director", [True, False])
 def test_message_initial_body(
     assigned_article: Article,
     director: JCOMProfile,
     main_director: JCOMProfile,
     eo_user: JCOMProfile,
     fake_request: HttpRequest,
+    sign_as_director: bool,
 ):
     """Test that the expected per-role signatures are present in the initial body."""
+    if not sign_as_director:
+        _set_directors_sign_as_director(assigned_article.journal, False)
+    main_label, other_label = _director_labels(sign_as_director)
+    code = assigned_article.journal.code
     view = views.WriteMessage()
     view.request = fake_request
     view.article = assigned_article
@@ -1628,20 +1717,17 @@ def test_message_initial_body(
 
     fake_request.user = main_director
     initial_body = view.get_initial_body()
-    assert "Editor-in-chief" in initial_body
-    assert assigned_article.journal.code in initial_body
+    assert f"{code} {main_label}\n" in initial_body
     assert main_director.full_name() not in initial_body
 
     fake_request.user = director
     initial_body = view.get_initial_body()
-    assert "Deputy Editor" in initial_body
-    assert assigned_article.journal.code in initial_body
+    assert f"{code} {other_label}\n" in initial_body
     assert director.full_name() not in initial_body
 
     fake_request.user = editor
     initial_body = view.get_initial_body()
-    assert "Editor-in-charge" in initial_body
-    assert assigned_article.journal.code in initial_body
+    assert f"{code} Editor-in-charge\n" in initial_body
     assert editor.full_name() not in initial_body
 
     fake_request.user = author
@@ -1650,8 +1736,7 @@ def test_message_initial_body(
 
     fake_request.user = eo_user
     initial_body = view.get_initial_body()
-    assert "Editorial Office" in initial_body
-    assert assigned_article.journal.code in initial_body
+    assert f"{code} Editorial Office\n" in initial_body
     assert eo_user.full_name() in initial_body
 
     # Simulate JCOM: the director and the main director have the section-editor role also
@@ -1660,11 +1745,11 @@ def test_message_initial_body(
 
     fake_request.user = main_director
     initial_body = view.get_initial_body()
-    assert "Editor-in-chief" in initial_body
+    assert f"{code} {main_label}\n" in initial_body
 
     fake_request.user = director
     initial_body = view.get_initial_body()
-    assert "Deputy Editor" in initial_body
+    assert f"{code} {other_label}\n" in initial_body
 
     # Let the main director be a past editor (this is common in JCOM) and check again:
     PastEditorAssignment.objects.create(
@@ -1676,11 +1761,71 @@ def test_message_initial_body(
 
     fake_request.user = main_director
     initial_body = view.get_initial_body()
-    assert "Editor-in-chief" in initial_body
+    assert f"{code} {main_label}\n" in initial_body
 
     fake_request.user = editor
     initial_body = view.get_initial_body()
-    assert "Editor-in-charge" in initial_body
+    assert f"{code} Editor-in-charge\n" in initial_body
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("sign_as_director", [True, False])
+def test_sender_signature_role(
+    assigned_article: Article,
+    director: JCOMProfile,
+    main_director: JCOMProfile,
+    eo_user: JCOMProfile,
+    sign_as_director: bool,
+):
+    """The signature role follows the EO > editor-in-charge > main director > director order."""
+    if not sign_as_director:
+        _set_directors_sign_as_director(assigned_article.journal, False)
+    main_label, other_label = _director_labels(sign_as_director)
+    workflow = assigned_article.articleworkflow
+    editor = WjsEditorAssignment.objects.get_current(assigned_article).editor
+
+    assert sender_signature_role(workflow, eo_user.janeway_account) == "Editorial Office"
+    assert sender_signature_role(workflow, editor) == "Editor-in-charge"
+    assert sender_signature_role(workflow, main_director.janeway_account) == main_label
+    assert sender_signature_role(workflow, director.janeway_account) == other_label
+    assert sender_signature_role(workflow, assigned_article.correspondence_author) == ""
+
+    # An EO user who is also a director signs as Editorial Office
+    eo_user.add_account_role("director", assigned_article.journal)
+    assert sender_signature_role(workflow, eo_user.janeway_account) == "Editorial Office"
+
+    # JCOM case: directors with the section-editor role still sign as directors
+    main_director.add_account_role(constants.SECTION_EDITOR_ROLE, assigned_article.journal)
+    director.add_account_role(constants.SECTION_EDITOR_ROLE, assigned_article.journal)
+    assert sender_signature_role(workflow, main_director.janeway_account) == main_label
+    assert sender_signature_role(workflow, director.janeway_account) == other_label
+
+    # A main director who is a past editor still signs as a director
+    PastEditorAssignment.objects.create(
+        article=assigned_article,
+        editor=main_director,
+        date_assigned=now() - datetime.timedelta(days=30),
+        date_unassigned=now() - datetime.timedelta(days=10),
+    )
+    assert sender_signature_role(workflow, main_director.janeway_account) == main_label
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("sign_as_director", [True, False])
+def test_sender_signature_role_director_as_editor(
+    fake_request: HttpRequest,
+    submitted_article: Article,
+    main_director: JCOMProfile,
+    review_settings,
+    sign_as_director: bool,
+):
+    """A director who is the paper's current editor-in-charge signs as "Editor-in-charge" (JCOM case)."""
+    if not sign_as_director:
+        _set_directors_sign_as_director(submitted_article.journal, False)
+    main_director.add_account_role(constants.SECTION_EDITOR_ROLE, submitted_article.journal)
+    article = conftest._assign_article(fake_request, submitted_article, main_director.janeway_account)
+    assert WjsEditorAssignment.objects.get_current(article).editor == main_director.janeway_account
+    assert sender_signature_role(article.articleworkflow, main_director.janeway_account) == "Editor-in-charge"
 
 
 @pytest.mark.django_db
@@ -1709,3 +1854,39 @@ def test_get_director_user_ignores_main_director_of_other_journals(
 
     # No main director in the article's journal: fallback on the director with the lowest id
     assert get_director_user(article) == director.janeway_account
+
+
+@pytest.mark.django_db
+def test_director_correspondence_author_does_not_see_own_article_messages(
+    article: Article,
+    create_jcom_user: Callable[[Optional[str]], JCOMProfile],
+    director: JCOMProfile,
+):
+    """A director who is only the correspondence author (no FrozenAuthor row) is treated as author for messages."""
+    tuvok = create_jcom_user("Tuvok")
+    article.correspondence_author = director.janeway_account
+    article.save()
+    assert not article.frozenauthor_set.filter(author=director.janeway_account).exists()
+    content_type = ContentType.objects.get_for_model(article)
+    msg = Message.objects.create(
+        actor=tuvok,
+        subject="",
+        body="Not for the author",
+        content_type=content_type,
+        object_id=article.pk,
+    )
+    msg.recipients.add(tuvok)
+
+    assert not get_messages_related_to_me(director, article).filter(pk=msg.pk).exists()
+
+    msg.recipients.add(director)
+    assert get_messages_related_to_me(director, article).filter(pk=msg.pk).exists(), "recipient sees it"
+    own_msg = Message.objects.create(
+        actor=director.janeway_account,
+        subject="",
+        body="Written by the author-director",
+        content_type=content_type,
+        object_id=article.pk,
+    )
+    own_msg.recipients.add(tuvok)
+    assert get_messages_related_to_me(director, article).filter(pk=own_msg.pk).exists(), "actor sees it"

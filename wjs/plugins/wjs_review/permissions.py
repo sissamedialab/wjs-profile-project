@@ -181,6 +181,29 @@ def has_director_role_by_article(instance: "ArticleWorkflow", user: Account) -> 
     return base_permissions.has_director_role(instance.article.journal, user)
 
 
+def is_director_and_author(instance: "ArticleWorkflow", user: Account) -> bool:
+    """
+    Check if the user is a director of the journal who is also one of the authors of the article.
+
+    Such a user must be treated as an author on the article, i.e. must not see its editorial data.
+    EO users are never considered, since the EO role is not affected by authorship.
+
+    :param instance: An instance of the ArticleWorkflow class.
+    :type instance: ArticleWorkflow
+
+    :param user: The user to check.
+    :type user: Account
+
+    :return: True if the user is a director (and not EO) and an author of the article, False otherwise.
+    :rtype: bool
+    """
+    return (
+        not base_permissions.has_eo_role(user=user)
+        and base_permissions.has_director_role(instance.article.journal, user)
+        and is_one_of_the_authors(instance, user)
+    )
+
+
 def has_main_director_role_by_article(instance: "ArticleWorkflow", user: Account) -> bool:
     """
     Check if the given user has the main director role for the article's journal.
@@ -301,13 +324,13 @@ def has_eo_or_director_role_by_article(instance: "ArticleWorkflow", user: Accoun
     :param user: The user to check for role.
     :type user: Account
 
-    :return: True if the user has the EO or the director role for the journal, False otherwise.
+    If the director is one of the authors of the article, they can't be considered as a director for the article
+    (see :py:func:`has_director_role_by_article`). The EO role is not affected by authorship.
+
+    :return: True if the user has the EO or the director role for the article, False otherwise.
     :rtype: bool
     """
-    return base_permissions.has_eo_role(user=user) or base_permissions.has_director_role(
-        journal=instance.article.journal,
-        user=user,
-    )
+    return base_permissions.has_eo_role(user=user) or has_director_role_by_article(instance, user)
 
 
 def is_system(instance: "ArticleWorkflow", user: Account) -> bool:

@@ -1,5 +1,5 @@
 import datetime
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Iterable, List, Optional, Union
 
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
@@ -18,6 +18,15 @@ if TYPE_CHECKING:
 
 
 class ArticleWorkflowQuerySet(models.QuerySet):
+    def exclude_authored_by(self, user: Account) -> "ArticleWorkflowQuerySet":
+        """Exclude the workflows of the articles of which the user is an author.
+
+        The user is an author if they are a frozen author or the correspondence author (which is not always a
+        frozen author). Keep in sync with the equivalent predicate in
+        :py:func:`communication_utils.get_messages_related_to_me`.
+        """
+        return self.exclude(Q(article__frozenauthor__author=user) | Q(article__correspondence_author=user))
+
     def get_article_with_latest_round(self, mode: str = None) -> QuerySet:
         """
         Returns the queryset annotated with the latest round for each article. The method has four different modes,
@@ -283,9 +292,42 @@ class AttentionConditionQuerySet(models.QuerySet):
 
         return self.filter(status=AttentionCondition.Status.ACTIVE)
 
+    def dismissed(self) -> "AttentionConditionQuerySet":
+        """
+        Return the attention conditions that their user has dismissed.
+
+        :return: the dismissed attention conditions
+        :rtype: "AttentionConditionQuerySet"
+        """
+        from .models import AttentionCondition
+
+        return self.filter(status=AttentionCondition.Status.DISMISSED)
+
+    def displayable(self) -> "AttentionConditionQuerySet":
+        """
+        Return the attention conditions that can be shown to their user: the active and the dismissed ones.
+
+        :return: the active and dismissed attention conditions
+        :rtype: "AttentionConditionQuerySet"
+        """
+        from .models import AttentionCondition
+
+        return self.filter(status__in=(AttentionCondition.Status.ACTIVE, AttentionCondition.Status.DISMISSED))
+
+    def for_articles(self, article_ids: Iterable[int]) -> "AttentionConditionQuerySet":
+        """
+        Return the attention conditions of the given articles.
+
+        :param article_ids: the ids of the articles
+        :type article_ids: Iterable[int]
+        :return: the attention conditions of the articles
+        :rtype: "AttentionConditionQuerySet"
+        """
+        return self.filter(article_id__in=article_ids)
+
     def by_user_and_relevance(self) -> "AttentionConditionQuerySet":
         """
-        Order the attention conditions by user, then by relevance: active ones first, then by priority.
+        Order the attention conditions by user, then by relevance: active, dismissed, resolved, then by priority.
 
         Used by the page that lists all the ACs of an article grouped per user: the ordering by user comes
         first, so that the rows of one user are contiguous and can be grouped as they are read.
@@ -297,8 +339,9 @@ class AttentionConditionQuerySet(models.QuerySet):
 
         by_status = models.Case(
             models.When(status=AttentionCondition.Status.ACTIVE, then=0),
-            models.When(status=AttentionCondition.Status.RESOLVED, then=1),
-            default=2,
+            models.When(status=AttentionCondition.Status.DISMISSED, then=1),
+            models.When(status=AttentionCondition.Status.RESOLVED, then=2),
+            default=3,
             output_field=models.IntegerField(),
         )
         return self.order_by(
@@ -314,9 +357,17 @@ class AttentionConditionQuerySet(models.QuerySet):
         """
         Return the attention conditions that the given user is entitled to see.
 
-        Everybody sees their own ACs. EO people see also the ACs of the EO system user: those belong to the
-        editorial office as a whole, not to one of its members (e.g. the unread-messages AC, which for EO
-        depends on the article's messages being flagged read_by_eo and not on who the recipient is).
+        Everybody sees their own ACs. EO people see also some ACs of the EO system user:
+
+        - the unread-messages AC, which belongs to the editorial office as a whole (for EO it depends on the
+          article's messages being flagged read_by_eo, not on who the recipient is);
+        - any other AC only if they have no displayable row of their own with the same code on the same article.
+
+        EO ACs are written both for each EO person and for the EO system user (see ``ac_service.upsert_for_role``):
+        showing both would list every AC twice, and a dismissal (which is personal) would leave the shared copy
+        visible. The fallback covers the EO people who have no row of their own: the EO group members with no
+        role on the journal, and the ones added since the ACs were last evaluated (see wjs/specs#3272).
+        The EO system user's rows are read-only for them, since only the owner of an AC can dismiss it.
 
         :param user: the user looking at the attention conditions
         :type user: Account
@@ -326,10 +377,17 @@ class AttentionConditionQuerySet(models.QuerySet):
         :return: the attention conditions visible to the user
         :rtype: "AttentionConditionQuerySet"
         """
-        owners = [user]
-        if obj is not None and has_eo_role(user):
-            owners.append(get_eo_user(obj))
-        return self.filter(user__in=owners)
+        from .ac_service import HAS_UNREAD_MESSAGE
+
+        if obj is None or not has_eo_role(user):
+            return self.filter(user=user)
+        own_displayable_row = self.model.objects.displayable().filter(
+            article_id=OuterRef("article_id"), code=OuterRef("code"), user=user
+        )
+        return self.filter(
+            Q(user=user)
+            | Q(user=get_eo_user(obj)) & (Q(code=HAS_UNREAD_MESSAGE) | ~models.Exists(own_displayable_row))
+        )
 
 
 class PastEditorAssignmentQuerySet(models.QuerySet):

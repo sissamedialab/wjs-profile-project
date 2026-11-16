@@ -3,10 +3,16 @@
 When working on roles, please check
 - src/utils/install/roles.json
 - plugins (e.g. typesetting plugin)
+
+This module is imported by `wjs/defaults/settings.py` at settings load time: do not import models or apps here.
 """
 
+from typing import NotRequired, TypedDict
+
 from django.db.models import BLANK_CHOICE_DASH
+from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
+from plugins.wjs_submission.required_fields_types import RequiredFieldEntry
 
 DIRECTOR_ROLE = "director"
 DIRECTOR_MAIN_ROLE = "director-main"
@@ -103,6 +109,16 @@ PROFESSIONS = [
 
 PROFESSIONS_FORM = BLANK_CHOICE_DASH + PROFESSIONS
 
+PROFESSIONAL_LINKS_LABEL = _("Additional information (at least one field)")
+"""
+The "any of" requirement of correspondence authors is a single entry: the user fills in just one of the fields.
+
+It names the profile tab instead of the fields: journals show different links (see `PROFILE_FIELDS`).
+"""
+
+PROFESSIONAL_LINKS_GROUP_HELP = _("fill in at least one of the fields in this page")
+"""Help text of the fields of the professional links entry, naming no field (see `PROFESSIONAL_LINKS_LABEL`)."""
+
 CAREER_STAGES = [
     (0, "Student (i.e. pre-PhD)"),
     (1, "Early career (e.g. postdoc, fixed-term contract)"),
@@ -111,3 +127,36 @@ CAREER_STAGES = [
 ]
 
 CAREER_STAGES_FORM = BLANK_CHOICE_DASH + CAREER_STAGES
+
+
+class ProfileHint(TypedDict):
+    """Where the profile pages let the author fix a required-fields entry."""
+
+    section: str
+    """Url name of the profile tab: `core_edit_profile`, `core_edit_profile_affiliations`, `core_edit_profile_email` or
+    `core_edit_profile_additional`."""
+
+    fields: list[str]
+    """Names of the form fields of that tab holding the entry (empty for the Affiliations tab, a list rather than a
+    form)."""
+
+    group_help: NotRequired[str | Promise]
+    """
+    Help text of the entry's optional fields, for an entry spanning several fields ("at least one of").
+
+    Without it the help text names the fields of the entry; use it when the fields to name vary per journal or are
+    all the fields of the tab.
+    """
+
+
+class ProfileRequiredFieldEntry(RequiredFieldEntry):
+    """A wjs-submission required-fields entry plus the profile location of the field."""
+
+    profile: NotRequired[ProfileHint]
+    """
+    Where to fix the entry on the profile pages.
+
+    wjs-submission ignores it; the profile pages use it to mark the fields as required and to place banners and
+    badges. Entries without it (e.g. "Active account") still block validation and appear in step 4, but are never
+    shown on the profile pages.
+    """

@@ -1790,6 +1790,23 @@ class Message(TimeStampedModel):
         """Return a string suitable to be shown in a notification."""
         return self.subject if self.subject else self.body[: Message.verbine_lenght]
 
+    @staticmethod
+    def strip_split_marker(text: str) -> str:
+        """Remove every split marker from the given text."""
+        return text.replace(Message.SPLIT_MARKER, "")
+
+    @property
+    def display_body(self) -> str:
+        """
+        Return the body to be shown on the site.
+
+        For system messages the split marker only tells where the email teaser ends (see :py:meth:`render_message`):
+        the site shows the full text, so the marker is removed. Other message types are shown verbatim.
+        """
+        if self.message_type == Message.MessageTypes.SYSTEM:
+            return self.strip_split_marker(self.body)
+        return self.body
+
     def get_url(self, recipient: Account) -> str:
         """Return the URL to be embedded in the notification email for the given recipient."""
 
@@ -1881,7 +1898,7 @@ class Message(TimeStampedModel):
         """Render the message content for the given recipient."""
         notification_body = self.body
         if self.message_type == Message.MessageTypes.SYSTEM and self.SPLIT_MARKER in notification_body:
-            notification_body, __ = notification_body.split(self.SPLIT_MARKER)
+            notification_body, __, __ = notification_body.partition(self.SPLIT_MARKER)
             notification_body = f"{notification_body} {self._render_read_more(recipient)}"
 
         header = self._render_header(recipient)
@@ -1990,7 +2007,7 @@ class PastEditorAssignment(models.Model):
         """Reasons that an Editor can select when declining an assignment."""
 
         EMPTY = "", _("Select a decline reason")
-        JCOM_BUSY = "JCOM_BUSY", _("Already too busy with JCOM editorial work")
+        BUSY_EDITORIAL = "BUSY_EDITORIAL", _("Too busy with other editorial tasks")
         BUSY = "BUSY", _("Too busy in general")
         OUTSIDE_EXPERTISE = "OUTSIDE_EXPERTISE", _("Paper outside my area of expertise")
         NO_REVIEWER = "NO_REVIEWER", _("Unable to find an appropriate reviewer")
@@ -2525,6 +2542,15 @@ class Reminder(models.Model):
         """Return the order of the reminder among the same classes."""
         return self.code[-1]
 
+    @property
+    def display_body(self) -> str:
+        """
+        Return the message body to be shown on the site.
+
+        Reminders are sent as system messages, so the split marker is removed as in :py:attr:`Message.display_body`.
+        """
+        return Message.strip_split_marker(self.message_body)
+
     def render_subject(self) -> str:
         """Render the reminder message subject."""
         return render_template(self.message_subject, {"reminder": self, "article": self.get_related_article()})
@@ -2668,6 +2694,7 @@ class AttentionCondition(models.Model):
 
     class Status(models.TextChoices):
         ACTIVE = "active", _("Active")
+        DISMISSED = "dismissed", _("Dismissed")
         RESOLVED = "resolved", _("Resolved")
         EXPIRED = "expired", _("Expired")
         SUPPRESSED = "suppressed", _("Suppressed")
