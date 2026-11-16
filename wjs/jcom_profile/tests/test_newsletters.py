@@ -1141,6 +1141,45 @@ def test_check_authors_list_in_publication_alert(
     assert expected_authors_list in p.text
 
 
+@pytest.mark.django_db
+def test_newsletter_article_links_have_matomo_params(
+    account_factory,
+    article_factory,
+    recipient_factory,
+    newsletter_factory,
+    keyword_factory,
+    custom_newsletter_setting,
+    journal,
+    mock_premailer_load_url,
+    section_factory,
+):
+    """Article links in the publication alert must carry Matomo campaign tracking params."""
+    newsletter_factory()
+    article = article_factory(
+        title="Test matomo params",
+        abstract="Abstract test matomo params",
+        journal=journal,
+        date_published=timezone.now() + datetime.timedelta(days=1),
+        stage=submission_models.STAGE_PUBLISHED,
+        correspondence_author=account_factory(),
+        section=section_factory(),
+    )
+    kwd1 = keyword_factory()
+    article.keywords.add(kwd1)
+
+    recipient = recipient_factory(user=account_factory(), news=False)
+    recipient.topics.add(kwd1)
+
+    management.call_command("send_newsletter_notifications", journal.code)
+    assert len(mail.outbox) == 1
+
+    expected_date = timezone.localtime(timezone.now()).date().strftime("%Y%m%d")
+    html = lxml.html.fromstring(mail.outbox[0].body)
+    link = html.find(".//h3[@class='title']/a")
+    assert "mtm_campaign=Publication+alert" in link.get("href")
+    assert f"mtm_kwd={expected_date}" in link.get("href")
+
+
 @pytest.mark.freeze_time
 @pytest.mark.parametrize(
     "last_sent,now,start_display,expected",
