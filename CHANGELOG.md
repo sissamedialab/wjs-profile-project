@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.1.9] - 2026-11-16
+
+- [specs#3367: Find a UI solution when all AC have been dismissed](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3367) — feat(wjs_review): let users dismiss and restore attention conditions (!1620)
+- [specs#3272: Implement AC dismissal](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3272) — feat(wjs_review): let users dismiss and restore attention conditions (!1620)
+- [specs#2728: As a user i want to know exactly which fields must be populated to pass validation](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2728) — Profile: highlight fields required for submission, back to submission link, per-journal required-fields dict (!1587)
+- [wjs-profile-project#304: Follow-up from "Profile: highlight fields required for submission, back to submission link, per-journal required-fields dict"](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/304) — Profile: highlight fields required for submission, back to submission link, per-journal required-fields dict (!1587)
+- [specs#3392: Review eligibility of correspondence-author wrt to additional informations](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3392) — Profile: highlight fields required for submission, back to submission link, per-journal required-fields dict (!1587)
+- [specs#2956: Test import jcap 2025](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2956) — fix(import): copy coauthor name into FrozenAuthor on import (!1636)
+- [specs#3274: Profile search performance on some payloads](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3274) — fix(search): use per-article full-text search on the search page (!1632)
+- [janeway#38: Investigare sul comportamento di SearchVectorField](https://gitlab.sissamedialab.it/wjs/janeway/-/work_items/38) — fix(search): use per-article full-text search on the search page (!1632)
+- [janeway#45: Fix core.model_utils.SearchVector for Django 5.2 (slow, inexact full-text search in the fork)](https://gitlab.sissamedialab.it/wjs/janeway/-/work_items/45) — fix(search): use per-article full-text search on the search page (!1632)
+- [specs#3406: Search page: compute relevance once per request](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3406) — fix(search): use per-article full-text search on the search page (!1632)
+- [wjs-profile-project#302: Flaky `test_staff_disable_notification`: hijacked request leaked between tests breaks `get_hijacker()`](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/302) — fix(jcom_profile): isolate the global request between tests and harden get_hijacker (!1635)
+- [specs#3295: CAS/DAS should accept "other" as valid keyword](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3295) — Feature/issue 3295 cas das other (!1615)
+- [specs#3332: Change textf for DAS/CAS?](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3332) — Feature/issue 3295 cas das other (!1615)
+- [specs#3093: Enable new Section Editors to receive submissions by default](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3093) — fix(jcom_profile): keep editor's enabled flag when directors update parameters (!1606)
+- [specs#3306: Rename entry in Editor's "Decline assignment" modal](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3306) — feat(wjs_review): replace JCOM-specific editor decline reason with a generic one (!1621)
+- [specs#2215: Alerts not triggered for delayed paper (EO disabled automatic reminder)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2215) — fix(wjs_review): fire late attention conditions when the last reminder is disabled (!1618)
+- [specs#2823: When looking reminders, check the sent date, but also the due date for disabled reminders](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2823) — fix(wjs_review): fire late attention conditions when the last reminder is disabled (!1618)
+- [specs#3187: Setting ignores value in signature](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3187) — fix(wjs_review): same sender signature in "write a message" and "select new editor" (!1629)
+- [specs#3271: Remove "salutation" from published article pages (all journals)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3271) — fix(jcom_profile): remove salutation from registration and author names (!1599)
+- [specs#3133: Ensure that all "searches" of article authors use the FrozenAuthors and not A.article_authors](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3133) — fix(wjs_review): hide editorial data of their own papers from director-authors (!1604)
+- [specs#3266: As director I want to improve UI of editor automatic selection audit](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3266) — fix(wjs_review): hide editorial data of their own papers from director-authors (!1604)
+- [specs#2765: Ea EO i want to be alerted if any author/co-author is a journal's Director/editor](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2765) — fix(wjs_review): hide editorial data of their own papers from director-authors (!1604)
+- [specs#3013: Director sees her own paper on paper list](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3013) — fix(wjs_review): hide editorial data of their own papers from director-authors (!1604)
+- [specs#3371: Internal Server Error: /search/ -  ValueError: year 0 is out of range](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3371) — fix search year filter crash on out-of-range year (e.g. year=0) (!1612)
+- [specs#2956: Test import jcap 2025](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2956) — fix(import): use Reminder.disabled instead of nonexistent .disable attribute (!1617)
+- [specs#3187: Setting ignores value in signature](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3187) — fix(wjs_review): show the sender's role in the manual editor assignment signature (!1610)
+- [specs#3235: Check if messages/templates contains placeholders](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3235) — fix(wjs_review): hide the [...] split marker in messages shown on the site (!1609)
+- No linked issue — fix: fix test checking markup (!1616)
+
 ## [2.1.8] - 2026-11-05
 
 - [specs#2914: Allow for a green light from IOP before publication](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2914) — feat(wjs_review): require publisher confirmation before publishing (!1580)
