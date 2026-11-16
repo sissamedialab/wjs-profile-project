@@ -15,6 +15,7 @@ from ..constants import CAREER_STAGES_FORM, GENDER_FORM_CHOICES, PROFESSIONS_FOR
 from ..forms import KeywordCheckboxesFormMixin, _get_privacy_url
 from ..models import JCOMProfile, WjsMiniHTMLFormField
 from ..templatetags.wjs_tags import is_field_available
+from ..utils import get_active_keywords
 from .required_fields import RequiredEntry
 
 
@@ -300,7 +301,7 @@ class WjsInterestsForm(KeywordCheckboxesFormMixin, EditAccountForm):
             word__in=kwargs["instance"].interest.values_list("name", flat=True)
         ).order_by("word")
         super().__init__(*args, **kwargs)
-        self.fields["keywords"].queryset = self.journal.keywords.exclude(word="").order_by("word")
+        self.fields["keywords"].queryset = get_active_keywords(self.journal).exclude(word="").order_by("word")
 
     def save(self, commit=True):
         self.instance.interest.clear()

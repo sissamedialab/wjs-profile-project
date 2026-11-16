@@ -12,6 +12,7 @@ from django.views.generic import UpdateView, View
 from plugins.wjs_submission.keywords import get_keywords_by_journal
 
 from ..models import JCOMProfile
+from ..utils import get_active_keywords
 from .forms import (
     WjsAdditionalInfoForm,
     WjsEmailChangeForm,
@@ -156,6 +157,8 @@ class KeywordsHierarchyContextMixin:
     to no group (``ungrouped_keywords``), so that templates can render the same
     group/subgroup accordion used in submission step 3. For the other journals
     (e.g. JCOM, JCOMAL) templates keep the flat first-letter accordion.
+
+    Only active keywords are exposed: deactivated keywords and the groups left without active keywords are hidden.
     """
 
     def get_context_data(self, **kwargs):
@@ -166,7 +169,7 @@ class KeywordsHierarchyContextMixin:
         if hierarchical:
             context["keywords_list"] = get_keywords_by_journal(journal)
             context["ungrouped_keywords"] = (
-                journal.keywords.filter(group__isnull=True).exclude(word="").order_by("word")
+                get_active_keywords(journal).filter(group__isnull=True).exclude(word="").order_by("word")
             )
         return context
 
