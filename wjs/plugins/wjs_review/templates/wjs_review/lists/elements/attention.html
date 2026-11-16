@@ -1,32 +1,48 @@
-{% load i18n %}
-{% if attention_flag %}
-  <div class="align-self-end dropdown">
-    {% if attention_flag == "You have unread messages" %}
-      <button
-        type="button"
-        class="badge rounded-circle bg-warning text-dark border-0 p-2 fs-6"
-        data-bs-toggle="dropdown"
-        aria-haspopup="true"
-        aria-expanded="false"
-        aria-label="{{ attention_flag }}"
-      ><i class="bi bi-envelope" aria-hidden="true"></i></button>
-      <ul class="dropdown-menu text-nowrap wjs-attention-dropdown-menu">
-        <li>
-          <a class="dropdown-item" href="{% url "wjs_article_messages" pk=workflow.pk %}">{{ attention_flag }} <i class="bi bi-box-arrow-up-right"></i></a>
-        </li>
-      </ul>
-    {% else %}
-      <button
-        type="button"
-        class="badge rounded-circle bg-warning text-dark border-0 p-2 fs-6"
-        data-bs-toggle="dropdown"
-        aria-haspopup="true"
-        aria-expanded="false"
-        aria-label="{{ attention_flag }}"
-      ><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></button>
-      <ul class="dropdown-menu text-nowrap wjs-attention-dropdown-menu">
-        <li class="dropdown-item">{{ attention_flag }}</li>
-      </ul>
-    {% endif %}
-  </div>
-{% endif %}
+{% load i18n wjs_review %}
+{% comment %}
+  Attention icons of a listing row: a warning icon for the active normal ACs and, independently, a mail icon for
+  unread messages. Each opens a read-only Bootstrap dropdown, styled as a popover by wjs-attention-dropdown-menu.
+  Context: workflow, user (the row's user, as in table_item.html).
+{% endcomment %}
+{% with attention=workflow|article_attention_conditions:user %}
+  {% if attention.has_active %}
+    <div class="align-self-end d-flex gap-1">
+      {% if attention.active %}
+        {% blocktranslate count counter=attention.active|length asvar warning_label %}{{ counter }} attention condition{% plural %}{{ counter }} attention conditions{% endblocktranslate %}
+        <div class="dropdown">
+          <button
+            type="button"
+            class="badge rounded-circle bg-warning text-dark border-0 p-2 fs-6"
+            data-bs-toggle="dropdown"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-label="{{ warning_label }}"
+          ><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></button>
+          <ul class="dropdown-menu text-nowrap wjs-attention-dropdown-menu">
+            {% for ac in attention.active %}
+              {% if not forloop.first %}<li><hr class="dropdown-divider"></li>{% endif %}
+              <li class="dropdown-item">{{ ac.message }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+      {% if attention.unread %}
+        <div class="dropdown">
+          <button
+            type="button"
+            class="badge rounded-circle bg-warning text-dark border-0 p-2 fs-6"
+            data-bs-toggle="dropdown"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-label="{% translate "Unread messages" %}"
+          ><i class="bi bi-envelope" aria-hidden="true"></i></button>
+          <ul class="dropdown-menu text-nowrap wjs-attention-dropdown-menu">
+            <li>
+              <a class="dropdown-item" href="{% url "wjs_article_messages" pk=workflow.pk %}">{{ attention.unread.message }} <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+            </li>
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endwith %}

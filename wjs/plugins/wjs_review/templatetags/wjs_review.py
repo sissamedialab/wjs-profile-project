@@ -38,7 +38,7 @@ from wjs.jcom_profile.models import StaffKeyword, StaffWorkloadParameters
 from wjs.jcom_profile.permissions import has_eo_role
 from wjs.jcom_profile.utils import get_eo_user
 
-from .. import communication_utils, permissions, states
+from .. import ac_service, communication_utils, permissions, states
 from ..communication_utils import MESSAGE_TYPE_ICONS
 from ..conditions import (
     needs_article_data_for_social_media_without_translation,
@@ -453,9 +453,9 @@ def review_assignment_request_message(assignment: ReviewAssignment):
 #     or by a context processor. Only the highest-priority active AC per article
 #     is returned (matching the old single-AC display behavior).
 #
-#     The data model supports multiple ACs per article; if the UI requirement
-#     changes (New Issue 1 in 260318-SISSA-Specifications-for-attention-conditions.md),
-#     this filter can return a list instead of a single string.
+#     LEGACY: this single-message display is kept until the templates move to
+#     article_attention_conditions below, which returns all the active, dismissed and unread
+#     ACs of the article (wjs/specs#3272).
 # ---------------------------------------------------------------------------
 
 
@@ -485,6 +485,22 @@ def article_requires_attention_tt(workflow: ArticleWorkflow, user: Account = Non
         .first()
     )
     return ac.message if ac else ""
+
+
+@register.filter
+def article_attention_conditions(
+    workflow: ArticleWorkflow, user: Account = None
+) -> ac_service.ArticleAttentionConditions:
+    """Return the attention conditions the user can see on the article: active, dismissed and unread.
+
+    Uses the value prefetched by the listing views when present; otherwise queries the article's ACs.
+    """
+    prefetched = getattr(workflow, "_prefetched_attention_conditions", None)
+    if prefetched is not None:
+        return prefetched.get(workflow.article_id, ac_service.ArticleAttentionConditions())
+    if user is None:
+        return ac_service.ArticleAttentionConditions()
+    return ac_service.get_article_attention_conditions(workflow.article, user)
 
 
 @register.filter

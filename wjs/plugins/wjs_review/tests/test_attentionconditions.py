@@ -10,6 +10,7 @@ import pytest
 from django.apps import apps as django_apps
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.http import HttpRequest
 from django.test import Client
@@ -19,7 +20,11 @@ from django.utils.timezone import localtime, now
 from journal.models import Journal
 from plugins.wjs_review import ac_service, communication_utils, conditions, states
 from plugins.wjs_review.ac_service import ACStateEvaluator
-from plugins.wjs_review.forms import ToggleMessageReadByEOForm, ToggleMessageReadForm
+from plugins.wjs_review.forms import (
+    ToggleAttentionConditionDismissalForm,
+    ToggleMessageReadByEOForm,
+    ToggleMessageReadForm,
+)
 from plugins.wjs_review.logic import (
     AssignToReviewer,
     AuthorHandleRevision,
@@ -29,6 +34,7 @@ from plugins.wjs_review.logic import (
     HandleEditorDeclinesAssignment,
     PostponeReviewerDueDate,
     PostponeRevisionRequestDueDate,
+    ToggleAttentionConditionDismissal,
 )
 from plugins.wjs_review.models import (
     ArticleWorkflow,
@@ -46,7 +52,7 @@ from plugins.wjs_submission.revision import RevisionStartConfirmView
 from review import models as review_models
 from review.models import ReviewForm
 from submission.models import Article
-from typesetting.models import GalleyProofing
+from typesetting.models import GalleyProofing, TypesettingAssignment
 
 from wjs.jcom_profile import constants
 from wjs.jcom_profile.models import JCOMProfile
@@ -1170,6 +1176,9 @@ def test_attention_conditions_page_groups_per_user_and_orders_per_status(
     ac_service.resolve_ac(article, editor, ac_service.REVIEWS_COMPLETED)
     less_urgent = ac_service.upsert_ac(article, editor, ac_service.NEEDS_ASSIGNMENT, "Needs assignment", priority=20)
     more_urgent = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late", priority=10)
+    # ... a dismissed one, more urgent than all the others, to check that the status comes before the priority
+    dismissed = ac_service.upsert_ac(article, editor, ac_service.EDITOR_REVIEW_OVERDUE, "Review overdue", priority=5)
+    AttentionCondition.objects.filter(pk=dismissed.pk).update(status=AttentionCondition.Status.DISMISSED)
     # ... and one for the author, to check the grouping
     author_ac = ac_service.upsert_ac(article, author, ac_service.AUTHOR_REVISION_LATE, "Revision is late", priority=10)
 
@@ -1183,8 +1192,35 @@ def test_attention_conditions_page_groups_per_user_and_orders_per_status(
     assert groups[editor] == [
         more_urgent,
         less_urgent,
+        dismissed,
         resolved,
-    ], "Active ACs come first, most urgent first, and resolved ones last"
+    ], "Active ACs come first, most urgent first, then dismissed ones, and resolved ones last"
+
+
+@pytest.mark.django_db
+def test_displayable_and_dismissed_querysets(assigned_article: Article):
+    """dismissed() returns the dismissed ACs, displayable() the active and the dismissed ones."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    AttentionCondition.objects.all().delete()
+    active = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late")
+    dismissed = ac_service.upsert_ac(article, editor, ac_service.NEEDS_ASSIGNMENT, "Needs assignment")
+    AttentionCondition.objects.filter(pk=dismissed.pk).update(status=AttentionCondition.Status.DISMISSED)
+    ac_service.upsert_ac(article, editor, ac_service.REVIEWS_COMPLETED, "Reviews completed")
+    ac_service.resolve_ac(article, editor, ac_service.REVIEWS_COMPLETED)
+
+    assert set(AttentionCondition.objects.dismissed()) == {dismissed}, "dismissed() should return only DISMISSED rows"
+    assert set(AttentionCondition.objects.displayable()) == {
+        active,
+        dismissed,
+    }, "displayable() should return ACTIVE and DISMISSED rows"
+    assert set(AttentionCondition.objects.for_articles([article.pk]).displayable()) == {
+        active,
+        dismissed,
+    }, "for_articles() should keep the ACs of the given articles"
+    assert not AttentionCondition.objects.for_articles(
+        [article.pk + 1000]
+    ).exists(), "for_articles() should drop the ACs of other articles"
 
 
 @pytest.mark.django_db
@@ -1659,3 +1695,616 @@ def test_migration_resolves_stale_appeal_acs(
         .filter(article=under_appeal_article, code=ac_service.APPEAL_TO_SUBMIT)
         .exists()
     )
+
+
+# ---------------------------------------------------------------------------
+# Dismissal: lifecycle of a dismissed AC
+# ---------------------------------------------------------------------------
+
+
+def _dismiss(ac: AttentionCondition) -> None:
+    """Flag an AC as dismissed, bypassing the toggle logic."""
+    AttentionCondition.objects.filter(pk=ac.pk).update(status=AttentionCondition.Status.DISMISSED)
+
+
+def _make_editor_late(article: Article) -> None:
+    """Make the editor of the article late in starting the review process (as in test_editor_is_late)."""
+    article.date_submitted = now() - timedelta(days=20)
+    article.save()
+    assignment = WjsEditorAssignment.objects.get_current(article)
+    Reminder.objects.filter(
+        content_type=ContentType.objects.get_for_model(assignment),
+        object_id=assignment.id,
+        disabled=False,
+    ).update(date_sent=timezone.now() - datetime.timedelta(days=5))
+
+
+def _raised_normal_ac(article: Article) -> AttentionCondition:
+    """Return an active AC raised by the evaluator for the article, other than unread messages."""
+    ac = (
+        AttentionCondition.objects.active()
+        .filter(article=article)
+        .exclude(code=ac_service.HAS_UNREAD_MESSAGE)
+        .order_by("pk")
+        .first()
+    )
+    assert ac is not None, "The evaluator should have raised at least one normal AC"
+    return ac
+
+
+@pytest.mark.django_db
+def test_upsert_keeps_dismissed_and_refreshes_message(assigned_article: Article):
+    """Upserting a dismissed AC keeps it dismissed, but refreshes its message and priority."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "A", priority=10)
+    _dismiss(ac)
+
+    upserted = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "B", priority=3)
+
+    ac.refresh_from_db()
+    assert ac.status == AttentionCondition.Status.DISMISSED, "A dismissed AC should stay dismissed on upsert"
+    assert (ac.message, ac.priority) == ("B", 3), "Message and priority should be refreshed"
+    assert (upserted.pk, upserted.status, upserted.message) == (
+        ac.pk,
+        AttentionCondition.Status.DISMISSED,
+        "B",
+    ), "The returned instance should reflect the stored row"
+
+
+@pytest.mark.django_db
+def test_upsert_reactivates_resolved(assigned_article: Article):
+    """Upserting a resolved AC makes it active again (AC-4)."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "A")
+    ac_service.resolve_ac(article, editor, ac_service.REVIEWER_LATE)
+
+    upserted = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "A")
+
+    upserted.refresh_from_db()
+    assert upserted.status == AttentionCondition.Status.ACTIVE, "A resolved AC should become active on upsert"
+
+
+@pytest.mark.django_db
+def test_dismissed_resolved_then_retriggered_is_active(assigned_article: Article):
+    """A dismissal is not carried over when the condition ends and then applies again (AC-4)."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "A")
+    _dismiss(ac)
+    ac_service.resolve_ac(article, editor, ac_service.REVIEWER_LATE)
+    ac.refresh_from_db()
+    assert ac.status == AttentionCondition.Status.RESOLVED, "Resolving should resolve a dismissed AC"
+
+    ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "A")
+
+    ac.refresh_from_db()
+    assert ac.status == AttentionCondition.Status.ACTIVE, "The re-triggered AC should be active"
+
+
+@pytest.mark.parametrize(
+    "resolver",
+    (
+        lambda article, user, code: ac_service.resolve_all_for_user_on_article(article, user),
+        lambda article, user, code: ac_service.resolve_ac_batch(article, user, [code]),
+        lambda article, user, code: ac_service.resolve_for_role_batch(article, constants.EDITOR_ROLE, [code]),
+    ),
+    ids=("resolve_all_for_user_on_article", "resolve_ac_batch", "resolve_for_role_batch"),
+)
+@pytest.mark.django_db
+def test_batch_resolvers_resolve_dismissed(assigned_article: Article, resolver: Callable):
+    """The batch resolvers resolve dismissed ACs too, so that a dismissal does not outlive its condition."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "A")
+    _dismiss(ac)
+
+    resolver(article, editor, ac_service.REVIEWER_LATE)
+
+    ac.refresh_from_db()
+    assert ac.status == AttentionCondition.Status.RESOLVED, "A dismissed AC should be resolved"
+
+
+@pytest.mark.django_db
+def test_dismissed_ac_survives_evaluate_all(assigned_article: Article, eo_user: JCOMProfile):
+    """Re-evaluating the ACs (e.g. on a message read/unread toggle) does not undo a dismissal."""
+    article = assigned_article
+    _make_editor_late(article)
+    attention_conditions_rebuild(article)
+    ac = _raised_normal_ac(article)
+    _dismiss(ac)
+
+    attention_conditions_rebuild(article)
+
+    ac.refresh_from_db()
+    assert ac.status == AttentionCondition.Status.DISMISSED, "evaluate_all() should not reactivate a dismissed AC"
+
+
+@pytest.mark.django_db
+def test_dismissed_ac_survives_rebuild(assigned_article: Article, eo_user: JCOMProfile):
+    """The nightly rebuild does not undo a dismissal while the condition still applies."""
+    article = assigned_article
+    _make_editor_late(article)
+    attention_conditions_rebuild(article)
+    ac = _raised_normal_ac(article)
+    _dismiss(ac)
+
+    call_command("rebuild_attention_conditions")
+
+    ac.refresh_from_db()
+    assert ac.status == AttentionCondition.Status.DISMISSED, "The nightly rebuild should not reactivate it"
+
+
+# ---------------------------------------------------------------------------
+# Dismissal: EO visibility
+# ---------------------------------------------------------------------------
+
+
+def _visible_rows(article: Article, user: JCOMProfile, code: str) -> list[AttentionCondition]:
+    """Return the displayable ACs with the given code that the user sees on the article."""
+    return list(AttentionCondition.objects.displayable().filter(article=article, code=code).visible_to(user, article))
+
+
+@pytest.mark.django_db
+def test_eo_member_sees_each_normal_ac_once(
+    assigned_article: Article, create_jcom_user: Callable, eo_group: Group, journal: Journal
+):
+    """An EO member sees their own copy of an EO AC, not also the EO system user's one."""
+    article = assigned_article
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    ac_service.upsert_for_role(article, "eo", ac_service.EDITOR_IS_LATE, "Editor is late")
+
+    rows = _visible_rows(article, eo_human, ac_service.EDITOR_IS_LATE)
+
+    assert [row.user for row in rows] == [eo_human.janeway_account], "The EO member should see only their own row"
+
+
+@pytest.mark.django_db
+def test_eo_member_still_sees_shared_unread_ac(
+    assigned_article: Article, create_jcom_user: Callable, eo_group: Group, journal: Journal
+):
+    """The unread-messages AC of the editorial office stays visible to every EO member."""
+    article = assigned_article
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    shared = ac_service.upsert_ac(article, get_eo_user(article), ac_service.HAS_UNREAD_MESSAGE, "Unread")
+
+    assert shared in _visible_rows(article, eo_human, ac_service.HAS_UNREAD_MESSAGE), "EO should see the shared AC"
+
+
+@pytest.mark.django_db
+def test_eo_dismissal_is_personal(
+    assigned_article: Article, create_jcom_user: Callable, eo_group: Group, journal: Journal
+):
+    """An EO member dismissing an AC does not dismiss it for the other EO members."""
+    article = assigned_article
+    eo_1 = _create_eo_human(create_jcom_user, eo_group, journal)
+    eo_2 = create_jcom_user("eo_human_2")
+    eo_2.groups.add(eo_group)
+    eo_2.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    ac_service.upsert_for_role(article, "eo", ac_service.EDITOR_IS_LATE, "Editor is late")
+    _dismiss(AttentionCondition.objects.get(article=article, user=eo_1, code=ac_service.EDITOR_IS_LATE))
+
+    rows_1 = _visible_rows(article, eo_1, ac_service.EDITOR_IS_LATE)
+    rows_2 = _visible_rows(article, eo_2, ac_service.EDITOR_IS_LATE)
+
+    assert [(row.user, row.status) for row in rows_1] == [
+        (eo_1.janeway_account, AttentionCondition.Status.DISMISSED)
+    ], "EO 1 should see only their own, dismissed, row"
+    assert [(row.user, row.status) for row in rows_2] == [
+        (eo_2.janeway_account, AttentionCondition.Status.ACTIVE)
+    ], "EO 2 should still see their own row as active"
+
+
+@pytest.mark.django_db
+def test_eo_without_personal_row_sees_system_row_read_only(
+    assigned_article: Article, create_jcom_user: Callable, eo_group: Group
+):
+    """An EO member with no row of their own (no role on the journal) falls back to the EO system user's row."""
+    article = assigned_article
+    eo_without_role = create_jcom_user("eo_without_role")
+    eo_without_role.groups.add(eo_group)
+    ac_service.upsert_for_role(article, "eo", ac_service.EDITOR_IS_LATE, "Editor is late")
+
+    rows = _visible_rows(article, eo_without_role, ac_service.EDITOR_IS_LATE)
+
+    assert [row.user for row in rows] == [get_eo_user(article)], "The EO system user's row should be shown, once"
+
+
+# ---------------------------------------------------------------------------
+# Dismissal: toggle logic and form
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_toggle_dismissal_flips_active_and_dismissed(assigned_article: Article):
+    """The owner of an AC can dismiss it and restore it."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late")
+
+    dismissed = ToggleAttentionConditionDismissal(attention_condition=ac, user=editor).run()
+    assert dismissed.status == AttentionCondition.Status.DISMISSED, "The first toggle should dismiss the AC"
+
+    restored = ToggleAttentionConditionDismissal(attention_condition=ac, user=editor).run()
+    assert restored.status == AttentionCondition.Status.ACTIVE, "The second toggle should restore the AC"
+    ac.refresh_from_db()
+    assert ac.status == AttentionCondition.Status.ACTIVE, "The status should be stored"
+
+
+@pytest.mark.parametrize("case", ("other_user", "unread", "resolved"))
+@pytest.mark.django_db
+def test_toggle_dismissal_rejects(assigned_article: Article, case: str):
+    """Only the owner can toggle, only normal ACs, and only active or dismissed ones."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    user = editor
+    code = ac_service.HAS_UNREAD_MESSAGE if case == "unread" else ac_service.REVIEWER_LATE
+    ac = ac_service.upsert_ac(article, editor, code, "Message")
+    if case == "other_user":
+        user = article.correspondence_author
+    elif case == "resolved":
+        ac_service.resolve_ac(article, editor, code)
+        ac.refresh_from_db()
+    status_before = ac.status
+
+    with pytest.raises(ValidationError):
+        ToggleAttentionConditionDismissal(attention_condition=ac, user=user).run()
+
+    ac.refresh_from_db()
+    assert ac.status == status_before, f"A rejected toggle ({case}) should not change the status"
+
+
+@pytest.mark.django_db
+def test_toggle_dismissal_form_adds_non_field_error(assigned_article: Article):
+    """The form reports the logic's refusal as a non-field error."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.HAS_UNREAD_MESSAGE, "Unread")
+    form = ToggleAttentionConditionDismissalForm(data={}, instance=ac, user=editor)
+    assert form.is_valid(), f"Unexpected form errors: {form.errors}"
+
+    with pytest.raises(ValidationError):
+        form.save()
+
+    assert form.non_field_errors(), "The refusal should be a non-field error"
+
+
+# ---------------------------------------------------------------------------
+# Dismissal: read path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_article_attention_splits_active_dismissed_unread(assigned_article: Article):
+    """The read path separates active, dismissed and unread ACs, in priority order."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    AttentionCondition.objects.all().delete()
+    late = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late", priority=20)
+    urgent = ac_service.upsert_ac(article, editor, ac_service.NEEDS_ASSIGNMENT, "Needs assignment", priority=10)
+    dismissed = ac_service.upsert_ac(article, editor, ac_service.REVIEWS_COMPLETED, "Reviews completed")
+    _dismiss(dismissed)
+    unread = ac_service.upsert_ac(article, editor, ac_service.HAS_UNREAD_MESSAGE, "Unread", priority=90)
+
+    attention = ac_service.get_article_attention_conditions(article, editor)
+
+    assert attention.active == [urgent, late], "Active normal ACs, most urgent first"
+    assert attention.dismissed == [dismissed], "Dismissed normal ACs"
+    assert attention.unread == unread, "The active unread AC"
+    assert attention.has_active and attention.has_any, "Active ACs and unread messages are both shown"
+    assert attention.legacy_message == "Needs assignment", "The legacy message is the most urgent active one"
+
+    _dismiss(urgent)
+    _dismiss(late)
+    ac_service.resolve_ac(article, editor, ac_service.HAS_UNREAD_MESSAGE)
+    attention = ac_service.get_article_attention_conditions(article, editor)
+
+    assert attention.unread is None, "A resolved unread AC is not shown"
+    assert not attention.has_active, "Only dismissed ACs left: nothing active"
+    assert attention.has_any, "Dismissed ACs are still displayable"
+    assert attention.legacy_message == "", "Dismissed ACs are not shown by the legacy display"
+
+
+@pytest.mark.django_db
+def test_article_attention_marks_fallback_rows_not_dismissible(
+    assigned_article: Article, create_jcom_user: Callable, eo_group: Group, journal: Journal
+):
+    """Only the owner of an AC can dismiss it: the EO system user's rows are read-only for EO people."""
+    article = assigned_article
+    eo_human = _create_eo_human(create_jcom_user, eo_group, journal)
+    eo_without_role = create_jcom_user("eo_without_role")
+    eo_without_role.groups.add(eo_group)
+    ac_service.upsert_for_role(article, "eo", ac_service.EDITOR_IS_LATE, "Editor is late")
+
+    own = ac_service.get_article_attention_conditions(article, eo_human).active
+    fallback = ac_service.get_article_attention_conditions(article, eo_without_role).active
+
+    assert [(ac.code, ac.dismissible) for ac in own] == [
+        (ac_service.EDITOR_IS_LATE, True)
+    ], "An EO member can dismiss their own row"
+    assert [(ac.code, ac.dismissible) for ac in fallback] == [
+        (ac_service.EDITOR_IS_LATE, False)
+    ], "The EO system user's row is read-only"
+
+
+@pytest.mark.django_db
+def test_articles_attention_batch_matches_single(
+    assigned_article: Article, author: JCOMProfile, coauthor: JCOMProfile, journal: Journal, sections
+):
+    """The batch read path gives the same result as the per-article one, and an empty value for no ACs."""
+    from wjs.jcom_profile.tests.conftest import _article
+
+    article = assigned_article
+    other_article = _article(author, coauthor, journal, sections)
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late")
+
+    batch = ac_service.get_articles_attention_conditions([article.pk, other_article.pk], editor, journal)
+
+    assert batch[article.pk] == ac_service.get_article_attention_conditions(article, editor), "Same as the single read"
+    assert not batch[other_article.pk].has_any, "An article with no ACs gets an empty value"
+
+
+@pytest.mark.django_db
+def test_article_attention_filter_uses_prefetch(assigned_article: Article, django_assert_num_queries):
+    """The template filter uses the value prefetched by the view, without queries."""
+    from plugins.wjs_review.templatetags.wjs_review import article_attention_conditions
+
+    workflow = assigned_article.articleworkflow
+    prefetched = ac_service.ArticleAttentionConditions()
+    workflow._prefetched_attention_conditions = {assigned_article.pk: prefetched}
+
+    with django_assert_num_queries(0):
+        assert article_attention_conditions(workflow, None) is prefetched, "The prefetched value should be returned"
+
+
+@pytest.mark.django_db
+def test_listing_prefetch_limited_to_current_page(
+    assigned_article: Article, author: JCOMProfile, coauthor: JCOMProfile, journal: Journal, sections, client: Client
+):
+    """The listing loads the ACs of the listed articles only, and keeps feeding the legacy display."""
+    from wjs.jcom_profile.tests.conftest import _article
+
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    AttentionCondition.objects.all().delete()
+    ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late", priority=20)
+    ac_service.upsert_ac(article, editor, ac_service.NEEDS_ASSIGNMENT, "Needs assignment", priority=10)
+    off_page = _article(author, coauthor, journal, sections)
+    ac_service.upsert_ac(off_page, editor, ac_service.REVIEWER_LATE, "Not listed")
+
+    client.force_login(editor)
+    response = client.get(f"/{journal.code}/plugins/wjs-review-articles/editor/pending/")
+    assert response.status_code == 200
+    workflow = next(w for w in response.context["workflows"] if w.article_id == article.pk)
+
+    assert off_page.pk not in workflow._prefetched_attention_conditions, "Articles not listed should not be loaded"
+    assert [ac.message for ac in workflow._prefetched_attention_conditions[article.pk].active] == [
+        "Needs assignment",
+        "Reviewer is late",
+    ], "The listed article's ACs should be prefetched"
+    assert workflow._prefetched_acs == {article.pk: "Needs assignment"}, "The legacy dict keeps the top message"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "dismiss_all,unread,warning_icon,mail_icon,highlighted",
+    [
+        (False, True, True, True, True),  # LST-2/LST-3: both icons side by side (wjs/specs#3272 note 82017)
+        (False, False, True, False, True),  # Acceptance 1
+        (True, True, False, True, True),  # Acceptance 3 / LST-9
+        (True, False, False, False, False),  # Acceptance 4 / LST-8
+    ],
+)
+def test_listing_shows_warning_and_mail_icons(
+    assigned_article: Article,
+    client: Client,
+    dismiss_all: bool,
+    unread: bool,
+    warning_icon: bool,
+    mail_icon: bool,
+    highlighted: bool,
+):
+    """The listing shows a warning icon for the active normal ACs and, independently, a mail icon for unread."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    AttentionCondition.objects.all().delete()
+    ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late", priority=20)
+    ac_service.upsert_ac(article, editor, ac_service.NEEDS_ASSIGNMENT, "Needs assignment", priority=10)
+    if dismiss_all:
+        AttentionCondition.objects.filter(article=article, user=editor).update(
+            status=AttentionCondition.Status.DISMISSED
+        )
+    if unread:
+        ac_service.upsert_ac(article, editor, ac_service.HAS_UNREAD_MESSAGE, "You have unread messages", priority=1)
+
+    client.force_login(editor)
+    response = client.get(f"/{article.journal.code}/plugins/wjs-review-articles/editor/pending/")
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    assert ('aria-label="2 attention conditions"' in content) is warning_icon, "Warning icon presence"
+    assert (
+        "Reviewer is late" in content and "Needs assignment" in content
+    ) is warning_icon, "The warning popover should list the active ACs, and never the dismissed ones"
+    assert ('aria-label="Unread messages"' in content) is mail_icon, "Mail icon presence"
+    assert ('class="table-warning' in content) is highlighted, "Row highlight"
+
+
+@pytest.mark.django_db
+def test_detail_context_has_attention(assigned_article: Article, client: Client, install_wjs_submission_settings):
+    """The article page gets the read-path value for the current user."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    late = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late")
+
+    client.force_login(editor)
+    response = client.get(f"/{article.journal.code}/plugins/wjs-review-articles/status/{article.articleworkflow.pk}/")
+
+    assert response.status_code == 200
+    assert late in response.context["attention"].active, "The detail context should hold the user's ACs"
+
+
+# ---------------------------------------------------------------------------
+# Dismissal: HTMX endpoint and minimal panel
+# ---------------------------------------------------------------------------
+
+
+def _toggle_url(article: Article, ac: AttentionCondition) -> str:
+    """Return the URL of the toggle endpoint for an AC, through the given article's workflow."""
+    return reverse("toggle-attention-condition", args=(article.articleworkflow.pk, ac.pk))
+
+
+@pytest.mark.django_db
+def test_toggle_view_dismisses_and_restores(assigned_article: Article, client: Client):
+    """The owner dismisses and restores an AC through the endpoint, which re-renders the panel."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late")
+    client.force_login(editor)
+
+    response = client.post(_toggle_url(article, ac))
+    ac.refresh_from_db()
+    assert response.status_code == 200
+    assert ac.status == AttentionCondition.Status.DISMISSED, "The first POST should dismiss the AC"
+    content = response.content.decode()
+    assert 'id="attention-panel"' in content, "The response should be the panel"
+    assert "Reviewer is late" in content, "The dismissed AC should still be listed in the panel"
+
+    response = client.post(_toggle_url(article, ac))
+    ac.refresh_from_db()
+    assert response.status_code == 200
+    assert ac.status == AttentionCondition.Status.ACTIVE, "The second POST should restore the AC"
+
+
+@pytest.mark.django_db
+def test_toggle_view_rejects_foreign_or_mismatched_ac(
+    assigned_article: Article,
+    author: JCOMProfile,
+    coauthor: JCOMProfile,
+    journal: Journal,
+    sections,
+    client: Client,
+):
+    """Someone else's AC is forbidden, an AC of another article is not found, and GET is not allowed."""
+    from wjs.jcom_profile.tests.conftest import _article
+
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late")
+    other_article = _article(author, coauthor, journal, sections)
+    other_ac = ac_service.upsert_ac(other_article, editor, ac_service.REVIEWER_LATE, "Elsewhere")
+
+    client.force_login(article.correspondence_author)
+    assert client.post(_toggle_url(article, ac)).status_code == 403, "Someone else's AC should be forbidden"
+
+    client.force_login(editor)
+    mismatched = reverse("toggle-attention-condition", args=(article.articleworkflow.pk, other_ac.pk))
+    assert client.post(mismatched).status_code == 404, "An AC of another article should not be found"
+    assert client.get(_toggle_url(article, ac)).status_code == 405, "Only POST should be allowed"
+
+    for attention_condition in (ac, other_ac):
+        attention_condition.refresh_from_db()
+        assert attention_condition.status == AttentionCondition.Status.ACTIVE, "No AC should have changed"
+
+
+@pytest.mark.django_db
+def test_toggle_view_unread_ac_renders_error(assigned_article: Article, client: Client):
+    """Trying to dismiss the unread-messages AC renders the panel with an error, and changes nothing."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.HAS_UNREAD_MESSAGE, "Unread")
+    client.force_login(editor)
+
+    response = client.post(_toggle_url(article, ac))
+
+    ac.refresh_from_db()
+    assert response.status_code == 200
+    assert ac.status == AttentionCondition.Status.ACTIVE, "The unread AC should not be dismissed"
+    assert response.context["form"].non_field_errors(), "The refusal should be reported"
+
+
+@pytest.mark.django_db
+def test_toggle_view_echoes_show_all(assigned_article: Article, client: Client):
+    """The "show all" state sent with the request is passed back to the panel."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac = ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late")
+    client.force_login(editor)
+
+    assert client.post(_toggle_url(article, ac), data={"show_all": "1"}).context["show_all"] is True, "Echoed"
+    assert client.post(_toggle_url(article, ac)).context["show_all"] is False, "Off by default"
+
+
+@pytest.mark.django_db
+def test_detail_page_includes_panel(assigned_article: Article, client: Client, install_wjs_submission_settings):
+    """The attention panel is always on the article page."""
+    article = assigned_article
+    editor = WjsEditorAssignment.objects.get_current(article).editor
+    ac_service.upsert_ac(article, editor, ac_service.REVIEWER_LATE, "Reviewer is late")
+    client.force_login(editor)
+    url = f"/{article.journal.code}/plugins/wjs-review-articles/status/{article.articleworkflow.pk}/"
+
+    assert 'id="attention-panel"' in client.get(url).content.decode(), "Panel on the article page"
+
+
+# ---------------------------------------------------------------------------
+# Dismissal: evaluators looping over several assignments
+# ---------------------------------------------------------------------------
+
+
+def _add_not_late_copy(assignment, due) -> None:
+    """Add a copy of the assignment that is not late (due in the future), in a copy of its round if needed."""
+    if isinstance(assignment, TypesettingAssignment):
+        new_round = assignment.round
+        new_round.pk = None
+        new_round.id = None
+        if hasattr(new_round, "round_number"):
+            new_round.round_number += 1
+        new_round.save()
+        assignment.round = new_round
+    assignment.pk = None
+    assignment.id = None
+    assignment.due = due
+    assignment.save()
+
+
+@pytest.mark.django_db
+def test_dismissed_typesetter_late_survives_a_second_assignment(assigned_to_typesetter_article: Article):
+    """A not-late assignment next to a late one neither resolves nor reactivates a dismissed TYPESETTER_LATE."""
+    article = assigned_to_typesetter_article
+    late = TypesettingAssignment.objects.get(round__article=article)
+    late.due = timezone.localdate() - timedelta(days=3)
+    late.save()
+    attention_conditions_rebuild(article)
+    rows = AttentionCondition.objects.filter(article=article, code=ac_service.TYPESETTER_LATE)
+    assert rows.active().exists(), "Precondition: the late assignment should raise the AC"
+    rows.update(status=AttentionCondition.Status.DISMISSED)
+    _add_not_late_copy(TypesettingAssignment.objects.get(pk=late.pk), timezone.localdate() + timedelta(days=10))
+
+    attention_conditions_rebuild(article)
+
+    assert set(rows.values_list("status", flat=True)) == {
+        AttentionCondition.Status.DISMISSED
+    }, "The dismissals should survive the re-evaluation"
+
+
+@pytest.mark.django_db
+def test_dismissed_author_proofing_late_survives_a_second_proofing(stage_proofing_article: Article):
+    """A not-late proofing next to a late one neither resolves nor reactivates a dismissed AUTHOR_PROOFING_LATE."""
+    article = stage_proofing_article
+    late = GalleyProofing.objects.get(round__article=article, proofreader=article.correspondence_author)
+    late.due = timezone.now() - timedelta(days=3)
+    late.save()
+    attention_conditions_rebuild(article)
+    rows = AttentionCondition.objects.filter(article=article, code=ac_service.AUTHOR_PROOFING_LATE)
+    assert rows.active().exists(), "Precondition: the late proofing should raise the AC"
+    rows.update(status=AttentionCondition.Status.DISMISSED)
+    _add_not_late_copy(GalleyProofing.objects.get(pk=late.pk), timezone.now() + timedelta(days=10))
+
+    attention_conditions_rebuild(article)
+
+    assert set(rows.values_list("status", flat=True)) == {
+        AttentionCondition.Status.DISMISSED
+    }, "The dismissals should survive the re-evaluation"

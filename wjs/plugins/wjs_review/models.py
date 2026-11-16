@@ -2694,6 +2694,7 @@ class AttentionCondition(models.Model):
 
     class Status(models.TextChoices):
         ACTIVE = "active", _("Active")
+        DISMISSED = "dismissed", _("Dismissed")
         RESOLVED = "resolved", _("Resolved")
         EXPIRED = "expired", _("Expired")
         SUPPRESSED = "suppressed", _("Suppressed")

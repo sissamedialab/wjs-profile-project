@@ -41,8 +41,9 @@ Future extensions anticipated by this design:
 
 from __future__ import annotations
 
+import dataclasses
 from collections import defaultdict
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -65,6 +66,9 @@ from .models import (
     WjsEditorAssignment,
 )
 from .role_cache import get_or_refresh_role_cache_entry
+
+if TYPE_CHECKING:
+    from journal.models import Journal
 
 Account = get_user_model()
 
@@ -244,8 +248,13 @@ def upsert_ac(
 ) -> AttentionCondition:
     """Create or update an attention condition for a single (article, user, code) tuple.
 
-    If a row with the same (article, user, code) already exists, its message,
-    priority, and status are updated. Otherwise a new row is created.
+    If a row with the same (article, user, code) already exists, its message and
+    priority are updated. Otherwise a new, active row is created.
+
+    The status of an existing row depends on what it was: a dismissed row stays
+    dismissed (the user set it aside, and the condition still applies); any other
+    row becomes active, so that a resolved row raised again is a new, active AC
+    and does not carry over a previous dismissal.
 
     This is the primary write primitive. All other write functions delegate to this.
 
@@ -264,18 +273,27 @@ def upsert_ac(
     Returns:
         The created or updated AttentionCondition instance.
     """
+    fields = {
+        "message": _fit_message(message),
+        "priority": priority,
+        "source": source,
+    }
     ac, _created = AttentionCondition.objects.update_or_create(
         article=article,
         user=user,
         code=code,
-        defaults={
-            "message": _fit_message(message),
-            "priority": priority,
-            "source": source,
-            "status": AttentionCondition.Status.ACTIVE,
-        },
+        defaults=fields,
+        create_defaults={**fields, "status": AttentionCondition.Status.ACTIVE},
     )
+    if ac.status not in (AttentionCondition.Status.ACTIVE, AttentionCondition.Status.DISMISSED):
+        ac.status = AttentionCondition.Status.ACTIVE
+        ac.save(update_fields=["status", "updated_at"])
     return ac
+
+
+# A dismissed AC is resolved like an active one when its condition ends, so that the dismissal does not carry
+# over to the next time the condition applies.
+_RESOLVABLE_STATUSES = (AttentionCondition.Status.ACTIVE, AttentionCondition.Status.DISMISSED)
 
 
 def resolve_ac(article: Article, user: Account, code: str) -> None:
@@ -321,7 +339,7 @@ def resolve_all_for_article(article: Article, codes: Iterable[str] | None = None
 
 
 def resolve_all_for_user_on_article(article: Article, user: Account) -> None:
-    """Resolve all active ACs for a specific user on an article.
+    """Resolve all active and dismissed ACs for a specific user on an article.
 
     Used when a user action clears all their pending conditions
     (e.g., author submits revision, clearing all their late ACs).
@@ -333,7 +351,7 @@ def resolve_all_for_user_on_article(article: Article, user: Account) -> None:
     AttentionCondition.objects.filter(
         article=article,
         user=user,
-        status=AttentionCondition.Status.ACTIVE,
+        status__in=_RESOLVABLE_STATUSES,
     ).update(status=AttentionCondition.Status.RESOLVED)
 
 
@@ -515,7 +533,7 @@ def resolve_for_role_batch(article: Article, role: str, codes: list[str]) -> Non
         article=article,
         user__in=users,
         code__in=codes,
-        status=AttentionCondition.Status.ACTIVE,
+        status__in=_RESOLVABLE_STATUSES,
     ).update(status=AttentionCondition.Status.RESOLVED)
 
 
@@ -531,7 +549,7 @@ def resolve_ac_batch(article: Article, user: Account, codes: list[str]) -> None:
         article=article,
         user=user,
         code__in=codes,
-        status=AttentionCondition.Status.ACTIVE,
+        status__in=_RESOLVABLE_STATUSES,
     ).update(status=AttentionCondition.Status.RESOLVED)
 
 
@@ -808,6 +826,100 @@ STATE_AC_ROLES_MAP: dict[tuple[str, str], list[str]] = defaultdict(list)
 for (_state, _role), _codes in STATE_ROLE_AC_MAP.items():
     for _code in _codes:
         STATE_AC_ROLES_MAP[(_state, _code)].append(_role)
+
+
+# ============================================================================
+# Read path -- what the templates show
+# ============================================================================
+
+
+@dataclasses.dataclass
+class ArticleAttentionConditions:
+    """The attention conditions a user can see on an article, split the way the templates show them.
+
+    Each AC in ``active`` and ``dismissed`` carries a ``dismissible`` flag: True when the AC belongs to the user,
+    False for the EO system user's rows shown to an EO person as a fallback (see ``visible_to``).
+    Both lists are ordered by priority (most urgent first), then by creation.
+    """
+
+    active: list[AttentionCondition] = dataclasses.field(default_factory=list)
+    dismissed: list[AttentionCondition] = dataclasses.field(default_factory=list)
+    unread: AttentionCondition | None = None
+
+    @property
+    def has_active(self) -> bool:
+        """Return True if there is something the user still has to deal with: an active AC or unread messages."""
+        return bool(self.active) or self.unread is not None
+
+    @property
+    def has_any(self) -> bool:
+        """Return True if there is anything to show, dismissed ACs included."""
+        return self.has_active or bool(self.dismissed)
+
+    @property
+    def legacy_message(self) -> str:
+        """Return the message of the most urgent active AC, unread messages included, as the old display did."""
+        candidates = self.active + ([self.unread] if self.unread else [])
+        if not candidates:
+            return ""
+        return min(candidates, key=lambda ac: (ac.priority, ac.created_at)).message
+
+
+def _attention_conditions_by_article(
+    attention_conditions: Iterable[AttentionCondition], user: Account, article_ids: Iterable[int]
+) -> dict[int, ArticleAttentionConditions]:
+    """Split the given ACs, already ordered by relevance, into one ArticleAttentionConditions per article."""
+    result = {article_id: ArticleAttentionConditions() for article_id in article_ids}
+    for ac in attention_conditions:
+        attention = result.setdefault(ac.article_id, ArticleAttentionConditions())
+        if ac.code == HAS_UNREAD_MESSAGE:
+            if ac.status == AttentionCondition.Status.ACTIVE and attention.unread is None:
+                attention.unread = ac
+            continue
+        ac.dismissible = ac.user_id == user.pk
+        if ac.status == AttentionCondition.Status.ACTIVE:
+            attention.active.append(ac)
+        else:
+            attention.dismissed.append(ac)
+    return result
+
+
+def get_articles_attention_conditions(
+    article_ids: Iterable[int], user: Account, journal: Journal
+) -> dict[int, ArticleAttentionConditions]:
+    """Return the attention conditions the user can see on each of the given articles, in a single query.
+
+    Every article id is in the result, with an empty ArticleAttentionConditions if it has no ACs.
+
+    Args:
+        article_ids: The articles to look at (e.g. the ones on the current page of a listing).
+        user: The user looking at the articles.
+        journal: The journal of the articles, to identify the EO system user.
+    """
+    article_ids = list(article_ids)
+    attention_conditions = (
+        AttentionCondition.objects.for_articles(article_ids)
+        .displayable()
+        .visible_to(user, journal)
+        .order_by("priority", "created_at")
+    )
+    return _attention_conditions_by_article(attention_conditions, user, article_ids)
+
+
+def get_article_attention_conditions(article: Article, user: Account) -> ArticleAttentionConditions:
+    """Return the attention conditions the user can see on the article.
+
+    Args:
+        article: The article to look at.
+        user: The user looking at the article.
+    """
+    attention_conditions = (
+        AttentionCondition.objects.for_articles([article.pk])
+        .displayable()
+        .visible_to(user, article)
+        .order_by("priority", "created_at")
+    )
+    return _attention_conditions_by_article(attention_conditions, user, [article.pk])[article.pk]
 
 
 def get_ac_priority(state: str, role: str, code: str) -> int:
@@ -1177,30 +1289,39 @@ class ACStateEvaluator:
         _upsert_for_role for eo, so cannot use a simple loop over roles.
         """
         article = self.article
-        for assignment in TypesettingAssignment.objects.filter(round__article=article):
-            msg = conditions.is_typesetter_late(assignment)
-            if msg:
-                # The typesetter's personal row is written LAST: if the
-                # typesetter is also in the EO group, both writes hit the same
-                # (article, user, code) row, and the personal wording must win.
-                msg_typesetter = conditions.is_typesetter_late(assignment, for_typesetter=True)
-                self._upsert_for_role("eo", TYPESETTER_LATE, msg)
-                self._upsert_ac(assignment.typesetter, TYPESETTER_LATE, msg_typesetter, role="typesetter")
-            else:
+        # Decide on all the assignments first, then write once per user: resolving and upserting the same row while
+        # looping (e.g. an old, completed round next to a late one) would also turn a dismissed AC active again.
+        assignments = list(TypesettingAssignment.objects.filter(round__article=article))
+        late = [(assignment, msg) for assignment in assignments if (msg := conditions.is_typesetter_late(assignment))]
+        late_typesetter_ids = {assignment.typesetter_id for assignment, _msg in late}
+        for assignment in assignments:
+            if assignment.typesetter_id not in late_typesetter_ids:
                 resolve_ac(article, assignment.typesetter, TYPESETTER_LATE)
-                self._resolve_for_role("eo", TYPESETTER_LATE)
+        if not late:
+            self._resolve_for_role("eo", TYPESETTER_LATE)
+        for assignment, msg in late:
+            # The typesetter's personal row is written LAST: if the
+            # typesetter is also in the EO group, both writes hit the same
+            # (article, user, code) row, and the personal wording must win.
+            msg_typesetter = conditions.is_typesetter_late(assignment, for_typesetter=True)
+            self._upsert_for_role("eo", TYPESETTER_LATE, msg)
+            self._upsert_ac(assignment.typesetter, TYPESETTER_LATE, msg_typesetter, role="typesetter")
 
     def _evaluate_author_proofing_late(self, roles: list[str]) -> None:
         """EO: author proofing late."""
         article = self.article
-        for proofing in GalleyProofing.objects.filter(round__article=article):
-            msg = conditions.is_author_proofing_late(proofing)
-            if msg:
-                for role in roles:
-                    self._upsert_for_role(role, AUTHOR_PROOFING_LATE, msg)
+        # Decide on all the proofings first, then write once: resolving and upserting the same rows while looping
+        # would also turn a dismissed AC active again.
+        late_messages = [
+            msg
+            for proofing in GalleyProofing.objects.filter(round__article=article)
+            if (msg := conditions.is_author_proofing_late(proofing))
+        ]
+        for role in roles:
+            if late_messages:
+                self._upsert_for_role(role, AUTHOR_PROOFING_LATE, late_messages[-1])
             else:
-                for role in roles:
-                    self._resolve_for_role(role, AUTHOR_PROOFING_LATE)
+                self._resolve_for_role(role, AUTHOR_PROOFING_LATE)
 
     def _evaluate_incomplete_submission(self, roles: list[str]) -> None:
         """Author: incomplete submission."""

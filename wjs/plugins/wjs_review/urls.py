@@ -62,6 +62,7 @@ from .views import (
     ReviewSubmit,
     SelectReviewerView,
     SupervisorAssignEditor,
+    ToggleAttentionConditionDismissalView,
     ToggleDisableReminders,
     ToggleIssueBatch,
     ToggleMessageReadByEOView,
@@ -282,6 +283,11 @@ urlpatterns = [
         "status/<int:pk>/attention-conditions/",
         ArticleAttentionConditions.as_view(),
         name="wjs-article-attention-conditions",
+    ),
+    path(
+        "status/<int:pk>/attention-conditions/<int:ac_pk>/toggle/",
+        ToggleAttentionConditionDismissalView.as_view(),
+        name="toggle-attention-condition",
     ),
     path("status/<int:pk>/assignment_reminders/", ArticleReminders.as_view(), name="wjs_reminders_per_assignment"),
     path(

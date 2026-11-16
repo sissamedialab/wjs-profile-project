@@ -114,6 +114,7 @@ from .forms import (
     SelectReviewerForm,
     SupervisorAssignEditorForm,
     TimelineFilterForm,
+    ToggleAttentionConditionDismissalForm,
     ToggleDisableRemindersForm,
     ToggleMessageReadByEOForm,
     ToggleMessageReadForm,
@@ -366,24 +367,20 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
             prefetch_related_objects([self.request.user], "groups")
 
             # -- Prefetch materialized attention conditions for the current user --
-            # Build a dict article_id -> message (highest priority AC per article)
-            # and attach it to each workflow object so the template filter
-            # can look it up in O(1) instead of making N queries.
-            # EO users see also the ACs of the editorial office as a whole,
-            # i.e. the ones of the EO system user (see visible_to).
-            user_acs_qs = (
-                ac_service.AttentionCondition.objects.active()
-                .visible_to(self.request.user, self.request.journal)
-                .order_by("article_id", "priority", "created_at")
+            # Load the ACs of the articles on the current page only, in one query, and attach them to each
+            # workflow so the template filters can look them up without further queries:
+            # - _prefetched_attention_conditions: article_id -> ArticleAttentionConditions (active, dismissed and
+            #   unread ACs);
+            # - _prefetched_acs: article_id -> message of the most urgent active AC, for the legacy filter.
+            # EO users see also some ACs of the editorial office as a whole (see visible_to).
+            workflows = context.get("workflows", [])
+            attention = ac_service.get_articles_attention_conditions(
+                [workflow.article_id for workflow in workflows], self.request.user, self.request.journal
             )
-
-            acs_dict: dict[int, str] = {}
-            for ac in user_acs_qs:
-                if ac.article_id not in acs_dict:
-                    acs_dict[ac.article_id] = ac.message
-
-            for workflow in context.get("workflows", []):
-                workflow._prefetched_acs = acs_dict
+            legacy_messages = {article_id: value.legacy_message for article_id, value in attention.items()}
+            for workflow in workflows:
+                workflow._prefetched_attention_conditions = attention
+                workflow._prefetched_acs = legacy_messages
 
         context["filter"] = self.filterset
         context["ordering_value"] = self._get_ordering_value()
@@ -1371,6 +1368,7 @@ class ArticleDetails(HtmxMixin, BaseRelatedViewsMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["form"] = self.get_form(self.request.GET)
+        context["attention"] = ac_service.get_article_attention_conditions(self.object.article, self.request.user)
         messages = get_messages_related_to_me(self.request.user, self.object.article)
         messages = messages.exclude(verbosity=Message.MessageVerbosity.EMAIL)
         context["timeline_messages"] = group_messages_by_version(
@@ -2857,6 +2855,49 @@ class ToggleMessageReadByEOView(HtmxMixin, AuthenticatedUserPassesTest, UpdateVi
             ).evaluate_all()
 
         return self.render_to_response(self.get_context_data(form=form, message=self.object))
+
+
+class ToggleAttentionConditionDismissalView(HtmxMixin, AuthenticatedUserPassesTest, UpdateView):
+    """Let the user dismiss one of their attention conditions, or restore it, and re-render the attention panel."""
+
+    model = AttentionCondition
+    form_class = ToggleAttentionConditionDismissalForm
+    template_name = "wjs_review/details/sections/attention_panel.html"
+    http_method_names = ["post"]
+
+    def load_initial(self, request, *args, **kwargs):
+        """Load the workflow and the attention condition, which must belong to the workflow's article."""
+        self.workflow = get_object_or_404(ArticleWorkflow, pk=self.kwargs["pk"])
+        self.object = get_object_or_404(AttentionCondition, pk=self.kwargs["ac_pk"], article=self.workflow.article)
+
+    def test_func(self):
+        """User must be the one the attention condition belongs to."""
+        return self.object.user_id == self.request.user.pk
+
+    def get_object(self, queryset=None):
+        """Return the attention condition already loaded (and checked against the article) in load_initial."""
+        return self.object
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Add the panel context: the workflow, the user's attention data and the echoed "show all" state."""
+        context = super().get_context_data(**kwargs)
+        context["workflow"] = self.workflow
+        context["attention"] = ac_service.get_article_attention_conditions(self.workflow.article, self.request.user)
+        context["show_all"] = self.request.POST.get("show_all") == "1"
+        return context
+
+    def form_valid(self, form: ToggleAttentionConditionDismissalForm):
+        """Toggle the dismissal and render the panel again: no redirect, the panel is swapped by HTMX."""
+        try:
+            self.object = form.save()
+        except ValidationError:
+            return self.form_invalid(form)
+        return self.render_to_response(self.get_context_data(form=form))
 
 
 class UploadRevisionFile(HtmxMixin, AuthenticatedUserPassesTest, FormView):
