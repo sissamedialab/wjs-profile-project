@@ -773,6 +773,12 @@ class Command(BaseCommand):
                             "ADMIN_RESETS_ED",
                             "PSTPN_REV_DEADLN",  # <someone> postpones revision deadline
                             "PM_REMINDS_TYP",
+                            # AU_SETS_OPEN_ACCESS: skipped on purpose, not actually handled via
+                            # correspondence import - the article's access_mode/license/rights are
+                            # already set unconditionally from wjapp's current oaaCod/copyCod
+                            # (see create_access_mode_from_wjapp() above), independently of whether
+                            # this history action is replayed, so there is nothing left to do here.
+                            "AU_SETS_OPEN_ACCESS",
                         ]
                         if action["actionID"] in managed_in_import_correspondence:
                             import_logic.logger.debug(f"Action {action['actionID']} managed in import correspondence.")
