@@ -7,7 +7,7 @@
         <td class="article-info">
           <h4 class="section-name">{{ article.section.name }}</h4>
           <h3 class="title">
-            <a href="{% if article.is_remote %}{{ article.remote_url }}{% else %}{{ article.url }}{% endif %}"
+            <a href="{% if article.is_remote %}{{ article.remote_url|add_matomo_params }}{% else %}{{ article.url|add_matomo_params }}{% endif %}"
               >{{ article.title }}</a
             >
           </h3>
@@ -28,7 +28,7 @@
         <td class="article-info">
           <h4 class="section-name">{{ article.section.name }}</h4>
           <h3 class="title">
-            <a href="{% if article.is_remote %}{{ article.remote_url }}{% else %}{{ article.url }}{% endif %}"
+            <a href="{% if article.is_remote %}{{ article.remote_url|add_matomo_params }}{% else %}{{ article.url|add_matomo_params }}{% endif %}"
               >{{ article.title }}</a
             >
           </h3>
