@@ -6,8 +6,9 @@ from django.forms.models import ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import UpdateView
+from django.views.generic import UpdateView, View
 from plugins.wjs_submission.keywords import get_keywords_by_journal
 
 from ..models import JCOMProfile
@@ -17,6 +18,10 @@ from .forms import (
     WjsInterestsForm,
     WjsPasswordChangeForm,
     WjsPersonalInfoForm,
+)
+from .required_fields import (
+    get_correspondence_author_requirements,
+    safe_back_to_submission_url,
 )
 
 
@@ -32,6 +37,8 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
 
     model = JCOMProfile
     update_message = _("Profile updated.")
+    apply_correspondence_author_requirements = False
+    """Whether the form marks the fields required for submission (see `CorrespondenceAuthorRequirementsFormMixin`)."""
 
     def get(self, *args, **kwargs):
         self.next_url = self.request.GET.get("next", None)
@@ -68,20 +75,22 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
             return
         self.request.session["next"] = value
 
-    def get_success_url(self) -> str:
+    @property
+    def back_to_submission_url(self) -> str | None:
         """
-        Determine the URL to redirect to after a successful operation.
+        Return the URL to go back to, if the user came here from the submission, and it is safe to follow.
 
-        This method checks if a 'next' URL has been set in the session data
-        and uses it as the success URL if available. Otherwise, it will fall
-        back to the default success URL provided by the parent class.
+        The profile is split in multiple views, so we cannot tell when it is complete: the user is not
+        redirected automatically after saving, a "back to submission" link is shown instead.
 
-        :return: The URL to redirect to after a successful operation.
-        :rtype: str
+        :return: The stored "next" URL, or None if it is missing or points to another site.
         """
-        if self.next_url:
-            return self.next_url
-        return super().get_success_url()
+        return safe_back_to_submission_url(self.request)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["back_to_submission_url"] = self.back_to_submission_url
+        return context
 
     def form_valid(self, form: ModelForm) -> HttpResponse:
         """
@@ -100,10 +109,6 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
         """
         response = super().form_valid(form)
         messages.success(self.request, self.update_message)
-        try:
-            del self.request.session["next"]
-        except KeyError:
-            pass
         return response
 
     def get_form_kwargs(self):
@@ -120,6 +125,8 @@ class BaseProfileEditView(LoginRequiredMixin, UpdateView):
         """
         kwargs = super().get_form_kwargs()
         kwargs["journal"] = self.request.journal
+        if self.apply_correspondence_author_requirements:
+            kwargs["correspondence_author_requirements"] = get_correspondence_author_requirements(self.request)
         return kwargs
 
     def get_object(self, queryset=None) -> JCOMProfile:
@@ -166,6 +173,7 @@ class KeywordsHierarchyContextMixin:
 
 class ProfilePersonalEditView(BaseProfileEditView):
     form_class = WjsPersonalInfoForm
+    apply_correspondence_author_requirements = True
     template_name = "wjs/profile/personal_edit.html"
     success_url = reverse_lazy("core_edit_profile")
     update_message = _("Profile updated.")
@@ -173,6 +181,7 @@ class ProfilePersonalEditView(BaseProfileEditView):
 
 class ProfileEmailEditView(BaseProfileEditView):
     form_class = WjsEmailChangeForm
+    apply_correspondence_author_requirements = True
     template_name = "wjs/profile/personal_email_edit.html"
     success_url = reverse_lazy("core_edit_profile_email")
     update_message = _("Alternative email updated.")
@@ -210,6 +219,7 @@ class ProfilePasswordEditView(BaseProfileEditView):
 
 class ProfileAdditionalEditView(BaseProfileEditView):
     form_class = WjsAdditionalInfoForm
+    apply_correspondence_author_requirements = True
     template_name = "wjs/profile/personal_info_edit.html"
     success_url = reverse_lazy("core_edit_profile_additional")
     update_message = _("Information updated.")
@@ -221,3 +231,15 @@ class ProfileInterestsEditView(KeywordsHierarchyContextMixin, BaseProfileEditVie
     template_name = "wjs/profile/personal_interests_edit.html"
     success_url = reverse_lazy("core_edit_profile_interests")
     update_message = _("Interests updated.")
+
+
+class ProfileBackToSubmissionView(LoginRequiredMixin, View):
+    """Forget the stored "next" URL and send the user back to it (the submission they came from)."""
+
+    def get(self, request, *args, **kwargs):
+        next_url = request.session.pop("next", None)
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+        ):
+            return redirect(next_url)
+        return redirect("core_edit_profile")

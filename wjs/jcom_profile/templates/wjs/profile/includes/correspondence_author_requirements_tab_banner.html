@@ -1,0 +1,9 @@
+{% load i18n wjs_tags %}
+{% get_profile_correspondence_author_requirements as tab_reqs %}
+{% for group in tab_reqs.missing_groups %}
+  {% if group.section == section %}
+    <div class="alert alert-warning py-2" role="alert" id="wjs-profile-tab-requirements">
+      <strong>{% translate "Still to fill in on this page:" %}</strong> {{ group.labels|join:", " }}
+    </div>
+  {% endif %}
+{% endfor %}

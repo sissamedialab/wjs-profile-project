@@ -21,6 +21,9 @@ from submission.models import STAGE_PUBLISHED, Article
 from wjs.defaults import settings
 from wjs.jcom_profile import article_links
 from wjs.jcom_profile.permissions import has_eo_or_director_role, has_eo_role
+from wjs.jcom_profile.profile.required_fields import (
+    get_correspondence_author_requirements,
+)
 from wjs.jcom_profile.utils import citation_name
 
 register = template.Library()
@@ -468,6 +471,51 @@ def get_profile_section(context):
     if matched_prefixes:
         return matched_prefixes[0]
     return request.resolver_match.url_name
+
+
+PROFILE_SECTIONS = (
+    # In the order of the profile sidebar.
+    "core_edit_profile",
+    "core_edit_profile_affiliations",
+    "core_edit_profile_email",
+    "core_edit_profile_additional",
+)
+
+
+@register.simple_tag(takes_context=True)
+def get_profile_correspondence_author_requirements(context):
+    """
+    Return what the profile pages show to an author coming from the submission.
+
+    Computed once per request (the sidebar and the page both use it). All the structures are empty unless the author
+    came from the submission, see
+    :py:func:`wjs.jcom_profile.profile.required_fields.get_correspondence_author_requirements`.
+
+    :return: A dict with ``entries`` (all the hinted required entries), ``missing`` (those still missing),
+        ``missing_by_section`` (number of missing entries per profile tab url name) and ``missing_groups`` (the
+        missing labels grouped by tab, in sidebar order, as dicts with ``section`` and ``labels``).
+    """
+    request = context["request"]
+    cached = getattr(request, "_wjs_profile_correspondence_author_requirements", None)
+    if cached is None:
+        entries = get_correspondence_author_requirements(request)
+        missing = [entry for entry in entries if entry.missing]
+        missing_by_section = {}
+        for entry in missing:
+            missing_by_section[entry.section] = missing_by_section.get(entry.section, 0) + 1
+        missing_groups = [
+            {"section": section, "labels": [entry.label for entry in missing if entry.section == section]}
+            for section in PROFILE_SECTIONS
+            if section in missing_by_section
+        ]
+        cached = {
+            "entries": entries,
+            "missing": missing,
+            "missing_by_section": missing_by_section,
+            "missing_groups": missing_groups,
+        }
+        request._wjs_profile_correspondence_author_requirements = cached
+    return cached
 
 
 @register.filter()

@@ -5,6 +5,7 @@
 
 {% block profile_form %}
   <h1 class="wjs-profile-form__title">{% translate "Email" %}</h1>
+  {% include "wjs/profile/includes/correspondence_author_requirements_tab_banner.html" with section="core_edit_profile_email" %}
   <p>
     {% blocktranslate %}Enter your <b>institutional</b> email address as either your primary or alternative address.<br>
     <b>All correspondence will be sent to your primary address</b>; the alternative will be used only if needed.{% endblocktranslate %}
@@ -24,6 +25,11 @@
       {% bootstrap_field form.alternative_email wrapper_class="mb-4" %}
     </div>
     <div class="wjs-profile-form__footer">
+      {% if back_to_submission_url %}
+        <a class="btn btn-outline-primary mb-3" href="{% url "core_edit_profile_back_to_submission" %}">
+          <i class="bi bi-arrow-left"></i> {% translate "Back to submission" %}
+        </a>
+      {% endif %}
       {% translate "Update" as update_label %}
       {% bootstrap_button button_class="wjs-profile-form__update-button align-self-start" button_type="submit" content=update_label %}
     </div>

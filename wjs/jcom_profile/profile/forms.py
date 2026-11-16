@@ -3,8 +3,11 @@ from core.models import Interest
 from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.utils.safestring import mark_safe
+from django.forms.utils import pretty_name
+from django.utils.html import format_html
+from django.utils.safestring import SafeString, mark_safe
 from django.utils.translation import gettext_lazy as _
+from plugins.wjs_submission.helpers.forms import required_help_text
 from submission.models import Keyword
 from utils.middleware import context_request
 
@@ -12,10 +15,65 @@ from ..constants import CAREER_STAGES_FORM, GENDER_FORM_CHOICES, PROFESSIONS_FOR
 from ..forms import KeywordCheckboxesFormMixin, _get_privacy_url
 from ..models import JCOMProfile, WjsMiniHTMLFormField
 from ..templatetags.wjs_tags import is_field_available
+from .required_fields import RequiredEntry
 
 
-class WjsPersonalInfoForm(EditAccountForm):
+class CorrespondenceAuthorRequirementsFormMixin:
+    """
+    Mark with the "Required" help text the fields that the journal requires of a correspondence author.
+
+    The form receives the `correspondence_author_requirements` kwarg (see `get_correspondence_author_requirements`;
+    empty unless the author comes from the submission) and sets, for the entries of its own `submission_section`, the
+    help text of each named field following wjs-submission's `required_help_text` pattern. An entry spanning several
+    fields ("at least one of") says so in the help text of its optional fields (a field the form always requires
+    just says Required): with the entry's own `group_help` if it has one, otherwise naming the fields. Without
+    requirements the form is left untouched.
+    """
+
+    submission_section: str
+
+    @staticmethod
+    def _required_help_text(field: forms.Field, existing: str) -> SafeString:
+        """
+        Return the Required help text of the field.
+
+        The theme colours (primary, bold) only the help text that directly follows an input or a select. For other
+        widgets, such as the rich text editor of the biography, the word Required gets the same look explicitly.
+        """
+        if isinstance(field.widget, (forms.widgets.Input, forms.Select)):
+            return required_help_text(existing)
+        label = format_html('<strong class="text-primary">{}</strong>', _("Required"))
+        if existing:
+            return format_html("{} - {}", label, mark_safe(existing))  # noqa: S308
+        return label
+
+    def apply_correspondence_author_requirements(self, requirements: list[RequiredEntry] | None) -> None:
+        """Set the Required help text on the fields named by the entries of this form's section."""
+        plain_required = str(_("Required"))
+        for entry in requirements or []:
+            if entry.section != self.submission_section:
+                continue
+            for name in entry.fields:
+                field = self.fields.get(name)
+                if field is None:
+                    continue
+                existing = str(field.help_text)
+                if existing == plain_required:
+                    existing = ""
+                if len(entry.fields) > 1 and not field.required:
+                    # Not `self[name].label`: building a bound field now would cache the help text before it is set
+                    labels = ", ".join(
+                        str(self.fields[field_name].label or pretty_name(field_name)) for field_name in entry.fields
+                    )
+                    group = str(entry.group_help or _("fill in at least one of: %(fields)s") % {"fields": labels})
+                    existing = f"{group}. {existing}" if existing else group
+                field.help_text = self._required_help_text(field, existing)
+
+
+class WjsPersonalInfoForm(CorrespondenceAuthorRequirementsFormMixin, EditAccountForm):
     """Form used to change personal info."""
+
+    submission_section = "core_edit_profile"
 
     first_name = forms.CharField(label=_("First name"), required=False)
     middle_name = forms.CharField(label=_("Middle name"), required=False)
@@ -60,6 +118,7 @@ class WjsPersonalInfoForm(EditAccountForm):
         if kwargs["instance"]:
             kwargs["initial"]["privacy_notice"] = kwargs["instance"].jcomprofile.gdpr_acceptance
         self.journal = kwargs.pop("journal")
+        correspondence_author_requirements = kwargs.pop("correspondence_author_requirements", None)
 
         super().__init__(*args, **kwargs)
 
@@ -85,6 +144,7 @@ class WjsPersonalInfoForm(EditAccountForm):
         for field in self.fields:
             if self.fields[field].required:
                 self.fields[field].help_text = _("Required")
+        self.apply_correspondence_author_requirements(correspondence_author_requirements)
 
     def clean_profession(self) -> int | None:
         """
@@ -123,8 +183,10 @@ class WjsPersonalInfoForm(EditAccountForm):
             return None
 
 
-class WjsEmailChangeForm(EditAccountForm):
+class WjsEmailChangeForm(CorrespondenceAuthorRequirementsFormMixin, EditAccountForm):
     """Form used to change password."""
+
+    submission_section = "core_edit_profile_email"
 
     email = forms.EmailField(label=_("Current email address"), required=False)
     new_email = forms.EmailField(label=_("New email address"), required=False)
@@ -148,8 +210,10 @@ class WjsEmailChangeForm(EditAccountForm):
 
     def __init__(self, *args, **kwargs):
         self.journal = kwargs.pop("journal")
+        correspondence_author_requirements = kwargs.pop("correspondence_author_requirements", None)
         super().__init__(*args, **kwargs)
         self.fields["email"].widget.attrs.update({"readonly": True})
+        self.apply_correspondence_author_requirements(correspondence_author_requirements)
 
 
 class WjsPasswordChangeForm(EditAccountForm):
@@ -191,8 +255,10 @@ class WjsPasswordChangeForm(EditAccountForm):
         return self.instance
 
 
-class WjsAdditionalInfoForm(EditAccountForm):
+class WjsAdditionalInfoForm(CorrespondenceAuthorRequirementsFormMixin, EditAccountForm):
     """Form used to change personal info."""
+
+    submission_section = "core_edit_profile_additional"
 
     facebook = forms.CharField(label=_("Facebook Handle"), required=False)
     twitter = forms.CharField(label=_("Bluesky Handle"), required=False)
@@ -212,7 +278,9 @@ class WjsAdditionalInfoForm(EditAccountForm):
 
     def __init__(self, *args, **kwargs):
         self.journal = kwargs.pop("journal")
+        correspondence_author_requirements = kwargs.pop("correspondence_author_requirements", None)
         super().__init__(*args, **kwargs)
+        self.apply_correspondence_author_requirements(correspondence_author_requirements)
 
 
 class WjsInterestsForm(KeywordCheckboxesFormMixin, EditAccountForm):

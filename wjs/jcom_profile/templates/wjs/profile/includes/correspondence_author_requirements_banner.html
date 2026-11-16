@@ -1,0 +1,6 @@
+{% load i18n %}
+{% if correspondence_author_requirements.missing %}
+  <div class="alert alert-warning" role="alert" id="wjs-profile-correspondence-author-requirements">
+    {% blocktranslate with journal_code=journal.code %}Your profile is incomplete for submission to {{ journal_code }}, as required by the journal ethical policy, please fill in the tabs highlighted in the sidebar. Click "Back to submission" after entering and saving the required information.{% endblocktranslate %}
+  </div>
+{% endif %}

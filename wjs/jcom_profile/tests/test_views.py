@@ -853,3 +853,69 @@ def test_organization_search_pagination_keeps_query(journal: Journal, jcom_user:
         assert query.get("q") == "CERN", f"{link} must keep the search terms"
         assert query.get("next") == "/profile/", f"{link} must keep the next url"
         assert query.get("paginate_by") == "1", f"{link} must keep the page size"
+
+
+def _profile_client(user, journal) -> Client:
+    jcom_user = JCOMProfile.objects.get(janeway_account=user)
+    jcom_user.gdpr_checkbox = True
+    jcom_user.is_active = True
+    jcom_user.save()
+    client = Client()
+    client.force_login(jcom_user)
+    return client
+
+
+@pytest.mark.django_db
+def test_profile_back_to_submission_link_and_no_redirect_on_save(user, journal):
+    """With ?next the profile shows a "back to submission" link on every profile page, and never redirects."""
+    client = _profile_client(user, journal)
+    profile_url = f"/{journal.code}/profile/"
+    step_url = f"/{journal.code}/submission/1/step4/"
+    back_url = reverse("core_edit_profile_back_to_submission")
+
+    response = client.get(f"{profile_url}?next={step_url}", HTTP_REFERER=profile_url)
+    assert back_url in response.content.decode()
+
+    # the link survives navigation among the profile pages
+    response = client.get(f"/{journal.code}/profile/info/")
+    assert back_url in response.content.decode()
+
+    # saving does not redirect to the submission, and the link is still there
+    response = client.post(
+        profile_url,
+        {"first_name": "New", "last_name": "Name", "email": user.email, "gdpr_checkbox": "on"},
+    )
+    assert response.status_code in (200, 302)
+    if response.status_code == 302:
+        assert step_url not in response.url
+    assert back_url in client.get(profile_url).content.decode()
+
+
+@pytest.mark.django_db
+def test_profile_back_to_submission_clears_next(user, journal):
+    """Following the link goes to the submission and forgets it: the profile page shows no link afterwards."""
+    client = _profile_client(user, journal)
+    profile_url = f"/{journal.code}/profile/"
+    step_url = f"/{journal.code}/submission/1/step4/"
+    back_url = reverse("core_edit_profile_back_to_submission")
+    client.get(f"{profile_url}?next={step_url}", HTTP_REFERER=profile_url)
+
+    response = client.get(back_url)
+    assert response.status_code == 302
+    assert response.url == step_url
+    assert "next" not in client.session
+    assert back_url not in client.get(profile_url).content.decode()
+
+
+@pytest.mark.django_db
+def test_profile_back_to_submission_ignores_external_next(user, journal):
+    client = _profile_client(user, journal)
+    profile_url = f"/{journal.code}/profile/"
+    session = client.session
+    session["next"] = "https://evil.example.com/"
+    session.save()
+
+    assert reverse("core_edit_profile_back_to_submission") not in client.get(profile_url).content.decode()
+    response = client.get(reverse("core_edit_profile_back_to_submission"))
+    assert response.status_code == 302
+    assert "evil.example.com" not in response.url
