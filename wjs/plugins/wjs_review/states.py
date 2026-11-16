@@ -752,8 +752,7 @@ class BaseState:
         """Return the highest-priority active AC message for (article, user).
 
         Delegates to the materialized AttentionCondition table. EO users see
-        also the ACs of the editorial office as a whole, i.e. the ones of the
-        EO system user (see AttentionConditionQuerySet.visible_to).
+        also some ACs of the EO system user (see AttentionConditionQuerySet.visible_to).
         Returns empty string if no active AC exists.
         """
         from .models import AttentionCondition

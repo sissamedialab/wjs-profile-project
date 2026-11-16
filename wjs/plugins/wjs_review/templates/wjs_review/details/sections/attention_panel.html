@@ -1,0 +1,95 @@
+{% load i18n %}
+{% comment %}
+  Attention panel: active, dismissed and unread ACs, with the dismiss/restore toggle.
+  Context: workflow, attention (ac_service.ArticleAttention), show_all (bool), form (optional, after a toggle).
+  It is the target of the toggle-attention-condition HTMX swap: after a toggle (a POST) the panel is rendered
+  open, and show_all keeps the dismissed list open if it was.
+{% endcomment %}
+<div id="attention-panel">
+  {% if attention.has_any %}
+    {% comment %}
+      With active ACs or unread messages the panel is the warning accordion; with only dismissed ACs left it is a
+      plain card showing the dismissed collapsible, and it becomes the accordion again when an AC is restored.
+    {% endcomment %}
+    <div class="{% if attention.has_active %}accordion accordion-flush bg-warning{% endif %} mb-4 card wjs-attention-accordion" id="attention-accordion">
+      <div class="{% if attention.has_active %}accordion-item p-0{% endif %} rounded">
+        {% if attention.has_active %}
+          <h2 class="accordion-header bg-warning d-flex align-items-center justify-content-between rounded" id="heading-attention-panel">
+            <button class="accordion-button {% if request.method != "POST" %}collapsed{% endif %} bg-warning fw-bolder fs-6 py-1 px-3 rounded" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-attention-panel" aria-expanded="{% if request.method == "POST" %}true{% else %}false{% endif %}" aria-controls="collapse-attention-panel">
+              <span class="badge rounded-circle text-dark p-2 fs-6 me-2"><i class="bi bi-exclamation-triangle"></i></span>
+              {% translate "Warning" %}
+              {% if attention.active %}
+                - {% blocktranslate count counter=attention.active|length %}{{ counter }} to check{% plural %}{{ counter }} to check{% endblocktranslate %}
+              {% endif %}
+              {% if attention.unread %}
+                - {% translate "You have unread messages" %}
+              {% endif %}
+            </button>
+          </h2>
+        {% else %}
+          <h2 class="fw-bolder fs-6 p-3 pb-0 mb-0">{% translate "No active warnings" %}</h2>
+        {% endif %}
+        <div {% if attention.has_active %}id="collapse-attention-panel" class="collapse {% if request.method == "POST" %}show{% endif %}" aria-labelledby="heading-attention-panel" data-bs-parent="#attention-accordion"{% endif %}>
+          <div class="{% if attention.has_active %}accordion-body{% else %}card-body{% endif %}">
+            {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+            {% if attention.active %}
+              <ul class="list-unstyled {% if attention.unread or attention.dismissed %}mb-3 border-bottom{% else %}mb-0{% endif %}">
+                {% for ac in attention.active %}
+                  <li class="d-flex justify-content-between align-items-center mb-3">
+                    <span>{{ ac.message }}</span>
+                    {% if ac.dismissible %}
+                      <button type="button"
+                              class="btn btn-sm btn-primary ms-2"
+                              hx-post="{% url "toggle-attention-condition" workflow.pk ac.pk %}"
+                              hx-target="#attention-panel"
+                              hx-swap="outerHTML"
+                              hx-vals='js:{show_all: document.getElementById("collapse-dismissed-attention")?.classList.contains("show") ? "1" : "0"}'>
+                        {% translate "Dismiss" %}
+                      </button>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+            {% if attention.unread %}
+              <div class="{% if attention.dismissed %}border-bottom pb-3{% endif %} mb-3">
+                <a class="d-flex justify-content-between text-decoration-none"
+                    href="{% url "wjs_article_messages" pk=workflow.pk %}">
+                  {{ attention.unread.message }}
+                  <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+              </div>
+            {% endif %}
+            {% if attention.dismissed %}
+              <div>
+                <button class="btn btn-sm btn-link text-decoration-none p-0 text-body-secondary wjs-attention-accordion__dismissed-toggle {% if not show_all %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-dismissed-attention" aria-expanded="{{ show_all|yesno:"true,false" }}" aria-controls="collapse-dismissed-attention">
+                  {% translate "Dismissed" %}
+                  <i class="bi bi-chevron-down ms-1 wjs-attention-accordion__dismissed-toggle-icon"></i>
+                </button>
+                <div id="collapse-dismissed-attention" class="collapse {% if show_all %}show{% endif %}">
+                  <ul class="list-unstyled text-body-secondary mt-2 mb-0">
+                    {% for ac in attention.dismissed %}
+                      <li class="d-flex justify-content-between align-items-center mb-3">
+                        <span>{{ ac.message }}</span>
+                        {% if ac.dismissible %}
+                          <button type="button"
+                                  class="btn btn-sm btn-outline-secondary ms-2"
+                                  hx-post="{% url "toggle-attention-condition" workflow.pk ac.pk %}"
+                                  hx-target="#attention-panel"
+                                  hx-swap="outerHTML"
+                                  hx-vals='{"show_all": "1"}'>
+                            {% translate "Restore" %}
+                          </button>
+                        {% endif %}
+                      </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>

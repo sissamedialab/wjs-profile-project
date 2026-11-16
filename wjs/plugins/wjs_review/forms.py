@@ -56,11 +56,13 @@ from .logic import (
     PostponeRevisionRequestDueDate,
     SubmitReview,
     SupervisorChangeEditorAssignment,
+    ToggleAttentionConditionDismissal,
     WithdrawPreprint,
 )
 from .logic__visibility import get_recipient_label
 from .models import (
     ArticleWorkflow,
+    AttentionCondition,
     EditorRevisionRequest,
     Message,
     MessageRecipients,
@@ -1224,6 +1226,32 @@ class ToggleMessageReadForm(forms.ModelForm):
         if isinstance(instance.message.target, Article):
             ac_service.sync_unread_message_ac(instance.message.target, instance.recipient)
         return instance
+
+
+class ToggleAttentionConditionDismissalForm(forms.ModelForm):
+    """Dismiss or restore an attention condition of the user."""
+
+    class Meta:
+        model = AttentionCondition
+        fields = []
+
+    def __init__(self, *args, user: Account, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+    def get_logic_instance(self) -> ToggleAttentionConditionDismissal:
+        """Instantiate :py:class:`ToggleAttentionConditionDismissal` class."""
+        return ToggleAttentionConditionDismissal(attention_condition=self.instance, user=self.user)
+
+    def save(self, commit: bool = True) -> AttentionCondition:
+        """Toggle the dismissal of the attention condition."""
+        try:
+            self.get_logic_instance().run()
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
+        self.instance.refresh_from_db()
+        return self.instance
 
 
 class ToggleMessageReadByEOForm(forms.ModelForm):
