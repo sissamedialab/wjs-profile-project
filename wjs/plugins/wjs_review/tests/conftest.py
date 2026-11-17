@@ -533,7 +533,7 @@ def assigned_to_typesetter_proofs_done_article(
 
     See notes about notifications in `assigned_article`.
     """
-    return _assigned_to_typesetter_proofs_done_article(ready_for_typesetter_article, fake_request)
+    return _assigned_to_typesetter_proofs_done_article(stage_proofing_article, fake_request)
 
 
 def _create_generic_galleys(article: Article) -> [Galley, Galley, Galley]:

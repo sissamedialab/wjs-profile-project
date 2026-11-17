@@ -14,7 +14,7 @@
           <br/>
           <a
             href="{% url 'wjs_article_details' article.articleworkflow.pk %}"
-            class="fw-bold">{{ article.pk }}</a>
+            class="fw-bold">{{ article|versioned_number }}</a>
         </div>
       </div>
       {% with status_date=workflow|get_final_decision_or_withdrawn_date %}
