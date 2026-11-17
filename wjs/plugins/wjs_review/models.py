@@ -464,6 +464,8 @@ class ArticleWorkflow(TimeStampedModel):
         RESUBMITTED_OPEN_APPEAL = "resubmitted_open_appeal", _("Resubmitted Appeal")
         RESUBMITTED_TECHNICAL_REVISION = "resubmitted_tech_revisions", _("Resubmitted Metadata change")
         ASSIGNED_TO_EDITOR = "assigned_to_editor", _("Assigned to Editor")
+        TAKEN_IN_CHARGE = "taken_in_charge", _("Taken in charge")
+        BACK_TO_TYPESETTER = "back_to_typesetter", _("Back to typesetter")
 
     article = models.OneToOneField("submission.Article", verbose_name=_("Article"), on_delete=models.CASCADE)
     # author start submission of paper
@@ -579,12 +581,22 @@ class ArticleWorkflow(TimeStampedModel):
         The value can be either one of :py:attr:`ReviewComputedStates` or :py:attr:`ReviewStates` depending
          on the states or other factors like the presence of accepted review requests, active reviews, etc.
 
+        While the article is with the typesetter (:py:attr:`ReviewStates.TYPESETTER_SELECTED`), the latest
+        typesetting round tells a paper just taken in charge (round 1, or no round at all) from one back to the
+        typesetter after the author's corrections or the EO sending it back (round > 1).
+
         :return: The verbose state label of the article.
         :rtype: Union["ReviewStates", "ReviewComputedStates"
         """
         from .logic import states_when_article_is_considered_working_on
 
         article = self.article
+        if self.state == self.ReviewStates.TYPESETTER_SELECTED:
+            latest_round = TypesettingRound.objects.filter(article=article).first()
+            if latest_round and latest_round.round_number > 1:
+                return self.ReviewComputedStates.BACK_TO_TYPESETTER.value
+            return self.ReviewComputedStates.TAKEN_IN_CHARGE.value
+
         if self.state not in states_when_article_is_considered_working_on:
             return self.state
 

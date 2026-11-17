@@ -477,13 +477,11 @@ class TestG8TypesetterPapersMonitoring:
         assert item["doi"] is None
         # Rendered in the server TIME_ZONE; compare the instant, not the string.
         assert datetime.datetime.fromisoformat(item["date_accepted"]) == paper.date_accepted
-        # The "name" is the computed state label (ArticleWorkflow.state_label). With no
-        # typesetting round uploaded yet, W1 still renders its raw label; the TiC vs
-        # "Back to typesetter" distinction arrives automatically with specs#3120.
-        # TODO(specs#3120): expect "Taken in charge" here once the computed state exists.
+        # The "name" is the computed state label (ArticleWorkflow.state_label): on its first
+        # typesetting round W1 is "Taken in charge", while "code" stays the stored state.
         assert item["status"] == {
             "code": ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
-            "name": str(ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED.label),
+            "name": str(ArticleWorkflow.ReviewComputedStates.TAKEN_IN_CHARGE.label),
         }
         assert datetime.datetime.fromisoformat(item["date_taken_in_charge"]) == self.MIDDLE_DT
         workflow = ArticleWorkflow.objects.get(pk=paper.pk)
@@ -505,7 +503,11 @@ class TestG8TypesetterPapersMonitoring:
 
         response = self._get(client, journal, scenario["typesetter_account"].pk, auth=self._auth(eo_user))
         assert response.status_code == 200
-        assert [i["preprint_id"] for i in response.json()].count(f"{journal.code}_{paper.pk}") == 1
+        rows = [i for i in response.json() if i["preprint_id"] == f"{journal.code}_{paper.pk}"]
+        assert len(rows) == 1, "A paper with several typesetting rounds must appear only once"
+        assert rows[0]["status"]["name"] == str(
+            ArticleWorkflow.ReviewComputedStates.BACK_TO_TYPESETTER.label
+        ), "A paper on its second typesetting round must be 'Back to typesetter'"
         second_round.delete()  # leave the shared scenario pristine for other tests
 
     def test_date_taken_in_charge_is_scoped_to_the_url_typesetter(
