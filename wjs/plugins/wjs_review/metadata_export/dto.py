@@ -135,6 +135,8 @@ class ArticleExportDTO:
     publication_type: str = ""
     authors: list[AuthorExportDTO] = dataclasses.field(default_factory=list)
     pii: str = ""
+    #: article_id_list/article_id[@id_type="DOI"] -- the raw DOI identifier, "" if the article has none.
+    doi: str = ""
     files: list[FileExportDTO] = dataclasses.field(default_factory=list)
     received_date: DateParts = dataclasses.field(default_factory=DateParts)
     revised_date: DateParts = dataclasses.field(default_factory=DateParts)
