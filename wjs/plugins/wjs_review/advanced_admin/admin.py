@@ -11,11 +11,12 @@ from django.shortcuts import render
 from django.urls import path, reverse
 from django.utils.translation import gettext_lazy as _
 from submission.models import Article, FrozenAuthor
-from wjs.advanced_admin.admin import advanced_admin_site
+from wjs.advanced_admin.admin import ArticleSearchFilterMixin, advanced_admin_site
 
 from ..ac_service import evaluate_blacklisted_author
 from .forms import WorkflowReviewAssignmentForm
 
+ArticleWorkflow = apps.get_model("wjs_review", "ArticleWorkflow")
 WjsSection = apps.get_model("wjs_review", "WjsSection")
 EditorRevisionRequest = apps.get_model("wjs_review", "EditorRevisionRequest")
 EditorDecision = apps.get_model("wjs_review", "EditorDecision")
@@ -47,6 +48,13 @@ class ParamsWrapper(RelatedFieldWidgetWrapper):
         return ctx
 
 
+class ArticleWorkflowProxy(ArticleWorkflow):
+    class Meta:
+        proxy = True
+        verbose_name = _("Article workflow")
+        verbose_name_plural = _("Article workflows")
+
+
 class EditorDecisionProxy(EditorDecision):
     class Meta:
         proxy = True
@@ -73,6 +81,43 @@ class WorkflowReviewAssignmentProxy(WorkflowReviewAssignment):
         proxy = True
         verbose_name = _("Reviewer report")
         verbose_name_plural = _("Reviewer reports")
+
+
+@admin.register(ArticleWorkflowProxy, site=advanced_admin_site)
+class ArticleWorkflowAdmin(ArticleSearchFilterMixin, admin.ModelAdmin):
+    article_lookup_prefix = "article__"
+    workflow_state_lookup = "state"
+
+    list_display = ["article", "article_journal", "state"]
+    list_select_related = ["article__journal"]
+    ordering = ("-pk",)
+    readonly_fields = ("article", "latest_state_change")
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("article", "state", "latest_state_change"),
+                "description": _(
+                    "Changing the state here only updates the state field. It does not run the workflow "
+                    "transition: no log entry, no notifications, no changes to assignments, reminders or attention "
+                    "conditions. Use only to fix a paper that is stuck."
+                ),
+            },
+        ),
+    )
+
+    @admin.display(description=_("Journal"), ordering="article__journal")
+    def article_journal(self, obj: ArticleWorkflow):  # noqa: PLR6301
+        """Return the journal of the workflow's article."""
+        return obj.article.journal
+
+    def has_add_permission(self, request: HttpRequest) -> bool:  # noqa: PLR6301
+        """Block adding workflows: they are created with their article."""
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj=None) -> bool:  # noqa: PLR6301
+        """Block deleting workflows from the advanced admin."""
+        return False
 
 
 @admin.register(WjsSectionProxy, site=advanced_admin_site)

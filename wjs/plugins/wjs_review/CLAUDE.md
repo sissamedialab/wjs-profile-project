@@ -41,6 +41,13 @@ only for finer-grained display labels (`state_label`), never for `@transition` g
 or `BACK_TO_TYPESETTER` (round > 1, i.e. after the author's corrections or an EO send-back). Each computed
 value also drives the badge colour through the `color-state-<state_value>` CSS class defined in wjs-themes.
 
+**Raw state edit in the advanced admin.** The "Article workflows" page of the advanced admin
+(`advanced_admin/admin.py::ArticleWorkflowAdmin`, on a proxy model) lets advanced-admin users set `state` directly, like
+the stock Django admin already does (`FSMField` is not `protected`). This bypasses the transitions entirely: no
+workflow log message, no notifications, no change to assignments, reminders or attention conditions, and
+`latest_state_change` is not updated. The form says so; it's meant only to unstick a paper. Add and delete are
+disabled. Search and filters are shared with the Articles page via wjs-themes' `ArticleSearchFilterMixin`.
+
 `Decisions` (`models.py:415-436`, `TextChoices`) re-uses Janeway's `review.const.EditorialDecisions` values
 for the decisions that must interoperate with Janeway core (`minor_revisions`, `major_revisions`,
 `technical_revisions`, `open_appeal`) and adds WJS-only ones (`accept`, `reject`, `not_suitable`,
