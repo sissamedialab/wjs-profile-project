@@ -297,6 +297,11 @@ def map_pii(article) -> str:
     return article.journal.code or ""
 
 
+def map_doi(article) -> str:
+    """Map the export ``<article_id id_type="DOI">`` (the raw DOI identifier); empty if none is set."""
+    return article.get_doi() or ""
+
+
 def _extension_of(filename: str) -> str:
     """Return a filename's extension, lower-cased and without the leading dot ("" if none)."""
     _, ext = os.path.splitext(filename or "")
@@ -656,6 +661,7 @@ JCAP_FIELDS = {
     "publication_type": map_publication_type,
     "authors": map_authors,
     "pii": map_pii,
+    "doi": map_doi,
     "files": map_files,
     "received_date": map_received_date,
     "revised_date": map_revised_date,
