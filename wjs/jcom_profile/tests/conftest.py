@@ -15,6 +15,7 @@ from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core import management
 from django.core.cache import cache
+from django.db import connection
 from django.db.models import QuerySet
 from django.urls.base import clear_script_prefix, clear_url_caches, set_script_prefix
 from django.utils import timezone, translation
@@ -103,6 +104,13 @@ ASSIGNMENT_PARAMETERS_LINK = (
 )
 
 ASSIGNMENT_PARAMS = """Edit assignment parameters</a>"""
+
+
+@pytest.fixture(scope="session")
+def django_db_setup(django_db_setup, django_db_blocker):
+    """Install the unaccent extension: test settings skip migrations, so wjs_submission 0028 never runs here."""
+    with django_db_blocker.unblock(), connection.cursor() as cursor:
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS unaccent;")
 
 
 @pytest.fixture
