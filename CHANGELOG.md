@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.10] - 2026-11-17
+
+- [specs#3329: Share filters between articlesubmission, article and articleworkflow](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3329) — feat(wjs_review): add Article workflows page to the advanced admin (!1626)
+- [specs#3414: Same list columns on Articles, Article submissions and Article workflows advanced admin pages](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3414) — feat(wjs_review): add Article workflows page to the advanced admin (!1626)
+- No linked issue — chore(wjs_review): log the number of main directors in get_director_user warning (!1634)
+- [specs#3159: Ensure ssh on wjs-test is configured to accept SFTP requests](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3159) — fix(ansible): make the fake IOP SFTP playbook work in --check mode (!1630)
+- [specs#3255: Upgrade paramiko](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3255) — Upgrade paramiko to 5.0 (!1627)
+- [specs#3120: As a typesetter i need to distinguish between "taken in charge" and "proofs received" status](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3120) — feat(wjs_review): distinguish "Taken in charge" and "Back to typesetter" (!1614)
+- [specs#3233: Internal Server Error: /plugins/wjs-submission/submission/4351/8/](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3233) — feat(wjs_review): add report_double_submissions command for specs#3233 (!1611)
+- [specs#3279: Deactivated keywords in public keywords list page](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3279) — fix(jcom_profile): hide deactivated keywords from keyword lists and selection pages (!1613)
+- [specs#3185: As EO I want to be alerted and be able to take action if paper's affiliation is changed in revision (only IoP journals)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3185) — feat(wjs_review): notify EO when an IoP paper's affiliation changes in revision (!1603)
+- [specs#3186: As EO I need to check and sometimes act on all newly submitted papers (IoP journals only)](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3186) — feat(wjs_review): notify EO when an IoP paper's affiliation changes in revision (!1603)
+- [specs#3387: missing matomo parameters in newsletter links](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3387) — add missing newsletter matomo params (!1624)
+
 ## [2.1.9] - 2026-11-16
 
 - [specs#3367: Find a UI solution when all AC have been dismissed](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3367) — feat(wjs_review): let users dismiss and restore attention conditions (!1620)
