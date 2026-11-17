@@ -65,6 +65,7 @@ from django.utils.translation import gettext_lazy as _
 from django_fsm import can_proceed
 from events import logic as events_logic
 from journal.models import Journal
+from plugins.wjs_submission import settings as wjs_submission_settings
 from plugins.wjs_submission.conversion import (
     TASK_LOG_PREFIX,
     get_feedback_logfile,
@@ -1925,7 +1926,20 @@ class PopulateRevisionStep1(BasePopulateRevisionStep):
 
 
 class PopulateRevisionStep4(BasePopulateRevisionStep):
+    def _affiliation_changed(self) -> bool:
+        """Tell if the revision changes an IoP paper's affiliation; call it before step-4 data is saved."""
+        if self.article.journal.code not in wjs_submission_settings.IOP_JOURNALS:
+            return False
+        affiliation_pk = self.revision_storage.data.get("affiliation_pk")
+        return bool(affiliation_pk) and int(affiliation_pk) != self.article.submission_data.affiliation_id
+
     def run(self):
+        """Copy step-4 data to the article; notify EO if an IoP paper's affiliation changed."""
+        # The article still holds the pre-revision values: capture them before they are overwritten.
+        affiliation_changed = self._affiliation_changed()
+        old_affiliation = self.article.submission_data.affiliation
+        old_correspondence_author = self.article.correspondence_author
+
         if correspondence_author := self.revision_storage.data.get("correspondence_author"):
             self.article.correspondence_author_id = correspondence_author
         if authors_contributions := self.revision_storage.data.get("authors_contributions"):
@@ -1935,6 +1949,12 @@ class PopulateRevisionStep4(BasePopulateRevisionStep):
             self.article.owner_id = owner
         if affiliation_pk := self.revision_storage.data.get("affiliation_pk"):
             self.article.submission_data.affiliation = ControlledAffiliation.objects.get(pk=affiliation_pk)
+        if affiliation_changed:
+            AffiliationChangedInRevisionNotification(
+                article=self.article,
+                old_affiliation=old_affiliation,
+                old_correspondence_author=old_correspondence_author,
+            ).run()
 
         FrozenAuthor.objects.filter(article=self.article).delete()
         article_authors = RevisionArticleAuthorOrder.objects.filter(revision_storage=self.revision_storage).order_by(
@@ -5390,3 +5410,41 @@ class ToggleAttentionConditionDismissal:
                 attention_condition.status = AttentionCondition.Status.ACTIVE
             attention_condition.save(update_fields=["status", "updated_at"])
         return attention_condition
+
+
+@dataclasses.dataclass
+class AffiliationChangedInRevisionNotification:
+    """Notify EO that the paper's affiliation changed in a revision, so that they can check it (specs#3185)."""
+
+    article: Article
+    old_affiliation: ControlledAffiliation | None
+    old_correspondence_author: Account | None
+
+    def _render(self, setting_name: str, context: dict) -> str:
+        """Render the given wjs_review setting as a template."""
+        from utils.management.commands.test_fire_event import create_fake_request
+
+        return render_template_from_setting(
+            setting_group_name="wjs_review",
+            setting_name=setting_name,
+            journal=self.article.journal,
+            request=create_fake_request(user=None, journal=self.article.journal),
+            context=context,
+            template_is_setting=True,
+        )
+
+    def run(self) -> Message:
+        """Send the EO a system message, left unread for EO, reporting the old and the new affiliation."""
+        with transaction.atomic():
+            context = {
+                "article": self.article,
+                "old_affiliation": self.old_affiliation,
+                "new_affiliation": self.article.submission_data.affiliation,
+                "old_correspondence_author": self.old_correspondence_author,
+            }
+            return communication_utils.log_operation(
+                article=self.article,
+                message_subject=self._render("affiliation_changed_in_revision_subject", context),
+                message_body=self._render("affiliation_changed_in_revision_body", context),
+                recipients=[get_eo_user(self.article)],
+            )

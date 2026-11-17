@@ -219,7 +219,7 @@ def get_director_user(obj: Union[Article, Journal]) -> Account:
     elif directors.count() > 1:
         if main_directors.count() > 1:
             logger.error(
-                f"Journal {journal.code} has {directors.count()} main directors!"
+                f"Journal {journal.code} has {main_directors.count()} main directors!"
                 " Picking a random one, this can have unintended consequences..."
                 " Please enroll only one director (manager -> roles -> director-main -> view enrolled users)",
             )

@@ -33,10 +33,20 @@ not forgotten. Only two transitions (`typesetter_deems_paper_ready_for_publicati
 (`system_process_submission`) picks its target dynamically via `GET_STATE(process_submission, states=[...])`,
 delegating the real decision to the module-level `process_submission()` function (`models.py:98-112`).
 
-`ReviewComputedStates` (`models.py:443-453`) are **virtual, non-stored** sub-states (e.g.
+`ReviewComputedStates` (`models.py:456-468`) are **virtual, non-stored** sub-states (e.g.
 `REQUESTED_MINOR_REVISION`, `WAITING_FOR_DECISION`, `IN_REVIEW`) computed by `ArticleWorkflow.state_value`
-(`@cached_property`, `models.py:557-611`) from pending/completed assignments and revision requests — used
-only for finer-grained display labels (`state_label`), never for `@transition` gating.
+(`@cached_property`, `models.py:572-637`) from pending/completed assignments and revision requests — used
+only for finer-grained display labels (`state_label`), never for `@transition` gating. While the paper is in
+`TYPESETTER_SELECTED`, the latest `TypesettingRound` decides instead: `TAKEN_IN_CHARGE` (round 1, or no round)
+or `BACK_TO_TYPESETTER` (round > 1, i.e. after the author's corrections or an EO send-back). Each computed
+value also drives the badge colour through the `color-state-<state_value>` CSS class defined in wjs-themes.
+
+**Raw state edit in the advanced admin.** The "Article workflows" page of the advanced admin
+(`advanced_admin/admin.py::ArticleWorkflowAdmin`, on a proxy model) lets advanced-admin users set `state` directly, like
+the stock Django admin already does (`FSMField` is not `protected`). This bypasses the transitions entirely: no
+workflow log message, no notifications, no change to assignments, reminders or attention conditions, and
+`latest_state_change` is not updated. The form says so; it's meant only to unstick a paper. Add and delete are
+disabled. Search and filters are shared with the Articles page via wjs-themes' `ArticleSearchFilterMixin`.
 
 `Decisions` (`models.py:415-436`, `TextChoices`) re-uses Janeway's `review.const.EditorialDecisions` values
 for the decisions that must interoperate with Janeway core (`minor_revisions`, `major_revisions`,

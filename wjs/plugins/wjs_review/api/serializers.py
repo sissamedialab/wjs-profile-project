@@ -142,10 +142,11 @@ class ProductionBaseSerializer(serializers.Serializer):
         return obj.article.get_doi()
 
     def get_status(self, obj):
-        # name = the computed state label (state_value → ReviewComputedStates where applicable).
-        # Today a typesetter-side paper in the working-on states renders its raw state label
-        # ("Typesetter selected"); the TiC vs "Back to typesetter" distinction lands
-        # automatically here once specs#3120 adds that computed state.
+        """Workflow state: ``code`` is the stored state, ``name`` the computed state label.
+
+        A paper with the typesetter has code ``TypesetterSelected`` and name "Taken in charge" (first
+        typesetting round) or "Back to typesetter" (later rounds: author corrections or EO send-back).
+        """
         return {"code": obj.state, "name": obj.state_label}
 
     def get_date_taken_in_charge(self, obj):

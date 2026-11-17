@@ -44,6 +44,7 @@ from .models import (
 from .permissions import has_reviewer_role, has_section_editor_role
 from .settings_helpers import get_article_language_choices
 from .templatetags.wjs_tags import display_title, is_field_available
+from .utils import get_active_keywords
 
 logger = get_logger(__name__)
 
@@ -205,12 +206,12 @@ class UpdateAssignmentParametersForm(KeywordCheckboxesFormMixin, forms.ModelForm
         }
 
     def __init__(self, *args, **kwargs):
-        """Setup initial keywords and filter keywords queryset by journal."""
+        """Setup initial keywords and limit the keywords queryset to the active keywords of the journal."""
         if "initial" not in kwargs:
             kwargs["initial"] = {}
         kwargs["initial"]["keywords"] = kwargs["instance"].keywords.all()
         super().__init__(*args, **kwargs)
-        self.fields["keywords"].queryset = self.instance.journal.keywords.all().order_by("word")
+        self.fields["keywords"].queryset = get_active_keywords(self.instance.journal).order_by("word")
         self.initial_enabled = self.instance.enabled
         self.fields["vacancy_start"].label = _("Except from")
         self.fields["vacancy_end"].label = _("to")
@@ -232,7 +233,10 @@ class UpdateAssignmentParametersForm(KeywordCheckboxesFormMixin, forms.ModelForm
             # (it is managed by the director).
             # ... through.weight = ...
 
-        StaffKeyword.objects.filter(parameters=instance).exclude(keyword__in=kwds).delete()
+        # Deactivated keywords are not offered, so they are never posted: keep them (and their director-set weight)
+        StaffKeyword.objects.filter(parameters=instance).exclude(keyword__in=kwds).exclude(
+            keyword__deactivated__isnull=False
+        ).delete()
 
         # Send email if enabled field has changed
         if self.initial_enabled != instance.enabled:

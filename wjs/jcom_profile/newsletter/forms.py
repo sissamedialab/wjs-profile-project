@@ -8,6 +8,7 @@ from utils.forms import CaptchaForm
 from wjs.jcom_profile.forms import KeywordCheckboxesFormMixin, logger
 from wjs.jcom_profile.models import Recipient
 from wjs.jcom_profile.settings_helpers import get_journal_language_choices
+from wjs.jcom_profile.utils import get_active_keywords
 
 
 class RegisterUserNewsletterForm(CaptchaForm):
@@ -54,7 +55,7 @@ class NewsletterTopicForm(KeywordCheckboxesFormMixin, forms.ModelForm):
 
         super().__init__(*args, **kwargs)
 
-        self.fields["keywords"].queryset = self.journal.keywords.all().order_by("word")
+        self.fields["keywords"].queryset = get_active_keywords(self.journal).order_by("word")
 
         if len(available_languages) > 1:
             self.fields["language"].choices = available_languages
@@ -72,7 +73,8 @@ class NewsletterTopicForm(KeywordCheckboxesFormMixin, forms.ModelForm):
 
         keywords = cleaned_data.get("keywords")
         news = cleaned_data.get("news")
-        if len(keywords) == 0 and news is False:
+        # keywords is None when the field failed validation (e.g. a keyword deactivated after the page was loaded)
+        if keywords is not None and len(keywords) == 0 and news is False:
             logger.warning(f"Recipient {self.instance.email}/{self.instance.user} selected no keywords and no news.")
             # after #474 # raise ValidationError(
             # after #474 #     _('You have selected no news and no keywords.

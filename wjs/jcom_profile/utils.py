@@ -14,10 +14,11 @@ from core.middleware import GlobalRequestMiddleware
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.messages.storage import default_storage
+from django.db.models import QuerySet
 from django.http import HttpRequest, QueryDict
 from django.template import Context, Template
 from journal.models import Journal
-from submission.models import Article
+from submission.models import Article, Keyword
 from utils.logger import get_logger
 from utils.render_template import get_message_content
 from utils.setting_handler import get_setting
@@ -341,3 +342,18 @@ def get_eo_user(obj: Union[Article, Journal]) -> Account:
         JCOMProfile.objects.filter(janeway_account=account.pk).update(gdpr_checkbox=True)
         logger.warning(f"Create system EO account {email}")
     return account
+
+
+def get_active_keywords(journal: Journal) -> QuerySet[Keyword]:
+    """
+    Return the journal keywords that have not been deactivated.
+
+    Deactivated keywords (``Keyword.deactivated`` set) must not be listed or offered for selection; they stay
+    available only as search filters.
+
+    :param journal: The journal whose keywords are sought.
+    :type journal: Journal
+    :return: Unordered queryset of the journal's active keywords.
+    :rtype: QuerySet[Keyword]
+    """
+    return journal.keywords.filter(deactivated__isnull=True)

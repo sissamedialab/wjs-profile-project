@@ -2350,6 +2350,69 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         )
         return setting_1, setting_2
 
+    def add_affiliation_changed_in_revision_notifications() -> tuple[SettingValue, ...]:
+        """Add settings for the notification to EO when the affiliation changes in a revision (IoP journals)."""
+        setting_parms: SettingParams = {
+            "name": "affiliation_changed_in_revision_subject",
+            "group": wjs_review_settings_group,
+            "types": "text",
+            "pretty_name": _("Subject of the notification to EO for affiliation changed in revision"),
+            "description": _(
+                "Subject of the notification sent to EO when the paper's affiliation changes in a revision"
+                " (IoP journals only).",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": (
+                "Corresponding author affiliation changed in revision – "  # noqa: RUF001
+                "{{ article.journal.code }}-{{ article.pk }}"
+            ),
+            "translations": {},
+        }
+        setting_1 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        setting_parms: SettingParams = {
+            "name": "affiliation_changed_in_revision_body",
+            "group": wjs_review_settings_group,
+            "types": "rich-text",
+            "pretty_name": _("Body of the notification to EO for affiliation changed in revision"),
+            "description": _(
+                "Body of the notification sent to EO when the paper's affiliation changes in a revision"
+                " (IoP journals only).",
+            ),
+            "is_translatable": False,
+        }
+        value_params: SettingValueParams = {
+            "journal": None,
+            "setting": None,
+            "value": """Dear EO,
+<br><br>
+the authors of {{ article.journal.code }}-{{ article.pk }} "{{ article.title }}" have changed the corresponding
+author's affiliation while submitting a revision.
+<br><br>
+Previous: {{ old_affiliation|default:"none" }} ({{ old_correspondence_author.full_name }})<br>
+New: {{ new_affiliation }} ({{ article.correspondence_author.full_name }})
+<br><br>
+Please check that the new affiliation matches the corresponding author's affiliation in the manuscript, and
+verify the access mode, copyright and licence. Mark this message as read when done.
+""",
+            "translations": {},
+        }
+        setting_2 = create_customization_setting(
+            setting_parms,
+            value_params,
+            setting_parms["name"],
+            force=force,
+        )
+        return setting_1, setting_2
+
     def expected_galleys() -> tuple[SettingValue, ...]:
         setting: SettingParams = {
             "name": "expected_galleys",
@@ -2459,6 +2522,7 @@ article {{ article.journal.code }}-{{ article.pk }}: "{{ article.title }}"
         csv_writer.write_settings(add_press_notification_when_article_is_withdrawn_settings())
         csv_writer.write_settings(reviewer_report_type())
         csv_writer.write_settings(add_access_mode_request_notifications())
+        csv_writer.write_settings(add_affiliation_changed_in_revision_notifications())
         csv_writer.write_settings(expected_galleys())
         csv_writer.write_settings(xml_sent_to_publisher_notification())
         csv_writer.write_settings(typesetter_uploaded_typeset_preprint_message())

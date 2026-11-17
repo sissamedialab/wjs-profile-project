@@ -46,6 +46,7 @@ from .models import JCOMProfile, StaffWorkloadParameters
 from .permissions import get_hijacker, has_reviewer_role, has_section_editor_role
 from .profile.views import KeywordsHierarchyContextMixin, ProfilePersonalEditView
 from .search import search_articles
+from .utils import get_active_keywords
 
 logger = get_logger(__name__)
 
@@ -899,7 +900,7 @@ class KeywordListView(KeywordsHierarchyContextMixin, ListView):
     title = _("Keywords")
 
     def get_queryset(self):
-        return self.model.objects.filter(journal=self.request.journal).order_by("word")
+        return get_active_keywords(self.request.journal).order_by("word")
 
 
 class AuthorSearchView(HtmxMixin, LoginRequiredMixin, ListView):

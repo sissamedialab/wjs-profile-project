@@ -13,7 +13,7 @@ from django.views.generic import FormView, TemplateView, UpdateView
 
 from ..models import Recipient
 from ..profile.views import KeywordsHierarchyContextMixin
-from ..utils import generate_token
+from ..utils import generate_token, get_active_keywords
 from ..views import logger
 from . import forms
 from .service import NewsletterMailerService
@@ -52,14 +52,14 @@ class NewsletterParametersUpdate(UserPassesTestMixin, KeywordsHierarchyContextMi
         if user.is_anonymous:
             recipient = Recipient.objects.get(newsletter_token=self.request.GET.get("token"))
             if (not recipient.topics.exists()) and (recipient.news is False):
-                recipient.topics.set(recipient.journal.keywords.all())
+                recipient.topics.set(get_active_keywords(recipient.journal))
                 recipient.news = True
                 recipient.save()
         else:
             recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
             if created:
                 recipient.language = get_language()
-                recipient.topics.set(recipient.journal.keywords.all())
+                recipient.topics.set(get_active_keywords(recipient.journal))
                 recipient.news = True
                 recipient.save()
 
@@ -102,7 +102,7 @@ class AnonymousUserNewsletterRegistration(FormView):
             recipient, created = Recipient.objects.get_or_create(user=user, journal=journal)
             recipient.language = get_language()
             if created:
-                recipient.topics.set(recipient.journal.keywords.all())
+                recipient.topics.set(get_active_keywords(recipient.journal))
                 recipient.news = True
             recipient.save()
         else:
