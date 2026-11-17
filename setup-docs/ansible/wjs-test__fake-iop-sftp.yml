@@ -143,11 +143,15 @@
         owner: root
         group: root
         mode: "0644"
+      register: sshd_match_block
       notify: Reload sshd
 
+    # The sshd commands below only read the configuration: run them in --check mode too (ansible
+    # skips `command` tasks in check mode, leaving their stdout empty).
     - name: Validate the whole sshd configuration
       command: sshd -t
       changed_when: false
+      check_mode: false
 
     - name: Reload sshd now, so the checks below see the new config
       meta: flush_handlers
@@ -161,10 +165,13 @@
         - wjs
       register: sshd_effective
       changed_when: false
+      check_mode: false
 
     # `sshd -T` prints every keyword, unset ones as "none" (e.g. "forcecommand none"), and
     # keywords are lowercase up to OpenSSH 9.x but CamelCase from 10.x: match case-insensitively.
+    # In --check mode a new or changed Match block is not written yet, so sshd cannot show it: skip.
     - name: Check that only {{ sftp_user }} is chrooted and SFTP-only
+      when: not (ansible_check_mode and sshd_match_block is changed)
       assert:
         that:
           - "sshd_effective.results[0].stdout is search('(?mi)^chrootdirectory /srv/sftp/')"
