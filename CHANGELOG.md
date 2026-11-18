@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.1.11] - 2026-11-18
+
+- [specs#3411: Check DOI format/position in XML sent to IoP at acceptance](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3411) — fix: render DOI in JCAP metadata export XML (!1638)
+
 ## [2.1.10] - 2026-11-17
 
 - [specs#3329: Share filters between articlesubmission, article and articleworkflow](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3329) — feat(wjs_review): add Article workflows page to the advanced admin (!1626)
