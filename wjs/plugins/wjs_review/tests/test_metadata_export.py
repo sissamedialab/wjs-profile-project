@@ -32,6 +32,7 @@ from django.conf import settings
 from django.core.files import File as DjangoFile
 from django.template.loader import render_to_string
 from django.utils.module_loading import import_string
+from identifiers.models import Identifier
 from plugins.wjs_review.metadata_export import formatters, mappers, publishers, service
 from plugins.wjs_review.metadata_export.dto import (
     AffiliationExportDTO,
@@ -1034,6 +1035,25 @@ def test_serialize_article_to_metadata_xml_renders_via_the_registered_composer(a
 
     assert xml.strip().startswith("<?xml")
     assert f'ms_no="{accepted_article.articleworkflow.preprint_id}"' in xml
+
+
+@pytest.mark.django_db
+def test_serialize_article_to_metadata_xml_renders_doi_only_if_doi_identifier_is_set(accepted_article):
+    """The DOI ``<article_id>`` is rendered if and only if the article has a DOI identifier."""
+    doi_xpath = "article/article_id_list/article_id[@id_type='DOI']"
+
+    # Accepting an article may already assign a DOI: start from a known "no DOI" state.
+    Identifier.objects.filter(article=accepted_article, id_type="doi").delete()
+
+    root = ET.fromstring(service.serialize_article_to_metadata_xml(accepted_article))
+    assert root.find(doi_xpath) is None, "no DOI identifier set: no DOI node must be rendered"
+
+    Identifier.objects.create(article=accepted_article, id_type="doi", identifier="10.22323/2.21010201")
+
+    root = ET.fromstring(service.serialize_article_to_metadata_xml(accepted_article))
+    doi_el = root.find(doi_xpath)
+    assert doi_el is not None, "DOI identifier set: the DOI node must be rendered"
+    assert doi_el.text == "10.22323/2.21010201"
 
 
 @pytest.mark.django_db
