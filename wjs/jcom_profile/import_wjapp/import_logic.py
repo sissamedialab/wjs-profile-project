@@ -48,6 +48,7 @@ from plugins.wjs_review.logic__production import (
     HandleEOSendBackToTypesetter,
     ReadyForPublication,
     RequestProofs,
+    SendProductionXMLToPublisher,
     TypesettedFilesUpload,
 )
 from plugins.wjs_review.models import (
@@ -338,6 +339,30 @@ def noop_true(*args, **kwdargs):
     Used to disabled WJS conditions
     """
     return True
+
+
+# specs#3131 follow-up: replaying a paper's history past acceptance (TYP_TAKES_CHARGE,
+# ADMIN_CONFIRMS_TA, ADMIN_REJECTS_TA) calls system_verifies_production_requirements()
+# directly, bypassing jcap_production_readiness_not_confirmed()'s _is_imported() guard
+# (checks_after_acceptance.py) that correctly holds imported articles at acceptance time.
+# That transition unconditionally builds and sends a real production zip to the publisher
+# over SFTP - during import replay this must never really happen: the paper's real
+# production delivery already happened (or will happen) through its own channel, and
+# resending risks double ingestion at the publisher. Disable it process-wide, same as the
+# other automated-message patches in this module.
+
+
+def noop_log_skipped_zip_send(self, *args, **kwdargs):
+    """Log, instead of actually sending, that the production zip send to the publisher is
+    disabled on purpose during wjapp import replay.
+    """
+    logger.debug(
+        f"Production zip send to publisher disabled during wjapp import replay for article "
+        f"{self.articleworkflow.article.pk} ({self.articleworkflow.article.journal.code})"
+    )
+
+
+SendProductionXMLToPublisher.run = noop_log_skipped_zip_send
 
 
 def truncate_with_ellipsis(s):
