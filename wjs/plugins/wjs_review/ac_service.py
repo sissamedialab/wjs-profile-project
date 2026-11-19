@@ -501,6 +501,19 @@ def upsert_for_role(
     return results
 
 
+def production_export_send_failed(article: Article) -> bool:
+    """Return true while the failed delivery of the production export zip still applies to the article.
+
+    A dismissed attention condition still applies: its user only set it aside.
+    """
+    return (
+        AttentionCondition.objects.displayable()
+        .for_code(PRODUCTION_EXPORT_SEND_FAILED)
+        .for_articles([article.pk])
+        .exists()
+    )
+
+
 def resolve_for_role(article: Article, role: str, code: str) -> None:
     """Resolve an AC for all users holding a given role on an article.
 

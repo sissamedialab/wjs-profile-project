@@ -116,6 +116,22 @@ the codes of the article's current state.
   codes), and `resolve_for_role` reaches only the current role holders, so a user who loses a role keeps their row
   (and a dismissal comes back with the role). Both predate dismissal; they are to be audited separately.
 
+**Production export send failure (wjs/specs#2972, #3450):** `PRODUCTION_EXPORT_SEND_FAILED` is raised for the EO
+by `SendProductionXMLToPublisher.run()` when the zip delivery to the publisher fails; the failure is swallowed on
+purpose (it must not block ACCEPTED → READY_FOR_TYPESETTER) and exposed as `send_error`. The EO retries with
+`logic__production.ResendProductionXMLToPublisher` ← `ResendProductionXMLToPublisherView`
+(`wjs-resend-production-zip`, POST) ← `states.RESEND_PRODUCTION_ZIP_ACTION`. The button
+(`conditions.can_resend_production_zip`) and the logic (`_check_requirements`) share one check,
+`conditions.production_zip_resend_blocker`: a production state (`conditions.RESEND_PRODUCTION_ZIP_STATES`,
+ReadyForTypesetter, TypesetterSelected, Proofreading only; a test keeps it in sync with the states declaring the
+action), a journal with a send function, and `ac_service.production_export_send_failed()` (ACTIVE or DISMISSED row).
+The resend locks the workflow row, so of two simultaneous resends the second is refused. It wraps the sender, so a
+good resend logs the EO message and resolves every row of the AC (also those of users who are no longer EO), and a
+failed one refreshes the AC and raises `ValidationError` *after* the transaction, so the refreshed message is not
+rolled back. The export mappers accept only
+`STAGE_ACCEPTED`, so the resend sets the article's stage to accepted in memory while building the zip and restores it
+(never saved), as `export_production_zip --force-accepted` does.
+
 **Visibility (`AttentionConditionQuerySet.visible_to`):** everybody sees their own rows. EO ACs are written for each
 EO person **and** for the EO system user (`get_eo_user`); EO people see the system user's rows only for
 `HAS_UNREAD_MESSAGE` (shared by the whole office), or when they have no displayable row of their own for that code

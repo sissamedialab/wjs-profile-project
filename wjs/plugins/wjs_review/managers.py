@@ -323,6 +323,17 @@ class AttentionConditionQuerySet(models.QuerySet):
 
         return self.filter(status__in=(AttentionCondition.Status.ACTIVE, AttentionCondition.Status.DISMISSED))
 
+    def for_code(self, code: str) -> "AttentionConditionQuerySet":
+        """
+        Return the attention conditions with the given code.
+
+        :param code: the functional code of the attention condition
+        :type code: str
+        :return: the attention conditions with that code
+        :rtype: "AttentionConditionQuerySet"
+        """
+        return self.filter(code=code)
+
     def for_articles(self, article_ids: Iterable[int]) -> "AttentionConditionQuerySet":
         """
         Return the attention conditions of the given articles.

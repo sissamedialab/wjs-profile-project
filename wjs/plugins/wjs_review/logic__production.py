@@ -54,6 +54,7 @@ from lxml.html import HtmlElement
 from plugins.wjs_submission.step7.views import get_article_fundings
 from production.logic import save_galley, save_galley_image
 from submission.models import (
+    STAGE_ACCEPTED,
     STAGE_PROOFING,
     STAGE_READY_FOR_PUBLICATION,
     STAGE_TYPESETTING,
@@ -232,6 +233,8 @@ class SendProductionXMLToPublisher:
     """
 
     articleworkflow: ArticleWorkflow
+    send_error: Optional[str] = dataclasses.field(default=None, init=False)
+    """Message of the delivery failure swallowed by the last non-silent ``run()``, if any."""
 
     def _get_send_function(self) -> Optional[Callable[[Article, bytes], None]]:
         """Return the configured per-journal zip-send function, or None if unsupported."""
@@ -339,6 +342,7 @@ class SendProductionXMLToPublisher:
         except SFTPSendError as exc:
             if silent:
                 raise
+            self.send_error = str(exc)
             with transaction.atomic():
                 self._handle_send_failure(exc)
                 if affiliation_incomplete:
@@ -354,6 +358,70 @@ class SendProductionXMLToPublisher:
                 )
                 if affiliation_incomplete:
                     self._log_incomplete_affiliation_warning()
+        return self.articleworkflow
+
+
+@dataclasses.dataclass
+class ResendProductionXMLToPublisher:
+    """Resend the production export zip to the publisher after a failed delivery (wjs/specs#3450).
+
+    Only possible when ``conditions.production_zip_resend_blocker`` finds nothing in the way: a production
+    state, a journal with a send function and a ``PRODUCTION_EXPORT_SEND_FAILED`` attention condition that still
+    applies. The same check drives the visibility of the EO action.
+
+    The send itself is delegated to ``SendProductionXMLToPublisher``, so a good resend logs the EO message and
+    resolves every row of the attention condition (also those of users who are not EO anymore), and a failed one
+    refreshes the attention condition with the new error. The workflow row is locked, so of two simultaneous
+    resends the second one finds the failure resolved and is refused.
+
+    The export only supports accepted articles, but the resend can happen after typesetting started: the
+    article's stage is set to accepted in memory while the zip is built, and restored afterwards.
+
+    ``run()`` must be the outermost transaction: the failure is raised after it commits, so that the refreshed
+    attention condition is not rolled back. A caller wrapping it in its own ``atomic()`` and letting the
+    ``ValidationError`` propagate would lose the refresh.
+    """
+
+    articleworkflow: ArticleWorkflow
+
+    def _check_requirements(self) -> None:
+        """Raise ValidationError unless a resend makes sense for the article.
+
+        Same check that drives the visibility of the resend action, so the button and the logic never disagree.
+        """
+        # Local import: conditions imports logic, which imports this module.
+        from . import conditions
+
+        blocker = conditions.production_zip_resend_blocker(self.articleworkflow)
+        if blocker is not None:
+            raise ValidationError(blocker)
+
+    def run(self) -> ArticleWorkflow:
+        """Resend the zip, or raise ValidationError if the requirements are not met or the delivery fails again."""
+        from . import ac_service
+
+        article = self.articleworkflow.article
+        with transaction.atomic():
+            # Two simultaneous resends are serialised: the second one finds the failure resolved and is refused.
+            locked = ArticleWorkflow.objects.select_for_update().get(pk=self.articleworkflow.pk)
+            self.articleworkflow.state = locked.state
+            self._check_requirements()
+            sender = SendProductionXMLToPublisher(articleworkflow=self.articleworkflow)
+            # The export only supports accepted articles, but the resend can happen after typesetting started.
+            # The stage is forced in memory only (as export_production_zip --force-accepted does) and restored.
+            original_stage = article.stage
+            article.stage = STAGE_ACCEPTED
+            try:
+                sender.run()
+            finally:
+                article.stage = original_stage
+            if sender.send_error is None:
+                # Also the rows of users who are not EO anymore, which the sender does not reach.
+                ac_service.resolve_all_for_article(article, codes=[ac_service.PRODUCTION_EXPORT_SEND_FAILED])
+        # Raised outside the transaction: the sender has already refreshed the attention condition with
+        # the new error, and a rollback here would erase it.
+        if sender.send_error is not None:
+            raise ValidationError(sender.send_error)
         return self.articleworkflow
 
 

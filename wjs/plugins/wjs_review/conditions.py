@@ -13,6 +13,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from journal.models import Issue, Journal
 from plugins.wjs_submission.correction.links import article_children
 from plugins.wjs_submission.correction.logic import ADDENDUM, ERRATUM
@@ -722,6 +723,37 @@ def journal_requires_social_media_files(journal: Journal) -> bool:
 def journal_requires_publisher_confirmation(workflow: ArticleWorkflow, user: Account) -> bool:
     """Check if the article's journal needs the publisher's green light before publication."""
     return workflow.requires_publisher_confirmation()
+
+
+RESEND_PRODUCTION_ZIP_STATES = (
+    ArticleWorkflow.ReviewStates.READY_FOR_TYPESETTER,
+    ArticleWorkflow.ReviewStates.TYPESETTER_SELECTED,
+    ArticleWorkflow.ReviewStates.PROOFREADING,
+)
+"""Workflow states where the EO can resend a failed production zip (wjs/specs#3450)."""
+
+
+def production_zip_resend_blocker(workflow: ArticleWorkflow) -> Optional[str]:
+    """Return why the production zip cannot be resent to the publisher, or None if it can.
+
+    Single source of truth for both the resend action visibility and ``ResendProductionXMLToPublisher``, so the
+    button is never shown for a resend that would be refused.
+    """
+    # Local import: ac_service imports this module.
+    from . import ac_service
+
+    if workflow.state not in RESEND_PRODUCTION_ZIP_STATES:
+        return _("The production zip cannot be resent in the current state of the article.")
+    if settings.WJS_REVIEW_ACCEPTANCE_ZIP_SEND_FUNCTIONS.get(workflow.article.journal.code) is None:
+        return _("This journal does not send the production zip to a publisher.")
+    if not ac_service.production_export_send_failed(workflow.article):
+        return _("There is no failed delivery to the publisher to retry.")
+    return None
+
+
+def can_resend_production_zip(workflow: ArticleWorkflow, user: Account) -> bool:
+    """Check if the production zip can be resent to the publisher after a failed delivery."""
+    return production_zip_resend_blocker(workflow) is None
 
 
 def article_in_special_issue(workflow: ArticleWorkflow) -> bool:

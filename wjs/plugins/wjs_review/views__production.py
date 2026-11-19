@@ -43,6 +43,7 @@ from .logic__production import (
     MissingIssueError,
     ReadyForPublication,
     RequestProofs,
+    ResendProductionXMLToPublisher,
     SetPublisherConfirmedFlag,
     SimulatePublicationIdentifiers,
     TogglePublishableFlag,
@@ -518,6 +519,31 @@ class SetPublisherConfirmedFlagView(AuthenticatedUserPassesTest, View):
             SetPublisherConfirmedFlag(workflow=self.object, confirmed=confirmed).run()
         except ValueError as e:
             messages.error(request=self.request, message=str(e))
+        return HttpResponseRedirect(redirect_url)
+
+
+class ResendProductionXMLToPublisherView(AuthenticatedUserPassesTest, View):
+    """EO resends the production export zip to the publisher after a failed delivery (wjs/specs#3450)."""
+
+    model = ArticleWorkflow
+    http_method_names = ["post"]
+
+    def load_initial(self, request, *args, **kwargs):
+        super().load_initial(request, *args, **kwargs)
+        self.object = self.model.objects.get(pk=self.kwargs["pk"])
+
+    def test_func(self):
+        """Only EO can resend the zip."""
+        return base_permissions.has_eo_role(self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        redirect_url = reverse("wjs_article_details", kwargs={"pk": self.object.pk})
+        try:
+            ResendProductionXMLToPublisher(articleworkflow=self.object).run()
+        except (ValueError, ValidationError) as e:
+            messages.error(request=self.request, message=" ".join(e.messages) if hasattr(e, "messages") else str(e))
+        else:
+            messages.success(request=self.request, message=_("The production zip was sent to the publisher."))
         return HttpResponseRedirect(redirect_url)
 
 
