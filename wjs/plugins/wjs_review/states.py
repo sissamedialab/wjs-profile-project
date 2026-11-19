@@ -533,6 +533,20 @@ PUBLISHER_CONFIRMED_ACTION = ArticleAction(
     is_post=True,
 )
 
+# EO resends the production zip after a failed delivery to the publisher (wjs/specs#3450). Shown only while the
+# PRODUCTION_EXPORT_SEND_FAILED attention condition still applies and the resend would be accepted
+# (same check as ResendProductionXMLToPublisher). Keep the states listing this action in sync with
+# conditions.RESEND_PRODUCTION_ZIP_STATES.
+RESEND_PRODUCTION_ZIP_ACTION = ArticleAction(
+    permission=permissions.has_eo_role_by_article,
+    condition=conditions.can_resend_production_zip,
+    name="resend production zip to publisher",
+    label=_("Resend to publisher"),
+    view_name="wjs-resend-production-zip",
+    confirm=_("Resend the production zip to the publisher?"),
+    is_post=True,
+)
+
 
 @dataclasses.dataclass
 class ReviewAssignmentAction:
@@ -1110,6 +1124,7 @@ class ReadyForTypesetter(BaseState):
             is_post=True,
         ),
         PUBLISHER_CONFIRMED_ACTION,
+        RESEND_PRODUCTION_ZIP_ACTION,
     ) + BaseState.article_actions
     article_buttons = (
         ArticleButton(
@@ -1206,6 +1221,7 @@ class TypesetterSelected(BaseState):
             view_name="wjs_sync_tex_db",
         ),
         PUBLISHER_CONFIRMED_ACTION,
+        RESEND_PRODUCTION_ZIP_ACTION,
     ) + BaseState.article_actions
     article_buttons = (
         ArticleButton(
@@ -1297,6 +1313,7 @@ class Proofreading(BaseState):
             view_name="wjs_draft_article_page",
         ),
         PUBLISHER_CONFIRMED_ACTION,
+        RESEND_PRODUCTION_ZIP_ACTION,
     ) + BaseState.article_actions
     article_buttons = (
         ArticleButton(

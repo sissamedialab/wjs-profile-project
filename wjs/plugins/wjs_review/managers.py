@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Iterable, List, Optional, Union
 from core.models import Account
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import OuterRef, Q, QuerySet, Subquery
-from review.models import ReviewRound
+from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery
+from review.models import ReviewAssignment, ReviewRound
 from submission.models import Article
 
 from wjs.jcom_profile.permissions import has_eo_role
@@ -59,6 +59,15 @@ class ArticleWorkflowQuerySet(models.QuerySet):
             qs = qs.filter(review_round_id__in=round_filter_conditions[mode].values("id"))
 
         return qs
+
+    def with_completed_review_in_latest_round(self) -> QuerySet:
+        """Return ArticleWorkflow with at least a completed (not declined/withdrawn) review in the latest round."""
+        completed_reviews = ReviewAssignment.objects.filter(
+            review_round_id=OuterRef("review_round_id"),
+            is_complete=True,
+            date_declined__isnull=True,
+        ).exclude(decision="withdrawn")
+        return self.get_article_with_latest_round().filter(Exists(completed_reviews))
 
     def with_unread_messages(
         self,
@@ -313,6 +322,17 @@ class AttentionConditionQuerySet(models.QuerySet):
         from .models import AttentionCondition
 
         return self.filter(status__in=(AttentionCondition.Status.ACTIVE, AttentionCondition.Status.DISMISSED))
+
+    def for_code(self, code: str) -> "AttentionConditionQuerySet":
+        """
+        Return the attention conditions with the given code.
+
+        :param code: the functional code of the attention condition
+        :type code: str
+        :return: the attention conditions with that code
+        :rtype: "AttentionConditionQuerySet"
+        """
+        return self.filter(code=code)
 
     def for_articles(self, article_ids: Iterable[int]) -> "AttentionConditionQuerySet":
         """

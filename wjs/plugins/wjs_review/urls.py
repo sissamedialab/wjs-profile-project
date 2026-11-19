@@ -84,6 +84,7 @@ from .views__production import (  # noqa F401;
     ListSupplementaryFileView,
     ReadyForProofreadingView,
     ReadyForPublicationView,
+    ResendProductionXMLToPublisherView,
     SetPublisherConfirmedFlagView,
     SimulatePubidView,
     TogglePublishableFlagView,
@@ -317,6 +318,11 @@ urlpatterns = [
         "paper_publisher_confirmed/<int:pk>/",
         SetPublisherConfirmedFlagView.as_view(),
         name="wjs_set_publisher_confirmed",
+    ),
+    path(
+        "article/<int:pk>/resend-production-zip/",
+        ResendProductionXMLToPublisherView.as_view(),
+        name="wjs-resend-production-zip",
     ),
     path(
         "article/<int:pk>/permissions/<int:user_id>/",
