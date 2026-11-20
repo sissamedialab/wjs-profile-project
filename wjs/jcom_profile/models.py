@@ -319,6 +319,14 @@ class StaffKeyword(models.Model):
     keyword = models.ForeignKey("submission.Keyword", on_delete=models.CASCADE)
     weight = models.PositiveIntegerField(default=0)
 
+    class Meta:
+        verbose_name = _("Staff keyword")
+        verbose_name_plural = _("Staff keywords")
+        ordering = ["parameters", "keyword"]
+        constraints = [
+            models.UniqueConstraint(fields=["parameters", "keyword"], name="unique_staffkeyword_parameters_keyword"),
+        ]
+
     def __str__(self):  # NOQA: D105
         return f"{self.parameters.user} - Editor keyword: {self.keyword}"
 

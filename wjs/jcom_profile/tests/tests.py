@@ -128,20 +128,26 @@ class TestJCOMWIP:
     def test_profile_form_field_profession_is_mandatory(self, profession, settings, user: Account, journal: Journal):
         """The field "profession" is mandatory in the profile form."""
         if not profession:
-            settings.PROFILE_FIELDS[journal.code] = (
-                "first_name",
-                "middle_name",
-                "last_name",
-                "year_of_birth",
-            )
+            settings.PROFILE_FIELDS = {
+                **settings.PROFILE_FIELDS,
+                journal.code: (
+                    "first_name",
+                    "middle_name",
+                    "last_name",
+                    "year_of_birth",
+                ),
+            }
         else:
-            settings.PROFILE_FIELDS[journal.code] = (
-                "first_name",
-                "middle_name",
-                "last_name",
-                "year_of_birth",
-                "profession",
-            )
+            settings.PROFILE_FIELDS = {
+                **settings.PROFILE_FIELDS,
+                journal.code: (
+                    "first_name",
+                    "middle_name",
+                    "last_name",
+                    "year_of_birth",
+                    "profession",
+                ),
+            }
         form = JCOMRegistrationForm(journal=journal)
         assert form.fields.get("profession").required == is_field_available(journal, "profession")
         form = WjsPersonalInfoForm(journal=journal, instance=user)
@@ -152,20 +158,26 @@ class TestJCOMWIP:
     def test_profile_form_field_career_stage_is_mandatory(self, profession, settings, user: Account, journal: Journal):
         """The field "career_stage" is mandatory in the profile form if enabled."""
         if not profession:
-            settings.PROFILE_FIELDS[journal.code] = (
-                "first_name",
-                "middle_name",
-                "last_name",
-                "year_of_birth",
-            )
+            settings.PROFILE_FIELDS = {
+                **settings.PROFILE_FIELDS,
+                journal.code: (
+                    "first_name",
+                    "middle_name",
+                    "last_name",
+                    "year_of_birth",
+                ),
+            }
         else:
-            settings.PROFILE_FIELDS[journal.code] = (
-                "first_name",
-                "middle_name",
-                "last_name",
-                "year_of_birth",
-                "career_stage",
-            )
+            settings.PROFILE_FIELDS = {
+                **settings.PROFILE_FIELDS,
+                journal.code: (
+                    "first_name",
+                    "middle_name",
+                    "last_name",
+                    "year_of_birth",
+                    "career_stage",
+                ),
+            }
         form = JCOMRegistrationForm(journal=journal)
         assert form.fields.get("career_stage").required == is_field_available(journal, "career_stage")
         form = WjsPersonalInfoForm(journal=journal, instance=user)
