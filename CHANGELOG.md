@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.12] - 2026-11-20
+
+- [specs#3443: Fix import: do not send IOP zip at acceptance/publication](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3443) — Bugfix/issue 3443  jcap import no real iop send (!1641)
+- [specs#3450: Allow for manual sending of production/acceptance zip to IOP in case of failure](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3450) — feat(wjs_review): let the EO resend a failed production zip to the publisher (!1643)
+- [specs#2972: Send to IOP the zip generated at ready-for-typesetter](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2972) — feat(wjs_review): let the EO resend a failed production zip to the publisher (!1643)
+- [specs#3456: Several JCAP reports cannot compile](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3456) — fix(wjs_review): add command to strip the LaTeX preamble from imported TeX reports (!1644)
+
 ## [2.1.11] - 2026-11-18
 
 - [specs#3411: Check DOI format/position in XML sent to IoP at acceptance](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3411) — fix: render DOI in JCAP metadata export XML (!1638)
