@@ -34,7 +34,6 @@
 	</author>{% endfor %}
 </author_list>
 <article_id_list>
-	<article_id id_type="pii">{{ article.pii }}</article_id>
 	{% if article.doi %}<article_id id_type="DOI">{{ article.doi }}</article_id>{% endif %}
 </article_id_list>
 <file_list>{% for file in article.files %}
