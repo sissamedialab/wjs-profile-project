@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.13] - 2026-11-23
+
+- [specs#3411: Check DOI format/position in XML sent to IoP at acceptance](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3411) — chore: remove extra field from export (!1654)
+- [specs#3293: Reminder tests fail between 22:00 and 24:00 UTC: dates computed on the UTC date instead of the local one](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3293) — chore: remove extra field from export (!1654)
+- [specs#3131: As EO I want imported papers to have affiliation](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3131) — feat(import): release ACCEPTED JCAP papers to READY_FOR_TYPESETTER (!1650)
+- [specs#3443: Fix import: do not send IOP zip at acceptance/publication](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3443) — feat(import): release ACCEPTED JCAP papers to READY_FOR_TYPESETTER (!1650)
+- [specs#3445: Fix import: fix status around acceptance](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3445) — feat(import): release ACCEPTED JCAP papers to READY_FOR_TYPESETTER (!1650)
+- [specs#3432: Harden TestChildrenExclusion::test_search](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3432) — test(jcom_profile): use made-up article titles in the children-exclusion tests (!1651)
+- [specs#3434: qcluster: stopping or restarting the unit loses in-flight django-q tasks](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3434) — fix(ansible): stop qcluster gracefully so in-flight tasks are not lost (!1640)
+- [specs#3444: Fix import: (some?) imported reminders do not have the sent-date](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3444) — fix(import): backdate still-enabled, unsent, overdue reminders on non-final-state papers (!1645)
+- [specs#3449: verify and handle import editor associations and keyword when wjapp data duplicated](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3449) — fix(import): backdate still-enabled, unsent, overdue reminders on non-final-state papers (!1645)
+- [specs#3436: Verify if we can/should harden editor-keyword association with unique-together](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3436) — feat(jcom_profile): make StaffKeyword unique per parameters and keyword (!1642)
+- [specs#2316: Import JCAP into production](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2316) — feat(jcom_profile): make StaffKeyword unique per parameters and keyword (!1642)
+- [specs#3449: verify and handle import editor associations and keyword when wjapp data duplicated](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3449) — feat(jcom_profile): make StaffKeyword unique per parameters and keyword (!1642)
+
 ## [2.1.12] - 2026-11-20
 
 - [specs#3443: Fix import: do not send IOP zip at acceptance/publication](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3443) — Bugfix/issue 3443  jcap import no real iop send (!1641)
