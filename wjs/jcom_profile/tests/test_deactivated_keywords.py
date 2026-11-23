@@ -57,7 +57,7 @@ def test_keywords_list_page_hides_deactivated_hierarchical(hierarchical_journal,
     response = Client().get(f"/{hierarchical_journal.code}/keywords/")
     assert response.status_code == 200
     subgroups = {
-        subgroup.name: [kw.word for kw in subgroup.keywords.all()]
+        subgroup.name: sorted(kw.word for kw in subgroup.keywords.all())
         for group in response.context["keywords_list"]
         for subgroup in group.keywordgroup_set.all()
     }
