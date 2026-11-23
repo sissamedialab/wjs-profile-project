@@ -16,6 +16,9 @@ from core.models import Account, File
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
+from django.db.models import DateTimeField
+from django.db.models.functions import Cast
+from django.utils import timezone
 from identifiers import models as identifiers_models
 from journal.models import Issue, IssueType, Journal
 from plugins.hydra.models import LinkedArticle, LinkType
@@ -980,6 +983,25 @@ class Command(BaseCommand):
                 num_disabled = import_logic.get_reminders_for_article(article, only_enabled=True).update(disabled=True)
                 import_logic.logger.debug(
                     f"forced disabled of {num_disabled} reminder for {article.id}/{preprintid}"
+                    f" in state {article.articleworkflow.state}"
+                )
+            else:
+                # specs#3444: a reminder's "sent" flag in wjapp is only ever set by wjapp's own cron,
+                # at (or after) its reminderDate - so any gap between that and this import run (wjapp
+                # stopped/frozen, a delayed reimport, or anything else getting in the way) can leave
+                # wjapp's own data stale: a reminder that has clearly already elapsed, imported as
+                # still enabled and unsent, wrongly shows up as due. This fix is deliberately a bit
+                # forced - it assumes an overdue reminder was sent even without direct proof from
+                # wjapp - but a wrongly-silenced reminder is a far smaller problem than a stale one
+                # nagging someone for an action that was already handled in wjapp, so we'd rather err
+                # towards silencing it.
+                num_backdated = (
+                    import_logic.get_reminders_for_article(article, only_enabled=True)
+                    .filter(date_sent__isnull=True, date_due__lte=timezone.localdate())
+                    .update(date_sent=Cast("date_due", DateTimeField()))
+                )
+                import_logic.logger.debug(
+                    f"backdated date_sent of {num_backdated} overdue reminder for {article.id}/{preprintid}"
                     f" in state {article.articleworkflow.state}"
                 )
 

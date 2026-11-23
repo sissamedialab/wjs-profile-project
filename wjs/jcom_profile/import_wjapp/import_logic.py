@@ -1206,7 +1206,13 @@ ORDER BY reminderDate
                     logger.debug(f"exists wjs reminder for {self.article.id}: {reminder} {reminder.date_due}")
                     wjs_reminder_match = False
                     for wjapp_reminder in wjapp_reminder_list:
-                        if wjapp_reminder["type"] == f"{wjapp_type}_{i}":
+                        # specs#3444: some wjapp reminder families (e.g. pending_revision,
+                        # pending_minor_revision) leave the first reminder's type unsuffixed
+                        # ("pending_revision", not "pending_revision_1") while numbering the
+                        # rest from _2 onwards - accept the bare type name as reminder 1.
+                        if wjapp_reminder["type"] == f"{wjapp_type}_{i}" or (
+                            i == 1 and wjapp_reminder["type"] == wjapp_type
+                        ):
                             logger.debug(
                                 f"found wjapp reminder for {self.preprintid} action {self.action['actionID']} "
                                 f" {self.action['actHistCod']} {wjapp_reminder['type']} "
@@ -3133,7 +3139,12 @@ ORDER BY dl.submissionDate
         """Check and fix wjapp reminder for ReviewerDeclineAction if exists in wjs"""
 
         self.check_and_fix_action_reminder("ref_declined_ed_decision", "EDMD", 3)
-        self.check_and_fix_action_reminder("Ref_decline", "EDSR", 3)
+        # specs#3444: wjapp's actual Reminder.type for this case is "Ref_declined_N" (with the
+        # "d"), not "Ref_decline_N" - the typo didn't fail loudly because the exact-match filter
+        # a few lines above is a startswith() (where "Ref_decline" is, coincidentally, a genuine
+        # prefix of "Ref_declined"), but the per-reminder exact match further down never hits, so
+        # these EDSR reminders were silently left at their untouched defaults (enabled, unsent).
+        self.check_and_fix_action_reminder("Ref_declined", "EDSR", 3)
 
 
 class EQ1_REF_REF(ReviewerDeclineAction):  # noqa N801
