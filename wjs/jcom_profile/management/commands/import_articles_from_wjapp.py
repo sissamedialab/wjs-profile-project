@@ -968,6 +968,32 @@ class Command(BaseCommand):
                         f"for published article {preprintid} / {article.id}"
                     )
 
+        # specs#3445: for JCAP, an accepted paper whose wjapp history stopped at acceptance is
+        # released straight to READY_FOR_TYPESETTER - unless wjapp itself is still waiting for the
+        # TA (technical acceptance) confirmation, in which case it stays held for the EO exactly as
+        # specs#3131 already does. Dated a second after the real acceptance instant (not import
+        # time), same convention as repair_history_insert_delay_on_action_datetime, so it sorts
+        # right after the acceptance event in any timeline/list.
+        # JHEP left out for now (note #83209): JHEP papers are always open access via SCOAP3, no
+        # transformative agreement involved, so WAIT_TA_CONFIRMATION doesn't apply there the same
+        # way - JINST/JSTAT may need this instead, revisit later.
+        if (
+            self.journal.code.upper() == "JCAP"
+            and ArticleWorkflow.objects.filter(article=article).exists()
+            and article.articleworkflow.state == ArticleWorkflow.ReviewStates.ACCEPTED
+            and article_expected_final_state != "WAIT_TA_CONFIRMATION"
+        ):
+            if acceptance_date and acceptance_date.year != 1970:
+                import_production_hold.release_production_readiness_hold(
+                    article,
+                    when=rome_timezone.localize(acceptance_date) + datetime.timedelta(seconds=1),
+                )
+            else:
+                import_logic.logger.warning(
+                    f"ACCEPTED article {preprintid} / {article.id} has no acceptance_date in wjapp"
+                    " - left held in ACCEPTED, not released to READY_FOR_TYPESETTER"
+                )
+
         # specs#3131: a paper whose wjapp history stopped at acceptance stays held for the EO;
         # any other paper must keep nothing of the hold.
         if ArticleWorkflow.objects.filter(article=article).exists():
