@@ -15,6 +15,7 @@ independently of the article importer - covers every editor wjapp knows about in
 """
 
 from dataclasses import dataclass
+from typing import Callable, Optional
 
 from core.models import Account
 from journal.models import Journal
@@ -22,10 +23,7 @@ from submission import models as submission_models
 from utils.logger import get_logger
 
 from wjs.jcom_profile import models as wjs_models
-from wjs.jcom_profile.import_wjapp.import_logic import (
-    account_get_or_create_check_correspondence,
-    normalize_keyword,
-)
+from wjs.jcom_profile.import_wjapp.import_keywords import merge_editor_keywords
 
 logger = get_logger(__name__)
 
@@ -93,15 +91,27 @@ class EditorSyncResult:
         return self.role_added or self.workload_set or self.keywords_added > 0
 
 
-def sync_editor(journal: Journal, connection, row: dict, clear: bool = False) -> EditorSyncResult:
+def sync_editor(
+    journal: Journal, connection, row: dict, clear: bool = False, get_account: Optional[Callable] = None
+) -> EditorSyncResult:
     """Get-or-create the editor's Account/section-editor role, then sync workload and keywords.
 
     By default only adds missing data (a new editor, a new keyword association) and never
     overwrites anything already there - an EO may have corrected an editor's workload from the
     WJS web pages since the last sync. Pass `clear=True` to fully refresh from wjapp instead:
     overwrite the workload and replace the whole keyword set.
+
+    ``get_account`` resolves the editor's Account and defaults to
+    ``import_logic.account_get_or_create_check_correspondence``. That module is imported only when needed because
+    importing it monkeypatches ``wjs_review`` classes process-wide (see ``import_keywords``).
     """
-    editor = account_get_or_create_check_correspondence(
+    if get_account is None:
+        from wjs.jcom_profile.import_wjapp.import_logic import (
+            account_get_or_create_check_correspondence,
+        )
+
+        get_account = account_get_or_create_check_correspondence
+    editor = get_account(
         journal.code.lower(),
         row["userCod"],
         row["lastname"],
@@ -142,32 +152,21 @@ def sync_editor(journal: Journal, connection, row: dict, clear: bool = False) ->
         # pattern as EditorAssignmentAction.set_editor_parameters() in import_logic.py
         wjs_models.StaffKeyword.objects.filter(parameters=assignment_parameters).delete()
 
-    for ek in editor_keywords:
-        kwd_word = normalize_keyword(journal.code, ek["keywordName"].strip())
+    merged_keywords = merge_editor_keywords(journal.code, editor_keywords)
+    for kwd_word, kwd_weight in merged_keywords.items():
         keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
         if created:
             logger.warning(f'Created keyword "{kwd_word}" for editor {editor}. Please check!')
 
-        # Not a plain get_or_create(): pre-existing duplicate StaffKeyword rows for the same
-        # (parameters, keyword) are a known, real possibility from before any dedup logic
-        # existed (the old delete-then-recreate path never cared). get_or_create()'s internal
-        # get() would raise MultipleObjectsReturned on those - count/create instead, and only
-        # flag duplicates for manual review rather than silently deduplicating them here.
-        existing = wjs_models.StaffKeyword.objects.filter(parameters=assignment_parameters, keyword=keyword)
-        existing_count = existing.count()
-        if existing_count == 0:
-            wjs_models.StaffKeyword.objects.create(
-                parameters=assignment_parameters,
-                keyword=keyword,
-                weight=ek["keywordWeight"],
-            )
+        # An existing association is never overwritten: an EO may have corrected its weight since the last sync.
+        _staff_keyword, staff_keyword_created = wjs_models.StaffKeyword.objects.get_or_create(
+            parameters=assignment_parameters,
+            keyword=keyword,
+            defaults={"weight": kwd_weight},
+        )
+        if staff_keyword_created:
             result.keywords_added += 1
-        elif existing_count > 1:
-            logger.warning(
-                f'Found {existing_count} duplicate StaffKeyword rows for keyword "{kwd_word}" and '
-                f"editor {editor} on {journal.code} - left as-is, not deduplicated automatically"
-            )
     logger.debug(
-        f"synced {result.keywords_added}/{len(editor_keywords)} keyword(s) for editor {editor} on {journal.code}"
+        f"synced {result.keywords_added}/{len(merged_keywords)} keyword(s) for editor {editor} on {journal.code}"
     )
     return result

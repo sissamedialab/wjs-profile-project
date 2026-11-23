@@ -33,5 +33,15 @@ Environment="OTEL_EXPORTER_OTLP_ENDPOINT={{ otel_exporter_otlp_endpoint | defaul
 
 ExecStart={{ venv_root }}/bin/python manage.py qcluster
 
+# Stop gracefully, so that a stop/restart (deploy.sh, upgrades, ...) does not lose tasks (specs#3434).
+# - mixed: SIGTERM only to the main process, which runs django-q's graceful shutdown (stop pulling from
+#   Redis, let the worker finish the running and the already-pulled tasks). With the default
+#   control-group, every process gets SIGTERM at once; django-q's pusher and workers die on it, and the
+#   tasks they hold are lost: the Redis broker has no ack/redelivery.
+# - TimeoutStopSec above Q_CLUSTER["timeout"] (300s), so that a long task (e.g. galley generation) can
+#   finish before systemd resorts to SIGKILL.
+KillMode=mixed
+TimeoutStopSec=360
+
 [Install]
 WantedBy=default.target

@@ -91,10 +91,14 @@ def related_and_not_related_articles(
     section_factory,
     keyword_factory,
 ):
-    """Setup a journal with related and non-related articles."""
+    """Setup a journal with related and non-related articles.
+
+    The titles are made-up words, so that they cannot appear by chance in the random text (section names,
+    keywords, issue titles...) that the factories put in the same pages (see specs#3432).
+    """
     author_a = account_factory()
     a = article_factory(
-        title="Lone wolf",
+        title="Qzxlonewolf",
         abstract="Lonewolfabstract",
         journal=journal,
         date_published=yesterday(),
@@ -107,7 +111,7 @@ def related_and_not_related_articles(
     a.snapshot_authors()
     author_p = account_factory()
     p = article_factory(
-        title="Parent",
+        title="Qzxparent",
         abstract="Parentabstract",
         journal=journal,
         date_published=yesterday(),
@@ -120,7 +124,7 @@ def related_and_not_related_articles(
     p.snapshot_authors()
     author_c = account_factory()
     c = article_factory(
-        title="Children",
+        title="Qzxchildren",
         abstract="Childrenabstract",
         journal=journal,
         date_published=yesterday(),
