@@ -18,6 +18,9 @@
       </small>
     </div>
     <div class="card-body">
+      <div class="text-black-50">
+        {% translate "From" %}: {{ reminder.get_from_email }}
+      </div>
       <div class="text-black-50 mb-2">
         {% translate "To" %}: {{ reminder.recipient }}
       </div>
