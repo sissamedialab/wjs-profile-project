@@ -3,6 +3,7 @@
 from io import StringIO
 from unittest import mock
 
+import freezegun
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -84,15 +85,26 @@ def _set_tex_report(assignment: WorkflowReviewAssignment, report: str):
 
 
 @pytest.mark.django_db
-def test_strip_report_preambles_confirmed(review_assignment: WorkflowReviewAssignment):
-    """When the operator confirms, reviewer and editor reports are saved without preamble."""
+@pytest.mark.parametrize(
+    "now",
+    [
+        pytest.param("2026-11-22 23:30:00+00:00", id="winter-23:30Z"),
+        pytest.param("2026-07-22 22:30:00+00:00", id="summer-22:30Z"),
+    ],
+)
+def test_strip_report_preambles_confirmed(review_assignment: WorkflowReviewAssignment, now: str):
+    """When the operator confirms, reviewer and editor reports are saved without preamble.
+
+    Run at the critical instants, when the UTC and the Europe/Rome dates differ.
+    """
     article = review_assignment.article
     _set_tex_report(review_assignment, FULL_DOCUMENT)
-    decision = _editor_decision(article, FULL_DOCUMENT)
 
     out = StringIO()
-    with mock.patch("builtins.input", return_value="y") as mocked_input:
-        call_command("strip_report_preambles", article.pk, stdout=out)
+    with freezegun.freeze_time(now):
+        decision = _editor_decision(article, FULL_DOCUMENT)
+        with mock.patch("builtins.input", return_value="y") as mocked_input:
+            call_command("strip_report_preambles", article.pk, stdout=out)
 
     assert mocked_input.call_count == 2, "The operator must be asked once per report"
     review_assignment.refresh_from_db()
@@ -103,9 +115,9 @@ def test_strip_report_preambles_confirmed(review_assignment: WorkflowReviewAssig
     assert decision.decision_editor_report == "The report.\n", "Editor report not stripped"
     output = out.getvalue()
     assert f"Reviewer {review_assignment.reviewer.full_name()} - " in output, "Reviewer not shown"
-    assert (
-        f"Editor {decision.editor.full_name()} - {decision.created.date().isoformat()}" in output
-    ), "Editor not shown"
+    # The command shows the local date, not the UTC one
+    local_date = timezone.localtime(decision.created).date().isoformat()
+    assert f"Editor {decision.editor.full_name()} - {local_date}" in output, "Editor not shown"
     assert "—" * 80 in output, "Em-dash separator not shown"
     assert "🙁" * 80 + "\n" + "🙂" * 80 in output, "Original/stripped separator not shown"
     assert "\\documentclass{article}" in output, "Original report not shown"
