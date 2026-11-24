@@ -2532,10 +2532,12 @@ class Reminder(models.Model):
         journal = article.journal if article else None
         email_part = get_setting("general", "from_address", journal).processed_value
 
+        # The one who "sees" the From header is the recipient, and the name being seen is the actor's.
+        # NB: Reminder.actor is the sender, while can_see_other_user_name's `actor` is the viewer!
         if article and not permissions.can_see_other_user_name(
             instance=article.articleworkflow,
-            actor=self.actor,
-            target=self.recipient,
+            actor=self.recipient,
+            target=self.actor,
         ):
             return email_part
         name_part = self.actor.full_name()
