@@ -2403,3 +2403,30 @@ def test_reminder_display_body_strips_split_marker():
     reminder = Reminder(message_body=f"<p>due date expires today. {Message.SPLIT_MARKER}</p><p>Please</p>")
     assert Message.SPLIT_MARKER not in reminder.display_body, "Reminder preview must hide the split marker"
     assert "<p>Please</p>" in reminder.display_body, "The full reminder text must be shown"
+
+
+@pytest.mark.django_db
+def test_reminder_from_email_hides_editor_name_from_author(
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """Test that the From header of a reminder from the editor to the author does not contain the editor's name."""
+    editor = section_editor.janeway_account
+    author = assigned_article.correspondence_author
+    reminder = Reminder(target=assigned_article, actor=editor, recipient=author)
+    from_email = reminder.get_from_email()
+    assert editor.full_name() not in from_email, f"The editor's name must be hidden from the author: {from_email}"
+    assert "<" not in from_email, f"The From header must contain only the email address: {from_email}"
+
+
+@pytest.mark.django_db
+def test_reminder_from_email_shows_author_name_to_editor(
+    section_editor: JCOMProfile,
+    assigned_article: submission_models.Article,
+):
+    """Test that the From header of a reminder shows the actor's name when the recipient can see it."""
+    editor = section_editor.janeway_account
+    author = assigned_article.correspondence_author
+    reminder = Reminder(target=assigned_article, actor=author, recipient=editor)
+    from_email = reminder.get_from_email()
+    assert from_email.startswith(f"{author.full_name()} <"), f"The editor can see the author's name: {from_email}"
