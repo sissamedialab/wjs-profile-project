@@ -10,9 +10,15 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.base import ContentFile
 from django.db.models import Count
 from django.db.models.functions import Lower
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -25,6 +31,7 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from submission.models import Article
 
 from wjs.jcom_profile.utils import create_rich_fake_request
 
@@ -38,9 +45,12 @@ from .const import (
     COLLABORATIONS_EXPORT_VERSION,
     GALLEY_DOWNLOAD_MEDIA_TYPES,
     GALLEY_UPLOAD_MEDIA_TYPES,
+    NOT_COMPILED_HEADER,
     PUBLIC_LISTING_DEFAULT,
     PUBLIC_LISTING_FILTERS,
     SOURCE_ZIP_MEDIA_TYPES,
+    TRANSLATION_GALLEYS_DEFAULT_FORMATS,
+    TRANSLATION_GALLEYS_FORMATS,
     TYPE_TO_MIME,
     ZIP_MEDIA_TYPE,
 )
@@ -50,8 +60,14 @@ from .exceptions import (
     GalleyGenerationFailed,
     InvalidGalleyType,
     ResourceNotFound,
+    TranslationGalleysPresent,
 )
 from .logic import INVALID_REQUEST_CODE, ReplaceSourceZipAndRegenerateGalleys
+from .logic__translation import (
+    CONFLICT_CODE,
+    BuildTranslationGalleys,
+    find_duplicated_galley_types,
+)
 from .mixins import (
     EOOrTypesetterAccessMixin,
     IgnoreAcceptHeaderNegotiation,
@@ -126,6 +142,7 @@ class ArticleZipView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
             200: RegeneratedGalleysSerializer,
             400: ErrorSerializer,
             404: ErrorSerializer,
+            409: ErrorSerializer,
             415: ErrorSerializer,
             502: ErrorSerializer,
         },
@@ -142,9 +159,11 @@ class ArticleZipView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
 
         :raises ResourceNotFound: if the article has no workflow.
         :raises BadRequest: if the uploaded archive is not this article's.
+        :raises TranslationGalleysPresent: if the article has translation galleys.
         :raises GalleyGenerationFailed: if the galleys could not be rebuilt from the new sources.
         """
         article = self.get_article(request, pk)
+        self.refuse_translation_galleys(article)
 
         try:
             article_workflow = article.articleworkflow
@@ -172,6 +191,107 @@ class ArticleZipView(LoggedRequestMixin, PublishedArticleAccessMixin, APIView):
 
         result_serializer = RegeneratedGalleysSerializer(instance={"article_id": article.pk, "galleys": galleys})
         return Response(result_serializer.data, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def refuse_translation_galleys(article: Article):
+        """
+        Refuse to regenerate the galleys of a paper with translation galleys (specs#990).
+
+        The regeneration keeps one galley per type and deletes the others: the translation galleys, uploaded by
+        hand, would be lost.
+
+        :raises TranslationGalleysPresent: if the paper has more than one galley of the same type.
+        """
+        if duplicated := find_duplicated_galley_types(article):
+            raise TranslationGalleysPresent(
+                "This paper has translation galleys (more than one galley of the same type), and this entry point"
+                " cannot regenerate them: they would be lost. Workaround: download the translation galleys, remove"
+                " them from the article manager, retry this request, then upload the translation galleys again"
+                ' from the article manager. Remember to set the labels again (e.g. "PDF (en)" for the'
+                ' translation and "PDF (pt)" for the regenerated main galley).',
+                details={"duplicated_types": duplicated},
+            )
+
+
+class TranslationGalleysView(LoggedRequestMixin, EOOrTypesetterAccessMixin, APIView):
+    """Build the galleys of the translation of a paper, without saving anything (specs#990)."""
+
+    #: The answer is a zip: honour a client that asks for it (or for anything else) instead of answering 406.
+    content_negotiation_class = IgnoreAcceptHeaderNegotiation
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="generate",
+                type=str,
+                many=True,
+                enum=list(TRANSLATION_GALLEYS_FORMATS),
+                description=(
+                    "Galley formats to build (repeat the parameter for more formats)."
+                    f" Defaults to {', '.join(TRANSLATION_GALLEYS_DEFAULT_FORMATS)}."
+                ),
+            ),
+        ],
+        description=(
+            "Build the galleys of the translation of a paper and return jcomassistant's answer (a zip with the"
+            " galleys and the logs). Nothing is saved. The paper's sources (the final sources if the paper is"
+            " published, otherwise the files of the latest typesetting assignment) must contain two TeX files: the"
+            " main one, named after the paper and named in spawn.ini (main=...), and the translation. The"
+            " translation gets the same publication data as the main galleys (simulated if the paper is not"
+            f" published yet). The `{NOT_COMPILED_HEADER}` header lists the formats that jcomassistant took from"
+            " the archive instead of compiling them (they lack the publication data)."
+        ),
+        responses={
+            (200, ZIP_MEDIA_TYPE): OpenApiResponse(
+                response=OpenApiTypes.BINARY, description="jcomassistant's answer, with the translation galleys."
+            ),
+            400: ErrorSerializer,
+            404: ErrorSerializer,
+            409: ErrorSerializer,
+            502: ErrorSerializer,
+        },
+    )
+    def get(self, request, pk: int):
+        """
+        Build the galleys of the translation of the given paper.
+
+        :raises BadRequest: if the requested formats or the paper's sources are not valid.
+        :raises ResourceNotFound: if the paper has no workflow.
+        :raises DataIntegrityConflict: if the data of the paper do not allow to build the galleys.
+        :raises GalleyGenerationFailed: if jcomassistant fails.
+        """
+        article = get_object_or_404(Article, pk=pk)
+        self.check_object_permissions(request, article)
+        try:
+            workflow = article.articleworkflow
+        except ObjectDoesNotExist:
+            raise ResourceNotFound("Requested resource was not found.")
+
+        formats = list(dict.fromkeys(request.query_params.getlist("generate"))) or list(
+            TRANSLATION_GALLEYS_DEFAULT_FORMATS
+        )
+        if invalid := [fmt for fmt in formats if fmt not in TRANSLATION_GALLEYS_FORMATS]:
+            raise BadRequest(
+                f"Cannot build {', '.join(invalid)} galleys for a translation.",
+                details={"allowed": list(TRANSLATION_GALLEYS_FORMATS)},
+            )
+
+        try:
+            result = BuildTranslationGalleys(workflow=workflow, formats=formats).run()
+        except DjangoValidationError as exception:
+            message = " ".join(exception.messages)
+            code = getattr(exception, "code", None)
+            if code == INVALID_REQUEST_CODE:
+                raise BadRequest(message)
+            if code == CONFLICT_CODE:
+                raise DataIntegrityConflict(message)
+            raise GalleyGenerationFailed(message)
+
+        response = HttpResponse(result.content, content_type=ZIP_MEDIA_TYPE)
+        response["Content-Disposition"] = f'attachment; filename="{result.file_name}"'
+        if result.not_compiled:
+            response[NOT_COMPILED_HEADER] = ",".join(result.not_compiled)
+        return response
 
 
 class ArticleGalleyListView(LoggedRequestMixin, PublishedArticleAccessMixin, GenericAPIView):
