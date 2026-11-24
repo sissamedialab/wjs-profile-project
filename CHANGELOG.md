@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.14] - 2026-11-24
+
+- [specs#3459: Reminders email messages include the "sender" name](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3459) — fix(wjs_review): hide the editor's name from the From header of reminders to authors (!1647)
+- [wjs-profile-project#305: Improve testing matrix for reminders](https://gitlab.sissamedialab.it/wjs/wjs-profile-project/-/work_items/305) — fix(wjs_review): hide the editor's name from the From header of reminders to authors (!1647)
+- [specs#3476: Fix flaky test because of no Keyword order](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3476) — test(jcom_profile): compare grouped keywords regardless of order (!1660)
+
 ## [2.1.13] - 2026-11-23
 
 - [specs#3411: Check DOI format/position in XML sent to IoP at acceptance](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3411) — chore: remove extra field from export (!1654)
