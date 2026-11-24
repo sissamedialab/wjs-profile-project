@@ -733,7 +733,7 @@ def test_api_schema_documents_binary_responses(client: Client, eo_user: JCOMProf
     assert set(zip_get["responses"]["404"]["content"]) == {"application/json"}
 
     zip_put = schema["paths"]["/plugins/wjs-review-articles/api/v1/article/{pk}/zip/"]["put"]
-    assert set(zip_put["responses"]) == {"200", "400", "404", "415", "502"}
+    assert set(zip_put["responses"]) == {"200", "400", "404", "409", "415", "502"}
     # The uploaded archive is the raw request body: the schema must advertise the zip media types
     # the entry point accepts, not the form/multipart ones DRF's default parsers would imply.
     assert set(zip_put["requestBody"]["content"]) == set(SOURCE_ZIP_MEDIA_TYPES)
@@ -842,6 +842,7 @@ def test_api_schema_covers_all_entry_points(client: Client, eo_user: JCOMProfile
         "/plugins/wjs-review-articles/api/v1/collaborations/",
         "/plugins/wjs-review-articles/api/v1/article/{pk}/zip/",
         "/plugins/wjs-review-articles/api/v1/article/{pk}/galleys/",
+        "/plugins/wjs-review-articles/api/v1/article/{pk}/translation-galleys/",
         "/plugins/wjs-review-articles/api/v1/article/{pk}/galley/{file_type}/",
         "/plugins/wjs-review-articles/api/v1/article/{pk}/galley/{file_type}/{sequence}/",
         "/plugins/wjs-review-articles/api/v1/journal/{code}/production/",

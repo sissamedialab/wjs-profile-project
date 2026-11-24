@@ -57,3 +57,12 @@ PUBLIC_LISTING_FILTERS = {
 
 #: Value assumed when the "public_listing" query parameter is not given.
 PUBLIC_LISTING_DEFAULT = "all"
+
+#: Galley formats that the translation-galleys entry point can build. No HTML: the HTML galley is the main one only.
+TRANSLATION_GALLEYS_FORMATS = ("pdf", "epub")
+
+#: Formats built by the translation-galleys entry point when the request does not say.
+TRANSLATION_GALLEYS_DEFAULT_FORMATS = TRANSLATION_GALLEYS_FORMATS
+
+#: Response header listing the formats that jcomassistant took from the archive instead of compiling them.
+NOT_COMPILED_HEADER = "X-WJS-Not-Compiled"
