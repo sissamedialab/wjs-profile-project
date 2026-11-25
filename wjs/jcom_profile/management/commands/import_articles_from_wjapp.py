@@ -903,6 +903,59 @@ class Command(BaseCommand):
                     f"state not rejected: {article.articleworkflow.state=} for {article.id} / {preprintid}"
                 )
                 return 1
+        elif article_expected_final_state == "TO_BE_ASS_TO_ED":
+            # wjs/specs#3462: a SYS_ASS_ED action with no editor target (wjapp couldn't find/assign one)
+            # leaves stage/state untouched by EditorAssignmentAction.run(); if no later action sets them
+            # either, the article stays at the raw Article/ArticleWorkflow creation defaults
+            # (Unsubmitted/IncompleteSubmission) instead of the normal "awaiting editor" presentation.
+            if article.stage != submission_models.STAGE_UNASSIGNED:
+                import_logic.logger.warning(
+                    f"stage is '{article.stage}' for awaiting-editor article {preprintid} / {article.id}"
+                )
+                article.stage = submission_models.STAGE_UNASSIGNED
+                article.save()
+                import_logic.logger.warning(
+                    f"forced fixed stage to '{article.stage}' for awaiting-editor article {preprintid} / {article.id}"
+                )
+            if ArticleWorkflow.objects.filter(article=article).exists():
+                if article.articleworkflow.state != ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED:
+                    import_logic.logger.warning(
+                        f"review state is '{article.articleworkflow.state}' "
+                        f"for awaiting-editor article {preprintid} / {article.id}"
+                    )
+                    article.articleworkflow.state = ArticleWorkflow.ReviewStates.EDITOR_TO_BE_SELECTED
+                    article.articleworkflow.save()
+                    article.save()
+                    import_logic.logger.warning(
+                        f"forced fixed review state to '{article.articleworkflow.state}' "
+                        f"for awaiting-editor article {preprintid} / {article.id}"
+                    )
+        elif article_expected_final_state == "WITHDRAWN":
+            # wjs/specs#3462: same gap as TO_BE_ASS_TO_ED above - an author can withdraw a paper before
+            # any editor was ever assigned. STAGE_ARCHIVED mirrors fix_old_article_stages.py's own
+            # REJECTED/WITHDRAWN -> STAGE_REJECTED/STAGE_ARCHIVED mapping.
+            if article.stage != submission_models.STAGE_ARCHIVED:
+                import_logic.logger.warning(
+                    f"stage is '{article.stage}' for withdrawn article {preprintid} / {article.id}"
+                )
+                article.stage = submission_models.STAGE_ARCHIVED
+                article.save()
+                import_logic.logger.warning(
+                    f"forced fixed stage to '{article.stage}' for withdrawn article {preprintid} / {article.id}"
+                )
+            if ArticleWorkflow.objects.filter(article=article).exists():
+                if article.articleworkflow.state != ArticleWorkflow.ReviewStates.WITHDRAWN:
+                    import_logic.logger.warning(
+                        f"review state is '{article.articleworkflow.state}' "
+                        f"for withdrawn article {preprintid} / {article.id}"
+                    )
+                    article.articleworkflow.state = ArticleWorkflow.ReviewStates.WITHDRAWN
+                    article.articleworkflow.save()
+                    article.save()
+                    import_logic.logger.warning(
+                        f"forced fixed review state to '{article.articleworkflow.state}' "
+                        f"for withdrawn article {preprintid} / {article.id}"
+                    )
         else:
             # TODO: verify cases where an error should be logged
             import_logic.logger.debug(f"state: {article_expected_final_state=} {article.stage=}")
