@@ -1913,19 +1913,23 @@ LIMIT 1
     def read_article_keywords(self, version_cod):
         """Read article keywords."""
         cursor_keywords = self.connection.cursor(dictionary=True)
-        query_keywords = """
+        query_keywords = f"""
 SELECT
-keywordName,
-keywordWeightByAuthor
-FROM Version_Keyword
-LEFT JOIN Keyword USING (keywordCod)
+kw.keywordName,
+vk.keywordWeightByAuthor,
+kw.keywordAvailable,
+{import_logic.keyword_subgroup_sql(self.journal.code, "kw.keywordCod")} AS subgroupName
+FROM Version_Keyword vk
+LEFT JOIN Keyword kw USING (keywordCod)
 WHERE
-    versioncod=%(version_cod)s
+    vk.versioncod=%(version_cod)s
 """
         cursor_keywords.execute(query_keywords, {"version_cod": version_cod})
         keywords = []
         for rk in cursor_keywords:
-            keywords.append([rk["keywordName"], rk["keywordWeightByAuthor"]])
+            keywords.append(
+                [rk["keywordName"], rk["keywordWeightByAuthor"], rk["keywordAvailable"], rk["subgroupName"]],
+            )
         cursor_keywords.close()
         return keywords
 
@@ -2647,8 +2651,17 @@ WHERE
             import_logic.logger.warning(f"{article.id} language {language} not matched let undefined")
 
     def set_keywords(self, article: submission_models.Article, keywords):
-        """Set the keywords."""
+        """
+        Set the keywords.
 
+        The `keywords` argument is a list where each item is another list with this format:
+
+        0. ``keywordName`` (str)
+        1. ``keywordWeightByAuthor`` (int or None) - the author's weight for this keyword
+        2. ``keywordAvailable`` (int/bool or None)
+        3. ``subgroupName`` (str or None) - the wjapp KSubgroup name, used as the keyword's group
+
+        """
         # Drop all article's kwds (and KeywordArticles, used for kwd ordering)
         article.keywords.clear()
         order = 0
@@ -2666,7 +2679,8 @@ WHERE
                 )
                 kwd_weight = 0
 
-            kwd_weight = kwd[1]
+            kwd_available = bool(kwd[2]) if len(kwd) > 2 else True
+            kwd_group_name = kwd[3] if len(kwd) > 3 else None
             import_logic.logger.debug(f"Keyword {kwd_word=} {kwd_weight=}")
             kwd_word = import_logic.normalize_keyword(self.journal.code, kwd_word)
 
@@ -2684,30 +2698,27 @@ WHERE
             seen_words.add(kwd_word)
             order = order + 1
 
-            keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
+            # get_or_create_import_keyword also (idempotently) links the keyword to the journal -
+            # remember that journals have a set of kwds! Even if the kwd was not created, it is
+            # possible that we got a pre-existing kwd that was linked only to another journal.
+            keyword, created = import_logic.get_or_create_import_keyword(
+                self.journal, kwd_word, kwd_available, kwd_group_name
+            )
             if created:
                 import_logic.logger.warning(
                     f'Created keyword "{kwd_word}" for {article.get_identifier("preprintid")}. Please check!'
                 )
 
-            # Always link kwd to journal (remember that journals have a set of kwds!)
-            #
-            # Even if the kwd was not created, it is possible that we got a pre-existing kwd that was linked only to
-            # another journal.
-            #
-            # P.S. `add` won't duplicate an existing relation
-            # https://docs.djangoproject.com/en/3.2/ref/models/relations/
-            self.journal.keywords.add(keyword)
-
-            submission_models.KeywordArticle.objects.update_or_create(
+            # Article.keywords is an M2M through KeywordArticle: the clear() above removed all of this
+            # article's KeywordArticle rows and seen_words skips repeats, so the row never exists yet.
+            # Creating it directly (rather than via article.keywords.add()) lets us set order and weight.
+            submission_models.KeywordArticle.objects.create(
                 article=article,
                 keyword=keyword,
                 order=order,
-                defaults={"weight": kwd_weight},
+                weight=kwd_weight,
             )
-
             import_logic.logger.debug(f"Keyword {kwd_word} {kwd_weight} set at order {order}")
-            article.keywords.add(keyword)
 
         article.save()
 
