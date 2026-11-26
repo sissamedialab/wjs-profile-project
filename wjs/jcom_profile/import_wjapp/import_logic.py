@@ -66,6 +66,7 @@ from typesetting.models import GalleyProofing, TypesettingAssignment, Typesettin
 from utils.logger import get_logger
 from utils.setting_handler import get_setting
 
+import wjs.jcom_profile.import_wjapp.import_editor_keywords as import_editor_keywords
 import wjs.jcom_profile.import_wjapp.import_file_manager as import_file_manager
 from wjs.jcom_profile import constants
 from wjs.jcom_profile import models as wjs_models
@@ -74,6 +75,8 @@ from wjs.jcom_profile.import_wjapp.import_exception_list import (
     request_proofs_dedup_galley_proofing_applies,
 )
 from wjs.jcom_profile.import_wjapp.import_keywords import (  # noqa: F401
+    get_or_create_import_keyword,
+    keyword_subgroup_sql,
     merge_editor_keywords,
     normalize_keyword,
 )
@@ -1344,8 +1347,19 @@ class EditorAssignmentAction(BaseActionManager):
 
         # An account must have the "section-editor" role on the journal to be able to be assigned as editor of an
         # article.
-        if not self.editor_to_assign.check_role(self.journal, "section-editor", staff_override=False):
+        self.editor_role_newly_added = not self.editor_to_assign.check_role(
+            self.journal, "section-editor", staff_override=False
+        )
+        if self.editor_role_newly_added:
             self.editor_to_assign.add_account_role("section-editor", self.journal)
+            # This role is only granted to satisfy AssignToEditor._check_conditions() for recording a
+            # historical assignment - it says nothing about whether wjapp itself still considers this
+            # editor an active, general-pool editor today. A retired editor, or a special-issue guest
+            # editor, found only in an old paper's history must not silently become a live
+            # automatic-assignment candidate just because that paper got imported (wjs/specs#3493).
+            self.editor_active_in_wjapp = import_editor_keywords.is_active_wjapp_editor(self.connection, editor_cod)
+        else:
+            self.editor_active_in_wjapp = True
 
         logger.debug(
             f"Assigning {self.editor_to_assign.last_name} {self.editor_to_assign.first_name} onto {self.article.pk}"
@@ -1382,25 +1396,12 @@ class EditorAssignmentAction(BaseActionManager):
         self.check_and_fix_all_reminder()
 
     def read_editor_parameters(self, editor_cod):
-        """Read editor parameters."""
+        """Read editor parameters.
 
-        # Note mar 2 lug 2024:
-        # in jcom only 1 editor has keywords
-        cursor_editor_parameters = self.connection.cursor(dictionary=True)
-        query_editor_parameters = """
-SELECT
-ek.editorCod,
-ek.keywordCod,
-ek.keywordWeight,
-kw.keywordName
-FROM Editor_Keyword ek
-LEFT JOIN Keyword kw USING (keywordCod)
-WHERE editorCod=%(editor_cod)s
-"""
-        editor_parameters = cursor_editor_parameters.execute(query_editor_parameters, {"editor_cod": editor_cod})
-        editor_parameters = cursor_editor_parameters.fetchall()
-        cursor_editor_parameters.close()
-        return editor_parameters
+        Delegates to the standalone editor importer's own query (wjs/specs#3477): the two used to
+        duplicate the exact same SQL - now there is a single source of it.
+        """
+        return import_editor_keywords.read_editor_keywords(self.connection, editor_cod, self.journal.code)
 
     def set_editor_parameters(self, editor_parameters, editor_maxworkload):
         """Set the editor parameters.
@@ -1408,46 +1409,24 @@ WHERE editorCod=%(editor_cod)s
         - max-workload (StaffWorkloadParameters workload)
         - keyword      (EditorKeyword into StaffWorkloadParameters keywords)
         - kwd weight   (EditorKeyword weight)
-        """
 
-        if editor_parameters:
-            assignment_parameters, eap_created = wjs_models.StaffWorkloadParameters.objects.get_or_create(
-                user=self.get_current_editor(),
-                journal=self.journal,
-            )
-        else:
+        Delegates to the standalone editor importer's own sync logic (wjs/specs#3493): only adds
+        missing data (first-ever workload, a new keyword association) and never overwrites anything
+        already there, so replaying an older/stale wjapp snapshot (e.g. while backfilling old papers)
+        never resets an editor's workload or a keyword's weight that an EO has since corrected on the
+        live WJS site.
+        """
+        if not editor_parameters:
             return
 
-        if not editor_maxworkload:
-            editor_maxworkload = 1
-            logger.warning(
-                f"{self.journal.code} ST: Missing editor max workload, forced to 1 "
-                f"{self.article.id} / {self.preprintid}"
-            )
-            # import JHEP/JCAP ST exception not raised ValueError("Missing editor max workload")
-
-        if editor_maxworkload == 9999:
-            logger.warning(f"Workload of {editor_maxworkload} found. Verify WJS implementation of assignment funcs!")
-
-        assignment_parameters.workload = editor_maxworkload
-        assignment_parameters.save()
-
-        # delete all existing editor kwds
-        wjs_models.StaffKeyword.objects.filter(parameters=assignment_parameters).delete()
-
-        # create all new editor kwds
-        for kwd_word, kwd_weight in merge_editor_keywords(self.journal.code, editor_parameters).items():
-            logger.debug(f"Editor parameter: {kwd_word} {kwd_weight}")
-            keyword, created = submission_models.Keyword.objects.get_or_create(word=kwd_word)
-            if created:
-                logger.warning(f'Created keyword "{kwd_word}" for editor {self.get_current_editor()}. Please check!')
-            wjs_models.StaffKeyword.objects.create(
-                parameters=assignment_parameters,
-                keyword=keyword,
-                weight=kwd_weight,
-            )
-
-        return
+        import_editor_keywords.sync_editor_workload_and_keywords(
+            self.journal,
+            self.get_current_editor(),
+            editor_maxworkload,
+            editor_parameters,
+            newly_created_editor=self.editor_role_newly_added,
+            editor_active_in_wjapp=self.editor_active_in_wjapp,
+        )
 
     def deselect_editor_as_reviewer(self):
         """Deselects old editor from reviewer if exist."""
