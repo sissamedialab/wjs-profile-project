@@ -808,14 +808,11 @@ from wjs.jcom_profile.constants import (  # noqa: E402
 
 # Keep the `jcomprofile.*` paths first: a user without a JCOMProfile must raise (as the former JCAP validator did)
 # instead of passing thanks to a social handle.
-# All the link fields count for every journal, even those a journal hides (see `PROFILE_FIELDS`): a value left from
-# an import counts as well. Accepted limitation, see `is_required_field_entry_satisfied` in wjs-submission.
-_PROFESSIONAL_LINKS_ENTRY: ProfileRequiredFieldEntry = {
+# Each journal lists only the link fields it shows (see `PROFILE_FIELDS`), so a value in a field the journal hides
+# never makes an author eligible. The check in `wjs/jcom_profile/checks.py` keeps rules and `PROFILE_FIELDS` aligned.
+_JCOM_PROFESSIONAL_LINKS_ENTRY: ProfileRequiredFieldEntry = {
     "label": PROFESSIONAL_LINKS_LABEL,
     "paths": [
-        "jcomprofile.records_scix",
-        "jcomprofile.records_inspire",
-        "jcomprofile.records_arxiv",
         "jcomprofile.records_other",
         "facebook",
         "twitter",
@@ -825,13 +822,29 @@ _PROFESSIONAL_LINKS_ENTRY: ProfileRequiredFieldEntry = {
         "section": "core_edit_profile_additional",
         "group_help": PROFESSIONAL_LINKS_GROUP_HELP,
         "fields": [
-            "records_scix",
-            "records_inspire",
-            "records_arxiv",
             "records_other",
             "facebook",
             "twitter",
             "linkedin",
+        ],
+    },
+}
+_JCAP_PROFESSIONAL_LINKS_ENTRY: ProfileRequiredFieldEntry = {
+    "label": PROFESSIONAL_LINKS_LABEL,
+    "paths": [
+        "jcomprofile.records_scix",
+        "jcomprofile.records_inspire",
+        "jcomprofile.records_arxiv",
+        "jcomprofile.records_other",
+    ],
+    "profile": {
+        "section": "core_edit_profile_additional",
+        "group_help": PROFESSIONAL_LINKS_GROUP_HELP,
+        "fields": [
+            "records_scix",
+            "records_inspire",
+            "records_arxiv",
+            "records_other",
         ],
     },
 }
@@ -862,7 +875,7 @@ _JCOM_REQUIRED_FIELDS: list[ProfileRequiredFieldEntry] = [
         "paths": ["biography"],
         "profile": {"section": "core_edit_profile", "fields": ["biography"]},
     },
-    _PROFESSIONAL_LINKS_ENTRY,
+    _JCOM_PROFESSIONAL_LINKS_ENTRY,
 ]
 SUBMISSION_CORRESPONDENCE_AUTHOR_REQUIRED_FIELDS: dict[str | None, list[ProfileRequiredFieldEntry]] = {
     "JCOM": _JCOM_REQUIRED_FIELDS,
@@ -876,7 +889,7 @@ SUBMISSION_CORRESPONDENCE_AUTHOR_REQUIRED_FIELDS: dict[str | None, list[ProfileR
         },
         _EMAIL_ENTRY,
         {"label": _("Affiliation"), "paths": ["affiliation"], "profile": _AFFILIATION_PROFILE},
-        _PROFESSIONAL_LINKS_ENTRY,
+        _JCAP_PROFESSIONAL_LINKS_ENTRY,
     ],
     None: [
         _ACTIVE_ENTRY,

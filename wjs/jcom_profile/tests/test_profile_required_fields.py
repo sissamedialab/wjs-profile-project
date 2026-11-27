@@ -98,9 +98,17 @@ def test_requirements_jcom_lists_hinted_entries_in_order_flagging_the_missing_on
     assert by_label["Biography"].fields == ("biography",)
     links = entries[-1]
     assert links.section == "core_edit_profile_additional"
-    assert len(links.fields) == 7
+    assert set(links.fields) == {"records_other", "facebook", "twitter", "linkedin"}
     assert by_label["Name"].fields == ("first_name", "last_name"), "in the order of the form"
     assert by_label["Email"].section == "core_edit_profile_email"
+
+
+@pytest.mark.django_db
+def test_requirements_jcap_links_entry_names_only_records_fields(user: Account, journal_factory):
+    jcap = journal_factory("JCAP")
+    entries = get_correspondence_author_requirements(_request(_reload(user), jcap))
+    links = next(entry for entry in entries if entry.section == "core_edit_profile_additional")
+    assert set(links.fields) == {"records_scix", "records_inspire", "records_arxiv", "records_other"}
 
 
 @pytest.mark.django_db

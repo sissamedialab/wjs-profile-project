@@ -32,7 +32,13 @@ class JCOMProfileConfig(AppConfig):
         # TODO: Clarify this line (unused import but without them process breaks)
         from core import forms as core_forms
 
-        from wjs.jcom_profile import forms, signals, tracing_djangoq, urls  # NOQA
+        from wjs.jcom_profile import (  # NOQA
+            checks,
+            forms,
+            signals,
+            tracing_djangoq,
+            urls,
+        )
 
         core_forms.RegistrationForm = forms.JCOMRegistrationForm
 
