@@ -143,15 +143,27 @@ ACTIVE ↔ DISMISSED, `ValidationError` otherwise) ← `forms.ToggleAttentionCon
 `ToggleAttentionConditionDismissalView` (`toggle-attention-condition`, POST, HTMX). The view re-renders
 `details/sections/attention_panel.html` (container `#attention-panel`), echoing the `show_all` POST value.
 
-**Read path:** `ac_service.ArticleAttention` (`active`, `dismissed`, `unread`, `has_active`, `has_any`,
-`legacy_message`; each normal AC carries `dismissible`), built by `get_article_attention()` or, for a page of a
-listing, `get_articles_attention()` (one query). Templates use the `article_attention` filter; listing views attach
-`_prefetched_attention` to the page's workflows, the detail view puts `attention` in the context.
+**Read path:** `ac_service.ArticleAttentionConditions` (`active`, `dismissed`, `unread`, `has_active`, `has_any`,
+`legacy_message`; each normal AC carries `dismissible`), built by `get_article_attention_conditions()` or, for a page of a
+listing, `get_articles_attention_conditions()` (one query). Templates use the `article_attention_conditions` filter; listing
+views attach `_prefetched_attention_conditions` to the page's workflows, the detail view puts `attention` in the context.
 The legacy single-message filter (`article_requires_attention_tt` + `_prefetched_acs`) is now used only for the
 row highlight and bold cells of the listings (`lists/elements/*/table_item.html`, `corresponding_author.html`) and
 in `details/sections/metadata.html`; `details/sections/attention.html` is no longer included anywhere. The listing
 icons (`lists/elements/attention.html`) and the article page panel (`details/sections/attention_panel.html`) use
-`article_attention` (#3272/#3367).
+`article_attention_conditions` (#3272/#3367).
+
+**List filter "View only with Action Required" (wjs/specs#3482):** a server-side filter over the whole list, the
+`action_required` GET parameter (`1` = only papers with an AC for the user, `0` = all; any other value makes the
+filterset invalid, so no filter is applied) defined on `BaseArticleWorkflowFilter` and driven by the two submit buttons
+of `lists/elements/filters_visibility.html` (a hidden input in the same file carries the current choice through Search
+and Enter; the lists with `show_filters = False`, i.e. author and reviewer Pending, have no buttons). The rule is
+`AttentionCondition.objects.active().visible_to(user, journal)` correlated on the article (`ArticleWorkflowQuerySet._active_ac_exists`),
+so it matches the row highlight: an active AC, unread messages included, dismissed ones excluded. `ArticleWorkflowBaseMixin.get_queryset`
+always annotates the rows with `has_ac` (`ArticleWorkflowQuerySet.with_has_ac`); the filter reuses it, and
+`lists/elements/attention.html` skips `article_attention_conditions` for rows with `has_ac is False`. On `EOPending` an EO
+with a workload gets `eo_in_charge` (as a pk, so sort and pagination links keep it) and `action_required=1` by default;
+a non-empty `search` or any `action_required` in the querystring means the user has chosen and no default is applied.
 
 ## Business logic layer: `@dataclass` + `run()`
 
@@ -410,7 +422,7 @@ filtering exclusively through custom querysets in `managers.py`:
 
 | QuerySet (`managers.py`) | Model | Notable methods |
 |---|---|---|
-| `ArticleWorkflowQuerySet` | `ArticleWorkflow` | `get_article_with_latest_round(mode)`, `with_unread_messages(user, other_users_messages=False)`, `with_pending_reviews()`, `waiting_for_decision()`, `submitted_re()` |
+| `ArticleWorkflowQuerySet` | `ArticleWorkflow` | `get_article_with_latest_round(mode)`, `with_unread_messages(user, other_users_messages=False)`, `with_pending_reviews()`, `waiting_for_decision()`, `submitted_re()`, `with_has_ac(user, journal)` (annotation), `requiring_attention(user, journal)` (filter) |
 | `WjsEditorAssignmentQuerySet` | `WjsEditorAssignment` | `get_current(article)`, `get_all(article)`, `get_final_reviews_in_timeframe(...)`, `get_pending_reviews_in_timeframe(...)` |
 | `WorkflowReviewAssignmentQuerySet` | `WorkflowReviewAssignment` | `by_current_round`, `not_withdrawn`/`declined_or_withdrawn`/`not_declined_or_withdrawn`, `active` (= `not_declined_or_withdrawn`), `pending`, `completed`, `valid` (= `active().by_current_round(...)`) |
 
