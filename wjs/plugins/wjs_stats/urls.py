@@ -40,6 +40,11 @@ urlpatterns = [
         name="wjs_stats_editors_and_keywords_per_journal_tsv",
     ),
     path(
+        "journal-editors.csv",
+        views.JournalEditorsCSV.as_view(),
+        name="wjs_stats_journal_editors_csv",
+    ),
+    path(
         "editors-and-keywords/",
         views.EditorsAndKeywordsChar.as_view(),
         name="wjs_stats_editors_and_keywords",

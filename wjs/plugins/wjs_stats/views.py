@@ -1,6 +1,7 @@
 """Views."""
 
 import calendar
+import csv
 import json
 import subprocess
 from collections import namedtuple
@@ -16,9 +17,9 @@ from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Count, Min, Q
+from django.db.models import Count, Min, OuterRef, Q, Subquery
 from django.db.models.functions import Lower, TruncMonth
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.utils.timezone import localtime, now
@@ -37,6 +38,7 @@ from typesetting.models import TypesettingAssignment
 from utils.logger import get_logger
 
 from wjs.jcom_profile import constants
+from wjs.jcom_profile.models import StaffWorkloadParameters
 
 from .forms import FilterForm
 from .plugin_settings import GROUP_ACCOUNTING
@@ -730,6 +732,66 @@ class EditorAndKeywordsPerJournalTSV(LoginRequiredMixin, UserPassesTestMixin, Vi
             lines.append(f"{code}\t{keywords_count}\t{editors_count}\t{all_editors_count}\t{year}")
 
         return HttpResponse("\n".join(lines), content_type="text/tab-separated-values")
+
+
+class JournalEditorsCSV(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Download the editors of the current journal as CSV, suitable for a mail-merge.
+
+    The editors are selected with the same query used by wjs_review's JournalEditorsView
+    (/plugins/wjs-review-articles/journal_editors/).
+    """
+
+    def test_func(self):
+        """Verify that only staff can see this."""
+        return self.request.user.is_staff
+
+    def get_queryset(self):
+        """Return the editors of the current journal (same as wjs_review's JournalEditorsView).
+
+        Each editor is annotated with `enabled`, `workload` and `brake_on`, taken from their staff workload
+        parameters for the journal; they are None for editors without parameters.
+        """
+        journal = self.request.journal
+        parameters = StaffWorkloadParameters.objects.filter(user=OuterRef("pk"), journal=journal)
+        return (
+            Account.objects.filter(
+                accountrole__journal=journal,
+                accountrole__role__slug__in=(constants.EDITOR_ROLE, constants.SECTION_EDITOR_ROLE),
+            )
+            .distinct()
+            .annotate(
+                enabled=Subquery(parameters.values("enabled")[:1]),
+                workload=Subquery(parameters.values("workload")[:1]),
+                brake_on=Subquery(parameters.values("brake_on")[:1]),
+            )
+            .order_by("last_name", "first_name")
+        )
+
+    def get(self, request, **kwargs):
+        """Serve a CSV with one row per editor: name, surname, email, journal, enabled, workload, brake_on.
+
+        The last three columns are empty for editors without staff workload parameters for the journal.
+        """
+        if request.journal is None:
+            raise Http404("The list of editors is available only at journal level.")
+        response = HttpResponse(content_type="text/csv")
+        filename = f"{request.journal.code}-editors-{localtime(now()).date().isoformat()}.csv"
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        writer = csv.writer(response)
+        writer.writerow(["name", "surname", "email", "journal", "enabled", "workload", "brake_on"])
+        for editor in self.get_queryset():
+            writer.writerow(
+                [
+                    editor.first_name,
+                    editor.last_name,
+                    editor.email,
+                    request.journal.code,
+                    editor.enabled,
+                    editor.workload,
+                    editor.brake_on,
+                ]
+            )
+        return response
 
 
 class SubmissionsAndPublicationsChart(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
