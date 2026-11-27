@@ -720,6 +720,7 @@ PROFILE_FIELDS = {
         "personal_interest",
         "records_arxiv",
         "records_inspire",
+        "linkedin",
         "records_other",
     ),
 }
