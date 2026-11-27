@@ -47,7 +47,7 @@ class MetadataFromTeX:
         tex_source_file = self._get_source_file()
         files = {"file": tex_source_file}
         url = f"{settings.JCOMASSISTANT_URL}texdata"
-        response = requests.post(url=url, files=files, timeout=10)
+        response = requests.post(url=url, files=files, timeout=60)
         if response.status_code not in (HTTPStatus.OK, HTTPStatus.PARTIAL_CONTENT):
             msg = f"Unexpected status code {response.status_code} for {url}"
             raise requests.exceptions.HTTPError(msg)
