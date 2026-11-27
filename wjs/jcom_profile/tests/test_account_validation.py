@@ -15,7 +15,11 @@ import pytest
 from core.models import Account
 from django.conf import settings
 from django.utils.module_loading import import_string
-from plugins.wjs_submission.account_validation import missing_required_fields
+from plugins.wjs_submission.account_validation import (
+    is_user_eligible_for_correspondence_author,
+    missing_required_fields,
+)
+from plugins.wjs_submission.models import WhitelistedCorrespondenceAuthors
 
 from wjs.jcom_profile.account_validation import (
     jcap_correspondence_author_validation,
@@ -51,10 +55,10 @@ def _make_jcom_valid(user: Account) -> Account:
     Account.objects.filter(pk=user.pk).update(biography="A short bio.")
     JCOMProfile.objects.filter(pk=user.pk).update(
         profession=PROFESSIONS[0][0],
-        records_scix="https://scixplorer.org/author/doe",
+        records_scix="",
         records_inspire="",
         records_arxiv="",
-        records_other="",
+        records_other="https://example.org/doe",
     )
     return _reload(user)
 
@@ -77,11 +81,11 @@ def _clear_links(user: Account) -> None:
     Account.objects.filter(pk=user.pk).update(facebook="", twitter="", linkedin="")
 
 
-# -- frozen references: the behavior this refactoring must preserve ----------------------------
+# -- reference implementations: the old validators, with the links restricted to what each journal shows (#3392) --
 
 
 def _old_jcom_validation(user) -> bool:
-    """`jcom_correspondence_author_validation` as in f84bae5c (duplicated `records_other` kept)."""
+    """`jcom_correspondence_author_validation` as in f84bae5c, links restricted to the fields JCOM shows (#3392)."""
     jcomprofile = user.jcomprofile
     is_active = user.is_active
     valid_professions = {choice[0] for choice in PROFESSIONS}
@@ -91,47 +95,31 @@ def _old_jcom_validation(user) -> bool:
         and jcomprofile.profession in valid_professions
         and user.biography,
     )
-    professional_data = bool(
-        jcomprofile.records_scix
-        or jcomprofile.records_inspire
-        or jcomprofile.records_arxiv
-        or jcomprofile.records_other
-        or user.facebook
-        or user.twitter
-        or user.linkedin
-        or jcomprofile.records_other,
-    )
+    professional_data = _has_jcom_links(user)
     return is_active and personal_data and professional_data
 
 
 def _old_jcap_validation(user) -> bool:
-    """`jcap_correspondence_author_validation` as in f84bae5c."""
+    """`jcap_correspondence_author_validation` as in f84bae5c, links restricted to the fields JCAP shows (#3392)."""
     is_active = user.is_active
     personal_data = user.first_name and user.email
-    jcomprofile = user.jcomprofile
-    professional_data = user.affiliation() and bool(
-        jcomprofile.records_scix
-        or jcomprofile.records_inspire
-        or jcomprofile.records_arxiv
-        or jcomprofile.records_other
-        or user.facebook
-        or user.twitter
-        or user.linkedin
-        or jcomprofile.records_other,
-    )
+    professional_data = user.affiliation() and _has_jcap_links(user)
     return is_active and personal_data and professional_data
 
 
-def _has_professional_links(user) -> bool:
+def _has_jcom_links(user) -> bool:
+    """Links JCOM/JCOMAL show (#3392): records_other and the social handles."""
+    return bool(user.jcomprofile.records_other or user.facebook or user.twitter or user.linkedin)
+
+
+def _has_jcap_links(user) -> bool:
+    """Links JCAP shows (#3392): the records fields."""
     jcomprofile = user.jcomprofile
     return bool(
         jcomprofile.records_scix
         or jcomprofile.records_inspire
         or jcomprofile.records_arxiv
         or jcomprofile.records_other
-        or user.facebook
-        or user.twitter
-        or user.linkedin,
     )
 
 
@@ -148,7 +136,7 @@ def _old_jcom_missing_fields(user) -> list[str]:
         missing.append("Profession")
     if not user.biography:
         missing.append("Biography")
-    if not _has_professional_links(user):
+    if not _has_jcom_links(user):
         missing.append(str(PROFESSIONAL_LINKS_LABEL))
     return missing
 
@@ -164,7 +152,7 @@ def _old_jcap_missing_fields(user) -> list[str]:
         missing.append("Email")
     if not user.affiliation():
         missing.append("Affiliation")
-    if not _has_professional_links(user):
+    if not _has_jcap_links(user):
         missing.append(str(PROFESSIONAL_LINKS_LABEL))
     return missing
 
@@ -396,6 +384,103 @@ def test_jcap_missing_fields_lists_exactly_what_is_missing(user: Account):
     _clear_links(user)
     missing = missing_required_fields(_reload(valid_user), _journal("JCAP"))
     assert [str(field) for field in missing] == ["First name", "Affiliation", str(PROFESSIONAL_LINKS_LABEL)]
+
+
+# -- professional links count per journal (#3392) -----------------------------------------------
+
+LINKS_LABEL = str(PROFESSIONAL_LINKS_LABEL)
+
+
+def _missing_labels(user: Account, code: str) -> list[str]:
+    return [str(label) for label in missing_required_fields(_reload(user), _journal(code))]
+
+
+def _set_link(user: Account, field: str) -> None:
+    """Set one link field, wherever it lives (JCOMProfile for the records, Account for the social handles)."""
+    if field.startswith("records_"):
+        JCOMProfile.objects.filter(pk=user.pk).update(**{field: "https://example.org/doe"})
+    else:
+        Account.objects.filter(pk=user.pk).update(**{field: "https://example.org/doe"})
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("code", ["JCOM", "JCOMAL"])
+@pytest.mark.parametrize("field", ["records_scix", "records_inspire", "records_arxiv"])
+def test_jcom_validation_hidden_records_alone_fail(user: Account, code, field):
+    """JCOM/JCOMAL do not show SciX, INSPIRE and arXiv: a value there must not make the author eligible."""
+    _make_jcom_valid(user)
+    _clear_links(user)
+    _set_link(user, field)
+    assert not jcom_correspondence_author_validation(_reload(user), _journal(code))
+    assert LINKS_LABEL in _missing_labels(user, code)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("field", ["facebook", "twitter", "linkedin"])
+def test_jcap_validation_hidden_social_handles_alone_fail(user: Account, field):
+    """JCAP does not show the social handles: a value there must not make the author eligible."""
+    _make_jcap_valid(user)
+    _clear_links(user)
+    _set_link(user, field)
+    assert not jcap_correspondence_author_validation(_reload(user), _journal("JCAP"))
+    assert LINKS_LABEL in _missing_labels(user, "JCAP")
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("field", ["records_scix", "records_inspire", "records_arxiv", "records_other"])
+def test_jcap_validation_each_records_field_alone_passes(user: Account, field):
+    _make_jcap_valid(user)
+    _clear_links(user)
+    _set_link(user, field)
+    assert jcap_correspondence_author_validation(_reload(user), _journal("JCAP"))
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("code", ["JCOM", "JCOMAL"])
+@pytest.mark.parametrize("field", ["records_other", "facebook", "twitter", "linkedin"])
+def test_jcom_validation_each_visible_link_alone_passes(user: Account, code, field):
+    _make_jcom_valid(user)
+    _clear_links(user)
+    _set_link(user, field)
+    assert jcom_correspondence_author_validation(_reload(user), _journal(code))
+
+
+@pytest.mark.django_db
+def test_jcap_validation_social_handle_and_records_passes(user: Account):
+    """The hidden handle is simply ignored: the visible records field is enough."""
+    _make_jcap_valid(user)
+    _clear_links(user)
+    _set_link(user, "facebook")
+    _set_link(user, "records_arxiv")
+    assert jcap_correspondence_author_validation(_reload(user), _journal("JCAP"))
+
+
+@pytest.mark.django_db
+def test_whitelisted_user_with_hidden_link_only_is_eligible(user: Account, journal_factory):
+    jcap = journal_factory("JCAP")
+    _make_jcap_valid(user)
+    _clear_links(user)
+    _set_link(user, "facebook")
+    assert not is_user_eligible_for_correspondence_author(jcap, _reload(user))
+    WhitelistedCorrespondenceAuthors.objects.create(user=user, journal=jcap)
+    assert is_user_eligible_for_correspondence_author(jcap, _reload(user))
+
+
+@pytest.mark.django_db
+def test_fallback_journal_does_not_require_links(user: Account):
+    _clear_links(user)
+    assert LINKS_LABEL not in _missing_labels(user, "JQuant")
+
+
+def test_links_entries_keep_a_jcomprofile_path_first():
+    """A user without a JCOMProfile must raise instead of passing through a social handle."""
+    for code in ("JCOM", "JCOMAL", "JCAP"):
+        entry = next(
+            entry
+            for entry in settings.SUBMISSION_CORRESPONDENCE_AUTHOR_REQUIRED_FIELDS[code]
+            if entry.get("profile", {}).get("section") == "core_edit_profile_additional"
+        )
+        assert entry["paths"][0].startswith("jcomprofile."), code
 
 
 # -- settings -----------------------------------------------------------------------------------
