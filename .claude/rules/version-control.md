@@ -179,6 +179,17 @@ describe them under `### Actions details`. The MR title and description are alwa
 in **English**. Let the user validate the description and the **target branch**
 before opening the MR — never assume or pick the target branch yourself.
 
+**Labels — `State: QA` always.** Whatever other `State:` (or workflow-suggested) label
+the flow, a skill or a template proposes for the MR, apply `State: QA` **instead of**
+it — never a different state label — unless the user explicitly says otherwise for
+that MR.
+
+**Main issue.** The `## Issues Items` list must always contain at least one entry
+prefixed with `main: ` (e.g. `* main: wjs-profile-project#2931`). Always propose to
+the user which linked issue is the best candidate (the one the MR primarily
+resolves) and why; the user may tell you to drop the `main: ` prefix, but never
+skip the proposal and never open the MR without one `main: ` entry unless they say so.
+
 ## pre-commit
 
 - Install once, globally: `pipx install pre-commit`.

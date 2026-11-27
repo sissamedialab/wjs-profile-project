@@ -42,6 +42,14 @@ article ends up in a state WJS could legitimately have produced on its own.
 - **`import_editor_keywords.py`** — editors' wjapp role/workload/keyword
   import, shared by its own management command; independent of the article
   importer.
+- **`import_keywords.py`** — shared, pure keyword logic used by both the
+  article importer and `import_editor_keywords.py`: `normalize_keyword()`/
+  `merge_editor_keywords()` dedup wjapp's keyword rows (same word can appear
+  more than once, e.g. one available/one not - see wjs/specs#3449), and
+  `get_or_create_import_keyword()` is the single get-or-create/link/group path
+  shared by all three keyword-creation call sites, so a keyword is always
+  created and grouped the same way regardless of which import path first
+  encounters it (wjs/specs#3477).
 
 ## History-correction patterns (in order of first choice)
 

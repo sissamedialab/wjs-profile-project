@@ -19,6 +19,13 @@
       {% include "admin/core/affiliation_list_display_with_actions.html" with interface=object article=None %}
     </div>
 
+    {% if back_to_submission_url %}
+      <div class="wjs-profile-form__footer d-flex justify-content-end">
+        <a class="btn btn-outline-primary mb-3" href="{% url "core_edit_profile_back_to_submission" %}">
+          <i class="bi bi-arrow-left"></i> {% translate "Back to submission" %}
+        </a>
+      </div>
+    {% endif %}
   </form>
 
 {% endblock profile_form %}

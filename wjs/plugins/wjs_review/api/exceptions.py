@@ -70,3 +70,10 @@ class GalleyGenerationFailed(ApiError):
 
     status_code = status.HTTP_502_BAD_GATEWAY
     error_code = "GALLEY_GENERATION_FAILED"
+
+
+class TranslationGalleysPresent(ApiError):
+    """The paper has translation galleys, that the entry point would lose."""
+
+    status_code = status.HTTP_409_CONFLICT
+    error_code = "TRANSLATION_GALLEYS_PRESENT"

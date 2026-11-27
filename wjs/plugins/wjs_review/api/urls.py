@@ -9,6 +9,7 @@ from .views import (
     RedocUIView,
     SchemaView,
     SwaggerUIView,
+    TranslationGalleysView,
     TypesetterPapersListView,
 )
 
@@ -17,6 +18,12 @@ urlpatterns = [
     # GET downloads the published sources; PUT replaces them and regenerates the galleys.
     path("article/<int:pk>/zip/", ArticleZipView.as_view(), name="article-zip"),
     path("article/<int:pk>/galleys/", ArticleGalleyListView.as_view(), name="article-galleys"),
+    # GET builds the galleys of the paper's translation, without saving anything (specs#990).
+    path(
+        "article/<int:pk>/translation-galleys/",
+        TranslationGalleysView.as_view(),
+        name="article-translation-galleys",
+    ),
     path("article/<int:pk>/galley/<str:file_type>/", ArticleGalleyView.as_view(), name="article-galley"),
     path(
         "article/<int:pk>/galley/<str:file_type>/<int:sequence>/",
