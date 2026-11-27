@@ -1,0 +1,19 @@
+{% load i18n %}
+{% comment %}
+  Copy button rendered at the top of the author notes modal (via the shared modal's `include_path`).
+  Must be rendered inside a `[data-copy-root]` element that also holds the source <template>. The click is handled by js/clipboard_copy.js.
+{% endcomment %}
+{% translate "Copy" as copy_label %}
+{% translate "Copied" as copied_label %}
+{% translate "Copy failed: please select the text manually." as copy_error %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <button type="button"
+          class="btn btn-sm btn-outline-secondary"
+          data-copy-source="template[data-author-notes-source]"
+          data-copy-label="{{ copy_label }}"
+          data-copied-label="{{ copied_label }}">
+    <i class="bi bi-clipboard" aria-hidden="true"></i>
+    <span data-copy-label-text>{{ copy_label }}</span>
+  </button>
+  <span class="text-danger small" role="alert" data-copy-error hidden>{{ copy_error }}</span>
+</div>
