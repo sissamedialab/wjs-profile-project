@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.1.15] - 2026-11-27
+
+- [specs#3482: Change "View only with Action Required" in wjs-review lists to a django-filter backend filter](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3482) — docs: prefer queryset methods for queryset filter helpers (!1667)
+- [specs#3477: Fix 9 imported keywords not available in wjapp](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3477) — fix(import): consolidate keyword creation (dedup, visibility, group) across all wjapp import paths (!1648)
+- [specs#3449: verify and handle import editor associations and keyword when wjapp data duplicated](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3449) — fix(import): consolidate keyword creation (dedup, visibility, group) across all wjapp import paths (!1648)
+- [specs#3493: improvement and fixes of import procedure for next journals](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3493) — fix(import): consolidate keyword creation (dedup, visibility, group) across all wjapp import paths (!1648)
+- [specs#3474: recommendations for the 2002-2024 JCAP import](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3474) — fix(import): consolidate keyword creation (dedup, visibility, group) across all wjapp import paths (!1648)
+- [specs#2728: As a user i want to know exactly which fields must be populated to pass validation](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/2728) — fix: fix missing back to submission link for affiliation (!1639)
+- [specs#3462: Fix import: article.stage/articleworkflow.state not finalized for some "awaiting editor" (TO_BE_ASS_TO_ED) papers](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3462) — fix(import): finalize stage/state for TO_BE_ASS_TO_ED and WITHDRAWN papers (specs#3462) (!1652)
+- [wjs-help#225: JCAP_8482 - status is incorrect + wrong submission steps](https://gitlab.sissamedialab.it/wjs/wjs-help/-/work_items/225) — fix(import): finalize stage/state for TO_BE_ASS_TO_ED and WITHDRAWN papers (specs#3462) (!1652)
+- [specs#3493: improvement and fixes of import procedure for next journals](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3493) — fix(import): finalize stage/state for TO_BE_ASS_TO_ED and WITHDRAWN papers (specs#3462) (!1652)
+- [specs#3298: Non-latex complaiant titles can break editor/revier reports](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3298) — fix(wjs_review): add latex_safe filter for titles in LaTeX templates (!1664)
+- [specs#990: As typesetter, I want test-galley-generation, to produce PDF and EPUB of translations](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/990) — feat(wjs_review): API entry point for the galleys of translations (!1631)
+- [specs#3398: Typesetter uploads: enforce the TeX naming convention for papers with translations](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3398) — feat(wjs_review): API entry point for the galleys of translations (!1631)
+- [specs#3399: Evaluate helper .tex files in the typesetter's archive](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3399) — feat(wjs_review): API entry point for the galleys of translations (!1631)
+- [specs#3400: Refactor the jcomassistant calls duplicated by the translation-galleys API](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3400) — feat(wjs_review): API entry point for the galleys of translations (!1631)
+- [specs#3408: Add Action on article page to simulate the generation of the galleys of translations using the existing API](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3408) — feat(wjs_review): API entry point for the galleys of translations (!1631)
+- No linked issue — docs(rules): always use State: QA label and propose a main: issue (!1658)
+- [specs#3293: Reminder tests fail between 22:00 and 24:00 UTC: dates computed on the UTC date instead of the local one](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3293) — test(wjs_review): compare the local date in the strip_report_preambles test (!1657)
+
 ## [2.1.14] - 2026-11-24
 
 - [specs#3459: Reminders email messages include the "sender" name](https://gitlab.sissamedialab.it/wjs/specs/-/work_items/3459) — fix(wjs_review): hide the editor's name from the From header of reminders to authors (!1647)
