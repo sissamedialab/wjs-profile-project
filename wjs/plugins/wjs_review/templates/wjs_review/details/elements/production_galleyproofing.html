@@ -28,9 +28,12 @@
           <h{{ heading_level|add:1 }} class="h6 fw-bold">
             <i class="bi bi-journals pe-2"></i> {% translate "Author notes" %}
           </h{{ heading_level|add:1 }}>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2" data-copy-root>
             {% bootstrap_button button_class="btn-outline-primary" data_bs_toggle="modal" data_bs_target=target_author_notes_id content=notes_label %}
-            {% include "wjs_review/base/elements/modal.html" with modal_id=author_notes_id modal_title=notes_label modal_body=version.galleyproofing.notes|safe %}
+            {% include "wjs_review/base/elements/modal.html" with modal_id=author_notes_id modal_title=notes_label modal_size="modal-xl" modal_body=version.galleyproofing.notes|safe include_path="wjs_review/details/elements/author_notes_copy_button.html" %}
+            {# Unrendered notes HTML for the Copy button: the modal body has linebreaksbr applied, which splits lists. #}
+            {# No id: the same version can be rendered twice on a page, so the button looks inside its own copy root. #}
+            <template data-author-notes-source>{{ version.galleyproofing.notes|safe }}</template>
           </div>
         </div>
       {% endwith %}
