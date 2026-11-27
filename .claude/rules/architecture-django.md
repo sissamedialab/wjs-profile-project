@@ -19,6 +19,13 @@ in custom queryset attached to each model. Avoid filtering directly against `.ob
 logic classes — always go through a queryset method defined on the model's manager, so the filtering logic stays
 in one place and is reusable and testable in isolation.
 
+Functions that build a filter or an annotation for the queryset's own model (for example an `Exists` subquery
+used by a `with_…()` or `…_filter()` method) should preferably be methods of that queryset, not module-level
+functions next to it: the rule stays beside the code that uses it and subclasses can override it. Keep them private
+(`_name`) unless something else needs them. Exceptions: you are explicitly told to structure it differently, or the
+helper is also used outside the queryset and keeping it there would make that reuse more complicated. In that case a
+module-level function or a shared mixin is fine.
+
 ## Forms architecture
 
 Forms must be used directly in case the form job is to:
