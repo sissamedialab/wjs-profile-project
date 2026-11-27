@@ -27,6 +27,37 @@ class ArticleWorkflowQuerySet(models.QuerySet):
         """
         return self.exclude(Q(article__frozenauthor__author=user) | Q(article__correspondence_author=user))
 
+    def _active_ac_exists(self, user: Account, journal: "Journal") -> Exists:
+        """Return the condition "the user has an active attention condition on the workflow's article".
+
+        It is the rule that highlights a row in the paper lists: an active AC, unread messages included, among the
+        ones the user can see (see :py:meth:`AttentionConditionQuerySet.visible_to`). The filter and the annotation
+        share it, so they cannot disagree.
+        """
+        from .models import AttentionCondition
+
+        return Exists(
+            AttentionCondition.objects.active().visible_to(user, journal).filter(article_id=OuterRef("article_id"))
+        )
+
+    def with_has_ac(self, user: Account, journal: "Journal") -> "ArticleWorkflowQuerySet":
+        """Annotate each workflow with ``has_ac``: the user has an active attention condition on its article.
+
+        :param user: the user looking at the list
+        :param journal: the journal of the list, to identify the EO system user
+        :return: the workflows, each with the boolean ``has_ac``
+        """
+        return self.annotate(has_ac=self._active_ac_exists(user, journal))
+
+    def requiring_attention(self, user: Account, journal: "Journal") -> "ArticleWorkflowQuerySet":
+        """Keep the workflows whose article has an active attention condition visible to the user.
+
+        :param user: the user looking at the list
+        :param journal: the journal of the list, to identify the EO system user
+        :return: the workflows that require the user's attention
+        """
+        return self.filter(self._active_ac_exists(user, journal))
+
     def get_article_with_latest_round(self, mode: str = None) -> QuerySet:
         """
         Returns the queryset annotated with the latest round for each article. The method has four different modes,

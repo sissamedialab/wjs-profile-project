@@ -345,10 +345,12 @@ class ArticleWorkflowBaseMixin(BaseRelatedViewsMixin, PaginatedViewMixin, ListVi
         return base_qs
 
     def get_queryset(self):
-        """Filter article by state and filterset values."""
+        """Filter article by state and filterset values, annotating each one with ``has_ac`` for the user."""
         base_qs = self.model._default_manager.select_related("article").all()
         base_qs = self._apply_base_filters(base_qs)
         base_qs = self._annotate_last_revision_date(base_qs)
+        if self.request.user.is_authenticated:
+            base_qs = base_qs.with_has_ac(self.request.user, self.request.journal)
         if "editor_sorting" in self.get_ordering() or "-editor_sorting" in self.get_ordering():
             base_qs = self._annotate_editor(base_qs)
         elif "typesetter_sorting" in self.get_ordering() or "-typesetter_sorting" in self.get_ordering():
@@ -490,14 +492,19 @@ class EOPending(ArticleWorkflowBaseMixin):
         return base_permissions.has_admin_role(self.request.journal, self.request.user)
 
     def load_initial(self, request, *args, **kwargs):
-        """Setup and validate filterset data."""
+        """Apply the EO defaults ("EO in charge", "View only with Action Required"), then setup the filterset."""
         data = self.request.GET.copy()
+        # A search or a choice of the "View All" / "View only with Action Required" buttons means the user has chosen:
+        # no default is applied then.
+        user_has_chosen = bool(self.request.GET.get("search")) or "action_required" in self.request.GET
         if (
             base_permissions.has_eo_with_workload_role(request.journal, request.user)
-            and not self.request.GET.get("search")
+            and not user_has_chosen
             and self.prefilter_by_eo
         ):
-            data["eo_in_charge"] = request.user
+            # The pk, not the object: the links of the page (sort headers, pagination) are built from this querystring.
+            data["eo_in_charge"] = str(request.user.pk)
+            data["action_required"] = "1"
         self.request.GET = data
         super().load_initial(request, *args, **kwargs)
 

@@ -1,30 +1,21 @@
-{% load django_bootstrap5 %}
-
+{% load django_bootstrap5 i18n %}
+{% translate "View All" as view_all_label %}
+{% translate "View only with Action Required" as view_only_label %}
+{% translate "Select visibility" as visibility_label %}
 <div class="row">
   <div class="col-sm-12">
-    <div class="btn-group" role="group" aria-label="Select visibility">
-      {% bootstrap_button button_type="button" id="selectAll" button_class="btn-primary" layout="floating" content="View All" size="sm" %}
-      {% bootstrap_button button_type="button" id="selectAction" button_class="btn-outline-primary" layout="floating" content="View only with Action Required (current page)" size="sm" %}
+    {# Search and Enter submit the form without a button value: keep the current choice. A clicked button comes later and wins. #}
+    {% if request.GET.action_required == "0" or request.GET.action_required == "1" %}
+      <input type="hidden" name="action_required" value="{{ request.GET.action_required }}">
+    {% endif %}
+    <div class="btn-group" role="group" aria-label="{{ visibility_label }}">
+      {% if request.GET.action_required == "1" %}
+        {% bootstrap_button button_type="submit" id="selectAll" name="action_required" value="0" aria_pressed="false" button_class="btn-outline-primary" layout="floating" content=view_all_label size="sm" %}
+        {% bootstrap_button button_type="submit" id="selectAction" name="action_required" value="1" aria_pressed="true" button_class="btn-primary" layout="floating" content=view_only_label size="sm" %}
+      {% else %}
+        {% bootstrap_button button_type="submit" id="selectAll" name="action_required" value="0" aria_pressed="true" button_class="btn-primary" layout="floating" content=view_all_label size="sm" %}
+        {% bootstrap_button button_type="submit" id="selectAction" name="action_required" value="1" aria_pressed="false" button_class="btn-outline-primary" layout="floating" content=view_only_label size="sm" %}
+      {% endif %}
     </div>
   </div>
 </div>
-<script>
-  document.getElementById("selectAll").addEventListener("click", function() {
-    document.querySelectorAll('tr.visually-hidden').forEach((item) => {
-      console.log(item)
-      item.classList.remove('visually-hidden');
-      document.getElementById("selectAction").classList.replace('btn-primary', 'btn-outline-primary');
-      document.getElementById("selectAll").classList.replace('btn-outline-primary', 'btn-primary');
-    });
-  });
-  document.getElementById("selectAction").addEventListener("click", function() {
-    document.querySelectorAll('#papers > tbody > tr').forEach((item) => {
-      console.log(item)
-      if(!item.classList.contains('table-warning')) {
-        item.classList.add('visually-hidden');
-      }
-      document.getElementById("selectAll").classList.replace('btn-primary', 'btn-outline-primary');
-      document.getElementById("selectAction").classList.replace('btn-outline-primary', 'btn-primary');
-    });
-  });
-</script>

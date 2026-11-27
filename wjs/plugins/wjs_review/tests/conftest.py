@@ -21,6 +21,7 @@ from core.models import (
     Workflow,
     WorkflowElement,
 )
+from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.files import File as DjangoFile
@@ -40,6 +41,7 @@ from typesetting.models import GalleyProofing, TypesettingAssignment
 from utils import setting_handler
 from utils.install import update_settings
 
+from wjs.jcom_profile import constants
 from wjs.jcom_profile.tests.conftest import *  # noqa
 
 from .. import ac_service
@@ -1107,3 +1109,66 @@ def review_sections(journal: Journal, section_factory: Callable) -> list[Section
             ),
         )
     return sections
+
+
+@pytest.fixture
+def two_workflows(journal: Journal, create_submitted_articles: Callable) -> tuple[ArticleWorkflow, ArticleWorkflow]:
+    """Return two workflows of submitted articles (used by the "Action Required" filter tests)."""
+    articles = create_submitted_articles(journal, count=2)
+    return articles[0].articleworkflow, articles[1].articleworkflow
+
+
+@pytest.fixture
+def in_review_workflows(
+    two_workflows: tuple[ArticleWorkflow, ArticleWorkflow]
+) -> tuple[ArticleWorkflow, ArticleWorkflow]:
+    """Return the two workflows, both in a state shown by the EO "Pending" list."""
+    for workflow in two_workflows:
+        workflow.state = ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+        workflow.save()
+    return two_workflows
+
+
+@pytest.fixture
+def three_in_review(journal: Journal, create_submitted_articles: Callable) -> list[ArticleWorkflow]:
+    """Return three workflows shown by the EO "Pending" list, the first one being the oldest."""
+    workflows = []
+    for days, article in zip((30, 20, 10), create_submitted_articles(journal, count=3)):
+        article.title = f"Paper submitted {days} days ago"
+        article.date_submitted = timezone.now() - timedelta(days=days)
+        article.save()
+        workflow = article.articleworkflow
+        workflow.state = ArticleWorkflow.ReviewStates.EDITOR_SELECTED
+        workflow.save()
+        workflows.append(workflow)
+    return workflows
+
+
+@pytest.fixture
+def ac_user(create_jcom_user: Callable) -> Account:
+    """Return a user, with no EO role, whose attention conditions the tests look at."""
+    return create_jcom_user("ac_editor").janeway_account
+
+
+@pytest.fixture
+def eo_human(create_jcom_user: Callable, eo_group: Group, journal: Journal) -> Account:
+    """Return an EO person (a member of the EO group, enrolled in the journal) with no workload on it."""
+    eo = create_jcom_user("eo_human")
+    eo.groups.add(eo_group)
+    eo.add_account_role(constants.SECTION_EDITOR_ROLE, journal)
+    return eo.janeway_account
+
+
+@pytest.fixture
+def user_for_role(create_jcom_user: Callable, eo_group: Group, journal: Journal) -> Callable[[str], Account]:
+    """Return a function that creates a user with the given role (an EO person for "eo", with no workload)."""
+
+    def _create(role: str) -> Account:
+        user = create_jcom_user(role)
+        if role == "eo":
+            user.groups.add(eo_group)
+        else:
+            user.add_account_role(role, journal)
+        return user.janeway_account
+
+    return _create

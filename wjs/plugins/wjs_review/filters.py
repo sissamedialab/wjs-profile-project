@@ -156,6 +156,14 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
         empty_label=_("All"),
     )
 
+    action_required = django_filters.ChoiceFilter(
+        field_name="pk",
+        method="filter_action_required",
+        label=_("Action required"),
+        choices=(("1", _("View only with Action Required")), ("0", _("View All"))),
+    )
+    """Not rendered as a field: the "View All" / "View only with Action Required" buttons submit the value."""
+
     class Meta:
         model = ArticleWorkflow
         fields = ["article", "language", "keywords", "section"]
@@ -292,6 +300,29 @@ class BaseArticleWorkflowFilter(django_filters.FilterSet):
             return queryset.waiting_for_decision()
         if value:
             return queryset.filter(**{name: value})
+        return queryset
+
+    def filter_action_required(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
+        """
+        Keep only the papers that require the current user's attention, when asked to.
+
+        :param queryset: the queryset to filter
+        :type queryset: QuerySet
+        :param name: name of the filter (unused: the rule does not depend on a field)
+        :type name: str
+        :param value: "1" to keep only the papers with an active attention condition for the user, "0" for all papers
+        :type value: str
+
+        :return: the filtered queryset
+        :rtype: QuerySet
+        """
+        if value == "1":
+            if not self.request.user.is_authenticated:
+                return queryset.none()
+            if "has_ac" in queryset.query.annotations:
+                # The list views annotate every row: reuse it, building the rule costs two lookups (EO role, EO user).
+                return queryset.filter(has_ac=True)
+            return queryset.requiring_attention(self.request.user, self._journal)
         return queryset
 
     def filter_user(self, queryset: QuerySet, name: str, value: str) -> QuerySet:
